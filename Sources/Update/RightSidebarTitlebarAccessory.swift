@@ -9,6 +9,9 @@ struct RightSidebarTitlebarToggleView: View {
     @State private var keyboardShortcutSettingsObserver = KeyboardShortcutSettingsObserver.shared
     @State private var appearanceRefreshTick = 0
 
+    @AppStorage(AppearanceSettings.appearanceModeKey)
+    private var appearanceMode = AppearanceSettings.defaultMode.rawValue
+
     @AppStorage(TitlebarControlsStyle.storageKey)
     private var titlebarControlsStyleRawValue = TitlebarControlsStyle.defaultRawValue
 
@@ -19,6 +22,7 @@ struct RightSidebarTitlebarToggleView: View {
     var body: some View {
         let _ = keyboardShortcutSettingsObserver.revision
         let _ = appearanceRefreshTick
+        let _ = appearanceMode
         TitlebarControlButton(
             config: config,
             foregroundColor: Color(nsColor: titlebarControlForegroundNSColor(opacity: 1.0)),
