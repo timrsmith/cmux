@@ -6,6 +6,8 @@ import SwiftUI
 struct RightSidebarTitlebarToggleView: View {
     let action: () -> Void
 
+    @State private var keyboardShortcutSettingsObserver = KeyboardShortcutSettingsObserver.shared
+
     @AppStorage(TitlebarControlsStyle.storageKey)
     private var titlebarControlsStyleRawValue = TitlebarControlsStyle.defaultRawValue
 
@@ -14,6 +16,7 @@ struct RightSidebarTitlebarToggleView: View {
     }
 
     var body: some View {
+        let _ = keyboardShortcutSettingsObserver.revision
         TitlebarControlButton(
             config: config,
             foregroundColor: Color(nsColor: titlebarControlForegroundNSColor(opacity: 1.0)),
