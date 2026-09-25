@@ -7,6 +7,7 @@ struct RightSidebarTitlebarToggleView: View {
     let action: () -> Void
 
     @State private var keyboardShortcutSettingsObserver = KeyboardShortcutSettingsObserver.shared
+    @State private var appearanceRefreshTick = 0
 
     @AppStorage(TitlebarControlsStyle.storageKey)
     private var titlebarControlsStyleRawValue = TitlebarControlsStyle.defaultRawValue
@@ -17,6 +18,7 @@ struct RightSidebarTitlebarToggleView: View {
 
     var body: some View {
         let _ = keyboardShortcutSettingsObserver.revision
+        let _ = appearanceRefreshTick
         TitlebarControlButton(
             config: config,
             foregroundColor: Color(nsColor: titlebarControlForegroundNSColor(opacity: 1.0)),
@@ -31,6 +33,12 @@ struct RightSidebarTitlebarToggleView: View {
                 String(localized: "rightSidebar.toggle.tooltip", defaultValue: "Toggle right sidebar")
             )
         )
+        .onReceive(NotificationCenter.default.publisher(for: .ghosttyDefaultBackgroundDidChange)) { _ in
+            appearanceRefreshTick &+= 1
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ghosttyChromeConfigurationDidChange)) { _ in
+            appearanceRefreshTick &+= 1
+        }
     }
 }
 
