@@ -23,9 +23,17 @@ const FILE_ACTION_ICON: Record<FileWriteAction, IconName> = {
 
 // The header slot lives inside Pierre's clickable file header, whose click
 // toggles collapse. Stop the pointer sequence at the action cluster so a
-// button press never doubles as a header toggle.
+// button press never doubles as a header toggle. Keys pass through, except
+// the two that would activate the header: the document-level Escape and
+// Cmd+F listeners must still see a key pressed on these buttons.
 function stopHeaderPropagation(event: React.SyntheticEvent): void {
   event.stopPropagation();
+}
+
+function stopHeaderToggleKeys(event: React.KeyboardEvent): void {
+  if (event.key === "Enter" || event.key === " ") {
+    event.stopPropagation();
+  }
 }
 
 export function FileWriteActions({
@@ -50,7 +58,7 @@ export function FileWriteActions({
       data-pending={pending ? "true" : "false"}
       onClick={stopHeaderPropagation}
       onPointerDown={stopHeaderPropagation}
-      onKeyDown={stopHeaderPropagation}
+      onKeyDown={stopHeaderToggleKeys}
     >
       {confirming ? (
         <RevertConfirmation

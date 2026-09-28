@@ -179,6 +179,8 @@ extension TerminalControllerSocketSecurityTests {
         let invalidCases: [(String, String)] = [
             ("right_sidebar", "Usage: right_sidebar"),
             ("right_sidebar set", "Usage: right_sidebar set"),
+            // The accepted `changes` aliases are part of the usage text.
+            ("right_sidebar set", "changes|diff|git|custom"),
             ("right_sidebar set unknown", "Unknown right sidebar mode"),
             ("right_sidebar show --no-focus", "Usage: right_sidebar show"),
             ("right_sidebar files --no-focus", "--no-focus is only valid"),

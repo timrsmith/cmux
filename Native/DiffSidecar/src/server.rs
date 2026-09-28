@@ -46,7 +46,8 @@ use crate::manifest::{
 };
 use crate::protocol::{
     BranchListResult, DiffCommand, DiffRequest, DiffResourceRef, DiffResponse, DiffResult,
-    DiffSource, NavigationResult, OpenSessionRequest, SessionOpened, SessionRequest, handshake,
+    DiffSource, DiffSourceKind, NavigationResult, OpenSessionRequest, RpcTransport, SessionOpened,
+    SessionRequest, handshake,
 };
 use crate::worktree;
 #[cfg(feature = "http-server")]
@@ -133,6 +134,12 @@ pub(crate) struct SessionOwner {
     /// sessions never carry one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) repo_root: Option<String>,
+    /// The source kind the session was opened with. Write commands require
+    /// it to equal the kind they name, so a branch (or patch) session can
+    /// never authorize an index or working-tree mutation. A descriptor
+    /// written before this field existed has none and fails closed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) source_kind: Option<DiffSourceKind>,
 }
 // Branch regeneration runs Git commands with 60-second deadlines, then writes
 // the page, patch, assets, and manifest. Keep the outer safety deadline above
@@ -259,7 +266,7 @@ async fn run_rpc_request(config: ServerConfig) -> Result<(), String> {
             let state = app_state(config, 0)?;
             #[cfg(not(feature = "http-server"))]
             let state = app_state(config, 0);
-            handle_protocol_request(request, Some(&state)).await
+            handle_protocol_request(request, Some(&state), RpcTransport::Stdio).await
         }
         RpcRequestRead::Rejected(response) => response,
     };
@@ -414,7 +421,8 @@ async fn rpc(
     if request.command.is_worktree_write() {
         return Json(reject_worktree_write(request.id)).into_response();
     }
-    Json(handle_protocol_request(request, Some(&state)).await).into_response()
+    Json(handle_protocol_request(request, Some(&state), RpcTransport::Loopback).await)
+        .into_response()
 }
 
 /// Working-tree mutations are only reachable through the native stdio
@@ -457,7 +465,7 @@ async fn handle_websocket(mut socket: WebSocket, state: AppState) {
                 let response = if request.command.is_worktree_write() {
                     reject_worktree_write(request.id)
                 } else {
-                    handle_protocol_request(request, Some(&state)).await
+                    handle_protocol_request(request, Some(&state), RpcTransport::Loopback).await
                 };
                 let Ok(encoded) = serde_json::to_string(&response) else {
                     break;
@@ -477,7 +485,11 @@ async fn handle_websocket(mut socket: WebSocket, state: AppState) {
     }
 }
 
-async fn handle_protocol_request(request: DiffRequest, state: Option<&AppState>) -> DiffResponse {
+async fn handle_protocol_request(
+    request: DiffRequest,
+    state: Option<&AppState>,
+    transport: RpcTransport,
+) -> DiffResponse {
     if request.version != PROTOCOL_VERSION {
         return DiffResponse::failure(
             request.id,
@@ -486,7 +498,7 @@ async fn handle_protocol_request(request: DiffRequest, state: Option<&AppState>)
         );
     }
     if matches!(request.command, DiffCommand::ProtocolHandshake) {
-        return handshake(request.id);
+        return handshake(request.id, transport);
     }
     let Some(state) = state else {
         return DiffResponse::failure(request.id, "hostUnavailable", "Host unavailable");
@@ -582,7 +594,7 @@ async fn worktree_response(
 ) -> DiffResponse {
     match tokio::time::timeout(SESSION_OPEN_TIMEOUT, write).await {
         Ok(Ok(result)) => DiffResponse::success(id, result),
-        Ok(Err(error)) => DiffResponse::failure(id, error.code(), error.message()),
+        Ok(Err(error)) => DiffResponse::failure(id, error.code(), &error.message()),
         Err(_) => DiffResponse::failure(
             id,
             worktree::WriteError::Failed.code(),
@@ -667,6 +679,7 @@ async fn open_session(
         &session_id,
         &params.capability_token,
         Some(&canonical_repo),
+        Some(params.source.kind()),
     )
     .map_err(|_| SessionOpenError::Failed)?;
     reserve_session_temp(&state.config.root, &temporary_path)
@@ -1406,6 +1419,7 @@ fn reserve_session_owner(
     session_id: &str,
     token: &str,
     repo_root: Option<&Path>,
+    source_kind: Option<DiffSourceKind>,
 ) -> Result<PathBuf, String> {
     let directory = session_owner_directory(root);
     std::fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
@@ -1420,6 +1434,7 @@ fn reserve_session_owner(
         session_id: session_id.to_owned(),
         capability_token: token.to_owned(),
         repo_root: repo_root.map(|path| path.to_string_lossy().into_owned()),
+        source_kind,
     };
     let bytes = serde_json::to_vec(&owner).map_err(|error| error.to_string())?;
     let mut file = OpenOptions::new()
@@ -2254,7 +2269,7 @@ pub async fn write_handshake_to_stdout() -> Result<(), String> {
         version: PROTOCOL_VERSION,
         command: DiffCommand::ProtocolHandshake,
     };
-    let response = handle_protocol_request(request, None).await;
+    let response = handle_protocol_request(request, None, RpcTransport::Stdio).await;
     let bytes = serde_json::to_vec(&response).map_err(|error| error.to_string())?;
     let mut stdout = tokio::io::stdout();
     stdout
@@ -2276,7 +2291,7 @@ mod tests {
     use tokio::io::AsyncWriteExt;
 
     use crate::PROTOCOL_VERSION;
-    use crate::protocol::{DiffCommand, DiffRequest, DiffResult};
+    use crate::protocol::{DiffCommand, DiffRequest, DiffResult, RpcTransport};
 
     use super::{
         AllowedFile, DiffSource, FileExt, Manifest, OpenOptions, RpcRequestRead, SessionOpenError,
@@ -2284,6 +2299,52 @@ mod tests {
         prune_orphaned_session_temp_files, read_rpc_request, register_session_temp,
         reserve_session_owner, run_git_patch_with_limit, valid_group_id,
     };
+
+    async fn handshake_capabilities(transport: RpcTransport) -> Vec<String> {
+        let response = handle_protocol_request(
+            DiffRequest {
+                id: "test".to_owned(),
+                version: PROTOCOL_VERSION,
+                command: DiffCommand::ProtocolHandshake,
+            },
+            None,
+            transport,
+        )
+        .await;
+        let Some(DiffResult::Handshake(handshake)) = response.result else {
+            panic!("expected handshake result");
+        };
+        handshake.capabilities
+    }
+
+    #[tokio::test]
+    async fn worktree_write_is_advertised_only_on_the_stdio_transport() {
+        let stdio = handshake_capabilities(RpcTransport::Stdio).await;
+        assert!(stdio.contains(&"worktree.write".to_owned()), "{stdio:?}");
+        let loopback = handshake_capabilities(RpcTransport::Loopback).await;
+        assert!(
+            !loopback.contains(&"worktree.write".to_owned()),
+            "{loopback:?}"
+        );
+        assert!(loopback.contains(&"transport.webkit".to_owned()));
+    }
+
+    #[test]
+    fn every_command_declares_its_transport_side() {
+        let write = |request: &str| {
+            let request: DiffRequest = serde_json::from_str(request).expect("decode");
+            request.command.is_worktree_write()
+        };
+        assert!(!write(
+            r#"{"id":"a","version":1,"method":"protocolHandshake"}"#
+        ));
+        assert!(!write(
+            r#"{"id":"a","version":1,"method":"sessionClose","params":{"sessionId":"s","capabilityToken":"t"}}"#
+        ));
+        assert!(write(
+            r#"{"id":"a","version":1,"method":"worktreeCommit","params":{"sessionId":"s","capabilityToken":"t","source":{"kind":"staged","repoRoot":"/r"},"message":"m"}}"#
+        ));
+    }
 
     #[tokio::test]
     async fn handshake_reports_transport_capabilities() {
@@ -2294,6 +2355,7 @@ mod tests {
                 command: DiffCommand::ProtocolHandshake,
             },
             None,
+            RpcTransport::Stdio,
         )
         .await;
         let Some(DiffResult::Handshake(handshake)) = response.result else {
@@ -2443,7 +2505,7 @@ mod tests {
         let token = "b".repeat(64);
         let temporary = root.join(format!(".diff-session-{session_id}.patch.tmp"));
         let final_path = root.join(format!("diff-session-{session_id}.patch"));
-        reserve_session_owner(&root, &session_id, &token, None).expect("reserve owner");
+        reserve_session_owner(&root, &session_id, &token, None, None).expect("reserve owner");
         register_session_temp(&root, &temporary).expect("index temporary name");
         std::fs::write(&final_path, b"private diff after rename").expect("write final patch");
         let page = root.join("index.html");

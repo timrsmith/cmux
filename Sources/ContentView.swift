@@ -1716,11 +1716,21 @@ struct ContentView: View {
                 )
             }
         } else {
+            // Trailing placement ignores the workspace sidebar's width, so no
+            // SidebarWidthReader here; the geometry still comes from the same
+            // enum as the leading branch so the two cannot drift apart.
             placedSidebarResizerOverlay(
                 handle: .explorerDivider,
-                edge: .trailing,
+                edge: RightSidebarPlacementLayout.resizerEdge(position: rightSidebarPosition),
                 accessibilityIdentifier: "RightSidebarResizer",
-                dividerX: { totalWidth in totalWidth - rightSidebarWidth }
+                dividerX: { totalWidth in
+                    RightSidebarPlacementLayout.dividerX(
+                        position: rightSidebarPosition,
+                        totalWidth: totalWidth,
+                        leadingSidebarWidth: 0,
+                        rightSidebarWidth: rightSidebarWidth
+                    )
+                }
             )
         }
     }

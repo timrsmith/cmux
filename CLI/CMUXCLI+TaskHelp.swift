@@ -303,7 +303,7 @@ extension CMUXCLI {
         themes [list|set|clear]
         import [<terminal>] [--dry-run] [--yes] [--path <file>] [--json]
         reload-config
-        right-sidebar <toggle|show|hide|focus|set|mode|files|find|vault|sessions|feed|dock|cloud|devices|changes> [--workspace <id|ref|index>] [--window <id|ref|index>] [--no-focus]
+        right-sidebar <toggle|show|hide|focus|set|mode|files|find|vault|sessions|feed|dock|cloud|devices|changes> [--workspace <id|ref|index>] [--window <id|ref|index>] [--no-focus] (changes aliases: diff, git)
         sidebar <templates|try|new|validate|reload|select|open> [name] [options]
         help
         """

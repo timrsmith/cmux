@@ -3,6 +3,7 @@
 // only renders what these helpers return, so visibility by source kind, hunk
 // identification, and the request envelopes are unit-testable without a DOM.
 
+import type { FileDiffMetadata, Hunk } from "@pierre/diffs";
 import type { DiffCommand } from "./diff/transport";
 import type {
   DiffSource,
@@ -46,12 +47,30 @@ export type WorktreeFileTarget = {
   previousPath?: string;
 };
 
-/** A Pierre `Hunk` reduced to the header ranges the sidecar matches on. */
-export type PierreHunkRanges = {
-  additionStart: number;
-  additionCount: number;
-  deletionStart: number;
-  deletionCount: number;
+/**
+ * A Pierre `Hunk` reduced to the header ranges the sidecar matches on, plus
+ * (when known) its content groups, which decide where the action row sits.
+ */
+export type PierreHunkRanges = Pick<
+  Hunk,
+  "additionStart" | "additionCount" | "deletionStart" | "deletionCount"
+> & {
+  hunkContent?: ReadonlyArray<Hunk["hunkContent"][number]>;
+};
+
+/**
+ * The slice of a file diff the write actions read: Pierre's metadata plus
+ * the git-parsed side names `filePath` falls back to. Parsed diffs from the
+ * stream carry every field; tests and defensive callers may pass less, and
+ * anything without a usable name has no target.
+ */
+export type WorktreeFileDiff = Partial<
+  Pick<FileDiffMetadata, "name" | "prevName">
+> & {
+  /** Checked for shape at runtime (`isHunkRanges`), so anything array-like is accepted. */
+  hunks?: readonly unknown[];
+  newName?: string;
+  oldName?: string;
 };
 
 export type HunkActionAnchor = {
@@ -132,7 +151,9 @@ export function commitAvailability(
  * unstage / revert can act on the pair; the sidecar validates the paths again
  * before touching Git.
  */
-export function worktreeFileTarget(fileDiff: any): WorktreeFileTarget | null {
+export function worktreeFileTarget(
+  fileDiff: WorktreeFileDiff | null | undefined,
+): WorktreeFileTarget | null {
   if (fileDiff == null || typeof fileDiff !== "object") {
     return null;
   }
@@ -157,14 +178,20 @@ export function hunkRefFromPierreHunk(hunk: PierreHunkRanges): HunkRef {
 }
 
 /**
- * Anchors a hunk's action row under the hunk's last line. Additions-side
- * numbering covers context and added lines; a hunk with no new-file lines
- * (a pure deletion at end of file) anchors on its last deleted line instead.
+ * Anchors a hunk's action row under the hunk's last rendered line. Pierre
+ * lays a change group out deletions first, then additions, so a hunk whose
+ * last group is deletions only ends on the deletions side and the row must
+ * anchor there to render under the hunk rather than above its tail.
+ * Otherwise the additions side (context and added lines) ends the hunk; a
+ * hunk with no new-file lines at all anchors on its last deleted line.
  */
 export function hunkActionAnchor(
   hunk: PierreHunkRanges,
 ): HunkActionAnchor | null {
-  if (hunk.additionCount > 0) {
+  const last = hunk.hunkContent?.at(-1);
+  const endsWithDeletions =
+    last?.type === "change" && last.additions === 0 && last.deletions > 0;
+  if (hunk.additionCount > 0 && !endsWithDeletions) {
     return {
       side: "additions",
       lineNumber: hunk.additionStart + hunk.additionCount - 1,
@@ -184,7 +211,9 @@ export function hunkActionAnchor(
 const hunkActionTargetsByFileDiff = new WeakMap<object, HunkActionTarget[]>();
 
 /** Hunks eligible for action rows, or an empty list past the per-file cap. */
-export function hunkActionTargets(fileDiff: any): HunkActionTarget[] {
+export function hunkActionTargets(
+  fileDiff: WorktreeFileDiff | null | undefined,
+): HunkActionTarget[] {
   if (fileDiff == null || typeof fileDiff !== "object") {
     return [];
   }
@@ -197,8 +226,8 @@ export function hunkActionTargets(fileDiff: any): HunkActionTarget[] {
   return targets;
 }
 
-function computeHunkActionTargets(fileDiff: any): HunkActionTarget[] {
-  const hunks = Array.isArray(fileDiff.hunks) ? fileDiff.hunks : [];
+function computeHunkActionTargets(fileDiff: WorktreeFileDiff): HunkActionTarget[] {
+  const hunks: readonly unknown[] = Array.isArray(fileDiff.hunks) ? fileDiff.hunks : [];
   if (
     hunks.length === 0 ||
     hunks.length > MAX_HUNK_ACTION_ANNOTATIONS_PER_FILE
@@ -206,7 +235,7 @@ function computeHunkActionTargets(fileDiff: any): HunkActionTarget[] {
     return [];
   }
   const targets: HunkActionTarget[] = [];
-  hunks.forEach((hunk: unknown, index: number) => {
+  hunks.forEach((hunk, index) => {
     if (!isHunkRanges(hunk)) {
       return;
     }
@@ -315,6 +344,7 @@ export function validateCommitMessage(raw: string): CommitMessageValidation {
 const WORKTREE_ERROR_LABEL: Record<string, DiffViewerLabelKey> = {
   staleHunk: "hunkStale",
   conflict: "worktreeConflict",
+  partialRevert: "worktreePartialRevert",
   nothingToCommit: "nothingToCommit",
   commitFailed: "commitFailed",
   invalidMessage: "commitMessageInvalid",
@@ -332,7 +362,11 @@ export function worktreeErrorLabelKey(
 }
 
 
-/** Whether a failed write left the on-disk state ahead of the rendered diff. */
+/**
+ * Whether a failed write left the on-disk state ahead of the rendered diff:
+ * a stale or conflicting hunk means the diff changed under the page, and a
+ * partial revert changed the index without the working tree.
+ */
 export function worktreeErrorReloads(code: string | undefined): boolean {
-  return code === "staleHunk" || code === "conflict";
+  return code === "staleHunk" || code === "conflict" || code === "partialRevert";
 }

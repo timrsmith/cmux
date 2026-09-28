@@ -94,6 +94,7 @@ struct FileExplorerGitStatusProviderTests {
             if [ "${GIT_OPTIONAL_LOCKS:-}" != "0" ]; then
                 exit 4
             fi
+            while [ "$1" = "-c" ]; do shift 2; done
             case "$1 $2" in
             "rev-parse --show-toplevel")
                 printf '%s\n' "$CMUX_TEST_REPO_ROOT"
@@ -281,7 +282,211 @@ struct FileExplorerGitStatusProviderTests {
         #expect(snapshot.deletedPathsByParent.count == 2)
     }
 
+    @Test
+    func untrackedDirectoryIsKeyedWithoutGitsTrailingSlash() throws {
+        // git prints an untracked directory as `?? newdir/`. The row for the
+        // directory itself must be colored, and its parent marks must start at
+        // the directory's parent, not one level above.
+        let repoURL = try GitRepositoryTestSupport.makeTemporaryDirectory(prefix: "cmux-file-explorer-git-status-")
+        defer { try? FileManager.default.removeItem(at: repoURL) }
+        try GitRepositoryTestSupport.initializeRepo(at: repoURL)
+        try "one\n".write(to: repoURL.appendingPathComponent("tracked.txt"), atomically: true, encoding: .utf8)
+        try GitRepositoryTestSupport.runGit(["add", "."], in: repoURL)
+        try GitRepositoryTestSupport.runGit(["commit", "-m", "initial"], in: repoURL)
+
+        let outerURL = repoURL.appendingPathComponent("outer", isDirectory: true)
+        let newDirURL = outerURL.appendingPathComponent("newdir", isDirectory: true)
+        try FileManager.default.createDirectory(at: newDirURL, withIntermediateDirectories: true)
+        try "new\n".write(to: newDirURL.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
+
+        let status = Self.fetchStatus(GitStatusProvider(), directory: repoURL.path)
+
+        // git collapses the whole untracked subtree into `?? outer/`.
+        #expect(status[outerURL.path] == .some(.untracked))
+        #expect(status[outerURL.path + "/"] == nil)
+        #expect(status[repoURL.path] == nil)
+
+        // With the intermediate directory known to git, the leaf directory is
+        // the untracked entry and its parent is marked from it.
+        try "keep\n".write(to: outerURL.appendingPathComponent("tracked.txt"), atomically: true, encoding: .utf8)
+        try GitRepositoryTestSupport.runGit(["add", "outer/tracked.txt"], in: repoURL)
+        try GitRepositoryTestSupport.runGit(["commit", "-m", "outer"], in: repoURL)
+
+        let nestedStatus = Self.fetchStatus(GitStatusProvider(), directory: repoURL.path)
+        #expect(nestedStatus[newDirURL.path] == .some(.untracked))
+        #expect(nestedStatus[newDirURL.path + "/"] == nil)
+        #expect(nestedStatus[outerURL.path] == .some(.untracked))
+    }
+
+    @Test
+    func renamedEntryConsumesBothPathsAndKeepsParsingLaterEntries() throws {
+        // `R  new\0old\0` carries two NUL-terminated paths; the parser must skip
+        // the original path instead of treating it as the next entry's header.
+        let repoURL = try GitRepositoryTestSupport.makeTemporaryDirectory(prefix: "cmux-file-explorer-git-status-")
+        defer { try? FileManager.default.removeItem(at: repoURL) }
+        try GitRepositoryTestSupport.initializeRepo(at: repoURL)
+
+        let oldURL = repoURL.appendingPathComponent("a.txt")
+        let newURL = repoURL.appendingPathComponent("b.txt")
+        let laterURL = repoURL.appendingPathComponent("z-later.txt")
+        try "same\n".write(to: oldURL, atomically: true, encoding: .utf8)
+        try "one\n".write(to: laterURL, atomically: true, encoding: .utf8)
+        try GitRepositoryTestSupport.runGit(["add", "."], in: repoURL)
+        try GitRepositoryTestSupport.runGit(["commit", "-m", "initial"], in: repoURL)
+        try GitRepositoryTestSupport.runGit(["mv", "a.txt", "b.txt"], in: repoURL)
+        try "two\n".write(to: laterURL, atomically: true, encoding: .utf8)
+
+        let status = Self.fetchStatus(GitStatusProvider(), directory: repoURL.path)
+
+        #expect(status[newURL.path] == .some(.renamed))
+        #expect(status[oldURL.path] == nil)
+        #expect(status[laterURL.path] == .some(.modified))
+        #expect(status[repoURL.path] == nil)
+    }
+
+    @Test
+    func localGitInvocationsDisableTheRepositorysFsmonitorAndHooks() throws {
+        // Nested-repository discovery runs git inside whatever folder the user
+        // expands, honoring that repository's config. An untrusted clone's
+        // `core.fsmonitor` names a command `git status` would run, so every
+        // local invocation overrides it (and the hooks path) with `-c` flags
+        // placed before the subcommand.
+        let repoURL = try GitRepositoryTestSupport.makeTemporaryDirectory(prefix: "cmux-file-explorer-git-status-")
+        defer { try? FileManager.default.removeItem(at: repoURL) }
+
+        let argvLogDirectory = repoURL.appendingPathComponent("argv", isDirectory: true)
+        try FileManager.default.createDirectory(at: argvLogDirectory, withIntermediateDirectories: true)
+        let fakeGitURL = try Self.writeExecutableScript(
+            #"""
+            #!/bin/sh
+            log="$CMUX_TEST_GIT_ARGV_DIR/$$.txt"
+            for arg in "$@"; do printf '%s\n' "$arg"; done > "$log"
+            while [ "$1" = "-c" ]; do shift 2; done
+            case "$1" in
+            rev-parse) printf '%s\n' "$CMUX_TEST_REPO_ROOT" ;;
+            status) printf ' M tracked.txt\0' ;;
+            *) exit 2 ;;
+            esac
+            """#,
+            named: "fake-git",
+            in: repoURL
+        )
+        var environment = ProcessInfo.processInfo.environment
+        environment["CMUX_TEST_REPO_ROOT"] = repoURL.resolvingSymlinksInPath().path
+        environment["CMUX_TEST_GIT_ARGV_DIR"] = argvLogDirectory.path
+
+        let status = Self.fetchStatus(
+            GitStatusProvider(gitExecutableURL: fakeGitURL, environment: environment),
+            directory: repoURL.path
+        )
+        #expect(status[repoURL.appendingPathComponent("tracked.txt").path] == .some(.modified))
+
+        let logs = try FileManager.default.contentsOfDirectory(atPath: argvLogDirectory.path)
+        let invocations = try logs.map { name -> [String] in
+            try String(contentsOf: argvLogDirectory.appendingPathComponent(name), encoding: .utf8)
+                .split(separator: "\n", omittingEmptySubsequences: true)
+                .map(String.init)
+        }
+        #expect(invocations.count == 2, "\(invocations)")
+        let subcommands = Set(invocations.compactMap { argv in argv.first { !$0.hasPrefix("-") && !$0.contains("=") } })
+        #expect(subcommands == ["rev-parse", "status"], "\(invocations)")
+        for argv in invocations {
+            let guardFlags = Self.configFlags(in: argv)
+            #expect(guardFlags.contains("core.fsmonitor=false"), "\(argv)")
+            #expect(guardFlags.contains("core.hooksPath=/dev/null"), "\(argv)")
+            // Every `-c` pair precedes the subcommand.
+            let subcommandIndex = try #require(argv.firstIndex { $0 == "rev-parse" || $0 == "status" })
+            let lastFlagIndex = try #require(argv.lastIndex(of: "-c"))
+            #expect(lastFlagIndex + 1 < subcommandIndex, "\(argv)")
+        }
+    }
+
+    @Test
+    func sshGitCommandsDisableTheRepositorysFsmonitorAndHooks() throws {
+        let repoURL = try GitRepositoryTestSupport.makeTemporaryDirectory(prefix: "cmux-file-explorer-git-status-")
+        defer { try? FileManager.default.removeItem(at: repoURL) }
+
+        let argvLog = repoURL.appendingPathComponent("ssh-argv.txt")
+        let fakeSSHURL = try Self.writeExecutableScript(
+            #"""
+            #!/bin/sh
+            for arg in "$@"; do printf '%s\n' "$arg"; done > "$CMUX_TEST_SSH_ARGV_LOG"
+            printf '%s\n---GIT_STATUS---\n M remote.txt\0' "$CMUX_TEST_REPO_ROOT"
+            """#,
+            named: "fake-ssh",
+            in: repoURL
+        )
+        var environment = ProcessInfo.processInfo.environment
+        environment["CMUX_TEST_REPO_ROOT"] = repoURL.path
+        environment["CMUX_TEST_SSH_ARGV_LOG"] = argvLog.path
+
+        let status = Self.fetchStatusSSH(
+            GitStatusProvider(sshExecutableURL: fakeSSHURL, environment: environment),
+            directory: repoURL.path
+        )
+        #expect(status[repoURL.appendingPathComponent("remote.txt").path] == .some(.modified))
+
+        // The remote command is the last argument; both git runs in it carry the guards.
+        let argv = try String(contentsOf: argvLog, encoding: .utf8)
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .map(String.init)
+        let remoteCommand = try #require(argv.last)
+        let gitRuns = remoteCommand.components(separatedBy: " && ").filter { $0.contains(" git ") }
+        #expect(gitRuns.count == 2, "\(remoteCommand)")
+        for run in gitRuns {
+            #expect(run.contains("git -c core.fsmonitor=false -c core.hooksPath=/dev/null "), "\(run)")
+        }
+        #expect(gitRuns.contains { $0.contains("core.hooksPath=/dev/null rev-parse --show-toplevel") }, "\(remoteCommand)")
+        #expect(gitRuns.contains { $0.contains("core.hooksPath=/dev/null status --porcelain=v1 -z") }, "\(remoteCommand)")
+    }
+
+    @Test
+    func hungGitRunIsTerminatedAtTheTimeoutAndReportsNoStatus() throws {
+        // A `git status` that never exits must not pin the caller: the provider
+        // terminates it at the deadline and reports an empty snapshot so the
+        // store's in-flight token is released.
+        let repoURL = try GitRepositoryTestSupport.makeTemporaryDirectory(prefix: "cmux-file-explorer-git-status-")
+        defer { try? FileManager.default.removeItem(at: repoURL) }
+
+        let fakeGitURL = try Self.writeExecutableScript(
+            #"""
+            #!/bin/sh
+            while [ "$1" = "-c" ]; do shift 2; done
+            case "$1" in
+            rev-parse) printf '%s\n' "$CMUX_TEST_REPO_ROOT" ;;
+            status) exec sleep 20 ;;
+            *) exit 2 ;;
+            esac
+            """#,
+            named: "fake-git",
+            in: repoURL
+        )
+        var environment = ProcessInfo.processInfo.environment
+        environment["CMUX_TEST_REPO_ROOT"] = repoURL.resolvingSymlinksInPath().path
+
+        let provider = GitStatusProvider(
+            gitExecutableURL: fakeGitURL, environment: environment, localTimeout: 0.3
+        )
+        let repoRoot = try #require(provider.repositoryRoot(for: repoURL.path))
+
+        let started = Date()
+        let snapshot = provider.fetchSnapshot(
+            repoRoot: repoRoot,
+            explorerRoot: GitStatusProvider.canonicalPath(repoURL.path),
+            keyRoot: repoURL.path
+        )
+        let elapsed = Date().timeIntervalSince(started)
+
+        #expect(snapshot == .empty)
+        #expect(elapsed < 5, "fetch took \(elapsed)s; the 0.3s timeout did not bound the hung run")
+    }
+
     // MARK: - Helpers
+
+    /// The values of every `-c key=value` pair in a git argv.
+    private static func configFlags(in argv: [String]) -> [String] {
+        argv.indices.dropLast().compactMap { argv[$0] == "-c" ? argv[$0 + 1] : nil }
+    }
 
     /// The store's local two-step fetch (resolve the repository, then fetch it
     /// against the canonical root) with keys spelled under `directory`, or `nil`

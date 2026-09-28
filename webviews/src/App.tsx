@@ -100,6 +100,7 @@ import {
   worktreeFileTarget,
   worktreeWriteAvailable,
   writableDiffSource,
+  type CommitAvailability,
   type FileWriteAction,
   type WritableDiffSource,
 } from "./worktree-actions";
@@ -157,8 +158,6 @@ type AppState = {
   optionsOpen: boolean;
   /** Bumped by a soft refresh so the render effect re-streams in place. */
   renderGeneration: number;
-  /** Item ids to re-collapse as they stream back in after a write action reload. */
-  restoreCollapsed: ReadonlySet<string> | null;
   status: DiffViewerStatus;
   treeSource: FileTreeSource | null;
   /** Persisted "Viewed" entries for `viewedScopeKey`, keyed by file path. */
@@ -178,7 +177,7 @@ type AppAction =
   | { type: "set-file-filter"; filter: Partial<DiffFileFilter> }
   | { type: "set-generated-paths"; paths: string[] }
   | { type: "refresh"; status: DiffViewerStatus }
-  | { type: "reset-diff"; status: DiffViewerStatus; restoreCollapsed?: ReadonlySet<string> }
+  | { type: "reset-diff"; status: DiffViewerStatus }
   | { type: "remove-comment"; id: string }
   | { type: "rename-item"; oldId: string; newId: string }
   | { type: "set-active-item"; itemId: string; treePath?: string }
@@ -240,7 +239,6 @@ function initialAppState(config: DiffViewerConfig, initialStatus: DiffViewerStat
     } as DiffViewerOptions,
     optionsOpen: false,
     renderGeneration: 0,
-    restoreCollapsed: null,
     status: initialStatus,
     treeSource: null,
     viewedByPath: new Map(),
@@ -339,8 +337,9 @@ function reducer(state: AppState, action: AppAction): AppState {
     const nextItems = action.items.map((item) => {
       resolveDiffItemLanguage(item);
       const annotated = withCommentAnnotations(item, state.comments, state.draft);
-      const prepared = prepareAppendedItem(annotated, state, generatedPaths);
-      return state.restoreCollapsed?.has(item.id) === true && !prepared.collapsed ? { ...prepared, collapsed: true } : prepared;
+      // The collapse-all option survives a reset, so files streaming back in
+      // after a write action reload come back collapsed the same way.
+      return prepareAppendedItem(annotated, state, generatedPaths);
     });
     const languages = mergeLanguages(state.languages, nextItems.flatMap(diffItemPreloadLanguages));
     return {
@@ -361,7 +360,6 @@ function reducer(state: AppState, action: AppAction): AppState {
       items: [],
       languages: ["text"],
       metrics: null,
-      restoreCollapsed: action.restoreCollapsed ?? null,
       status: action.status,
       treeSource: null,
     };
@@ -596,6 +594,18 @@ export function App({ config, initialStatus }: ConfigProps) {
       toggleViewed(itemId);
     }
   }, [latestState, toggleViewed]);
+  // Write actions stay disabled from the click until the session reopened
+  // by the reload exists again (`settleWrite`, called by the render hook), so
+  // a second click can never race the reload or target the closed session.
+  const [pendingWrite, setPendingWrite] = useState(false);
+  const pendingWriteRef = useRef(false);
+  const settleWrite = useCallback(() => {
+    pendingWriteRef.current = false;
+    setPendingWrite(false);
+  }, []);
+  // Scroll offset to restore once the stream after a write action reload
+  // completes; any other stream start clears it.
+  const restoreScrollRef = useRef<number | null>(null);
 
   usePageDataAttributes(state);
   useViewedFilesBootstrap(viewedScope, dispatch);
@@ -612,6 +622,8 @@ export function App({ config, initialStatus }: ConfigProps) {
     activeSessionSource,
     rememberResolvedSessionSource,
     state.renderGeneration,
+    restoreScrollRef,
+    settleWrite,
   );
   useViewerPrefsBootstrap(payload, dispatch);
   useCommentsBootstrap(bridgeAvailable ? commentRepoRoot : null, comments.onLoaded);
@@ -632,12 +644,9 @@ export function App({ config, initialStatus }: ConfigProps) {
     () => (writeAvailable ? attachHunkActionAnnotations(visibleItems) : visibleItems),
     [visibleItems, writeAvailable],
   );
-  const [pendingWrite, setPendingWrite] = useState(false);
-  const pendingWriteRef = useRef(false);
   const [commitOpen, setCommitOpen] = useState(false);
   const [worktreeNotice, setWorktreeNotice] = useState<WorktreeNotice | null>(null);
   const noticeTokenRef = useRef(0);
-  const restoreScrollRef = useRef<number | null>(null);
   const closeCommitPopover = useCallback(() => setCommitOpen(false), []);
   useCommitPopoverDismiss(commitOpen, closeCommitPopover);
   const expireNotice = useCallback((token: number) => {
@@ -647,7 +656,13 @@ export function App({ config, initialStatus }: ConfigProps) {
     noticeTokenRef.current += 1;
     setWorktreeNotice({ error, message, token: noticeTokenRef.current });
   };
-  const selectSessionSource = (source: DiffSource, restoreCollapsed?: ReadonlySet<string>) => {
+  // Only a write action reload asks to restore the scroll offset; any other
+  // source change drops a pending restore so it cannot fire on the stream
+  // of an unrelated diff.
+  const selectSessionSource = (source: DiffSource, restoreScroll = false) => {
+    if (!restoreScroll) {
+      restoreScrollRef.current = null;
+    }
     const currentSource = resolvedSessionSource ?? activeSessionSource;
     const selectedSource = source.kind === "branch"
       && (currentSource?.kind !== "branch" || source.baseRef == null)
@@ -658,19 +673,19 @@ export function App({ config, initialStatus }: ConfigProps) {
     }
     const status = createDiffViewerStatus(label("loadingDiff"), { pending: true });
     applyDiffViewerStatusToDocument(status);
-    dispatch({ type: "reset-diff", status, restoreCollapsed });
+    dispatch({ type: "reset-diff", status });
     setActivePatchURL(undefined);
     void closeActiveSession();
     setResolvedSessionSource(selectedSource);
     setActiveSessionSource(selectedSource);
   };
-  // After a mutation the session is reopened in place (no page reload); the
-  // collapsed files and scroll offset are carried across the reload.
+  // After a mutation the session is reopened in place (no page reload). The
+  // scroll offset is carried across the reload; the collapse-all option
+  // survives the reset on its own. Per-file collapse toggled inside Pierre's
+  // header is not observable from here, so it is not carried over.
   const reloadAfterWrite = (source: WritableDiffSource) => {
-    const current = latestState.current;
-    const collapsed = new Set(current.items.filter((item) => item.collapsed).map((item) => item.id));
     restoreScrollRef.current = codeViewScrollTopRef.current;
-    selectSessionSource({ ...source }, collapsed);
+    selectSessionSource({ ...source }, true);
   };
   const runWorktreeWrite = async (command: DiffCommand, source: WritableDiffSource) => {
     if (!transport || pendingWriteRef.current) {
@@ -678,44 +693,65 @@ export function App({ config, initialStatus }: ConfigProps) {
     }
     pendingWriteRef.current = true;
     setPendingWrite(true);
+    let reloading = false;
     try {
       const result = await transport.request(command);
       if (result.type === "committed") {
-        showWorktreeNotice(label("committed").replace("{commit}", result.value.commit.slice(0, 10)), false);
+        // Reload first: the commit exists whatever the response carries.
+        reloading = true;
+        reloadAfterWrite(source);
+        const commit: unknown = result.value?.commit;
+        const shortCommit = typeof commit === "string" ? commit.slice(0, 10) : "";
+        showWorktreeNotice(label("committed").replace("{commit}", shortCommit).trim(), false);
         setCommitOpen(false);
-      } else if (result.type !== "worktreeMutated") {
+      } else if (result.type === "worktreeMutated") {
+        reloading = true;
+        reloadAfterWrite(source);
+      } else {
         throw new DiffTransportError("invalidResponse", "Diff transport did not confirm the change");
       }
-      reloadAfterWrite(source);
     } catch (error) {
       const code = error instanceof DiffTransportError ? error.code : undefined;
       showWorktreeNotice(label(worktreeErrorLabelKey(code)), true);
       if (worktreeErrorReloads(code)) {
+        reloading = true;
         reloadAfterWrite(source);
       }
     } finally {
-      pendingWriteRef.current = false;
-      setPendingWrite(false);
+      // A reload keeps the actions disabled until the reopened session
+      // exists; the render hook settles it then.
+      if (!reloading) {
+        settleWrite();
+      }
     }
   };
-  const onFileWriteAction = (item: DiffItem, action: FileWriteAction) => {
+  // The session a write targets. The actions render only for an open typed
+  // session, so a missing one means the page is between sessions.
+  const writeSession = () => {
     const session = activeSessionRef.current;
+    if (!session) {
+      showWorktreeNotice(label("worktreeWriteFailed"), true);
+    }
+    return session;
+  };
+  const onFileWriteAction = (item: DiffItem, action: FileWriteAction) => {
     const target = worktreeFileTarget(item.fileDiff);
+    const session = writeSession();
     if (!writeSource || !session || !target) {
       return;
     }
     void runWorktreeWrite(buildFileRequest(action, session, writeSource, target), writeSource);
   };
   const onHunkRevert = (item: DiffItem, hunk: HunkRef) => {
-    const session = activeSessionRef.current;
     const target = worktreeFileTarget(item.fileDiff);
+    const session = writeSession();
     if (!writeSource || !session || !target) {
       return;
     }
     void runWorktreeWrite(buildHunkRequest(session, writeSource, target, hunk), writeSource);
   };
   const onCommit = (message: string) => {
-    const session = activeSessionRef.current;
+    const session = writeSession();
     if (!writeSource || !session) {
       return;
     }
@@ -1365,7 +1401,7 @@ function WorkerRenderOptionsSync({
 }
 
 type CommitControlProps = {
-  availability: "enabled" | "requiresStaged";
+  availability: Exclude<CommitAvailability, "hidden">;
   onClose: () => void;
   onCommit: (message: string) => void;
   onToggle: () => void;
@@ -2485,6 +2521,8 @@ function useRenderDiff(
   sessionSource: DiffSource | null,
   onResolvedSessionSource: (source: DiffSource) => void,
   renderGeneration: number,
+  restoreScrollRef: React.MutableRefObject<number | null>,
+  onSessionSettled: () => void,
 ) {
   useEffect(() => {
     if (isStatusOnlyPayload(config.payload, transport, sessionSource)) {
@@ -2533,7 +2571,13 @@ function useRenderDiff(
           dispatch({ type: "set-generated-paths", paths: generatedPaths });
           patchURL = result.value.patch.id;
         }
-        if (cancelled || !patchURL) {
+        if (cancelled) {
+          return;
+        }
+        // The (re)opened session exists, or this page has none to wait for:
+        // a write action held for the reload may run again.
+        onSessionSettled();
+        if (!patchURL) {
           return;
         }
         onPatchURL(patchURL);
@@ -2554,6 +2598,9 @@ function useRenderDiff(
             dispatch({ type: "set-metrics", metrics });
             const items = streamedItems;
             if (items.length === 0) {
+              // Nothing to scroll back to; a pending restore must not fire
+              // on the next stream instead.
+              restoreScrollRef.current = null;
               const emptyMessage = typeof payload.emptyMessage === "string" ? payload.emptyMessage : label("noFileDiffs");
               dispatch({ type: "set-status", status: createDiffViewerStatus(emptyMessage, { error: false, loading: false, statusOnly: true }) });
               return;
@@ -2583,6 +2630,8 @@ function useRenderDiff(
         if (cancelled) {
           return;
         }
+        restoreScrollRef.current = null;
+        onSessionSettled();
         const empty = error instanceof DiffTransportError && error.code === "emptyDiff";
         if (!empty) {
           // Error objects JSON.stringify to {} in the native console mirror,
@@ -2609,7 +2658,7 @@ function useRenderDiff(
       window.removeEventListener("pagehide", handlePageHide);
       void closeActiveSession();
     };
-  }, [activeSessionRef, closeActiveSession, config, dispatch, label, latestState, onPatchURL, onResolvedSessionSource, renderGeneration, sessionSource, transport]);
+  }, [activeSessionRef, closeActiveSession, config, dispatch, label, latestState, onPatchURL, onResolvedSessionSource, onSessionSettled, renderGeneration, restoreScrollRef, sessionSource, transport]);
 }
 
 function closeDiffSession(transport: DiffTransport, session: ActiveDiffSession): Promise<void> {

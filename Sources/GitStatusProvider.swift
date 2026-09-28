@@ -12,20 +12,47 @@ import Foundation
 struct GitStatusProvider: Sendable {
     private static let nonLockingGitEnvironmentKey = "GIT_OPTIONAL_LOCKS"
     private static let nonLockingGitEnvironmentValue = "0"
-    private static let nonLockingRemoteGitCommand = "env \(nonLockingGitEnvironmentKey)=\(nonLockingGitEnvironmentValue) git"
+    /// Per-invocation config overrides that keep a browsed repository's own
+    /// configuration from running code on our behalf. Nested-repository
+    /// discovery runs git inside any folder the user expands, including an
+    /// untrusted clone, whose `core.fsmonitor` may name an arbitrary command
+    /// that `git status` would otherwise execute. Hooks are disabled for the
+    /// same reason even though `status` and `rev-parse` run none today.
+    /// `-c` flags must precede the subcommand.
+    static let untrustedRepositoryGuardArguments = [
+        "-c", "core.fsmonitor=false",
+        "-c", "core.hooksPath=/dev/null"
+    ]
+    private static let nonLockingRemoteGitCommand =
+        "env \(nonLockingGitEnvironmentKey)=\(nonLockingGitEnvironmentValue) git "
+        + untrustedRepositoryGuardArguments.joined(separator: " ")
+
+    /// Upper bound on one local git run. A hung `git status` (a wedged
+    /// filesystem, a stuck fsmonitor) would otherwise pin the store's
+    /// per-repository in-flight token forever, so the repository would never
+    /// refetch; on expiry the process is terminated and the run reports `nil`.
+    static let defaultLocalTimeout: TimeInterval = 30
+    /// Upper bound on one SSH round trip (connect plus the remote git run).
+    static let defaultSSHTimeout: TimeInterval = 60
 
     private let gitExecutableURL: URL
     private let sshExecutableURL: URL
     private let environment: [String: String]
+    private let localTimeout: TimeInterval
+    private let sshTimeout: TimeInterval
 
     init(
         gitExecutableURL: URL = URL(fileURLWithPath: "/usr/bin/git"),
         sshExecutableURL: URL = URL(fileURLWithPath: "/usr/bin/ssh"),
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        localTimeout: TimeInterval = GitStatusProvider.defaultLocalTimeout,
+        sshTimeout: TimeInterval = GitStatusProvider.defaultSSHTimeout
     ) {
         self.gitExecutableURL = gitExecutableURL
         self.sshExecutableURL = sshExecutableURL
         self.environment = environment
+        self.localTimeout = localTimeout
+        self.sshTimeout = sshTimeout
     }
 
     // MARK: - Local
@@ -112,7 +139,10 @@ struct GitStatusProvider: Sendable {
             }
             let indexStatus = entry[entry.startIndex]
             let workTreeStatus = entry[entry.index(after: entry.startIndex)]
-            let path = String(entry.dropFirst(3))
+            // git prints an untracked directory as `?? dir/`; the slash would
+            // otherwise leave the directory row unkeyed and start the parent
+            // marks one level too high.
+            let path = Self.pathWithoutTrailingSlashes(String(entry.dropFirst(3)))
             let usesSecondPath = Self.statusUsesSecondPath(index: indexStatus, workTree: workTreeStatus)
             entryIndex += usesSecondPath ? 2 : 1
             guard let status = parseStatusChars(index: indexStatus, workTree: workTreeStatus) else { continue }
@@ -194,7 +224,9 @@ struct GitStatusProvider: Sendable {
         repoRoot == "/" ? "/" + relativePath : repoRoot + "/" + relativePath
     }
 
-    private static func path(_ path: String, isContainedIn root: String) -> Bool {
+    /// Whether `path` is `root` or lies below it (both compared without
+    /// trailing slashes). Shared with the store's nested-repository checks.
+    static func path(_ path: String, isContainedIn root: String) -> Bool {
         let normalizedPath = pathWithoutTrailingSlashes(path)
         let normalizedRoot = pathWithoutTrailingSlashes(root)
         if normalizedPath == normalizedRoot { return true }
@@ -220,21 +252,10 @@ struct GitStatusProvider: Sendable {
     private func runGit(in directory: String, arguments: [String]) -> String? {
         let process = Process()
         process.executableURL = gitExecutableURL
-        process.arguments = arguments
+        process.arguments = Self.untrustedRepositoryGuardArguments + arguments
         process.currentDirectoryURL = URL(fileURLWithPath: directory)
         process.environment = nonLockingGitEnvironment()
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        do {
-            try process.run()
-            let data = pipe.fileHandleForReading.readDataToEndOfFileOrEmpty()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return nil }
-            return String(data: data, encoding: .utf8)
-        } catch {
-            return nil
-        }
+        return Self.runCapturingStandardOutput(process, timeout: localTimeout)
     }
 
     private func nonLockingGitEnvironment() -> [String: String] {
@@ -261,17 +282,57 @@ struct GitStatusProvider: Sendable {
         args += ["--", destination, command]
         process.arguments = args
         process.environment = environment
+        return Self.runCapturingStandardOutput(process, timeout: sshTimeout)
+    }
+
+    /// Runs `process` and returns its standard output when it exits 0 within
+    /// `timeout`. On expiry the process is terminated (SIGTERM, then SIGKILL
+    /// if it lingers) and the result is `nil`, so a caller never blocks on a
+    /// hung child and the store's in-flight token is released like any other
+    /// failed run. Standard error is discarded.
+    private static func runCapturingStandardOutput(_ process: Process, timeout: TimeInterval) -> String? {
         let pipe = Pipe()
+        process.standardInput = FileHandle.nullDevice
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
+        let exited = DispatchGroup()
+        exited.enter()
+        process.terminationHandler = { _ in exited.leave() }
         do {
             try process.run()
-            let data = pipe.fileHandleForReading.readDataToEndOfFileOrEmpty()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return nil }
-            return String(data: data, encoding: .utf8)
         } catch {
+            exited.leave()
             return nil
         }
+        // Drain stdout off this thread so a child that fills the pipe cannot
+        // deadlock against the exit wait, and so that wait can be bounded.
+        let output = ProcessOutputBox()
+        let drained = DispatchGroup()
+        drained.enter()
+        DispatchQueue.global(qos: .utility).async {
+            output.data = pipe.fileHandleForReading.readDataToEndOfFileOrEmpty()
+            drained.leave()
+        }
+        if exited.wait(timeout: .now() + timeout) == .timedOut {
+            process.terminate()
+            if exited.wait(timeout: .now() + 2) == .timedOut {
+                kill(process.processIdentifier, SIGKILL)
+                _ = exited.wait(timeout: .now() + 2)
+            }
+            // A grandchild may still hold the pipe open; do not wait on it.
+            _ = drained.wait(timeout: .now() + 1)
+            return nil
+        }
+        // The pipe closes when its last writer exits; bound this too in case a
+        // detached grandchild inherited it.
+        guard drained.wait(timeout: .now() + timeout) == .success else { return nil }
+        guard process.terminationStatus == 0 else { return nil }
+        return String(data: output.data, encoding: .utf8)
     }
+}
+
+/// Landing spot for a child's stdout: written by the drain thread, read only
+/// after that thread has signalled completion through its `DispatchGroup`.
+private final class ProcessOutputBox: @unchecked Sendable {
+    var data = Data()
 }

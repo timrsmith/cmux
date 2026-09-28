@@ -105,6 +105,49 @@ describe("hunk references", () => {
     ).toBeNull();
   });
 
+  test("a hunk ending in a deletion-only group anchors on its last deleted line", () => {
+    // `@@ -10,4 +11,2 @@`: two context lines, then two deletions and
+    // nothing added after them. The additions side ends at line 12, above
+    // the deleted lines Pierre renders last; the row belongs under those.
+    const trailingDeletions = {
+      additionStart: 11,
+      additionCount: 2,
+      deletionStart: 10,
+      deletionCount: 4,
+      hunkContent: [
+        { type: "context", lines: 2, additionLineIndex: 0, deletionLineIndex: 0 },
+        { type: "change", deletions: 2, additions: 0, deletionLineIndex: 2, additionLineIndex: 2 },
+      ],
+    } as const;
+    expect(hunkActionAnchor(trailingDeletions)).toEqual({
+      side: "deletions",
+      lineNumber: 13,
+    });
+    // A change group with additions after its deletions still ends on the
+    // additions side, as does trailing context.
+    expect(
+      hunkActionAnchor({
+        ...trailingDeletions,
+        hunkContent: [
+          { type: "change", deletions: 2, additions: 1, deletionLineIndex: 0, additionLineIndex: 0 },
+        ],
+      }),
+    ).toEqual({ side: "additions", lineNumber: 12 });
+    expect(
+      hunkActionAnchor({
+        ...trailingDeletions,
+        hunkContent: [
+          { type: "change", deletions: 2, additions: 0, deletionLineIndex: 0, additionLineIndex: 0 },
+          { type: "context", lines: 2, additionLineIndex: 0, deletionLineIndex: 2 },
+        ],
+      }),
+    ).toEqual({ side: "additions", lineNumber: 12 });
+    // Without content groups the header ranges alone decide.
+    expect(
+      hunkActionAnchor({ ...trailingDeletions, hunkContent: undefined }),
+    ).toEqual({ side: "additions", lineNumber: 12 });
+  });
+
   test("hunk action targets are capped per file and skip malformed hunks", () => {
     const hunks = [
       {
@@ -333,6 +376,9 @@ describe("commit popover validation", () => {
   test("error labels", () => {
     expect(worktreeErrorLabelKey("staleHunk")).toBe("hunkStale");
     expect(worktreeErrorLabelKey("conflict")).toBe("worktreeConflict");
+    expect(worktreeErrorLabelKey("partialRevert")).toBe(
+      "worktreePartialRevert",
+    );
     expect(worktreeErrorLabelKey("nothingToCommit")).toBe("nothingToCommit");
     expect(worktreeErrorLabelKey("commitFailed")).toBe("commitFailed");
     expect(worktreeErrorLabelKey("invalidMessage")).toBe(
@@ -345,6 +391,8 @@ describe("commit popover validation", () => {
 
     expect(worktreeErrorReloads("staleHunk")).toBe(true);
     expect(worktreeErrorReloads("conflict")).toBe(true);
+    expect(worktreeErrorReloads("partialRevert")).toBe(true);
     expect(worktreeErrorReloads("notAllowed")).toBe(false);
+    expect(worktreeErrorReloads("commitFailed")).toBe(false);
   });
 });

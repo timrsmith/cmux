@@ -1,6 +1,7 @@
 import CmuxBrowser
 import CmuxFoundation
 import Foundation
+import WebKit
 import XCTest
 
 #if canImport(cmux_DEV)
@@ -99,6 +100,73 @@ final class ScriptedChangesPageProducer: @unchecked Sendable {
         let page = pages[min(callCountStorage, pages.count - 1)]
         callCountStorage += 1
         return page
+    }
+}
+
+/// A producer that blocks until released, so a test can observe what the
+/// store does while a load is pending, and whether the load was cancelled.
+final class GatedChangesPageProducer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var releasedStorage = false
+    private var startedStorage = 0
+    private var cancelledStorage = 0
+    let page: RightSidebarChangesPage
+
+    init(page: RightSidebarChangesPage) {
+        self.page = page
+    }
+
+    var startedCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return startedStorage
+    }
+
+    var cancelledCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return cancelledStorage
+    }
+
+    private var isReleased: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return releasedStorage
+    }
+
+    func release() {
+        lock.lock(); releasedStorage = true; lock.unlock()
+    }
+
+    func produce() async throws -> RightSidebarChangesPage {
+        lock.lock(); startedStorage += 1; lock.unlock()
+        do {
+            while !isReleased {
+                try await Task.sleep(nanoseconds: 5_000_000)
+            }
+        } catch is CancellationError {
+            lock.lock(); cancelledStorage += 1; lock.unlock()
+            throw CancellationError()
+        }
+        return page
+    }
+}
+
+/// Holds an async fake open until the test lets it answer; never observes
+/// cancellation, so it also stands in for a producer that ignores it.
+final class ProbeGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isOpen = false
+
+    func open() {
+        lock.lock(); isOpen = true; lock.unlock()
+    }
+
+    func wait() async {
+        while true {
+            lock.lock()
+            let open = isOpen
+            lock.unlock()
+            if open { return }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
     }
 }
 
@@ -382,8 +450,9 @@ final class RightSidebarChangesStoreTests: XCTestCase {
         XCTAssertEqual(staticProducer.callCount, 2)
         XCTAssertEqual(staticStore.reloadGeneration, 0)
 
-        // `git init` after the first probe: a directory cached as "not a
-        // repository" is probed again when the panel becomes active.
+        // `git init` after the first probe: "not a repository" is never
+        // cached, so the very next sync for the directory sees the repository
+        // even while the panel stays visible.
         let probes = ProbeCounter()
         let probedStore = makeStore(
             producer: ScriptedChangesPageProducer(pages: [reloadable]),
@@ -396,15 +465,62 @@ final class RightSidebarChangesStoreTests: XCTestCase {
         let plain = "/tmp/cmux-changes-tests/plain"
         probedStore.update(directory: plain, workspaceId: workspaceId, isRemote: false, isActive: true)
         await waitUntil("not a repository") { probedStore.state == .notARepository(path: plain) }
+        XCTAssertEqual(probes.count, 1)
         probedStore.update(directory: plain, workspaceId: workspaceId, isRemote: false, isActive: true)
-        try await Task.sleep(nanoseconds: 50_000_000)
-        XCTAssertEqual(probes.count, 1, "a negative answer is cached while the panel stays active")
+        await waitUntil("probed again") { probes.count == 2 }
+        XCTAssertEqual(probedStore.state, .notARepository(path: plain), "a repeated negative keeps the placeholder")
 
         probes.isRepository = true
-        probedStore.update(directory: plain, workspaceId: workspaceId, isRemote: false, isActive: false)
         probedStore.update(directory: plain, workspaceId: workspaceId, isRemote: false, isActive: true)
         await waitUntil("now a repository") { probedStore.state == .ready(url: reloadable.url) }
-        XCTAssertEqual(probes.count, 2, "reactivation probes the directory again")
+        XCTAssertEqual(probes.count, 3, "each sync of a non-repository directory probes it again")
+
+        // The positive answer is cached: the same directory does not probe again.
+        probedStore.update(directory: plain, workspaceId: workspaceId, isRemote: false, isActive: true)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(probes.count, 3)
+        XCTAssertEqual(probedStore.cachedRepoRootDirectories, [plain])
+    }
+
+    func testRepeatedSyncsShareOneInFlightProbeAndThePositiveCacheIsBounded() async throws {
+        let page = try makePage(reloadable: true)
+        let probes = ProbeCounter()
+        let gate = ProbeGate()
+        let store = makeStore(
+            producer: ScriptedChangesPageProducer(pages: [page]),
+            watchSource: ScriptedRepositoryWatchSource(),
+            repoRootResolver: { [probes, gate] _ in
+                probes.increment()
+                await gate.wait()
+                return nil
+            }
+        )
+        let workspaceId = UUID()
+        let plain = "/tmp/cmux-changes-tests/plain"
+        // A burst of syncs for one directory waits for the single probe in flight.
+        store.update(directory: plain, workspaceId: workspaceId, isRemote: false, isActive: true)
+        store.update(directory: plain, workspaceId: workspaceId, isRemote: false, isActive: true)
+        store.update(directory: plain, workspaceId: workspaceId, isRemote: false, isActive: true)
+        await waitUntil("probe started") { probes.count == 1 }
+        try await Task.sleep(nanoseconds: 30_000_000)
+        XCTAssertEqual(probes.count, 1, "identical syncs do not stack probes")
+        gate.open()
+        await waitUntil("not a repository") { store.state == .notARepository(path: plain) }
+
+        // Positive answers are kept for the most recent 64 directories.
+        let cached = makeStore(
+            producer: ScriptedChangesPageProducer(pages: [page]),
+            watchSource: ScriptedRepositoryWatchSource(),
+            repoRootResolver: { directory in directory }
+        )
+        let limit = RightSidebarChangesStore.repoRootCacheLimit
+        for index in 0...limit {
+            let directory = "/tmp/cmux-changes-tests/many/\(index)"
+            cached.update(directory: directory, workspaceId: workspaceId, isRemote: false, isActive: false)
+            await waitUntil("cached \(index)") { cached.cachedRepoRootDirectories.last == directory }
+        }
+        XCTAssertEqual(cached.cachedRepoRootDirectories.count, limit)
+        XCTAssertEqual(cached.cachedRepoRootDirectories.first, "/tmp/cmux-changes-tests/many/1", "the oldest entry is dropped")
     }
 
     func testSwitchingRepositoriesKeepsThePreviousDocumentWhileLoading() async throws {
@@ -426,6 +542,230 @@ final class RightSidebarChangesStoreTests: XCTestCase {
         XCTAssertEqual(store.target, RightSidebarChangesTarget(workspaceId: workspaceId, repoRoot: otherRepoRoot))
         await waitUntil("watching the new repository") { watchSource.startedRepoRoots == [self.repoRoot, self.otherRepoRoot] }
         await waitUntil("old watch stopped") { watchSource.stoppedRepoRoots == [self.repoRoot] }
+    }
+
+    func testSameRepositoryWorkspaceSwitchKeepsThePendingLoad() async throws {
+        let page = try makePage(reloadable: true)
+        let producer = GatedChangesPageProducer(page: page)
+        let watchSource = ScriptedRepositoryWatchSource()
+        let handler = CmuxDiffViewerURLSchemeHandler()
+        let repoRoot = repoRoot
+        let store = RightSidebarChangesStore(
+            repoRootResolver: { _ in repoRoot },
+            pageProducer: { _, _ in try await producer.produce() },
+            watchFactory: watchSource.factory,
+            schemeHandler: handler
+        )
+        let firstWorkspace = UUID()
+        let secondWorkspace = UUID()
+
+        store.update(directory: repoRoot, workspaceId: firstWorkspace, isRemote: false, isActive: true)
+        await waitUntil("producing") { producer.startedCount == 1 }
+        XCTAssertEqual(store.state, .loading(previousURL: nil))
+
+        // The same repository under another workspace keeps the load...
+        store.update(directory: repoRoot + "/Sources", workspaceId: secondWorkspace, isRemote: false, isActive: true)
+        await waitUntil("retargeted") { store.target?.workspaceId == secondWorkspace }
+        XCTAssertEqual(store.state, .loading(previousURL: nil))
+        XCTAssertEqual(producer.startedCount, 1, "a same-repository switch does not restart production")
+
+        // ...and its result lands for the retargeted panel instead of being dropped.
+        producer.release()
+        await waitUntil("ready") { store.state == .ready(url: page.url) }
+        XCTAssertEqual(producer.cancelledCount, 0)
+        XCTAssertTrue(handler.hasActiveSession(token: page.token))
+        XCTAssertEqual(store.target, RightSidebarChangesTarget(workspaceId: secondWorkspace, repoRoot: repoRoot))
+    }
+
+    func testProducerFailureLandsAfterASameRepositoryWorkspaceSwitch() async throws {
+        struct ProducerError: LocalizedError {
+            var errorDescription: String? { "boom" }
+        }
+        let gate = ProbeGate()
+        let watchSource = ScriptedRepositoryWatchSource()
+        let repoRoot = repoRoot
+        let store = RightSidebarChangesStore(
+            repoRootResolver: { _ in repoRoot },
+            pageProducer: { _, _ in
+                await gate.wait()
+                throw ProducerError()
+            },
+            watchFactory: watchSource.factory,
+            schemeHandler: CmuxDiffViewerURLSchemeHandler()
+        )
+        store.update(directory: repoRoot, workspaceId: UUID(), isRemote: false, isActive: true)
+        let secondWorkspace = UUID()
+        store.update(directory: repoRoot, workspaceId: secondWorkspace, isRemote: false, isActive: true)
+        await waitUntil("retargeted") { store.target?.workspaceId == secondWorkspace }
+        gate.open()
+        await waitUntil("failed") { store.state == .failed(message: "boom") }
+    }
+
+    func testSwitchingToAnotherRepositoryCancelsTheSlowProducer() async throws {
+        let slow = try makePage(reloadable: true)
+        let other = try makePage(reloadable: true)
+        let slowProducer = GatedChangesPageProducer(page: slow)
+        let otherProducer = ScriptedChangesPageProducer(pages: [other])
+        let watchSource = ScriptedRepositoryWatchSource()
+        let handler = CmuxDiffViewerURLSchemeHandler()
+        let repoRoot = repoRoot
+        let otherRepoRoot = otherRepoRoot
+        let store = RightSidebarChangesStore(
+            repoRootResolver: { directory in directory },
+            pageProducer: { target, _ in
+                if target.repoRoot == repoRoot {
+                    return try await slowProducer.produce()
+                }
+                return otherProducer.produce()
+            },
+            watchFactory: watchSource.factory,
+            schemeHandler: handler
+        )
+        let workspaceId = UUID()
+        store.update(directory: repoRoot, workspaceId: workspaceId, isRemote: false, isActive: true)
+        await waitUntil("producing") { slowProducer.startedCount == 1 }
+
+        store.update(directory: otherRepoRoot, workspaceId: workspaceId, isRemote: false, isActive: true)
+        await waitUntil("slow producer cancelled") { slowProducer.cancelledCount == 1 }
+        await waitUntil("other ready") { store.state == .ready(url: other.url) }
+
+        // A late result from the cancelled load never registers a session.
+        slowProducer.release()
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(store.state, .ready(url: other.url))
+        XCTAssertFalse(handler.hasActiveSession(token: slow.token))
+    }
+
+    func testProductionTimesOutIntoAFailure() async throws {
+        let page = try makePage(reloadable: true)
+        let producer = GatedChangesPageProducer(page: page)
+        let watchSource = ScriptedRepositoryWatchSource()
+        let handler = CmuxDiffViewerURLSchemeHandler()
+        let repoRoot = repoRoot
+        let store = RightSidebarChangesStore(
+            repoRootResolver: { _ in repoRoot },
+            pageProducer: { _, _ in try await producer.produce() },
+            watchFactory: watchSource.factory,
+            schemeHandler: handler,
+            productionTimeout: 0.2
+        )
+        store.update(directory: repoRoot, workspaceId: UUID(), isRemote: false, isActive: true)
+        let expected = try XCTUnwrap(RightSidebarChangesProductionRace.Timeout().errorDescription)
+        XCTAssertFalse(expected.isEmpty)
+        await waitUntil("timed out") { store.state == .failed(message: expected) }
+        await waitUntil("producer cancelled") { producer.cancelledCount == 1 }
+        XCTAssertFalse(handler.hasActiveSession(token: page.token))
+
+        // A producer that ignores cancellation is abandoned, not awaited.
+        let stuck = ProbeGate()
+        let stuckStore = RightSidebarChangesStore(
+            repoRootResolver: { _ in repoRoot },
+            pageProducer: { _, _ in
+                await stuck.wait()
+                return page
+            },
+            watchFactory: watchSource.factory,
+            schemeHandler: handler,
+            productionTimeout: 0.2
+        )
+        stuckStore.update(directory: repoRoot, workspaceId: UUID(), isRemote: false, isActive: true)
+        await waitUntil("timed out despite the stuck producer") { stuckStore.state == .failed(message: expected) }
+        stuck.open()
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(stuckStore.state, .failed(message: expected), "the abandoned result is dropped")
+        XCTAssertFalse(handler.hasActiveSession(token: page.token))
+    }
+
+    func testReplacedPagesAndStopUnregisterTheirSessions() async throws {
+        let first = try makePage(reloadable: false)
+        let second = try makePage(reloadable: false)
+        let producer = ScriptedChangesPageProducer(pages: [first, second])
+        let watchSource = ScriptedRepositoryWatchSource()
+        let handler = CmuxDiffViewerURLSchemeHandler()
+        let store = makeStore(producer: producer, watchSource: watchSource, handler: handler)
+        store.update(directory: repoRoot, workspaceId: UUID(), isRemote: false, isActive: true)
+        await waitUntil("ready") { store.state == .ready(url: first.url) }
+        XCTAssertTrue(handler.hasActiveSession(token: first.token))
+
+        // A static regeneration replaces the page and drops the old session.
+        store.handleRepositoryChange()
+        await waitUntil("swapped") { store.state == .ready(url: second.url) }
+        XCTAssertTrue(handler.hasActiveSession(token: second.token))
+        XCTAssertFalse(handler.hasActiveSession(token: first.token), "exactly one session stays registered")
+
+        // Window teardown: nothing displays the page any more.
+        store.stop()
+        XCTAssertFalse(handler.hasActiveSession(token: second.token))
+        XCTAssertNil(store.page)
+        XCTAssertTrue(store.recentPageRepoRoots.isEmpty)
+    }
+
+    func testReturningToARecentRepositoryReusesItsPage() async throws {
+        let page = try makePage(reloadable: true)
+        let producer = ScriptedChangesPageProducer(pages: [page])
+        let watchSource = ScriptedRepositoryWatchSource()
+        let handler = CmuxDiffViewerURLSchemeHandler()
+        let store = makeStore(producer: producer, watchSource: watchSource, handler: handler)
+        let workspaceId = UUID()
+
+        store.update(directory: repoRoot, workspaceId: workspaceId, isRemote: false, isActive: true)
+        await waitUntil("ready") { store.state == .ready(url: page.url) }
+        XCTAssertEqual(producer.callCount, 1)
+
+        let plain = "/tmp/cmux-changes-tests/plain"
+        store.update(directory: plain, workspaceId: workspaceId, isRemote: false, isActive: true)
+        await waitUntil("not a repository") { store.state == .notARepository(path: plain) }
+        XCTAssertNil(store.page)
+        XCTAssertTrue(handler.hasActiveSession(token: page.token), "a kept page keeps its session")
+
+        // Back to the repository: the kept page shows at once and refreshes,
+        // because edits made while it was not watched went unseen.
+        store.update(directory: repoRoot, workspaceId: workspaceId, isRemote: false, isActive: true)
+        await waitUntil("ready again") { store.state == .ready(url: page.url) }
+        XCTAssertEqual(producer.callCount, 1, "returning to a recent repository does not spawn the CLI again")
+        XCTAssertEqual(store.reloadGeneration, 1)
+        XCTAssertEqual(store.recentPageRepoRoots, [repoRoot])
+    }
+
+    func testRecentPagesAreBoundedAndEvictionUnregistersTheOldest() async throws {
+        let limit = RightSidebarChangesStore.recentPageLimit
+        var pages: [RightSidebarChangesPage] = []
+        for _ in 0...limit { pages.append(try makePage(reloadable: true)) }
+        let producer = ScriptedChangesPageProducer(pages: pages)
+        let watchSource = ScriptedRepositoryWatchSource()
+        let handler = CmuxDiffViewerURLSchemeHandler()
+        let store = RightSidebarChangesStore(
+            repoRootResolver: { directory in directory },
+            pageProducer: { _, _ in producer.produce() },
+            watchFactory: watchSource.factory,
+            schemeHandler: handler
+        )
+        let workspaceId = UUID()
+        for (index, page) in pages.enumerated() {
+            store.update(directory: "/tmp/cmux-changes-tests/lru/\(index)", workspaceId: workspaceId, isRemote: false, isActive: true)
+            await waitUntil("ready \(index)") { store.state == .ready(url: page.url) }
+        }
+        XCTAssertEqual(store.recentPageRepoRoots.count, limit)
+        XCTAssertEqual(store.recentPageRepoRoots.first, "/tmp/cmux-changes-tests/lru/1")
+        XCTAssertFalse(handler.hasActiveSession(token: pages[0].token), "the evicted page's session is dropped")
+        for page in pages.dropFirst() {
+            XCTAssertTrue(handler.hasActiveSession(token: page.token))
+        }
+
+        // The evicted repository is produced again on return.
+        store.update(directory: "/tmp/cmux-changes-tests/lru/0", workspaceId: workspaceId, isRemote: false, isActive: true)
+        await waitUntil("re-produced") { producer.callCount == limit + 2 }
+    }
+
+    func testFailureMessageNeverSurfacesTheChildOutput() {
+        let message = RightSidebarChangesProcessRunner.failureMessage(
+            stderr: "fatal: not a repository: /Users/someone/secret\n",
+            stdout: "{\"partial\": true}",
+            status: 128
+        )
+        XCTAssertFalse(message.contains("secret"))
+        XCTAssertFalse(message.contains("partial"))
+        XCTAssertTrue(message.contains("128"), "the exit status is the only detail, got \(message)")
     }
 
     func testDecodePageIsStrictAboutTheVerbContract() throws {
@@ -468,5 +808,75 @@ private final class ProbeCounter: @unchecked Sendable {
 
     func increment() {
         lock.lock(); countStorage += 1; lock.unlock()
+    }
+}
+
+// MARK: - Navigation policy
+
+final class RightSidebarChangesNavigationPolicyTests: XCTestCase {
+    private let token = "0123456789abcdef"
+    private let registered: Set<String> = [
+        "cmux-diff-viewer://0123456789abcdef/index.html",
+        "cmux-diff-viewer://0123456789abcdef/diff-session-1.patch",
+    ]
+
+    private func decide(
+        _ raw: String,
+        navigationType: WKNavigationType = .other,
+        isMainFrame: Bool = true,
+        token: String? = "0123456789abcdef"
+    ) -> RightSidebarChangesNavigationPolicy.Decision {
+        RightSidebarChangesNavigationPolicy.decision(
+            for: URL(string: raw),
+            navigationType: navigationType,
+            isMainFrame: isMainFrame,
+            token: token,
+            isRegistered: { [registered] in registered.contains($0.absoluteString) }
+        )
+    }
+
+    func testRegisteredPagesOfTheCurrentTokenLoad() {
+        XCTAssertEqual(decide("cmux-diff-viewer://0123456789abcdef/index.html"), .allow)
+        XCTAssertEqual(decide("cmux-diff-viewer://0123456789abcdef/diff-session-1.patch", isMainFrame: false), .allow)
+        XCTAssertEqual(decide("about:blank"), .allow)
+        // The base picker's regeneration route is token-scoped and validated by the handler.
+        XCTAssertEqual(
+            decide("cmux-diff-viewer://0123456789abcdef/__cmux_diff_viewer_branch?group=g&repo=%2Ftmp%2Fr&base=main"),
+            .allow
+        )
+    }
+
+    func testEverythingElseIsCancelled() {
+        XCTAssertEqual(decide("cmux-diff-viewer://0123456789abcdef/other.html"), .cancel, "unregistered file")
+        XCTAssertEqual(decide("cmux-diff-viewer://fedcba9876543210/index.html"), .cancel, "another session's token")
+        XCTAssertEqual(decide("cmux-diff-viewer://0123456789abcdef/index.html", token: nil), .cancel, "no page hosted yet")
+        XCTAssertEqual(
+            decide("cmux-diff-viewer://0123456789abcdef/__cmux_diff_viewer_branch?group=g", isMainFrame: false),
+            .cancel,
+            "the branch route only navigates the document itself"
+        )
+        XCTAssertEqual(decide("cmux-diff-viewer://0123456789abcdef/__cmux_diff_viewer_branch"), .cancel, "route without a query")
+        XCTAssertEqual(decide("https://example.com/"), .cancel, "scripted redirect")
+        XCTAssertEqual(decide("https://example.com/", navigationType: .linkActivated, isMainFrame: false), .cancel, "framed link")
+        XCTAssertEqual(decide("http://127.0.0.1:1234/tok/index.html#cmux-diff-viewer"), .cancel, "local HTTP viewer form")
+        XCTAssertEqual(decide("file:///etc/passwd", navigationType: .linkActivated), .cancel)
+        XCTAssertEqual(decide("javascript:alert(1)", navigationType: .linkActivated), .cancel)
+        XCTAssertEqual(decide("mailto:someone@example.com", navigationType: .linkActivated), .cancel)
+        XCTAssertEqual(decide("not a url"), .cancel)
+        XCTAssertEqual(RightSidebarChangesNavigationPolicy.decision(
+            for: nil, navigationType: .other, isMainFrame: true, token: token, isRegistered: { _ in true }
+        ), .cancel)
+    }
+
+    func testActivatedWebLinksOpenInTheSystemBrowser() {
+        XCTAssertEqual(decide("https://github.com/manaflow-ai/cmux/pull/1", navigationType: .linkActivated), .openExternally)
+        XCTAssertEqual(decide("http://example.com/", navigationType: .linkActivated), .openExternally)
+    }
+
+    func testPopupsOnlyEverOpenWebURLsExternally() {
+        XCTAssertEqual(RightSidebarChangesNavigationPolicy.popupDecision(for: URL(string: "https://example.com/")), .openExternally)
+        XCTAssertEqual(RightSidebarChangesNavigationPolicy.popupDecision(for: URL(string: "cmux-diff-viewer://0123456789abcdef/index.html")), .cancel)
+        XCTAssertEqual(RightSidebarChangesNavigationPolicy.popupDecision(for: URL(string: "file:///tmp/x")), .cancel)
+        XCTAssertEqual(RightSidebarChangesNavigationPolicy.popupDecision(for: nil), .cancel)
     }
 }

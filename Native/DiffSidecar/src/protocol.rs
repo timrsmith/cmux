@@ -36,15 +36,31 @@ impl DiffCommand {
     /// the loopback HTTP and WebSocket development routes reject them.
     #[must_use]
     pub fn is_worktree_write(&self) -> bool {
-        matches!(
-            self,
+        // Exhaustive on purpose: a new command must declare which side of
+        // the transport boundary it belongs to.
+        match self {
+            Self::ProtocolHandshake
+            | Self::SessionOpen(_)
+            | Self::SessionClose(_)
+            | Self::BranchList(_)
+            | Self::BranchChange(_) => false,
             Self::WorktreeRevertFile(_)
-                | Self::WorktreeStageFile(_)
-                | Self::WorktreeUnstageFile(_)
-                | Self::WorktreeRevertHunk(_)
-                | Self::WorktreeCommit(_)
-        )
+            | Self::WorktreeStageFile(_)
+            | Self::WorktreeUnstageFile(_)
+            | Self::WorktreeRevertHunk(_)
+            | Self::WorktreeCommit(_) => true,
+        }
     }
+}
+
+/// The transport a request arrived on. Working-tree writes exist only on the
+/// native stdio transport, so only that transport advertises them.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RpcTransport {
+    /// One request per process over stdin/stdout, driven by the native host.
+    Stdio,
+    /// The loopback HTTP and WebSocket development routes.
+    Loopback,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, TS)]
@@ -81,6 +97,29 @@ pub enum DiffSource {
         #[ts(optional)]
         base_ref: Option<String>,
     },
+}
+
+/// The variant of a [`DiffSource`] without its parameters; a session is bound
+/// to one kind for its lifetime.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DiffSourceKind {
+    Patch,
+    Unstaged,
+    Staged,
+    Branch,
+}
+
+impl DiffSource {
+    #[must_use]
+    pub fn kind(&self) -> DiffSourceKind {
+        match self {
+            Self::Patch { .. } => DiffSourceKind::Patch,
+            Self::Unstaged { .. } => DiffSourceKind::Unstaged,
+            Self::Staged { .. } => DiffSourceKind::Staged,
+            Self::Branch { .. } => DiffSourceKind::Branch,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, TS)]
@@ -368,22 +407,20 @@ impl DiffResponse {
 }
 
 #[must_use]
-pub fn handshake(id: String) -> DiffResponse {
-    let capabilities = vec![
+pub fn handshake(id: String, transport: RpcTransport) -> DiffResponse {
+    let mut capabilities = vec![
         "resource.stream".to_owned(),
         "transport.webkit".to_owned(),
         "transport.stdio".to_owned(),
-        "worktree.write".to_owned(),
     ];
+    if transport == RpcTransport::Stdio {
+        capabilities.push("worktree.write".to_owned());
+    }
     #[cfg(feature = "http-server")]
-    let capabilities = {
-        let mut capabilities = capabilities;
-        capabilities.extend([
-            "transport.fetch".to_owned(),
-            "transport.websocket".to_owned(),
-        ]);
-        capabilities
-    };
+    capabilities.extend([
+        "transport.fetch".to_owned(),
+        "transport.websocket".to_owned(),
+    ]);
     DiffResponse::success(
         id,
         DiffResult::Handshake(HandshakeResult {
