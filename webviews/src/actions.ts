@@ -16,7 +16,11 @@ export function resolveDiffNavigationURL(rawURL: string): string {
       window.location.protocol === "cmux-diff-viewer:" &&
       (target.protocol === "http:" || target.protocol === "https:")
     ) {
-      const rest = target.pathname.split("/").filter(Boolean).slice(1).join("/");
+      const rest = target.pathname
+        .split("/")
+        .filter(Boolean)
+        .slice(1)
+        .join("/");
       return `cmux-diff-viewer://${window.location.host}/${rest}`;
     }
     return target.href;
@@ -34,8 +38,11 @@ function hasURLScheme(url: string): boolean {
 }
 
 export function diffSourceDetail(payload: any): string {
-  const parts = [payload.sourceLabel, payload.repoRoot, payload.branchBaseRef]
-    .filter((value) => typeof value === "string" && value.trim() !== "");
+  const parts = [
+    payload.sourceLabel,
+    payload.repoRoot,
+    payload.branchBaseRef,
+  ].filter((value) => typeof value === "string" && value.trim() !== "");
   return parts.join(" | ");
 }
 
@@ -55,23 +62,36 @@ export async function copyGitApplyCommand(
   // Validate and build before touching either clipboard path so an unsafe
   // patch never reaches the system clipboard in any form.
   const command = buildGitApplyCommand(patchText);
+  await copyText(command, fallbackTextarea);
+  return label("copiedGitApplyCommand");
+}
+
+/**
+ * Writes `text` to the clipboard: the async Clipboard API first, then the
+ * hidden textarea + `execCommand("copy")` fallback WebKit still needs once
+ * user activation has lapsed (or the API is missing). Throws when neither
+ * path worked.
+ */
+export async function copyText(
+  text: string,
+  fallbackTextarea: HTMLTextAreaElement | null,
+): Promise<void> {
   if (navigator.clipboard?.writeText) {
     try {
-      await navigator.clipboard.writeText(command);
-      return label("copiedGitApplyCommand");
+      await navigator.clipboard.writeText(text);
+      return;
     } catch {
-      // WebKit can expose Clipboard API but reject after the async patch fetch loses user activation.
+      // WebKit can expose Clipboard API but reject after an async step loses user activation.
     }
   }
   if (!fallbackTextarea) {
     throw new Error("Clipboard API unavailable");
   }
-  fallbackTextarea.value = command;
+  fallbackTextarea.value = text;
   fallbackTextarea.select();
   if (!document.execCommand("copy")) {
     throw new Error("Clipboard copy failed");
   }
-  return label("copiedGitApplyCommand");
 }
 
 // C0 controls other than tab, LF, and CR, plus DEL and the C1 range. Pasted

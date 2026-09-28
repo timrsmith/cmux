@@ -1,6 +1,10 @@
 const DEFAULT_DIFF_VIEWER_LABELS = {
   additions: "Additions",
+  aheadBy: "{count} ahead",
+  authRequired:
+    "Git could not authenticate with the remote. Sign in with your credential helper or SSH agent, then try again.",
   bars: "Bars",
+  behindBy: "{count} behind",
   binaryFile: "Binary file",
   branchBase: "Branch base",
   branchPickerCurrent: "current",
@@ -25,24 +29,80 @@ const DEFAULT_DIFF_VIEWER_LABELS = {
   changedFiles: "Changed files",
   changedSinceViewed: "Changed since viewed",
   clearFileFilter: "Clear filter",
+  changedFilesCount: "{count} files",
+  checksFailed: "{count} failed",
+  checksPassed: "{passed}/{total} checks passed",
+  checksPending: "{count} pending",
   classic: "Classic",
   collapseAllDiffs: "Collapse all diffs",
   collapseUnchangedContext: "Collapse unchanged context",
   commit: "Commit",
+  commitActions: "More commit actions",
   commitChanges: "Commit changes",
   commitFailed: "Could not create the commit.",
   commitMessageInvalid: "Enter a commit message of at most 64 KiB.",
   commitMessagePlaceholder: "Commit message",
-  commitRequiresStaged: "Stage changes to commit them.",
   commitSubmit: "Commit",
   committed: "Committed {commit}",
+  confirmDiscardAll: "Discard all",
   confirmRevert: "Revert",
+  copiedPath: "Copied path",
+  copyPath: "Copy path",
+  copyPathFailed: "Could not copy path.",
+  createMergeRequest: "Create MR",
+  createMergeRequestDialog: "Create merge request",
+  createMergeRequestSubmit: "Create merge request",
+  createPullRequest: "Create PR",
+  createPullRequestDialog: "Create pull request",
+  createPullRequestSubmit: "Create pull request",
+  detachedHead: "HEAD is detached. Check out a branch first.",
+  detachedHeadShort: "detached",
+  discardAll: "Discard all changes…",
+  discardAllPrompt: "Discard every change in this view? This cannot be undone.",
+  forgeCliMissing:
+    "Install the GitHub CLI (gh) or GitLab CLI (glab) to use this action.",
+  forgeNotAuthenticated:
+    "Sign in with gh auth login or glab auth login, then try again.",
+  forgeUnavailable: "Not available for this remote.",
   hunkStale: "This hunk changed on disk. The diff was reloaded.",
+  moreActions: "More actions",
+  noRemote: "The repository has no remote.",
+  noUpstreamShort: "no upstream",
   nothingToCommit: "Nothing to commit.",
+  openInCmux: "Open in cmux",
+  openInCmuxFailed: "Could not open the file in cmux.",
+  openMergeRequest: "Open merge request",
+  openPullRequest: "Open pull request",
+  prStateClosed: "Closed",
+  prStateDraft: "Draft",
+  prStateMerged: "Merged",
+  prStateOpen: "Open",
+  pullRequestBase: "into {base}",
+  pullRequestBaseInvalid: "Enter a valid base branch name.",
+  pullRequestBasePlaceholder: "Base branch (default)",
+  pullRequestBodyInvalid: "The description is too long (64 KiB max).",
+  pullRequestBodyPlaceholder: "Description (optional)",
+  pullRequestCreateFailed: "Could not create the pull request.",
+  pullRequestCreated: "Created #{number}",
+  pullRequestDraft: "Create as draft",
+  pullRequestExists: "A pull request already exists for this branch.",
+  pullRequestTitleInvalid: "Enter a title of at most 256 bytes.",
+  pullRequestTitlePlaceholder: "Title",
+  push: "Push",
+  pushNoUpstream: "The branch has no upstream yet.",
+  pushRejected: "The remote rejected the push.",
+  pushed: "Pushed {branch} to {remote}",
+  pushedUpstreamCreated: "Pushed {branch} to {remote} and set the upstream",
+  reviewApproved: "Approved",
+  reviewChangesRequested: "Changes requested",
+  reviewRequired: "Review required",
   revertFile: "Revert changes",
   revertHunk: "Revert hunk",
   revertPrompt: "Discard these changes?",
+  stageAll: "Stage all",
+  stageAllAndCommit: "Stage all and commit",
   stageFile: "Stage file",
+  unstageAll: "Unstage all",
   unstageFile: "Unstage file",
   worktreeConflict:
     "The change could not be applied cleanly. The diff was reloaded.",
@@ -114,6 +174,11 @@ const DEFAULT_DIFF_VIEWER_LABELS = {
 export type DiffViewerLabelKey = keyof typeof DEFAULT_DIFF_VIEWER_LABELS;
 export type DiffViewerLabelResolver = (key: DiffViewerLabelKey) => string;
 
+/** Every label key the viewer can ask for, for parity checks against the host's map. */
+export const DIFF_VIEWER_LABEL_KEYS = Object.keys(
+  DEFAULT_DIFF_VIEWER_LABELS,
+) as DiffViewerLabelKey[];
+
 type LabelResolverOptions = {
   assertMissing?: boolean;
 };
@@ -140,4 +205,14 @@ export function createDiffViewerLabelResolver(
 
     return DEFAULT_DIFF_VIEWER_LABELS[key];
   };
+}
+
+/** Substitutes `{name}` placeholders in a resolved label. */
+export function formatLabel(
+  template: string,
+  values: Record<string, string | number>,
+): string {
+  return template.replace(/\{(\w+)\}/g, (match, name: string) =>
+    Object.hasOwn(values, name) ? String(values[name]) : match,
+  );
 }

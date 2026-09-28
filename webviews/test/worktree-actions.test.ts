@@ -8,20 +8,40 @@ import { fileName } from "../src/diff-stream";
 import {
   MAX_COMMIT_MESSAGE_BYTES,
   MAX_HUNK_ACTION_ANNOTATIONS_PER_FILE,
+  MAX_PULL_REQUEST_BODY_BYTES,
+  MAX_PULL_REQUEST_TITLE_BYTES,
+  abbreviateHomePath,
+  buildBulkRequest,
   buildCommitRequest,
+  buildCreatePullRequestRequest,
   buildFileRequest,
   buildHunkRequest,
+  buildOpenFileRequest,
+  buildPushRequest,
+  buildRepositoryStatusRequest,
+  bulkStageActionForSource,
   commitAvailability,
+  externalPullRequestURL,
   fileActionsForSource,
+  forgeActionAvailability,
+  forgeActionHintKey,
   hunkActionAnchor,
   hunkActionTargets,
   hunkRefFromPierreHunk,
+  isBulkWrite,
+  pullRequestLabelKeys,
+  pullRequestStateLabelKey,
+  repositoryHeaderModel,
+  reviewDecisionLabelKey,
   validateCommitMessage,
+  validatePullRequestDraft,
+  worktreeErrorDetail,
   worktreeErrorLabelKey,
   worktreeErrorReloads,
   worktreeFileTarget,
   worktreeWriteAvailable,
 } from "../src/worktree-actions";
+import type { RepositoryStatus } from "../src/diff/generated/protocol";
 
 const session = {
   sessionId: "01234567-89ab-cdef-0123-456789abcdef",
@@ -47,7 +67,7 @@ describe("write action visibility by source kind", () => {
 
   test("commit is enabled for staged, hinted for unstaged, hidden otherwise", () => {
     expect(commitAvailability(staged)).toBe("enabled");
-    expect(commitAvailability(unstaged)).toBe("requiresStaged");
+    expect(commitAvailability(unstaged)).toBe("stageAll");
     expect(commitAvailability(branch)).toBe("hidden");
     expect(commitAvailability(patch)).toBe("hidden");
   });
@@ -115,8 +135,19 @@ describe("hunk references", () => {
       deletionStart: 10,
       deletionCount: 4,
       hunkContent: [
-        { type: "context", lines: 2, additionLineIndex: 0, deletionLineIndex: 0 },
-        { type: "change", deletions: 2, additions: 0, deletionLineIndex: 2, additionLineIndex: 2 },
+        {
+          type: "context",
+          lines: 2,
+          additionLineIndex: 0,
+          deletionLineIndex: 0,
+        },
+        {
+          type: "change",
+          deletions: 2,
+          additions: 0,
+          deletionLineIndex: 2,
+          additionLineIndex: 2,
+        },
       ],
     } as const;
     expect(hunkActionAnchor(trailingDeletions)).toEqual({
@@ -129,7 +160,13 @@ describe("hunk references", () => {
       hunkActionAnchor({
         ...trailingDeletions,
         hunkContent: [
-          { type: "change", deletions: 2, additions: 1, deletionLineIndex: 0, additionLineIndex: 0 },
+          {
+            type: "change",
+            deletions: 2,
+            additions: 1,
+            deletionLineIndex: 0,
+            additionLineIndex: 0,
+          },
         ],
       }),
     ).toEqual({ side: "additions", lineNumber: 12 });
@@ -137,8 +174,19 @@ describe("hunk references", () => {
       hunkActionAnchor({
         ...trailingDeletions,
         hunkContent: [
-          { type: "change", deletions: 2, additions: 0, deletionLineIndex: 0, additionLineIndex: 0 },
-          { type: "context", lines: 2, additionLineIndex: 0, deletionLineIndex: 2 },
+          {
+            type: "change",
+            deletions: 2,
+            additions: 0,
+            deletionLineIndex: 0,
+            additionLineIndex: 0,
+          },
+          {
+            type: "context",
+            lines: 2,
+            additionLineIndex: 0,
+            deletionLineIndex: 2,
+          },
         ],
       }),
     ).toEqual({ side: "additions", lineNumber: 12 });
@@ -204,7 +252,12 @@ describe("hunk references", () => {
   test("hunk action targets are computed once per fileDiff object", () => {
     const fileDiff = {
       hunks: [
-        { additionStart: 1, additionCount: 2, deletionStart: 1, deletionCount: 1 },
+        {
+          additionStart: 1,
+          additionCount: 2,
+          deletionStart: 1,
+          deletionCount: 1,
+        },
       ],
     };
     const first = hunkActionTargets(fileDiff);
@@ -259,7 +312,11 @@ describe("hunk references", () => {
     expect(list[0]).toBe(decorated);
     expect(attachHunkActionAnnotations([item])).not.toBe(list);
     // Items without hunks or without a fileDiff pass through untouched.
-    const hunkless = { id: "empty", type: "diff", fileDiff: { name: "e", hunks: [] } } as any;
+    const hunkless = {
+      id: "empty",
+      type: "diff",
+      fileDiff: { name: "e", hunks: [] },
+    } as any;
     expect(withHunkActionAnnotations(hunkless)).toBe(hunkless);
     const fileless = { id: "none", type: "diff" } as any;
     expect(withHunkActionAnnotations(fileless)).toBe(fileless);
@@ -394,5 +451,316 @@ describe("commit popover validation", () => {
     expect(worktreeErrorReloads("partialRevert")).toBe(true);
     expect(worktreeErrorReloads("notAllowed")).toBe(false);
     expect(worktreeErrorReloads("commitFailed")).toBe(false);
+  });
+
+  test("bulk writes reload after any failure past the pre-write rejections", () => {
+    const target = { path: "story.txt" };
+    const single = [
+      buildFileRequest("stageFile", session, unstaged, target),
+      buildHunkRequest(session, unstaged, target, {
+        oldStart: 1,
+        oldCount: 3,
+        newStart: 1,
+        newCount: 3,
+      }),
+      buildCommitRequest(session, staged, "Message", false),
+      buildPushRequest(session, staged, true),
+    ];
+    for (const command of single) {
+      expect(isBulkWrite(command)).toBe(false);
+      // A single-path write only reloads for the codes that name a changed diff.
+      expect(worktreeErrorReloads("worktreeWriteFailed", command)).toBe(false);
+      expect(worktreeErrorReloads("commitFailed", command)).toBe(false);
+      expect(worktreeErrorReloads("staleHunk", command)).toBe(true);
+    }
+    const bulk = [
+      buildBulkRequest("discardAll", session, unstaged),
+      buildBulkRequest("stageAll", session, unstaged),
+      buildBulkRequest("unstageAll", session, staged),
+      buildCommitRequest(session, unstaged, "Message", true),
+    ];
+    for (const command of bulk) {
+      expect(isBulkWrite(command)).toBe(true);
+      // Git may have changed some paths before exiting non-zero for another.
+      expect(worktreeErrorReloads("worktreeWriteFailed", command)).toBe(true);
+      expect(worktreeErrorReloads("partialRevert", command)).toBe(true);
+      expect(worktreeErrorReloads("missingResult", command)).toBe(true);
+      expect(worktreeErrorReloads(undefined, command)).toBe(true);
+      // Rejected before anything ran: the page is still current.
+      for (const code of [
+        "notAllowed",
+        "invalidMessage",
+        "invalidRequest",
+        "requestTooLarge",
+        "requestTimeout",
+        "unsupportedVersion",
+        "hostUnavailable",
+        "closed",
+        "connectFailed",
+        "requestFailed",
+      ]) {
+        expect(worktreeErrorReloads(code, command)).toBe(false);
+      }
+    }
+    // Stage all and commit: `git add -u` ran before the empty index was found.
+    const stageAllCommit = buildCommitRequest(session, unstaged, "Message", true);
+    expect(worktreeErrorReloads("nothingToCommit", stageAllCommit)).toBe(true);
+    expect(worktreeErrorReloads("commitFailed", stageAllCommit)).toBe(true);
+    expect(
+      worktreeErrorReloads("nothingToCommit", buildCommitRequest(session, staged, "Message", false)),
+    ).toBe(false);
+  });
+});
+
+describe("bulk, push, status, and pull request envelopes", () => {
+  const status: RepositoryStatus = {
+    branch: "feat",
+    detached: false,
+    upstream: "origin/feat",
+    ahead: 1,
+    behind: 0,
+    remoteUrl: "https://github.com/acme/widgets.git",
+    hostKind: "github",
+    forgeCli: { kind: "gh", available: true, authenticated: true },
+  };
+
+  test("session-wide commands carry only the session and its source", () => {
+    for (const [action, method] of [
+      ["discardAll", "worktreeDiscardAll"],
+      ["stageAll", "worktreeStageAll"],
+      ["unstageAll", "worktreeUnstageAll"],
+    ] as const) {
+      expect(buildBulkRequest(action, session, unstaged)).toEqual({
+        method,
+        params: { ...session, source: unstaged },
+      });
+    }
+    expect(buildRepositoryStatusRequest(session, staged)).toEqual({
+      method: "worktreeRepositoryStatus",
+      params: { ...session, source: staged },
+    });
+    expect(bulkStageActionForSource(unstaged)).toBe("stageAll");
+    expect(bulkStageActionForSource(staged)).toBe("unstageAll");
+    expect(bulkStageActionForSource(branch)).toBeNull();
+  });
+
+  test("commit carries stageAll only when asked", () => {
+    expect(buildCommitRequest(session, staged, "Fix it", false)).toEqual({
+      method: "worktreeCommit",
+      params: { ...session, source: staged, message: "Fix it" },
+    });
+    expect(buildCommitRequest(session, unstaged, "Fix it", true)).toEqual({
+      method: "worktreeCommit",
+      params: { ...session, source: unstaged, message: "Fix it", stageAll: true },
+    });
+  });
+
+  test("push and create carry their options in the sidecar's shape", () => {
+    expect(buildPushRequest(session, unstaged, false)).toEqual({
+      method: "worktreePush",
+      params: { ...session, source: unstaged },
+    });
+    expect(buildPushRequest(session, unstaged, true)).toEqual({
+      method: "worktreePush",
+      params: { ...session, source: unstaged, setUpstream: true },
+    });
+    expect(
+      buildCreatePullRequestRequest(session, staged, {
+        title: "Add widgets",
+        body: "Body",
+        draft: false,
+        base: "  ",
+      }),
+    ).toEqual({
+      method: "worktreeCreatePullRequest",
+      params: { ...session, source: staged, title: "Add widgets", body: "Body" },
+    });
+    expect(
+      buildCreatePullRequestRequest(session, staged, {
+        title: "Add widgets",
+        body: "",
+        draft: true,
+        base: "main",
+      }),
+    ).toEqual({
+      method: "worktreeCreatePullRequest",
+      params: {
+        ...session,
+        source: staged,
+        title: "Add widgets",
+        body: "",
+        draft: true,
+        base: "main",
+      },
+    });
+    expect(buildOpenFileRequest(session.capabilityToken, { path: "src/a.ts", previousPath: "b" })).toEqual({
+      method: "hostOpenFile",
+      params: { capabilityToken: session.capabilityToken, path: "src/a.ts" },
+    });
+  });
+
+  test("pull request drafts mirror the sidecar's title, body, and base checks", () => {
+    expect(
+      validatePullRequestDraft({ title: " Add widgets ", body: "b", draft: true, base: " main " }),
+    ).toEqual({ ok: true, draft: { title: "Add widgets", body: "b", draft: true, base: "main" } });
+    expect(validatePullRequestDraft({ title: "T", body: "", draft: false, base: "" })).toEqual({
+      ok: true,
+      draft: { title: "T", body: "", draft: false, base: undefined },
+    });
+    expect(validatePullRequestDraft({ title: "  ", body: "", draft: false })).toEqual({
+      ok: false,
+      reason: "emptyTitle",
+    });
+    expect(
+      validatePullRequestDraft({ title: "x".repeat(MAX_PULL_REQUEST_TITLE_BYTES + 1), body: "", draft: false }),
+    ).toEqual({ ok: false, reason: "titleTooLong" });
+    expect(
+      validatePullRequestDraft({ title: "é".repeat(MAX_PULL_REQUEST_TITLE_BYTES / 2 + 1), body: "", draft: false }),
+    ).toEqual({ ok: false, reason: "titleTooLong" });
+    expect(validatePullRequestDraft({ title: "a\nb", body: "", draft: false })).toEqual({
+      ok: false,
+      reason: "titleTooLong",
+    });
+    expect(
+      validatePullRequestDraft({ title: "T", body: "b".repeat(MAX_PULL_REQUEST_BODY_BYTES + 1), draft: false }),
+    ).toEqual({ ok: false, reason: "bodyTooLong" });
+    for (const base of ["-x", "a b", "a..b", "a@{1}", "/x", "x/", "a?b", "a:b"]) {
+      expect(validatePullRequestDraft({ title: "T", body: "", draft: false, base })).toEqual({
+        ok: false,
+        reason: "invalidBase",
+      });
+    }
+  });
+
+  test("new error codes map to their notices and keep the remote's detail", () => {
+    expect(worktreeErrorLabelKey("detachedHead")).toBe("detachedHead");
+    expect(worktreeErrorLabelKey("noUpstream")).toBe("pushNoUpstream");
+    expect(worktreeErrorLabelKey("authRequired")).toBe("authRequired");
+    expect(worktreeErrorLabelKey("pushRejected")).toBe("pushRejected");
+    expect(worktreeErrorLabelKey("forgeCliMissing")).toBe("forgeCliMissing");
+    expect(worktreeErrorLabelKey("forgeNotAuthenticated")).toBe("forgeNotAuthenticated");
+    expect(worktreeErrorLabelKey("pullRequestExists")).toBe("pullRequestExists");
+    expect(worktreeErrorLabelKey("pullRequestCreateFailed")).toBe("pullRequestCreateFailed");
+    expect(worktreeErrorLabelKey("invalidTitle")).toBe("pullRequestTitleInvalid");
+    expect(worktreeErrorLabelKey("invalidBody")).toBe("pullRequestBodyInvalid");
+    expect(worktreeErrorLabelKey("invalidBase")).toBe("pullRequestBaseInvalid");
+    expect(worktreeErrorDetail("pushRejected", "The remote rejected the push: hook declined")).toBe(
+      "hook declined",
+    );
+    expect(
+      worktreeErrorDetail("pullRequestExists", "A pull request already exists for this branch: https://x/pull/1"),
+    ).toBe("https://x/pull/1");
+    expect(worktreeErrorDetail("pushRejected", "The remote rejected the push")).toBeNull();
+    expect(worktreeErrorDetail("authRequired", "Git could not authenticate: x")).toBeNull();
+    expect(worktreeErrorDetail(undefined, "x: y")).toBeNull();
+    for (const code of ["pushRejected", "noUpstream", "authRequired", "pullRequestExists"]) {
+      expect(worktreeErrorReloads(code)).toBe(false);
+    }
+  });
+
+  test("the header model abbreviates the home directory and reads the streamed totals", () => {
+    expect(abbreviateHomePath("/Users/dev/src/widgets")).toBe("~/src/widgets");
+    expect(abbreviateHomePath("/home/dev")).toBe("~");
+    expect(abbreviateHomePath("/Users/dev")).toBe("~");
+    expect(abbreviateHomePath("/Usersx/dev/src")).toBe("/Usersx/dev/src");
+    expect(abbreviateHomePath("/tmp/repo")).toBe("/tmp/repo");
+    expect(abbreviateHomePath("/Users")).toBe("/Users");
+    const home = { kind: "unstaged", repoRoot: "/Users/dev/widgets" } as const;
+    expect(
+      repositoryHeaderModel(home, status, {
+        addedLines: 12,
+        deletedLines: 3,
+        fileCount: 4,
+        totalLinesOfCode: 100,
+      }),
+    ).toEqual({
+      repoLabel: "~/widgets",
+      branch: "feat",
+      detached: false,
+      upstream: "origin/feat",
+      ahead: 1,
+      behind: 0,
+      fileCount: 4,
+      additions: 12,
+      deletions: 3,
+    });
+    // Before the stream and the status arrive everything reads as zero.
+    expect(repositoryHeaderModel(unstaged, null, null)).toEqual({
+      repoLabel: "/tmp/repo",
+      branch: null,
+      detached: false,
+      upstream: null,
+      ahead: 0,
+      behind: 0,
+      fileCount: 0,
+      additions: 0,
+      deletions: 0,
+    });
+  });
+
+  test("forge availability follows the host kind, the CLI, and the sign-in state", () => {
+    expect(forgeActionAvailability(null)).toEqual({ push: "unknown", createPullRequest: "unknown" });
+    expect(forgeActionAvailability(status)).toEqual({ push: "enabled", createPullRequest: "enabled" });
+    expect(forgeActionAvailability({ ...status, detached: true })).toEqual({
+      push: "detached",
+      createPullRequest: "detached",
+    });
+    expect(forgeActionAvailability({ ...status, hostKind: "none", remoteUrl: undefined })).toEqual({
+      push: "noRemote",
+      createPullRequest: "noRemote",
+    });
+    expect(forgeActionAvailability({ ...status, hostKind: "other" })).toEqual({
+      push: "enabled",
+      createPullRequest: "noForge",
+    });
+    expect(
+      forgeActionAvailability({
+        ...status,
+        forgeCli: { kind: "gh", available: false, authenticated: false },
+      }),
+    ).toEqual({ push: "enabled", createPullRequest: "cliMissing" });
+    expect(
+      forgeActionAvailability({
+        ...status,
+        hostKind: "gitlab",
+        forgeCli: { kind: "glab", available: true, authenticated: false },
+      }),
+    ).toEqual({ push: "enabled", createPullRequest: "notAuthenticated" });
+    expect(forgeActionHintKey("enabled")).toBeNull();
+    expect(forgeActionHintKey("unknown")).toBeNull();
+    expect(forgeActionHintKey("detached")).toBe("detachedHead");
+    expect(forgeActionHintKey("noRemote")).toBe("noRemote");
+    expect(forgeActionHintKey("noForge")).toBe("forgeUnavailable");
+    expect(forgeActionHintKey("cliMissing")).toBe("forgeCliMissing");
+    expect(forgeActionHintKey("notAuthenticated")).toBe("forgeNotAuthenticated");
+  });
+
+  test("pull request wording, states, reviews, and links", () => {
+    expect(pullRequestLabelKeys("github").create).toBe("createPullRequest");
+    expect(pullRequestLabelKeys("other").submit).toBe("createPullRequestSubmit");
+    expect(pullRequestLabelKeys(null).open).toBe("openPullRequest");
+    expect(pullRequestLabelKeys("gitlab")).toEqual({
+      create: "createMergeRequest",
+      dialog: "createMergeRequestDialog",
+      submit: "createMergeRequestSubmit",
+      open: "openMergeRequest",
+    });
+    expect(pullRequestStateLabelKey({ state: "open", isDraft: false })).toBe("prStateOpen");
+    expect(pullRequestStateLabelKey({ state: "open", isDraft: true })).toBe("prStateDraft");
+    expect(pullRequestStateLabelKey({ state: "merged", isDraft: true })).toBe("prStateMerged");
+    expect(pullRequestStateLabelKey({ state: "closed", isDraft: false })).toBe("prStateClosed");
+    expect(reviewDecisionLabelKey("approved")).toBe("reviewApproved");
+    expect(reviewDecisionLabelKey("changes_requested")).toBe("reviewChangesRequested");
+    expect(reviewDecisionLabelKey("review_required")).toBe("reviewRequired");
+    expect(reviewDecisionLabelKey(undefined)).toBeNull();
+    expect(reviewDecisionLabelKey("")).toBeNull();
+    expect(externalPullRequestURL("https://github.com/acme/widgets/pull/42")).toBe(
+      "https://github.com/acme/widgets/pull/42",
+    );
+    expect(externalPullRequestURL("http://gitlab.internal/mr/1")).toBe("http://gitlab.internal/mr/1");
+    expect(externalPullRequestURL("javascript:alert(1)")).toBeNull();
+    expect(externalPullRequestURL("cmux-diff-viewer://token/x")).toBeNull();
+    expect(externalPullRequestURL("not a url")).toBeNull();
+    expect(externalPullRequestURL(undefined)).toBeNull();
   });
 });

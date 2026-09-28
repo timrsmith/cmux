@@ -5,6 +5,7 @@ export type IconName =
   | "arrow"
   | "background"
   | "bars"
+  | "branch"
   | "check"
   | "chevronDown"
   | "chevronUp"
@@ -26,12 +27,16 @@ export type IconName =
   | "files"
   | "none"
   | "numbers"
+  | "open"
+  | "pullRequest"
+  | "push"
   | "refresh"
   | "revert"
   | "search"
   | "sidebarCollapse"
   | "split"
   | "stage"
+  | "trash"
   | "unified"
   | "unstage"
   | "word"
@@ -87,8 +92,18 @@ function StrokeIconPaths({ name }: { name: IconName }) {
   switch (name) {
   case "bars":
     return <><path d="M5 4v12" /><path d="M9 6v8" /><path d="M13 8v4" /></>;
+  case "branch":
+    return <><circle cx="6" cy="5" r="2" /><circle cx="6" cy="15" r="2" /><circle cx="14" cy="7" r="2" /><path d="M6 7v6" /><path d="M14 9c0 3-8 2-8 4" /></>;
+  case "open":
+    return <><rect x="3.5" y="4" width="13" height="12" rx="2" /><path d="M8 4v12" /><path d="m11 8 2.5 2-2.5 2" /></>;
+  case "pullRequest":
+    return <><circle cx="6" cy="5" r="2" /><circle cx="6" cy="15" r="2" /><circle cx="14" cy="15" r="2" /><path d="M6 7v6" /><path d="M14 13V9a2 2 0 0 0-2-2h-2" /><path d="m11.5 5-1.5 2 1.5 2" /></>;
+  case "push":
+    return <><path d="M10 16V6" /><path d="m6.5 9.5 3.5-3.5 3.5 3.5" /><path d="M4 3.5h12" /></>;
   case "split":
     return <><rect x="4" y="4" width="12" height="12" rx="2" /><rect x="6" y="6" width="3.5" height="8" rx="1" data-diff-deletion="true" /><rect x="10.5" y="6" width="3.5" height="8" rx="1" data-diff-addition="true" /></>;
+  case "trash":
+    return <><path d="M4 6h12" /><path d="M8 6V4h4v2" /><path d="M6 6l1 10h6l1-10" /></>;
   case "unified":
     return <><rect x="4" y="4" width="12" height="12" rx="2" /><rect x="6" y="6" width="8" height="3.5" rx="1" data-diff-deletion="true" /><rect x="6" y="10.5" width="8" height="3.5" rx="1" data-diff-addition="true" /></>;
   case "commit":

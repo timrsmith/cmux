@@ -145,6 +145,16 @@ pub(crate) struct SessionOwner {
 // the page, patch, assets, and manifest. Keep the outer safety deadline above
 // that complete contract while still releasing a stuck child eventually.
 const BRANCH_CHANGE_CHILD_TIMEOUT: Duration = Duration::from_secs(120);
+// Push, repository status, and pull request creation bound their own
+// children; the host bridge waits 130 seconds, so this sits between the two.
+// Budget: a push is at most `worktree::PUSH_TIMEOUT` (120 s); a status runs
+// local Git plus at most two forge calls of `forge::FORGE_CLI_TIMEOUT` (30 s
+// each); pull request creation chains `auth status`, an implicit push, the
+// request lookup, and `pr create` under one shared
+// `worktree::PULL_REQUEST_FLOW_BUDGET` (115 s) deadline, each step taking
+// the remainder capped by its own maximum, so no flow's children can outlive
+// this bound and answer into a closed request.
+const NETWORK_ACTION_TIMEOUT: Duration = Duration::from_secs(125);
 
 #[cfg(feature = "http-server")]
 #[derive(Serialize)]
@@ -418,15 +428,16 @@ async fn rpc(
     if !trusted_browser_request(&headers, state.port) {
         return not_found(false);
     }
-    if request.command.is_worktree_write() {
+    if request.command.requires_stdio() {
         return Json(reject_worktree_write(request.id)).into_response();
     }
     Json(handle_protocol_request(request, Some(&state), RpcTransport::Loopback).await)
         .into_response()
 }
 
-/// Working-tree mutations are only reachable through the native stdio
-/// transport, where the host has already bound the frame to its token.
+/// Working-tree mutations (and the host-side repository status query) are
+/// only reachable through the native stdio transport, where the host has
+/// already bound the frame to its token.
 #[cfg(feature = "http-server")]
 fn reject_worktree_write(id: String) -> DiffResponse {
     DiffResponse::failure(
@@ -462,7 +473,7 @@ async fn handle_websocket(mut socket: WebSocket, state: AppState) {
                     let _ = socket.send(Message::Close(None)).await;
                     break;
                 };
-                let response = if request.command.is_worktree_write() {
+                let response = if request.command.requires_stdio() {
                     reject_worktree_write(request.id)
                 } else {
                     handle_protocol_request(request, Some(&state), RpcTransport::Loopback).await
@@ -485,6 +496,8 @@ async fn handle_websocket(mut socket: WebSocket, state: AppState) {
     }
 }
 
+// A flat dispatch table: one arm per protocol method.
+#[allow(clippy::too_many_lines)]
 async fn handle_protocol_request(
     request: DiffRequest,
     state: Option<&AppState>,
@@ -585,6 +598,26 @@ async fn handle_protocol_request(
         DiffCommand::WorktreeCommit(params) => {
             worktree_response(request.id, worktree::commit(state, &params)).await
         }
+        DiffCommand::WorktreeDiscardAll(params) => {
+            worktree_response(request.id, worktree::discard_all(state, &params)).await
+        }
+        DiffCommand::WorktreeStageAll(params) => {
+            worktree_response(request.id, worktree::stage_all(state, &params)).await
+        }
+        DiffCommand::WorktreeUnstageAll(params) => {
+            worktree_response(request.id, worktree::unstage_all(state, &params)).await
+        }
+        DiffCommand::WorktreePush(params) => {
+            network_response(request.id, worktree::push(state, &params)).await
+        }
+        // Read-only, but stdio-only like the writes (`requires_stdio`): the
+        // loopback routes reject it before reaching this function.
+        DiffCommand::WorktreeRepositoryStatus(params) => {
+            network_response(request.id, worktree::repository_status(state, &params)).await
+        }
+        DiffCommand::WorktreeCreatePullRequest(params) => {
+            network_response(request.id, worktree::create_pull_request(state, &params)).await
+        }
     }
 }
 
@@ -592,7 +625,26 @@ async fn worktree_response(
     id: String,
     write: impl Future<Output = Result<DiffResult, worktree::WriteError>>,
 ) -> DiffResponse {
-    match tokio::time::timeout(SESSION_OPEN_TIMEOUT, write).await {
+    worktree_response_within(id, write, SESSION_OPEN_TIMEOUT).await
+}
+
+/// A command that talks to a remote or the forge CLI: its own children carry
+/// deadlines (`PUSH_TIMEOUT`, `FORGE_CLI_TIMEOUT`, `PULL_REQUEST_FLOW_BUDGET`
+/// for the chained flow), so the outer bound only has to sit above the
+/// longest of them.
+async fn network_response(
+    id: String,
+    write: impl Future<Output = Result<DiffResult, worktree::WriteError>>,
+) -> DiffResponse {
+    worktree_response_within(id, write, NETWORK_ACTION_TIMEOUT).await
+}
+
+async fn worktree_response_within(
+    id: String,
+    write: impl Future<Output = Result<DiffResult, worktree::WriteError>>,
+    timeout: Duration,
+) -> DiffResponse {
+    match tokio::time::timeout(timeout, write).await {
         Ok(Ok(result)) => DiffResponse::success(id, result),
         Ok(Err(error)) => DiffResponse::failure(id, error.code(), &error.message()),
         Err(_) => DiffResponse::failure(
@@ -2344,6 +2396,37 @@ mod tests {
         assert!(write(
             r#"{"id":"a","version":1,"method":"worktreeCommit","params":{"sessionId":"s","capabilityToken":"t","source":{"kind":"staged","repoRoot":"/r"},"message":"m"}}"#
         ));
+        let session_params = r#"{"sessionId":"s","capabilityToken":"t","source":{"kind":"unstaged","repoRoot":"/r"}}"#;
+        for method in [
+            "worktreeDiscardAll",
+            "worktreeStageAll",
+            "worktreeUnstageAll",
+        ] {
+            assert!(
+                write(&format!(
+                    r#"{{"id":"a","version":1,"method":"{method}","params":{session_params}}}"#
+                )),
+                "{method}"
+            );
+        }
+        assert!(write(&format!(
+            r#"{{"id":"a","version":1,"method":"worktreePush","params":{session_params}}}"#
+        )));
+        assert!(write(
+            r#"{"id":"a","version":1,"method":"worktreeCreatePullRequest","params":{"sessionId":"s","capabilityToken":"t","source":{"kind":"staged","repoRoot":"/r"},"title":"t"}}"#
+        ));
+        // The status query is read-only but still confined to stdio.
+        let status: DiffRequest = serde_json::from_str(&format!(
+            r#"{{"id":"a","version":1,"method":"worktreeRepositoryStatus","params":{session_params}}}"#
+        ))
+        .expect("decode");
+        assert!(!status.command.is_worktree_write());
+        assert!(status.command.requires_stdio());
+        let close: DiffRequest = serde_json::from_str(
+            r#"{"id":"a","version":1,"method":"sessionClose","params":{"sessionId":"s","capabilityToken":"t"}}"#,
+        )
+        .expect("decode");
+        assert!(!close.command.requires_stdio());
     }
 
     #[tokio::test]

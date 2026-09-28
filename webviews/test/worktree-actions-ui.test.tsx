@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { flushSync } from "react-dom";
 import { renderToStaticMarkup } from "react-dom/server";
 import { App } from "../src/App";
 import { createDiffViewerLabelResolver } from "../src/labels";
@@ -19,7 +20,11 @@ import {
 import {
   failureResponse,
   MOCK_CAPABILITY_TOKEN as token,
+  MOCK_GITHUB_STATUS,
+  MOCK_PULL_REQUEST,
+  MOCK_REPOSITORY_STATUS,
   MOCK_SESSION_ID as sessionId,
+  repositoryStatusResponse,
   sessionOpenedResponse,
   sidecarMock,
   type SidecarRequest,
@@ -243,11 +248,11 @@ test("hunk action row confirms a revert and disables while a write is pending", 
   ).toBe(true);
 });
 
-test("commit button follows the source kind and the sidecar capability", async () => {
+test("the header commit button renders for both working-tree views and never for branch or read-only sidecars", async () => {
   const cases: Array<{
     source: any;
     capabilities: string[];
-    expected: "enabled" | "requiresStaged" | "absent";
+    expected: "enabled" | "stageAll" | "absent";
   }> = [
     {
       source: stagedSource,
@@ -257,7 +262,7 @@ test("commit button follows the source kind and the sidecar capability", async (
     {
       source: unstagedSource,
       capabilities: ["worktree.write"],
-      expected: "requiresStaged",
+      expected: "stageAll",
     },
     {
       source: { kind: "branch", repoRoot: "/tmp/repo", baseRef: "main" },
@@ -297,20 +302,14 @@ test("commit button follows the source kind and the sidecar capability", async (
     ) as HTMLButtonElement | null;
     if (expected === "absent") {
       expect(button).toBeNull();
+      expect(document.getElementById("repo-header")).toBeNull();
+      // Read-only views never ask for the repository status.
+      expect(requestsFor(requests, "worktreeRepositoryStatus")).toHaveLength(0);
     } else {
       expect(button).toBeTruthy();
       expect(button?.dataset.availability).toBe(expected);
-      expect(button?.disabled).toBe(expected !== "enabled");
-      if (expected === "requiresStaged") {
-        expect(button?.title).toBe("Stage changes to commit them.");
-      }
-    }
-    // The "..." menu always carries the canonical copy of the commit action.
-    const menuCommit = findButton(document, "Commit changes");
-    if (expected === "absent") {
-      expect(menuCommit).toBeUndefined();
-    } else {
-      expect(menuCommit?.disabled).toBe(expected !== "enabled");
+      expect(button?.disabled).toBe(false);
+      expect(document.getElementById("repo-header")).toBeTruthy();
     }
     await resetDom();
   }
@@ -712,13 +711,503 @@ test("collapse all keeps files collapsed through a write action reload", async (
   // A collapsed file keeps its header (and header actions) but renders no
   // code.
   await waitFor(() => renderedCodeBlocks(document) === 0, "the file to collapse");
-  expect(document.querySelectorAll(".worktree-action")).toHaveLength(2);
+  // Open in cmux, copy path, stage, revert.
+  expect(document.querySelectorAll(".worktree-action")).toHaveLength(4);
   click(headerAction(document, "stageFile"));
   await waitForReload(document, requests);
   // The option survived the reset, so the re-streamed file arrives collapsed
   // (no per-item bookkeeping needed).
-  expect(document.querySelectorAll(".worktree-action")).toHaveLength(2);
+  expect(document.querySelectorAll(".worktree-action")).toHaveLength(4);
   expect(renderedCodeBlocks(document)).toBe(0);
   expect(document.body.dataset.streamFileCount).toBe("1");
   expect(findButton(document, "Expand all diffs")).toBeTruthy();
+});
+
+// MARK: Repository header, split button, pull requests, bulk actions
+
+/** Mounts a working-tree view whose status answers with `status`. */
+async function renderWithStatus(
+  source: any,
+  status: Record<string, unknown>,
+  requests: SidecarRequest[],
+  overrides: Record<string, (request: SidecarRequest) => unknown> = {},
+) {
+  const document = await renderApp(
+    source,
+    sidecarMock(requests, ["worktree.write"], {
+      worktreeRepositoryStatus: (request) => repositoryStatusResponse(request, status),
+      ...overrides,
+    }),
+    ONE_FILE_PATCH,
+  );
+  await waitFor(
+    () => document.querySelector(".repo-header-branch") != null,
+    "the status to render",
+  );
+  return document;
+}
+
+function setInputValue(input: HTMLInputElement, value: string): void {
+  const window = input.ownerDocument.defaultView!;
+  const descriptor = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype,
+    "value",
+  );
+  descriptor?.set?.call(input, value);
+  flushSync(() => {
+    input.dispatchEvent(new window.Event("focusin", { bubbles: true }));
+    input.dispatchEvent(
+      new window.KeyboardEvent("keyup", { bubbles: true, key: "t" }),
+    );
+  });
+}
+
+function menuAction(document: Document, action: string) {
+  return document.querySelector<HTMLButtonElement>(
+    `.repo-menu [data-action="${action}"]`,
+  );
+}
+
+test("the repository header shows the repo, branch, streamed totals, and upstream position", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(unstagedSource, MOCK_GITHUB_STATUS, requests);
+  const header = document.getElementById("repo-header")!;
+  expect(header.querySelector(".repo-header-repo")?.textContent).toBe("/tmp/repo");
+  expect(header.querySelector(".repo-header-title")?.getAttribute("title")).toBe("/tmp/repo");
+  expect(header.querySelector(".repo-header-branch")?.textContent).toBe("main");
+  // The totals come from the streamed metrics: one file, +1 / -1.
+  expect(header.querySelector(".repo-header-files")?.textContent).toBe("1 files");
+  expect(header.querySelector(".repo-header-additions")?.textContent).toBe("+1");
+  expect(header.querySelector(".repo-header-deletions")?.textContent).toBe("-1");
+  expect(header.querySelector(".repo-header-position")?.textContent).toBe("2 ahead");
+  // One status query per opened view: no polling.
+  expect(requestsFor(requests, "worktreeRepositoryStatus")).toHaveLength(1);
+  expect(requestsFor(requests, "worktreeRepositoryStatus")[0].params).toEqual({
+    sessionId,
+    capabilityToken: token,
+    source: unstagedSource,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(requestsFor(requests, "worktreeRepositoryStatus")).toHaveLength(1);
+});
+
+test("a home-directory repository is abbreviated with ~ in the header", async () => {
+  const requests: SidecarRequest[] = [];
+  const homeSource = { kind: "unstaged", repoRoot: "/Users/dev/src/widgets" };
+  const document = await renderWithStatus(homeSource, MOCK_REPOSITORY_STATUS, requests);
+  expect(document.querySelector(".repo-header-repo")?.textContent).toBe("~/src/widgets");
+  expect(document.querySelector(".repo-header-title")?.getAttribute("title")).toBe(
+    "/Users/dev/src/widgets",
+  );
+});
+
+test("the split button offers push and create PR/MR according to the host kind and forge CLI", async () => {
+  const cases: Array<{
+    status: Record<string, unknown>;
+    push: boolean;
+    create: boolean;
+    createLabel: string;
+    createHint?: string;
+    pushHint?: string;
+  }> = [
+    {
+      status: MOCK_REPOSITORY_STATUS,
+      push: true,
+      create: false,
+      createLabel: "Create PR",
+      createHint: "Not available for this remote.",
+    },
+    {
+      status: MOCK_GITHUB_STATUS,
+      push: true,
+      create: true,
+      createLabel: "Create PR",
+    },
+    {
+      status: {
+        ...MOCK_GITHUB_STATUS,
+        remoteUrl: "git@gitlab.com:acme/widgets.git",
+        hostKind: "gitlab",
+        forgeCli: { kind: "glab", available: true, authenticated: false },
+      },
+      push: true,
+      create: false,
+      createLabel: "Create MR",
+      createHint: "Sign in with gh auth login or glab auth login, then try again.",
+    },
+    {
+      status: {
+        ...MOCK_GITHUB_STATUS,
+        forgeCli: { kind: "gh", available: false, authenticated: false },
+      },
+      push: true,
+      create: false,
+      createLabel: "Create PR",
+      createHint: "Install the GitHub CLI (gh) or GitLab CLI (glab) to use this action.",
+    },
+    {
+      status: { ...MOCK_REPOSITORY_STATUS, upstream: undefined, remoteUrl: undefined, hostKind: "none" },
+      push: false,
+      create: false,
+      createLabel: "Create PR",
+      pushHint: "The repository has no remote.",
+      createHint: "The repository has no remote.",
+    },
+  ];
+  for (const testCase of cases) {
+    const requests: SidecarRequest[] = [];
+    const document = await renderWithStatus(stagedSource, testCase.status, requests);
+    click(document.getElementById("commit-menu-button") as HTMLButtonElement);
+    const push = menuAction(document, "push")!;
+    const create = menuAction(document, "createPullRequest")!;
+    expect(push.disabled).toBe(!testCase.push);
+    expect(create.disabled).toBe(!testCase.create);
+    expect(create.textContent).toBe(testCase.createLabel);
+    expect(create.getAttribute("title") ?? undefined).toBe(testCase.createHint);
+    expect(push.getAttribute("title") ?? undefined).toBe(testCase.pushHint);
+    // Escape closes the menu without sending anything.
+    document.dispatchEvent(
+      new (document.defaultView as any).KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    await waitFor(() => document.getElementById("commit-menu") == null, "the menu to close");
+    expect(requestsFor(requests, "worktreePush")).toHaveLength(0);
+    await resetDom();
+  }
+});
+
+test("the pull request card renders the status' request and links to it externally", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(
+    stagedSource,
+    { ...MOCK_GITHUB_STATUS, pullRequest: MOCK_PULL_REQUEST },
+    requests,
+  );
+  const card = document.getElementById("pull-request-card")!;
+  expect(card.querySelector(".pull-request-number")?.textContent).toBe("#42");
+  expect(card.querySelector(".pull-request-state")?.textContent).toBe("Draft");
+  expect(card.querySelector(".pull-request-title")?.textContent).toBe("Add widgets");
+  expect(card.querySelector(".pull-request-base")?.textContent).toBe("into main");
+  expect(card.querySelector(".pull-request-checks")?.textContent).toBe(
+    "2/3 checks passed · 1 pending",
+  );
+  expect(card.querySelector(".pull-request-review")?.textContent).toBe("Review required");
+  const link = card.querySelector<HTMLAnchorElement>("a.pull-request-link")!;
+  expect(link.getAttribute("href")).toBe("https://github.com/acme/widgets/pull/42");
+  expect(link.getAttribute("target")).toBe("_blank");
+  expect(link.getAttribute("rel")).toBe("noreferrer");
+  expect(link.getAttribute("aria-label")).toBe("Open pull request");
+  await resetDom();
+
+  // A merged request on GitLab, with a non-web URL: state badge, MR wording,
+  // and no link the viewer could navigate to.
+  const gitlabRequests: SidecarRequest[] = [];
+  const gitlabDocument = await renderWithStatus(
+    stagedSource,
+    {
+      ...MOCK_GITHUB_STATUS,
+      hostKind: "gitlab",
+      forgeCli: { kind: "glab", available: true, authenticated: true },
+      pullRequest: {
+        ...MOCK_PULL_REQUEST,
+        state: "merged",
+        isDraft: false,
+        url: "javascript:alert(1)",
+        checks: undefined,
+        reviewDecision: undefined,
+      },
+    },
+    gitlabRequests,
+  );
+  const gitlabCard = gitlabDocument.getElementById("pull-request-card")!;
+  expect(gitlabCard.querySelector(".pull-request-state")?.textContent).toBe("Merged");
+  expect(gitlabCard.getAttribute("aria-label")).toBe("Open merge request");
+  expect(gitlabCard.querySelector("a")).toBeNull();
+  expect(gitlabCard.querySelector(".pull-request-checks")).toBeNull();
+});
+
+test("discard all confirms inline and posts worktreeDiscardAll exactly once", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(unstagedSource, MOCK_REPOSITORY_STATUS, requests);
+  click(document.getElementById("repo-overflow-button") as HTMLButtonElement);
+  expect(menuAction(document, "stageAll")).toBeTruthy();
+  expect(menuAction(document, "unstageAll")).toBeNull();
+  click(menuAction(document, "discardAll"));
+  // Asking is not doing: nothing has been sent, the prompt is shown.
+  expect(requestsFor(requests, "worktreeDiscardAll")).toHaveLength(0);
+  expect(document.querySelector("#repo-overflow-menu .worktree-confirm-text")?.textContent).toBe(
+    "Discard every change in this view? This cannot be undone.",
+  );
+  // Cancel keeps the menu and sends nothing.
+  click(document.querySelector<HTMLButtonElement>('#repo-overflow-menu [data-action="cancel"]'));
+  expect(document.getElementById("repo-overflow-menu")).toBeTruthy();
+  expect(menuAction(document, "discardAll")).toBeTruthy();
+  expect(requestsFor(requests, "worktreeDiscardAll")).toHaveLength(0);
+  click(menuAction(document, "discardAll"));
+  const confirm = document.querySelector<HTMLButtonElement>('#repo-overflow-menu [data-action="confirm"]')!;
+  expect(confirm.className).toContain("worktree-confirm-danger");
+  click(confirm);
+  // A second click on the (now unmounted) confirm cannot post again.
+  confirm.click();
+  await waitFor(
+    () => requestsFor(requests, "worktreeDiscardAll").length === 1,
+    "the discard-all request",
+  );
+  expect(requestsFor(requests, "worktreeDiscardAll")[0].params).toEqual({
+    sessionId,
+    capabilityToken: token,
+    source: unstagedSource,
+  });
+  expect(document.getElementById("repo-overflow-menu")).toBeNull();
+  await waitForReload(document, requests);
+  expect(requestsFor(requests, "worktreeDiscardAll")).toHaveLength(1);
+});
+
+test("a failed discard all reloads the diff: Git may have restored some paths before giving up", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(unstagedSource, MOCK_REPOSITORY_STATUS, requests, {
+    worktreeDiscardAll: (request) =>
+      failureResponse(request, "worktreeWriteFailed", "Could not update the working tree"),
+  });
+  click(document.getElementById("repo-overflow-button") as HTMLButtonElement);
+  click(menuAction(document, "discardAll"));
+  click(document.querySelector<HTMLButtonElement>('#repo-overflow-menu [data-action="confirm"]'));
+  await waitFor(
+    () => requestsFor(requests, "worktreeDiscardAll").length === 1,
+    "the discard-all request",
+  );
+  await waitFor(
+    () =>
+      document.getElementById("worktree-notice")?.textContent ===
+      "Could not update the working tree.",
+    "the failure notice",
+  );
+  expect(document.getElementById("worktree-notice")?.dataset.error).toBe("true");
+  // Unlike a single-file failure (which keeps the session), the bulk failure
+  // reopens it so the page shows whatever Git left behind.
+  await waitForReload(document, requests);
+  expect(requestsFor(requests, "worktreeDiscardAll")).toHaveLength(1);
+});
+
+test("stage all and unstage all post their session command and reopen the diff", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(stagedSource, MOCK_REPOSITORY_STATUS, requests);
+  click(document.getElementById("repo-overflow-button") as HTMLButtonElement);
+  expect(menuAction(document, "stageAll")).toBeNull();
+  click(menuAction(document, "unstageAll"));
+  await waitFor(
+    () => requestsFor(requests, "worktreeUnstageAll").length === 1,
+    "the unstage-all request",
+  );
+  expect(requestsFor(requests, "worktreeUnstageAll")[0].params).toEqual({
+    sessionId,
+    capabilityToken: token,
+    source: stagedSource,
+  });
+  await waitForReload(document, requests);
+});
+
+test("push posts worktreePush with setUpstream, reports the result, and refreshes the status", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(stagedSource, MOCK_GITHUB_STATUS, requests);
+  click(document.getElementById("commit-menu-button") as HTMLButtonElement);
+  click(menuAction(document, "push"));
+  await waitFor(() => requestsFor(requests, "worktreePush").length === 1, "the push request");
+  expect(requestsFor(requests, "worktreePush")[0].params).toEqual({
+    sessionId,
+    capabilityToken: token,
+    source: stagedSource,
+    setUpstream: true,
+  });
+  await waitFor(
+    () =>
+      document.getElementById("worktree-notice")?.textContent ===
+      "Pushed main to origin and set the upstream",
+    "the pushed notice",
+  );
+  expect(document.getElementById("worktree-notice")?.dataset.error).toBe("false");
+  // No reload for a push (the diff did not change), one status refresh.
+  await waitFor(
+    () => requestsFor(requests, "worktreeRepositoryStatus").length === 2,
+    "the status refresh",
+  );
+  expect(sessionOpens(requests)).toBe(1);
+  expect(document.getElementById("commit-menu")).toBeNull();
+});
+
+test("push failures show the localized reason with the remote's last line", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(stagedSource, MOCK_GITHUB_STATUS, requests, {
+    worktreePush: (request) =>
+      failureResponse(
+        request,
+        "pushRejected",
+        "The remote rejected the push: ! [rejected] main -> main (fetch first)",
+      ),
+  });
+  click(document.getElementById("commit-menu-button") as HTMLButtonElement);
+  click(menuAction(document, "push"));
+  await waitFor(
+    () =>
+      document.getElementById("worktree-notice")?.textContent ===
+      "The remote rejected the push. ! [rejected] main -> main (fetch first)",
+    "the rejection notice",
+  );
+  expect(document.getElementById("worktree-notice")?.dataset.error).toBe("true");
+  expect(sessionOpens(requests)).toBe(1);
+});
+
+test("creating a pull request validates the title, posts the draft, and shows the card", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(stagedSource, MOCK_GITHUB_STATUS, requests);
+  click(document.getElementById("commit-menu-button") as HTMLButtonElement);
+  click(menuAction(document, "createPullRequest"));
+  const popover = document.getElementById("pull-request-popover")!;
+  expect(popover.getAttribute("aria-label")).toBe("Create pull request");
+  const submit = () =>
+    document.querySelector<HTMLButtonElement>('#pull-request-popover [data-action="createPullRequest"]')!;
+  expect(submit().textContent).toBe("Create pull request");
+  // An empty title never leaves the page.
+  expect(submit().disabled).toBe(true);
+  submit().click();
+  expect(requestsFor(requests, "worktreeCreatePullRequest")).toHaveLength(0);
+  const title = popover.querySelector<HTMLInputElement>(".pull-request-title-input")!;
+  setInputValue(title, "  Add widgets ");
+  await waitFor(() => submit().disabled === false, "the submit button to enable");
+  // An invalid base is flagged in place, still without a request.
+  const base = popover.querySelector<HTMLInputElement>(".pull-request-base-input")!;
+  setInputValue(base, "-force");
+  click(submit());
+  expect(popover.querySelector(".commit-popover-hint")?.textContent).toBe(
+    "Enter a valid base branch name.",
+  );
+  expect(requestsFor(requests, "worktreeCreatePullRequest")).toHaveLength(0);
+  setInputValue(base, "main");
+  await waitFor(() => submit().disabled === false, "the submit button to re-enable");
+  flushSync(() => popover.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+  click(submit());
+  await waitFor(
+    () => requestsFor(requests, "worktreeCreatePullRequest").length === 1,
+    "the create request",
+  );
+  expect(requestsFor(requests, "worktreeCreatePullRequest")[0].params).toEqual({
+    sessionId,
+    capabilityToken: token,
+    source: stagedSource,
+    title: "Add widgets",
+    body: "",
+    draft: true,
+    base: "main",
+  });
+  await waitFor(
+    () => document.getElementById("pull-request-card") != null,
+    "the pull request card",
+  );
+  const card = document.getElementById("pull-request-card")!;
+  expect(card.querySelector(".pull-request-number")?.textContent).toBe("#42");
+  expect(card.querySelector(".pull-request-title")?.textContent).toBe("Add widgets");
+  expect(card.querySelector(".pull-request-state")?.textContent).toBe("Draft");
+  expect(document.getElementById("pull-request-popover")).toBeNull();
+  expect(document.getElementById("worktree-notice")?.textContent).toBe("Created #42");
+  await waitFor(
+    () => requestsFor(requests, "worktreeRepositoryStatus").length === 2,
+    "the status refresh",
+  );
+  expect(sessionOpens(requests)).toBe(1);
+});
+
+test("a forge that is not signed in shows the guidance notice for create", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(stagedSource, MOCK_GITHUB_STATUS, requests, {
+    worktreeCreatePullRequest: (request) =>
+      failureResponse(request, "forgeNotAuthenticated", "The forge command-line tool is not signed in"),
+  });
+  click(document.getElementById("commit-menu-button") as HTMLButtonElement);
+  click(menuAction(document, "createPullRequest"));
+  setInputValue(
+    document.querySelector<HTMLInputElement>(".pull-request-title-input")!,
+    "Add widgets",
+  );
+  const submit = document.querySelector<HTMLButtonElement>(
+    '#pull-request-popover [data-action="createPullRequest"]',
+  )!;
+  await waitFor(() => !submit.disabled, "the submit button to enable");
+  click(submit);
+  await waitFor(
+    () =>
+      document.getElementById("worktree-notice")?.textContent ===
+      "Sign in with gh auth login or glab auth login, then try again.",
+    "the guidance notice",
+  );
+  expect(document.getElementById("worktree-notice")?.dataset.error).toBe("true");
+});
+
+test("the unstaged view commits through stage all and commit", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(unstagedSource, MOCK_REPOSITORY_STATUS, requests);
+  click(document.getElementById("commit-button") as HTMLButtonElement);
+  const submit = () => findButton(document, "Stage all and commit", "#commit-popover");
+  expect(submit()).toBeTruthy();
+  expect(submit()?.dataset.stageAll).toBe("true");
+  setTextareaValue(
+    document.querySelector<HTMLTextAreaElement>(".commit-message-input")!,
+    "Ship everything",
+  );
+  await waitFor(() => submit()?.disabled === false, "the submit button to enable");
+  click(submit());
+  await waitFor(() => requestsFor(requests, "worktreeCommit").length === 1, "the commit request");
+  expect(requestsFor(requests, "worktreeCommit")[0].params).toEqual({
+    sessionId,
+    capabilityToken: token,
+    source: unstagedSource,
+    message: "Ship everything",
+    stageAll: true,
+  });
+  await waitFor(() => sessionOpens(requests) === 2, "the session to reopen");
+  // The reopened session refetches the status: the branch moved ahead.
+  await waitFor(
+    () => requestsFor(requests, "worktreeRepositoryStatus").length === 2,
+    "the status refresh after the commit",
+    3000,
+  );
+});
+
+test("file cards offer open in cmux (host action) and copy path", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(unstagedSource, MOCK_REPOSITORY_STATUS, requests);
+  const copied: string[] = [];
+  Object.defineProperty(document.defaultView!.navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: async (text: string) => { copied.push(text); } },
+  });
+  click(headerAction(document, "openInCmux"));
+  await waitFor(() => requestsFor(requests, "hostOpenFile").length === 1, "the host open request");
+  expect(requestsFor(requests, "hostOpenFile")[0]).toMatchObject({
+    version: 1,
+    method: "hostOpenFile",
+    params: { capabilityToken: token, path: "story.txt" },
+  });
+  // Opening never reloads the diff or disables the actions.
+  expect(sessionOpens(requests)).toBe(1);
+  expect(document.querySelector<HTMLElement>(".worktree-file-actions")?.dataset.pending).toBe("false");
+  click(headerAction(document, "copyPath"));
+  await waitFor(() => copied.length === 1, "the clipboard write");
+  expect(copied).toEqual(["story.txt"]);
+  await waitFor(
+    () => document.getElementById("copy-feedback")?.textContent === "Copied path",
+    "the copy feedback",
+  );
+});
+
+test("open in cmux failures surface as a notice", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(unstagedSource, MOCK_REPOSITORY_STATUS, requests, {
+    hostOpenFile: (request) => failureResponse(request, "notAllowed", "Diff sidecar request was rejected"),
+  });
+  click(headerAction(document, "openInCmux"));
+  await waitFor(
+    () =>
+      document.getElementById("worktree-notice")?.textContent === "Could not open the file in cmux.",
+    "the failure notice",
+  );
+  expect(document.getElementById("worktree-notice")?.dataset.error).toBe("true");
 });

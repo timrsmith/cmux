@@ -147,7 +147,13 @@ final class DiffCommentsBridge: NSObject, WKScriptMessageHandlerWithReply {
     /// host-owned viewer, that still resolves to a live workspace. The sidecar
     /// bridge requires this before forwarding any working-tree mutation.
     static func isPanelAssociatedWebView(_ webView: WKWebView?) -> Bool {
-        (try? shared.resolveWorkspace(for: webView)) != nil
+        associatedWorkspace(for: webView) != nil
+    }
+
+    /// The live workspace a registered web view belongs to, for host actions
+    /// that open content in it (`DiffViewerHostActions`).
+    static func associatedWorkspace(for webView: WKWebView?) -> Workspace? {
+        try? shared.resolveWorkspace(for: webView)
     }
 
     /// Extracts the diff viewer session token from a live page URL. Unlike

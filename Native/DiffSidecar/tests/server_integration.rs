@@ -751,6 +751,7 @@ async fn verify_rpc(client: &reqwest::Client, port: u16, token: &str, group: &st
         .expect("http write response bytes");
     assert_eq!(rejected_write["id"], "http-write");
     assert_eq!(rejected_write["error"]["code"], "notAllowed");
+    verify_http_rejects_stdio_only_commands(client, &endpoint, &origin, token, root).await;
 
     let untrusted = client
         .post(&endpoint)
@@ -762,6 +763,52 @@ async fn verify_rpc(client: &reqwest::Client, port: u16, token: &str, group: &st
     assert_eq!(untrusted.status(), reqwest::StatusCode::NOT_FOUND);
 
     verify_branch_change(client, &endpoint, &origin, token, group, root).await;
+}
+
+/// The bulk, network, and status commands are stdio-only as well, the status
+/// query included even though it never writes.
+async fn verify_http_rejects_stdio_only_commands(
+    client: &reqwest::Client,
+    endpoint: &str,
+    origin: &str,
+    token: &str,
+    root: &Path,
+) {
+    for method in [
+        "worktreeDiscardAll",
+        "worktreeStageAll",
+        "worktreeUnstageAll",
+        "worktreePush",
+        "worktreeRepositoryStatus",
+        "worktreeCreatePullRequest",
+    ] {
+        let request = serde_json::json!({
+            "id": method,
+            "version": 1,
+            "method": method,
+            "params": {
+                "sessionId": uuid::Uuid::new_v4().to_string(),
+                "capabilityToken": token,
+                "source": {"kind": "unstaged", "repoRoot": root},
+                "title": "never",
+                "body": ""
+            }
+        });
+        let rejected: serde_json::Value = client
+            .post(endpoint)
+            .header(reqwest::header::ORIGIN, origin)
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(request.to_string())
+            .send()
+            .await
+            .expect("http stdio-only request")
+            .bytes()
+            .await
+            .map(|bytes| serde_json::from_slice(&bytes).expect("http stdio-only response JSON"))
+            .expect("http stdio-only response bytes");
+        assert_eq!(rejected["id"], method);
+        assert_eq!(rejected["error"]["code"], "notAllowed", "{method}");
+    }
 }
 
 async fn verify_branch_change(
@@ -883,6 +930,37 @@ async fn verify_websocket(port: u16) {
     let rejected: serde_json::Value = serde_json::from_str(&rejected).expect("JSON write response");
     assert_eq!(rejected["id"], "ws-write");
     assert_eq!(rejected["error"]["code"], "notAllowed");
+
+    // The read-only status query is confined to stdio too: it runs the forge
+    // CLI on the host.
+    socket
+        .send(tokio_tungstenite::tungstenite::Message::Text(
+            serde_json::json!({
+                "id": "ws-status",
+                "version": 1,
+                "method": "worktreeRepositoryStatus",
+                "params": {
+                    "sessionId": uuid::Uuid::new_v4().to_string(),
+                    "capabilityToken": "0123456789abcdef",
+                    "source": {"kind": "unstaged", "repoRoot": "/tmp"}
+                }
+            })
+            .to_string()
+            .into(),
+        ))
+        .await
+        .expect("WebSocket status request");
+    let rejected_status = socket
+        .next()
+        .await
+        .expect("WebSocket status response")
+        .expect("valid WebSocket status response")
+        .into_text()
+        .expect("text status response");
+    let rejected_status: serde_json::Value =
+        serde_json::from_str(&rejected_status).expect("JSON status response");
+    assert_eq!(rejected_status["id"], "ws-status");
+    assert_eq!(rejected_status["error"]["code"], "notAllowed");
 
     socket
         .send(tokio_tungstenite::tungstenite::Message::Text(
@@ -1811,4 +1889,811 @@ fn hunk_refs(diff: &str) -> Vec<serde_json::Value> {
             }))
         })
         .collect()
+}
+
+/// Extra environment for a stdio sidecar run: the forge CLI candidates come
+/// from `PATH`, and the fake `gh`/`glab` scripts read their behavior from
+/// `CMUX_TEST_*` variables the sidecar passes through.
+type TestEnvironment = Vec<(String, std::ffi::OsString)>;
+
+fn run_stdio_rpc_with_env(input: &[u8], root: &Path, environment: &TestEnvironment) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_cmux-diff-sidecar"));
+    command
+        .arg("rpc")
+        .arg("--root")
+        .arg(root)
+        .arg("--cmux")
+        .arg(env!("CARGO_BIN_EXE_diff-sidecar-test-host"))
+        .env("GIT_DIR", root.join("not-a-repository"))
+        .env("GIT_WORK_TREE", root.join("not-a-work-tree"))
+        .env("GIT_INDEX_FILE", root.join("not-an-index"))
+        .env("GIT_CONFIG_COUNT", "1")
+        .env("GIT_CONFIG_KEY_0", "diff.noprefix")
+        .env("GIT_CONFIG_VALUE_0", "true")
+        // A real `gh` on a candidate path must answer from an empty config
+        // (not signed in) rather than a developer's token or the network.
+        .env_remove("GH_TOKEN")
+        .env_remove("GITHUB_TOKEN")
+        .env_remove("GITLAB_TOKEN")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit());
+    for (name, value) in environment {
+        command.env(name, value);
+    }
+    let mut child = command.spawn().expect("start stdio sidecar");
+    child
+        .stdin
+        .take()
+        .expect("sidecar stdin")
+        .write_all(input)
+        .expect("write request");
+    child.wait_with_output().expect("wait for sidecar")
+}
+
+fn worktree_command(
+    root: &Path,
+    method: &str,
+    params: &serde_json::Value,
+    environment: &TestEnvironment,
+) -> serde_json::Value {
+    let request = serde_json::to_vec(&serde_json::json!({
+        "id": method,
+        "version": 1,
+        "method": method,
+        "params": params
+    }))
+    .expect("encode request");
+    let output = run_stdio_rpc_with_env(&request, root, environment);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let response: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("decode response");
+    assert_eq!(response["id"], method);
+    response
+}
+
+/// A `gh` stand-in that records every invocation and answers `auth status`,
+/// `pr list`, and `pr create` from the `CMUX_TEST_GH_*` variables. The list
+/// answer is a one-element array around the stored request, or `[]`.
+const FAKE_GH: &str = r#"#!/bin/sh
+printf '%s\n' "$*" >> "$CMUX_TEST_GH_LOG"
+case "$1 $2" in
+  "auth status")
+    if [ "${CMUX_TEST_GH_AUTH:-0}" = "1" ]; then exit 0; fi
+    echo "You are not logged into any GitHub hosts. To log in, run:  gh auth login" >&2
+    exit 1
+    ;;
+  "pr list")
+    if [ -f "$CMUX_TEST_GH_PR_JSON" ]; then
+      printf '['
+      cat "$CMUX_TEST_GH_PR_JSON"
+      printf ']\n'
+      exit 0
+    fi
+    echo "[]"
+    exit 0
+    ;;
+  "pr create")
+    cat > "$CMUX_TEST_GH_LOG.body"
+    cp "$CMUX_TEST_GH_PR_TEMPLATE" "$CMUX_TEST_GH_PR_JSON"
+    echo "Creating pull request for feat into main in acme/widgets"
+    echo ""
+    echo "https://github.com/acme/widgets/pull/42"
+    exit 0
+    ;;
+esac
+exit 2
+"#;
+
+const FAKE_GLAB: &str = r#"#!/bin/sh
+printf 'glab %s\n' "$*" >> "$CMUX_TEST_GH_LOG"
+case "$1 $2" in
+  "auth status") exit 0 ;;
+  "mr list")
+    echo '[{"iid": 9, "web_url": "https://gitlab.com/acme/widgets/-/merge_requests/9", "title": "Widgets", "state": "opened", "draft": true, "target_branch": "main", "head_pipeline": {"status": "success"}}]'
+    exit 0
+    ;;
+esac
+exit 2
+"#;
+
+fn write_executable(path: &Path, contents: &str) {
+    std::fs::write(path, contents).expect("write script");
+    #[cfg(unix)]
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).expect("chmod script");
+}
+
+#[test]
+// One repository fixture with a local bare `origin` and fake forge CLIs
+// walks the bulk actions, push, status, and pull request flows in sequence;
+// the shared state between steps is the point.
+#[allow(clippy::too_many_lines)]
+fn rpc_bulk_actions_push_and_forge_flows_match_git() {
+    let root = std::env::temp_dir().join(format!(
+        "cmux-diff-sidecar-bulk-test-{}-{}",
+        std::process::id(),
+        uuid::Uuid::new_v4()
+    ));
+    std::fs::create_dir_all(&root).expect("create root");
+    #[cfg(unix)]
+    std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
+        .expect("secure root permissions");
+    let repo = root.join("repo");
+    init_repo(&repo);
+    run_git(&repo, &["symbolic-ref", "HEAD", "refs/heads/main"]);
+    let origin = root.join("origin.git");
+    run_git(&root, &["init", "-q", "--bare", "origin.git"]);
+    let original = numbered_lines(12);
+    std::fs::write(repo.join("story.txt"), &original).expect("write story");
+    std::fs::write(repo.join("other.txt"), "other\n").expect("write other");
+    std::fs::write(repo.join("gone.txt"), "gone\n").expect("write gone");
+    run_git(&repo, &["add", "."]);
+    run_git(&repo, &["commit", "-q", "-m", "initial"]);
+    run_git(
+        &repo,
+        &["remote", "add", "origin", &origin.to_string_lossy()],
+    );
+    std::fs::write(repo.join("untracked.txt"), "keep me\n").expect("write untracked");
+
+    let fake_bin = root.join("fake-bin");
+    std::fs::create_dir_all(&fake_bin).expect("create fake bin");
+    write_executable(&fake_bin.join("gh"), FAKE_GH);
+    write_executable(&fake_bin.join("glab"), FAKE_GLAB);
+    let gh_log = root.join("gh.log");
+    let gh_config = root.join("gh-config");
+    std::fs::create_dir_all(&gh_config).expect("create gh config dir");
+    let pr_json = root.join("pr.json");
+    let pr_template = root.join("pr-template.json");
+    std::fs::write(
+        &pr_template,
+        serde_json::json!({
+            "number": 42,
+            "url": "https://github.com/acme/widgets/pull/42",
+            "title": "Add widgets",
+            "state": "OPEN",
+            "isDraft": true,
+            "baseRefName": "main",
+            "reviewDecision": "REVIEW_REQUIRED",
+            "statusCheckRollup": [
+                {"status": "COMPLETED", "conclusion": "SUCCESS"},
+                {"status": "IN_PROGRESS", "conclusion": ""}
+            ]
+        })
+        .to_string(),
+    )
+    .expect("write pr template");
+    let environment = |with_fake_bin: bool, authenticated: bool| -> TestEnvironment {
+        let path = if with_fake_bin {
+            format!("{}:/usr/bin:/bin", fake_bin.display())
+        } else {
+            "/usr/bin:/bin".to_owned()
+        };
+        vec![
+            ("PATH".to_owned(), path.into()),
+            ("GH_CONFIG_DIR".to_owned(), gh_config.clone().into()),
+            ("CMUX_TEST_GH_LOG".to_owned(), gh_log.clone().into()),
+            (
+                "CMUX_TEST_GH_AUTH".to_owned(),
+                if authenticated { "1" } else { "0" }.into(),
+            ),
+            ("CMUX_TEST_GH_PR_JSON".to_owned(), pr_json.clone().into()),
+            (
+                "CMUX_TEST_GH_PR_TEMPLATE".to_owned(),
+                pr_template.clone().into(),
+            ),
+        ]
+    };
+    let plain = environment(false, false);
+    let gh_log_text = || std::fs::read_to_string(&gh_log).unwrap_or_default();
+
+    let token = "0123456789abcdef";
+    authorize_repos(&root, token, "bulk-test", &[&repo]);
+    let unstaged = serde_json::json!({"kind": "unstaged", "repoRoot": repo});
+    let staged = serde_json::json!({"kind": "staged", "repoRoot": repo});
+    let branch = serde_json::json!({"kind": "branch", "repoRoot": repo, "baseRef": "HEAD"});
+    let patch = serde_json::json!({"kind": "patch", "path": "/viewer.html"});
+    let session_params = |session: &str, source: &serde_json::Value| {
+        serde_json::json!({
+            "sessionId": session,
+            "capabilityToken": token,
+            "source": source
+        })
+    };
+    let porcelain = || git_stdout(&repo, &["status", "--porcelain"]);
+
+    // Discard all (unstaged): a modified file and a deleted file come back,
+    // the untracked file is never touched.
+    let modified = original.replacen("line 3\n", "line 3 changed\n", 1);
+    std::fs::write(repo.join("story.txt"), &modified).expect("modify story");
+    std::fs::remove_file(repo.join("other.txt")).expect("delete other");
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &unstaged, &UNSTAGED_GIT);
+    // Every bulk and network command refuses sources that are not working
+    // tree views, even with this session open.
+    for method in [
+        "worktreeDiscardAll",
+        "worktreeStageAll",
+        "worktreeUnstageAll",
+        "worktreePush",
+        "worktreeRepositoryStatus",
+        "worktreeCreatePullRequest",
+    ] {
+        for source in [&branch, &patch] {
+            let mut params = session_params(&session, source);
+            params["title"] = "t".into();
+            let response = worktree_command(&root, method, &params, &plain);
+            assert_eq!(response["error"]["code"], "notAllowed", "{method} {source}");
+        }
+        let mut foreign = session_params(&uuid::Uuid::new_v4().to_string(), &unstaged);
+        foreign["title"] = "t".into();
+        let response = worktree_command(&root, method, &foreign, &plain);
+        assert_eq!(
+            response["error"]["code"], "notAllowed",
+            "{method} unknown session"
+        );
+    }
+    assert_eq!(
+        std::fs::read_to_string(repo.join("story.txt")).expect("story"),
+        modified
+    );
+    let discarded = worktree_command(
+        &root,
+        "worktreeDiscardAll",
+        &session_params(&session, &unstaged),
+        &plain,
+    );
+    assert_eq!(
+        discarded["result"]["type"], "worktreeMutated",
+        "{discarded}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(repo.join("story.txt")).expect("story"),
+        original
+    );
+    assert_eq!(
+        std::fs::read_to_string(repo.join("other.txt")).expect("other"),
+        "other\n"
+    );
+    assert_eq!(porcelain(), "?? untracked.txt\n");
+    close_session(&root, token, &session, &request_path);
+
+    // Discard all (staged): a staged edit, a staged new file, a staged rename
+    // and a staged deletion all return to HEAD; the untracked file survives.
+    std::fs::write(repo.join("story.txt"), &modified).expect("modify story");
+    std::fs::write(repo.join("new.txt"), "new\n").expect("write new");
+    run_git(&repo, &["add", "story.txt", "new.txt"]);
+    run_git(&repo, &["mv", "other.txt", "moved.txt"]);
+    run_git(&repo, &["rm", "-q", "gone.txt"]);
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &staged, &STAGED_GIT);
+    let discarded = worktree_command(
+        &root,
+        "worktreeDiscardAll",
+        &session_params(&session, &staged),
+        &plain,
+    );
+    assert_eq!(
+        discarded["result"]["type"], "worktreeMutated",
+        "{discarded}"
+    );
+    assert_eq!(porcelain(), "?? untracked.txt\n");
+    assert!(!repo.join("new.txt").exists());
+    assert!(!repo.join("moved.txt").exists());
+    assert_eq!(
+        std::fs::read_to_string(repo.join("gone.txt")).expect("gone"),
+        "gone\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(repo.join("untracked.txt")).expect("untracked"),
+        "keep me\n"
+    );
+    close_session(&root, token, &session, &request_path);
+
+    // Stage all stages tracked changes only; unstage all puts them back.
+    std::fs::write(repo.join("story.txt"), &modified).expect("modify story");
+    std::fs::remove_file(repo.join("gone.txt")).expect("delete gone");
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &unstaged, &UNSTAGED_GIT);
+    let staged_all = worktree_command(
+        &root,
+        "worktreeStageAll",
+        &session_params(&session, &unstaged),
+        &plain,
+    );
+    assert_eq!(
+        staged_all["result"]["type"], "worktreeMutated",
+        "{staged_all}"
+    );
+    assert_eq!(
+        git_stdout(&repo, &["diff", "--cached", "--name-only"]),
+        "gone.txt\nstory.txt\n"
+    );
+    assert_eq!(git_stdout(&repo, &["diff", "--name-only"]), "");
+    assert_eq!(porcelain(), "D  gone.txt\nM  story.txt\n?? untracked.txt\n");
+    close_session(&root, token, &session, &request_path);
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &staged, &STAGED_GIT);
+    let unstaged_all = worktree_command(
+        &root,
+        "worktreeUnstageAll",
+        &session_params(&session, &staged),
+        &plain,
+    );
+    assert_eq!(
+        unstaged_all["result"]["type"], "worktreeMutated",
+        "{unstaged_all}"
+    );
+    assert_eq!(git_stdout(&repo, &["diff", "--cached", "--name-only"]), "");
+    assert_eq!(porcelain(), " D gone.txt\n M story.txt\n?? untracked.txt\n");
+    close_session(&root, token, &session, &request_path);
+
+    // Stage all and commit from the unstaged view, in one authorized action.
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &unstaged, &UNSTAGED_GIT);
+    let mut commit_params = session_params(&session, &unstaged);
+    commit_params["message"] = "Change line three".into();
+    let refused = worktree_command(&root, "worktreeCommit", &commit_params, &plain);
+    assert_eq!(refused["error"]["code"], "notAllowed");
+    commit_params["stageAll"] = true.into();
+    let committed = worktree_command(&root, "worktreeCommit", &commit_params, &plain);
+    assert_eq!(committed["result"]["type"], "committed", "{committed}");
+    assert_eq!(
+        committed["result"]["value"]["commit"],
+        git_stdout(&repo, &["rev-parse", "HEAD"]).trim()
+    );
+    assert_eq!(porcelain(), "?? untracked.txt\n");
+    assert_eq!(
+        git_stdout(&repo, &["log", "-1", "--format=%s"]).trim(),
+        "Change line three"
+    );
+
+    // Push: no upstream yet. Without `setUpstream` that is the answer; with
+    // it the upstream is created on `origin` and the status shows it.
+    let no_upstream = worktree_command(
+        &root,
+        "worktreePush",
+        &session_params(&session, &unstaged),
+        &plain,
+    );
+    assert_eq!(no_upstream["error"]["code"], "noUpstream", "{no_upstream}");
+    let before = worktree_command(
+        &root,
+        "worktreeRepositoryStatus",
+        &session_params(&session, &unstaged),
+        &plain,
+    );
+    let before = &before["result"];
+    assert_eq!(before["type"], "repositoryStatus", "{before}");
+    assert_eq!(before["value"]["branch"], "main");
+    assert_eq!(before["value"]["detached"], false);
+    assert!(before["value"].get("upstream").is_none(), "{before}");
+    assert_eq!(before["value"]["hostKind"], "other");
+    assert_eq!(
+        before["value"]["forgeCli"],
+        serde_json::json!({"kind": null, "available": false, "authenticated": false})
+    );
+    let mut push_params = session_params(&session, &unstaged);
+    push_params["setUpstream"] = true.into();
+    let pushed = worktree_command(&root, "worktreePush", &push_params, &plain);
+    assert_eq!(
+        pushed["result"],
+        serde_json::json!({
+            "type": "pushed",
+            "value": {"remote": "origin", "branch": "main", "upstreamCreated": true}
+        }),
+        "{pushed}"
+    );
+    assert_eq!(
+        git_stdout(&repo, &["rev-parse", "--abbrev-ref", "main@{upstream}"]).trim(),
+        "origin/main"
+    );
+    assert_eq!(
+        git_stdout(&origin, &["rev-parse", "main"]),
+        git_stdout(&repo, &["rev-parse", "HEAD"])
+    );
+    let after = worktree_command(
+        &root,
+        "worktreeRepositoryStatus",
+        &session_params(&session, &unstaged),
+        &plain,
+    );
+    assert_eq!(
+        after["result"]["value"]["upstream"], "origin/main",
+        "{after}"
+    );
+    assert_eq!(after["result"]["value"]["ahead"], 0);
+    assert_eq!(after["result"]["value"]["behind"], 0);
+    assert!(
+        after["result"]["value"]["remoteUrl"]
+            .as_str()
+            .is_some_and(|url| url.ends_with("origin.git"))
+    );
+
+    // A second commit is one ahead, and a plain push (upstream present) lands it.
+    std::fs::write(
+        repo.join("story.txt"),
+        original.replacen("line 5\n", "line 5 changed\n", 1),
+    )
+    .expect("modify story");
+    run_git(&repo, &["commit", "-q", "-a", "-m", "second"]);
+    let ahead = worktree_command(
+        &root,
+        "worktreeRepositoryStatus",
+        &session_params(&session, &unstaged),
+        &plain,
+    );
+    assert_eq!(ahead["result"]["value"]["ahead"], 1, "{ahead}");
+    let pushed_again = worktree_command(
+        &root,
+        "worktreePush",
+        &session_params(&session, &unstaged),
+        &plain,
+    );
+    assert_eq!(
+        pushed_again["result"]["value"]["upstreamCreated"], false,
+        "{pushed_again}"
+    );
+    assert_eq!(
+        git_stdout(&origin, &["rev-parse", "main"]),
+        git_stdout(&repo, &["rev-parse", "HEAD"])
+    );
+
+    // A triangular workflow: `remote.pushDefault` names `fork` while the
+    // upstream stays on `origin`. The push goes to `fork` under the branch's
+    // own name, `origin` does not move, and the upstream is left alone.
+    let fork = root.join("fork.git");
+    run_git(&root, &["init", "-q", "--bare", "fork.git"]);
+    run_git(&repo, &["remote", "add", "fork", &fork.to_string_lossy()]);
+    run_git(&repo, &["config", "remote.pushDefault", "fork"]);
+    std::fs::write(
+        repo.join("story.txt"),
+        original.replacen("line 6\n", "line 6 changed\n", 1),
+    )
+    .expect("modify story");
+    run_git(&repo, &["commit", "-q", "-a", "-m", "triangular"]);
+    let origin_main_before = git_stdout(&origin, &["rev-parse", "main"]);
+    let triangular = worktree_command(
+        &root,
+        "worktreePush",
+        &session_params(&session, &unstaged),
+        &plain,
+    );
+    assert_eq!(
+        triangular["result"],
+        serde_json::json!({
+            "type": "pushed",
+            "value": {"remote": "fork", "branch": "main", "upstreamCreated": false}
+        }),
+        "{triangular}"
+    );
+    assert_eq!(
+        git_stdout(&fork, &["rev-parse", "main"]),
+        git_stdout(&repo, &["rev-parse", "HEAD"])
+    );
+    assert_eq!(
+        git_stdout(&origin, &["rev-parse", "main"]),
+        origin_main_before
+    );
+    assert_eq!(
+        git_stdout(&repo, &["rev-parse", "--abbrev-ref", "main@{upstream}"]).trim(),
+        "origin/main"
+    );
+    // Back to a plain workflow: the same push lands on the upstream again.
+    run_git(&repo, &["config", "--unset", "remote.pushDefault"]);
+    let back_to_origin = worktree_command(
+        &root,
+        "worktreePush",
+        &session_params(&session, &unstaged),
+        &plain,
+    );
+    assert_eq!(
+        back_to_origin["result"]["value"]["remote"], "origin",
+        "{back_to_origin}"
+    );
+    assert_eq!(
+        git_stdout(&origin, &["rev-parse", "main"]),
+        git_stdout(&repo, &["rev-parse", "HEAD"])
+    );
+
+    // A peer pushes first: the next push is a non-fast-forward rejection.
+    let peer = root.join("peer");
+    run_git(&root, &["clone", "-q", &origin.to_string_lossy(), "peer"]);
+    run_git(&peer, &["config", "user.name", "peer"]);
+    run_git(&peer, &["config", "user.email", "peer@example.invalid"]);
+    run_git(&peer, &["config", "commit.gpgsign", "false"]);
+    std::fs::write(peer.join("peer.txt"), "peer\n").expect("write peer file");
+    run_git(&peer, &["add", "peer.txt"]);
+    run_git(&peer, &["commit", "-q", "-m", "peer"]);
+    run_git(&peer, &["push", "-q", "origin", "main"]);
+    std::fs::write(
+        repo.join("story.txt"),
+        original.replacen("line 7\n", "line 7 changed\n", 1),
+    )
+    .expect("modify story");
+    run_git(&repo, &["commit", "-q", "-a", "-m", "third"]);
+    let rejected = worktree_command(
+        &root,
+        "worktreePush",
+        &session_params(&session, &unstaged),
+        &plain,
+    );
+    assert_eq!(rejected["error"]["code"], "pushRejected", "{rejected}");
+    let detail = rejected["error"]["message"].as_str().expect("message");
+    assert!(
+        detail.starts_with("The remote rejected the push: "),
+        "{detail}"
+    );
+    assert!(detail.len() <= 230, "{detail}");
+    assert!(!detail.chars().any(char::is_control), "{detail}");
+    let behind = worktree_command(
+        &root,
+        "worktreeRepositoryStatus",
+        &session_params(&session, &unstaged),
+        &plain,
+    );
+    // Counts come from the local remote-tracking ref, which a refused push
+    // never updates; a fetch is what reveals the divergence.
+    assert_eq!(behind["result"]["value"]["ahead"], 1, "{behind}");
+    assert_eq!(behind["result"]["value"]["behind"], 0, "{behind}");
+    run_git(&repo, &["fetch", "-q", "origin"]);
+    let fetched = worktree_command(
+        &root,
+        "worktreeRepositoryStatus",
+        &session_params(&session, &unstaged),
+        &plain,
+    );
+    assert_eq!(fetched["result"]["value"]["ahead"], 1, "{fetched}");
+    assert_eq!(fetched["result"]["value"]["behind"], 1, "{fetched}");
+    run_git(&repo, &["reset", "-q", "--hard", "origin/main"]);
+
+    // Forge detection follows the fetch URL; pushes keep using the bare
+    // repository through the push URL. The fake `gh` is found through PATH.
+    run_git(
+        &repo,
+        &[
+            "remote",
+            "set-url",
+            "origin",
+            "https://github.com/acme/widgets.git",
+        ],
+    );
+    run_git(
+        &repo,
+        &[
+            "remote",
+            "set-url",
+            "--push",
+            "origin",
+            &origin.to_string_lossy(),
+        ],
+    );
+    let signed_out = worktree_command(
+        &root,
+        "worktreeRepositoryStatus",
+        &session_params(&session, &unstaged),
+        &environment(true, false),
+    );
+    assert_eq!(
+        signed_out["result"]["value"]["hostKind"], "github",
+        "{signed_out}"
+    );
+    assert_eq!(
+        signed_out["result"]["value"]["remoteUrl"],
+        "https://github.com/acme/widgets.git"
+    );
+    assert_eq!(
+        signed_out["result"]["value"]["forgeCli"],
+        serde_json::json!({"kind": "gh", "available": true, "authenticated": false})
+    );
+    assert!(signed_out["result"]["value"].get("pullRequest").is_none());
+    // Signed out, the pull request lookup never runs.
+    assert_eq!(gh_log_text(), "auth status\n");
+    let _ = std::fs::remove_file(&gh_log);
+    let signed_in = worktree_command(
+        &root,
+        "worktreeRepositoryStatus",
+        &session_params(&session, &unstaged),
+        &environment(true, true),
+    );
+    assert_eq!(
+        signed_in["result"]["value"]["forgeCli"],
+        serde_json::json!({"kind": "gh", "available": true, "authenticated": true}),
+        "{signed_in}"
+    );
+    assert!(
+        signed_in["result"]["value"].get("pullRequest").is_none(),
+        "{signed_in}"
+    );
+    assert_eq!(
+        gh_log_text(),
+        "auth status\npr list --head main --state all --limit 1 --json number,url,title,state,isDraft,baseRefName,reviewDecision,statusCheckRollup\n"
+    );
+    let _ = std::fs::remove_file(&gh_log);
+    // Without the fake directory on PATH the fake is never consulted, whatever
+    // else the machine has installed; `GH_CONFIG_DIR` keeps a real `gh` signed
+    // out and offline.
+    let path_only = worktree_command(
+        &root,
+        "worktreeRepositoryStatus",
+        &session_params(&session, &unstaged),
+        &environment(false, true),
+    );
+    assert_eq!(
+        path_only["result"]["value"]["hostKind"], "github",
+        "{path_only}"
+    );
+    assert_eq!(
+        path_only["result"]["value"]["forgeCli"]["authenticated"],
+        false
+    );
+    assert_eq!(gh_log_text(), "");
+
+    // Creating a pull request: inputs are validated before anything runs, a
+    // branch without an upstream is pushed first (`-u`), and the CLI receives
+    // every value in flag form with the body on stdin.
+    run_git(&repo, &["checkout", "-q", "-b", "feat"]);
+    std::fs::write(repo.join("feat.txt"), "feat\n").expect("write feat");
+    run_git(&repo, &["add", "feat.txt"]);
+    run_git(&repo, &["commit", "-q", "-m", "feat"]);
+    close_session(&root, token, &session, &request_path);
+    // A session needs a diff to show; the pending edit stays unstaged and
+    // plays no part in the push.
+    std::fs::write(repo.join("story.txt"), &modified).expect("modify story");
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &unstaged, &UNSTAGED_GIT);
+    let signed_in = environment(true, true);
+    let mut create = session_params(&session, &unstaged);
+    create["title"] = "   ".into();
+    create["body"] = "Body".into();
+    let response = worktree_command(&root, "worktreeCreatePullRequest", &create, &signed_in);
+    assert_eq!(response["error"]["code"], "invalidTitle", "{response}");
+    create["title"] = "x".repeat(257).into();
+    let response = worktree_command(&root, "worktreeCreatePullRequest", &create, &signed_in);
+    assert_eq!(response["error"]["code"], "invalidTitle", "{response}");
+    create["title"] = "Add widgets".into();
+    create["body"] = "b".repeat(64 * 1024 + 1).into();
+    let response = worktree_command(&root, "worktreeCreatePullRequest", &create, &signed_in);
+    assert_eq!(response["error"]["code"], "invalidBody", "{response}");
+    create["body"] = "Body line 1\n\n--not-a-flag\n".into();
+    create["base"] = "-main".into();
+    let response = worktree_command(&root, "worktreeCreatePullRequest", &create, &signed_in);
+    assert_eq!(response["error"]["code"], "invalidBase", "{response}");
+    assert_eq!(gh_log_text(), "");
+    // `config --get` exits non-zero for an unset key: no upstream was created.
+    let feat_merge = Command::new("/usr/bin/git")
+        .arg("-C")
+        .arg(&repo)
+        .args(["config", "--get", "branch.feat.merge"])
+        .output()
+        .expect("read branch config");
+    assert!(
+        !feat_merge.status.success(),
+        "validation failures never push: {}",
+        String::from_utf8_lossy(&feat_merge.stdout)
+    );
+    create["base"] = "main".into();
+    create["draft"] = true.into();
+    let signed_out_create = worktree_command(
+        &root,
+        "worktreeCreatePullRequest",
+        &create,
+        &environment(true, false),
+    );
+    assert_eq!(
+        signed_out_create["error"]["code"], "forgeNotAuthenticated",
+        "{signed_out_create}"
+    );
+    let _ = std::fs::remove_file(&gh_log);
+    let created = worktree_command(&root, "worktreeCreatePullRequest", &create, &signed_in);
+    assert_eq!(
+        created["result"],
+        serde_json::json!({
+            "type": "pullRequestCreated",
+            "value": {
+                "number": 42,
+                "url": "https://github.com/acme/widgets/pull/42",
+                "title": "Add widgets",
+                "isDraft": true
+            }
+        }),
+        "{created}"
+    );
+    assert_eq!(
+        git_stdout(&repo, &["rev-parse", "--abbrev-ref", "feat@{upstream}"]).trim(),
+        "origin/feat"
+    );
+    assert_eq!(
+        git_stdout(&origin, &["rev-parse", "feat"]),
+        git_stdout(&repo, &["rev-parse", "HEAD"])
+    );
+    assert_eq!(
+        gh_log_text(),
+        "auth status\npr list --head feat --state all --limit 1 --json number,url,title,state,isDraft,baseRefName,reviewDecision,statusCheckRollup\npr create --title=Add widgets --body-file=- --head=feat --draft --base=main\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.join("gh.log.body")).expect("body"),
+        "Body line 1\n\n--not-a-flag\n"
+    );
+    // The forge now knows the request: creating again reports it, and the
+    // status carries its summary.
+    let exists = worktree_command(&root, "worktreeCreatePullRequest", &create, &signed_in);
+    assert_eq!(exists["error"]["code"], "pullRequestExists", "{exists}");
+    assert!(
+        exists["error"]["message"]
+            .as_str()
+            .is_some_and(|message| message.ends_with("https://github.com/acme/widgets/pull/42")),
+        "{exists}"
+    );
+    let with_request = worktree_command(
+        &root,
+        "worktreeRepositoryStatus",
+        &session_params(&session, &unstaged),
+        &signed_in,
+    );
+    assert_eq!(
+        with_request["result"]["value"]["pullRequest"],
+        serde_json::json!({
+            "number": 42,
+            "url": "https://github.com/acme/widgets/pull/42",
+            "title": "Add widgets",
+            "state": "open",
+            "isDraft": true,
+            "baseBranch": "main",
+            "reviewDecision": "review_required",
+            "checks": {"total": 2, "passed": 1, "failed": 0, "pending": 1}
+        }),
+        "{with_request}"
+    );
+
+    // A GitLab remote resolves `glab` instead, over SSH URLs too.
+    run_git(
+        &repo,
+        &[
+            "remote",
+            "set-url",
+            "origin",
+            "git@gitlab.com:acme/widgets.git",
+        ],
+    );
+    let gitlab = worktree_command(
+        &root,
+        "worktreeRepositoryStatus",
+        &session_params(&session, &unstaged),
+        &signed_in,
+    );
+    assert_eq!(gitlab["result"]["value"]["hostKind"], "gitlab", "{gitlab}");
+    assert_eq!(
+        gitlab["result"]["value"]["forgeCli"],
+        serde_json::json!({"kind": "glab", "available": true, "authenticated": true})
+    );
+    assert_eq!(gitlab["result"]["value"]["pullRequest"]["number"], 9);
+    assert_eq!(gitlab["result"]["value"]["pullRequest"]["state"], "open");
+    assert_eq!(
+        gitlab["result"]["value"]["pullRequest"]["checks"],
+        serde_json::json!({"total": 1, "passed": 1, "failed": 0, "pending": 0})
+    );
+    // A detached HEAD has no branch to push or open a request for.
+    run_git(&repo, &["checkout", "-q", "--detach"]);
+    let detached = worktree_command(
+        &root,
+        "worktreeRepositoryStatus",
+        &session_params(&session, &unstaged),
+        &plain,
+    );
+    assert_eq!(detached["result"]["value"]["detached"], true, "{detached}");
+    let detached_push = worktree_command(
+        &root,
+        "worktreePush",
+        &session_params(&session, &unstaged),
+        &plain,
+    );
+    assert_eq!(detached_push["error"]["code"], "detachedHead");
+    close_session(&root, token, &session, &request_path);
+
+    assert!(!root.join(".server.json").exists());
+    let _ = std::fs::remove_dir_all(root);
 }

@@ -12,19 +12,21 @@ export type BranchPickerGroup = { id: string, label: string, rows: Array<BranchP
 
 export type BranchPickerRow = { ref: string, label: string, secondary?: string, reason?: string, confidence?: BranchPickerConfidence, current?: boolean, worktreeDir?: string, };
 
+export type ChecksSummary = { total: number, passed: number, failed: number, pending: number, };
+
 export type CommitResult = { commit: string, };
 
 export type DiffEvent = { "type": "sessionStatus", sessionId: string, status: DiffSessionStatus, } | { "type": "patchReady", sessionId: string, patch: DiffResourceRef, } | { "type": "sessionFailed", sessionId: string, error: DiffProtocolError, };
 
 export type DiffProtocolError = { code: string, message: string, };
 
-export type DiffRequest = { id: string, version: number, } & ({ "method": "protocolHandshake" } | { "method": "sessionOpen", "params": OpenSessionRequest } | { "method": "sessionClose", "params": SessionRequest } | { "method": "branchList", "params": BranchListRequest } | { "method": "branchChange", "params": BranchChangeRequest } | { "method": "worktreeRevertFile", "params": WorktreeFileRequest } | { "method": "worktreeStageFile", "params": WorktreeFileRequest } | { "method": "worktreeUnstageFile", "params": WorktreeFileRequest } | { "method": "worktreeRevertHunk", "params": WorktreeHunkRequest } | { "method": "worktreeCommit", "params": WorktreeCommitRequest });
+export type DiffRequest = { id: string, version: number, } & ({ "method": "protocolHandshake" } | { "method": "sessionOpen", "params": OpenSessionRequest } | { "method": "sessionClose", "params": SessionRequest } | { "method": "branchList", "params": BranchListRequest } | { "method": "branchChange", "params": BranchChangeRequest } | { "method": "worktreeRevertFile", "params": WorktreeFileRequest } | { "method": "worktreeStageFile", "params": WorktreeFileRequest } | { "method": "worktreeUnstageFile", "params": WorktreeFileRequest } | { "method": "worktreeRevertHunk", "params": WorktreeHunkRequest } | { "method": "worktreeCommit", "params": WorktreeCommitRequest } | { "method": "worktreeDiscardAll", "params": WorktreeSessionRequest } | { "method": "worktreeStageAll", "params": WorktreeSessionRequest } | { "method": "worktreeUnstageAll", "params": WorktreeSessionRequest } | { "method": "worktreePush", "params": WorktreePushRequest } | { "method": "worktreeRepositoryStatus", "params": WorktreeSessionRequest } | { "method": "worktreeCreatePullRequest", "params": WorktreeCreatePullRequestRequest });
 
 export type DiffResourceRef = { id: string, mediaType: string, byteLength: number | null, revision: number, };
 
 export type DiffResponse = { id: string, version: number, result: DiffResult | null, error: DiffProtocolError | null, };
 
-export type DiffResult = { "type": "handshake", "value": HandshakeResult } | { "type": "sessionOpened", "value": SessionOpened } | { "type": "sessionClosed" } | { "type": "branches", "value": BranchListResult } | { "type": "navigation", "value": NavigationResult } | { "type": "worktreeMutated", "value": WorktreeMutated } | { "type": "committed", "value": CommitResult };
+export type DiffResult = { "type": "handshake", "value": HandshakeResult } | { "type": "sessionOpened", "value": SessionOpened } | { "type": "sessionClosed" } | { "type": "branches", "value": BranchListResult } | { "type": "navigation", "value": NavigationResult } | { "type": "worktreeMutated", "value": WorktreeMutated } | { "type": "committed", "value": CommitResult } | { "type": "pushed", "value": PushResult } | { "type": "repositoryStatus", "value": RepositoryStatus } | { "type": "pullRequestCreated", "value": PullRequestCreated };
 
 export type DiffSessionStatus = "opening" | "ready" | "closed";
 
@@ -33,6 +35,10 @@ export type DiffSource = { "kind": "patch", path: string, } | { "kind": "unstage
 export type DiffTransportConfig = { kind: DiffTransportKind, endpoint: string, protocolVersion: number, };
 
 export type DiffTransportKind = "fetch" | "webSocket" | "webKit";
+
+export type ForgeCliKind = "gh" | "glab";
+
+export type ForgeCliStatus = { kind: ForgeCliKind | null, available: boolean, authenticated: boolean, };
 
 export type HandshakeResult = { protocolVersion: number, capabilities: Array<string>, };
 
@@ -45,6 +51,23 @@ export type NavigationResult = { url: string, };
 
 export type OpenSessionRequest = { source: DiffSource, capabilityToken: string, sessionId?: string, };
 
+export type PullRequestCreated = { number: number, url: string, title: string, isDraft: boolean, };
+
+export type PullRequestSummary = { number: number, url: string, title: string, 
+/**
+ * `open`, `merged`, or `closed`, normalized across forges.
+ */
+state: string, isDraft: boolean, baseBranch: string, reviewDecision?: string, checks?: ChecksSummary, };
+
+export type PushResult = { remote: string, branch: string, upstreamCreated: boolean, };
+
+/**
+ * The forge a repository's remote points at, from its URL.
+ */
+export type RepositoryHostKind = "github" | "gitlab" | "other" | "none";
+
+export type RepositoryStatus = { branch: string, detached: boolean, upstream?: string, ahead: number, behind: number, remoteUrl?: string, hostKind: RepositoryHostKind, forgeCli: ForgeCliStatus, pullRequest?: PullRequestSummary, };
+
 export type SessionOpened = { sessionId: string, patch: DiffResourceRef, source: DiffSource, 
 /**
  * Changed paths the repository marks generated (`.gitattributes`
@@ -54,7 +77,14 @@ generatedPaths: Array<string>, };
 
 export type SessionRequest = { sessionId: string, capabilityToken: string, };
 
-export type WorktreeCommitRequest = { sessionId: string, capabilityToken: string, source: DiffSource, message: string, };
+export type WorktreeCommitRequest = { sessionId: string, capabilityToken: string, source: DiffSource, message: string, 
+/**
+ * Stage every tracked change (`git add --update`) before committing, so
+ * an unstaged view can offer "stage all and commit" as one action.
+ */
+stageAll?: boolean, };
+
+export type WorktreeCreatePullRequestRequest = { sessionId: string, capabilityToken: string, source: DiffSource, title: string, body: string, draft?: boolean, base?: string, };
 
 /**
  * Targets one file of an open `unstaged` or `staged` session for a
@@ -70,3 +100,15 @@ export type WorktreeFileRequest = { sessionId: string, capabilityToken: string, 
 export type WorktreeHunkRequest = { sessionId: string, capabilityToken: string, source: DiffSource, path: string, previousPath?: string, hunk: HunkRef, };
 
 export type WorktreeMutated = { source: DiffSource, };
+
+export type WorktreePushRequest = { sessionId: string, capabilityToken: string, source: DiffSource, 
+/**
+ * Create the upstream (`git push -u`) when the branch has none.
+ */
+setUpstream?: boolean, };
+
+/**
+ * Targets a whole open `unstaged` or `staged` session (discard all, stage
+ * all, unstage all, repository status).
+ */
+export type WorktreeSessionRequest = { sessionId: string, capabilityToken: string, source: DiffSource, };

@@ -27,6 +27,12 @@ pub enum DiffCommand {
     WorktreeUnstageFile(WorktreeFileRequest),
     WorktreeRevertHunk(WorktreeHunkRequest),
     WorktreeCommit(WorktreeCommitRequest),
+    WorktreeDiscardAll(WorktreeSessionRequest),
+    WorktreeStageAll(WorktreeSessionRequest),
+    WorktreeUnstageAll(WorktreeSessionRequest),
+    WorktreePush(WorktreePushRequest),
+    WorktreeRepositoryStatus(WorktreeSessionRequest),
+    WorktreeCreatePullRequest(WorktreeCreatePullRequestRequest),
 }
 
 impl DiffCommand {
@@ -39,17 +45,34 @@ impl DiffCommand {
         // Exhaustive on purpose: a new command must declare which side of
         // the transport boundary it belongs to.
         match self {
+            // The status query only reads, but it still runs the forge CLI on
+            // the host, so it is limited to the stdio transport with the
+            // writes (see `requires_stdio`).
             Self::ProtocolHandshake
             | Self::SessionOpen(_)
             | Self::SessionClose(_)
             | Self::BranchList(_)
-            | Self::BranchChange(_) => false,
+            | Self::BranchChange(_)
+            | Self::WorktreeRepositoryStatus(_) => false,
             Self::WorktreeRevertFile(_)
             | Self::WorktreeStageFile(_)
             | Self::WorktreeUnstageFile(_)
             | Self::WorktreeRevertHunk(_)
-            | Self::WorktreeCommit(_) => true,
+            | Self::WorktreeCommit(_)
+            | Self::WorktreeDiscardAll(_)
+            | Self::WorktreeStageAll(_)
+            | Self::WorktreeUnstageAll(_)
+            | Self::WorktreePush(_)
+            | Self::WorktreeCreatePullRequest(_) => true,
         }
+    }
+
+    /// Whether the command is reachable only through the native stdio
+    /// transport: every working-tree write, plus the repository status query,
+    /// which runs Git network queries and the forge CLI on the host.
+    #[must_use]
+    pub fn requires_stdio(&self) -> bool {
+        self.is_worktree_write() || matches!(self, Self::WorktreeRepositoryStatus(_))
     }
 }
 
@@ -181,6 +204,147 @@ pub struct WorktreeCommitRequest {
     pub capability_token: String,
     pub source: DiffSource,
     pub message: String,
+    /// Stage every tracked change (`git add --update`) before committing, so
+    /// an unstaged view can offer "stage all and commit" as one action.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub stage_all: bool,
+}
+
+/// Targets a whole open `unstaged` or `staged` session (discard all, stage
+/// all, unstage all, repository status).
+#[derive(Clone, Debug, Deserialize, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub struct WorktreeSessionRequest {
+    pub session_id: String,
+    pub capability_token: String,
+    pub source: DiffSource,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub struct WorktreePushRequest {
+    pub session_id: String,
+    pub capability_token: String,
+    pub source: DiffSource,
+    /// Create the upstream (`git push -u`) when the branch has none.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub set_upstream: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub struct WorktreeCreatePullRequestRequest {
+    pub session_id: String,
+    pub capability_token: String,
+    pub source: DiffSource,
+    pub title: String,
+    #[serde(default)]
+    pub body: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub draft: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub base: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub struct PushResult {
+    pub remote: String,
+    pub branch: String,
+    pub upstream_created: bool,
+}
+
+/// The forge a repository's remote points at, from its URL.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub enum RepositoryHostKind {
+    Github,
+    Gitlab,
+    Other,
+    None,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub enum ForgeCliKind {
+    Gh,
+    Glab,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub struct ForgeCliStatus {
+    pub kind: Option<ForgeCliKind>,
+    pub available: bool,
+    pub authenticated: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub struct ChecksSummary {
+    pub total: u32,
+    pub passed: u32,
+    pub failed: u32,
+    pub pending: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub struct PullRequestSummary {
+    pub number: u64,
+    pub url: String,
+    pub title: String,
+    /// `open`, `merged`, or `closed`, normalized across forges.
+    pub state: String,
+    pub is_draft: bool,
+    pub base_branch: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub review_decision: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub checks: Option<ChecksSummary>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub struct RepositoryStatus {
+    pub branch: String,
+    pub detached: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub upstream: Option<String>,
+    pub ahead: u32,
+    pub behind: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub remote_url: Option<String>,
+    pub host_kind: RepositoryHostKind,
+    pub forge_cli: ForgeCliStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub pull_request: Option<PullRequestSummary>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub struct PullRequestCreated {
+    pub number: u64,
+    pub url: String,
+    pub title: String,
+    pub is_draft: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, TS)]
@@ -312,6 +476,9 @@ pub enum DiffResult {
     Navigation(NavigationResult),
     WorktreeMutated(WorktreeMutated),
     Committed(CommitResult),
+    Pushed(PushResult),
+    RepositoryStatus(RepositoryStatus),
+    PullRequestCreated(PullRequestCreated),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, TS)]
