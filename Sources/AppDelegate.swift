@@ -7822,6 +7822,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 guard focusRightSidebarInActiveMainWindow(mode: mode, focusFirstItem: true, preferredWindow: preferredWindow) else {
                     return .failure(String(localized: "rightSidebar.remote.error.focusFailed", defaultValue: "ERROR: Failed to focus right sidebar"))
                 }
+            } else if mode == .files {
+                // `right_sidebar files --no-focus`: reveal wherever the tree
+                // lives (leading panel or right-sidebar tab) without focusing.
+                state.showFiles()
+                context?.keyboardFocusCoordinator.rememberRightSidebarMode(mode)
             } else {
                 state.setVisible(true)
                 state.mode = mode

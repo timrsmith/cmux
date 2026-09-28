@@ -1,5 +1,6 @@
 import CmuxCloud
 import AppKit
+import CmuxSettings
 import Foundation
 
 extension RightSidebarMode {
@@ -59,28 +60,54 @@ extension RightSidebarMode {
     }
 
     /// The tabs the mode bar actually shows: feature-available modes in the
-    /// user's configured order, minus the ones the user hid. This list also
-    /// defines the positional `ctrl+1…9` digit-shortcut defaults, so the Nth
-    /// visible tab always answers ctrl+N unless the user rebound it.
+    /// user's configured order, minus the ones the user hid. With
+    /// `sidebar.filesPanelPlacement` set to `leading` the file tree is its own
+    /// panel, so `.files` is never a tab (`isAvailable` still reports it, since
+    /// the mode can be shown; `FileExplorerState.showFiles` routes it to the
+    /// panel). See `positionalShortcutModes` for the `ctrl+1…9` digits.
     nonisolated static func visibleModes(defaults: UserDefaults = .standard) -> [RightSidebarMode] {
-        let hidden = RightSidebarTabPreferences.hiddenModes(defaults: defaults)
-        let visible = RightSidebarTabPreferences.orderedModes(defaults: defaults)
-            .filter { $0.isAvailable(defaults: defaults) && !hidden.contains($0) }
-        // A hidden set written directly to defaults can hide everything; the
-        // sidebar still needs tabs, so fall back to every available mode.
-        return visible.isEmpty ? availableModes(defaults: defaults) : visible
+        visibleModes(
+            defaults: defaults,
+            filesPanelPlacement: FileExplorerState.filesPanelPlacement(defaults: defaults)
+        )
     }
 
-    /// 1-based `ctrl+digit` position of `mode` among the visible tabs, or nil
-    /// when the mode is hidden, unavailable, or past position 9. Single source
-    /// for the app's positional shortcut defaults and the CmuxSettings
+    nonisolated static func visibleModes(
+        defaults: UserDefaults,
+        filesPanelPlacement: FilesPanelPlacement
+    ) -> [RightSidebarMode] {
+        let hidden = RightSidebarTabPreferences.hiddenModes(defaults: defaults)
+        let isTab: (RightSidebarMode) -> Bool = { mode in
+            mode.isAvailable(defaults: defaults) && (mode != .files || filesPanelPlacement == .rightSidebar)
+        }
+        let visible = RightSidebarTabPreferences.orderedModes(defaults: defaults)
+            .filter { isTab($0) && !hidden.contains($0) }
+        // A hidden set written directly to defaults can hide everything; the
+        // sidebar still needs tabs, so fall back to every available tab.
+        return visible.isEmpty ? availableModes(defaults: defaults).filter(isTab) : visible
+    }
+
+    /// The modes that own the positional `ctrl+1…9` digit-shortcut defaults,
+    /// so the Nth entry always answers ctrl+N unless the user rebound it. This
+    /// is the mode bar's visible tabs, except that a leading files panel keeps
+    /// `ctrl+1` as the first tool: it is the same "show Files" action as
+    /// before, just docked elsewhere, and the mode bar's digits start at 2.
+    nonisolated static func positionalShortcutModes(defaults: UserDefaults = .standard) -> [RightSidebarMode] {
+        let placement = FileExplorerState.filesPanelPlacement(defaults: defaults)
+        let tabs = visibleModes(defaults: defaults, filesPanelPlacement: placement)
+        return placement == .leading ? [.files] + tabs : tabs
+    }
+
+    /// 1-based `ctrl+digit` position of `mode` in `positionalShortcutModes`,
+    /// or nil when the mode is hidden, unavailable, or past position 9. Single
+    /// source for the app's positional shortcut defaults and the CmuxSettings
     /// default-stroke override.
     nonisolated static func positionalDigit(
         for mode: RightSidebarMode,
         defaults: UserDefaults = .standard
     ) -> Int? {
-        let visible = visibleModes(defaults: defaults)
-        guard let index = visible.firstIndex(of: mode), index < 9 else { return nil }
+        let modes = positionalShortcutModes(defaults: defaults)
+        guard let index = modes.firstIndex(of: mode), index < 9 else { return nil }
         return index + 1
     }
 

@@ -208,15 +208,11 @@ The spinner is compositor-driven (a Core Animation transform run by the render s
 Puts the workspace's own status on one line, like the Claude desktop session list: one small colored glyph, then the title. Agent hooks report each coding agent's state as a status entry (for example Claude Code's "Running" or "Needs input"), and by default every one gets its own row under the workspace title, next to the branch and directory line and the pull request rows. With `compactAgentStatus` on, those rows fold into the glyph, along with the notification preview, the unread count badge and the loading spinner, and a long title stops wrapping. Hover the glyph for the agent, pull request, branch, and directory details, plus the config profile an agent launched under when it isn't the default (`CLAUDE_CONFIG_DIR=~/.claude-outlook` shows as `outlook`).
 
 Lines you added yourself stay where they are: the workspace description, your own `cmux set-status` keys, logs, progress, ports, the checklist, and a remote workspace's connection row with its Reconnect button. So `cmux set-status` under your own key is still the way to keep a line of your own in compact mode.
-## `sidebar.rightPosition`
-
-Chooses which window edge the right sidebar is docked to. The right sidebar hosts the Files tree, Find, Sessions, Feed, Dock, Cloud, and custom panels.
 
 ```json
 {
   "sidebar": {
     "compactAgentStatus": true
-    "rightPosition": "leading"
   }
 }
 ```
@@ -261,10 +257,23 @@ Change any of them with `sidebar.compactStatusIcons`, a map from state to an [SF
 - The pulse is a Core Animation opacity loop capped at 30 Hz. It stops while the window is hidden or occluded, and Reduce Motion keeps the dot still.
 - A pull request glyph shows whether the pull request is open, merged or closed, and nothing about its checks. cmux does not fetch CI status or mergeability for a pull request, so there is no passing, failing or conflict glyph: adding one would advertise a color no user could see. An open pull request shows gray, merged shows purple, and closed shows gray with a minus badge. See [#12807](https://github.com/manaflow-ai/cmux/issues/12807).
 - Pull request and branch details follow `sidebar.showPullRequests` and the git branch toggle: turn either off and the glyph ignores it. Toggle compact status from **Settings > Sidebar > Compact Agent Status**.
-- `trailing` (default): the panel sits on the right edge of the window, after the panes.
-- `leading`: the panel sits between the workspace sidebar and the panes, so the file tree is next to the workspace list and files it opens appear as tabs to its right.
 
-The setting only moves the panel. Its width, visible tabs, focus shortcuts, and `cmux right-sidebar` commands behave the same on both edges. Change it from **Settings > Sidebar > Right Sidebar Position**.
+## `sidebar.filesPanelPlacement`
+
+Chooses where the file tree lives. The right sidebar (Find, Changes, Vault, Feed, Dock, Cloud, and custom panels) always stays on the right edge of the window.
+
+```json
+{
+  "sidebar": {
+    "filesPanelPlacement": "leading"
+  }
+}
+```
+
+- `rightSidebar` (default): the file tree is the Files tab of the right sidebar.
+- `leading`: the file tree is its own panel docked between the workspace sidebar and the panes, IDE style, with its own width and resize divider. The right sidebar drops its Files tab, and files opened from the tree appear as tabs to its right.
+
+With `leading`, every way of showing Files targets the panel instead of the right sidebar: `cmux right-sidebar files` and `cmux right-sidebar set files`, the Ctrl+1 mode shortcut (`switchRightSidebarToFiles`), the command palette's "Show Sidebar Files", and Files-related focus routing. Ctrl+1 stays on Files; the right sidebar's tabs take Ctrl+2 onward. `cmux right-sidebar hide` and `cmux right-sidebar mode` still describe the right sidebar only; the panel's close button hides the panel and the same Files shortcut brings it back. Change it from **Settings > Sidebar > Files Panel**.
 
 ## `terminal.showTextBoxOnNewTerminals` and `terminal.focusTextBoxOnNewTerminals`
 

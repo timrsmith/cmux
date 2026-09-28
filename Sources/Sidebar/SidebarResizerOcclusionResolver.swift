@@ -31,17 +31,26 @@ struct SidebarResizerOcclusionResolver {
         return windowNumber > 0 ? windowNumber : nil
     }
 
+    /// Whether `point` is inside any sidebar divider's hit band: the workspace
+    /// sidebar's, the right sidebar's, or the leading files panel's (which,
+    /// like the workspace sidebar, is on the leading side of its divider).
     func dividerBandContains(
         point: NSPoint,
         contentBounds: NSRect,
         isLeftSidebarVisible: Bool,
         leftDividerX: CGFloat,
         isRightSidebarVisible: Bool,
-        rightDividerX: CGFloat
+        rightDividerX: CGFloat,
+        isFilesPanelVisible: Bool = false,
+        filesDividerX: CGFloat = 0
     ) -> Bool {
         guard point.y >= contentBounds.minY, point.y <= contentBounds.maxY else { return false }
         if isLeftSidebarVisible,
            SidebarResizeInteraction.Edge.leading.hitRange(dividerX: leftDividerX).contains(point.x) {
+            return true
+        }
+        if isFilesPanelVisible,
+           SidebarResizeInteraction.Edge.leading.hitRange(dividerX: filesDividerX).contains(point.x) {
             return true
         }
         return isRightSidebarVisible &&

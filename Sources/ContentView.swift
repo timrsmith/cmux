@@ -908,10 +908,11 @@ struct ContentView: View {
     /// updated from its change notification. This view is the window root,
     /// so it cannot read the accent from its own environment modifier.
     @State private var cmuxAccent = AppDelegate.shared?.accentColor ?? CmuxAccentColor()
-    /// Which window edge the right sidebar (Files, Find, Dock, …) is docked to.
-    /// Every placement decision below goes through `RightSidebarPlacementLayout`
-    /// so the leading and trailing layouts cannot drift apart.
-    @LiveSetting(\.sidebar.rightPosition) private var rightSidebarPosition
+    /// Where the file tree lives: the right sidebar's Files tab, or its own
+    /// panel docked between the workspace sidebar and the panes. The right
+    /// sidebar itself always stays on the trailing edge; every files-panel
+    /// geometry decision below goes through `FilesPanelPlacementLayout`.
+    @LiveSetting(\.sidebar.filesPanelPlacement) private var filesPanelPlacement
     /// Canonical sidebar width, deliberately NOT observed by ContentView:
     /// divider ticks re-evaluate only the SidebarWidthReader wrappers that
     /// consume the width, never this body. All reads/writes outside view
@@ -951,6 +952,10 @@ struct ContentView: View {
     @State private var workspacePresentationModeRuntimeCache = WorkspacePresentationModeRuntimeCache()
     @State private var fileExplorerWidth: CGFloat = 220
     @State private var fileExplorerDragStartWidth: CGFloat?
+    /// Rendered width of the leading files panel; `fileExplorerState.filesPanelWidth`
+    /// is the persisted value it is reconciled with, like `fileExplorerWidth`.
+    @State private var filesPanelWidth: CGFloat = FilesPanelPlacementLayout.defaultWidth
+    @State private var filesPanelDragStartWidth: CGFloat?
     @State private var previousSelectedWorkspaceId: UUID?
     @State private var didApplyUITestSidebarSelection = false
     @State private var titlebarThemeGeneration: UInt64 = 0
@@ -1273,6 +1278,8 @@ struct ContentView: View {
     private enum SidebarResizerHandle: Hashable {
         case divider
         case explorerDivider
+        /// The leading files panel's divider (between the panel and the panes).
+        case filesDivider
     }
 
     /// Returns the current drag width, start width capture, width update, and drag end cleanup for a resizer handle.
@@ -1309,11 +1316,7 @@ struct ContentView: View {
                 updateWidth: { translation in
                     let startWidth = fileExplorerDragStartWidth ?? rightSidebarWidth
                     let nextWidth = Self.clampedRightSidebarWidth(
-                        RightSidebarPlacementLayout.draggedWidth(
-                            startWidth: startWidth,
-                            translation: translation,
-                            position: rightSidebarPosition
-                        ),
+                        startWidth - translation,
                         availableWidth: resolvedRightSidebarAvailableWidth(availableWidth),
                         configuredMaximumWidth: rightSidebarConfiguredMaximumWidth
                     )
@@ -1326,7 +1329,43 @@ struct ContentView: View {
                     fileExplorerState.width = fileExplorerWidth
                 }
             )
+        case .filesDivider:
+            return (
+                currentWidth: filesPanelWidth,
+                captureStart: { filesPanelDragStartWidth = filesPanelWidth },
+                updateWidth: { translation in
+                    let startWidth = filesPanelDragStartWidth ?? filesPanelWidth
+                    let nextWidth = FilesPanelPlacementLayout.clampedWidth(
+                        FilesPanelPlacementLayout.draggedWidth(startWidth: startWidth, translation: translation),
+                        maximumWidth: filesPanelMaximumWidth(availableWidth: availableWidth)
+                    )
+                    withTransaction(Transaction(animation: nil)) {
+                        filesPanelWidth = nextWidth
+                    }
+                },
+                finishDrag: {
+                    filesPanelDragStartWidth = nil
+                    fileExplorerState.filesPanelWidth = filesPanelWidth
+                }
+            )
         }
+    }
+
+    /// The files panel's width cap: the right sidebar's dynamic cap (window
+    /// width minus reserved terminal space, capped by the configured maximum)
+    /// applied to what is left after the right sidebar, so both tool panels
+    /// together still leave the panes their reserved room.
+    private func filesPanelMaximumWidth(availableWidth: CGFloat? = nil) -> CGFloat {
+        let resolvedAvailableWidth = resolvedRightSidebarAvailableWidth(availableWidth)
+        return Self.clampedRightSidebarWidth(
+            .greatestFiniteMagnitude,
+            availableWidth: max(0, resolvedAvailableWidth - rightSidebarWidth),
+            configuredMaximumWidth: rightSidebarConfiguredMaximumWidth
+        )
+    }
+
+    private func normalizedFilesPanelWidth(_ candidate: CGFloat) -> CGFloat {
+        FilesPanelPlacementLayout.clampedWidth(candidate, maximumWidth: filesPanelMaximumWidth())
     }
 
     private func maxSidebarWidth(availableWidth: CGFloat? = nil) -> CGFloat {
@@ -1539,7 +1578,7 @@ struct ContentView: View {
     }
 
     private func updateSidebarResizerBandState(using _: NSEvent? = nil) {
-        guard sidebarState.isVisible || rightSidebarVisible,
+        guard sidebarState.isVisible || rightSidebarVisible || filesPanelIsDocked,
               let window = observedWindow,
               let contentView = window.contentView else {
             isResizerBandActive = false
@@ -1556,7 +1595,12 @@ struct ContentView: View {
             isLeftSidebarVisible: sidebarState.isVisible,
             leftDividerX: sidebarWidth,
             isRightSidebarVisible: rightSidebarVisible,
-            rightDividerX: contentView.bounds.maxX - rightSidebarWidth
+            rightDividerX: contentView.bounds.maxX - rightSidebarWidth,
+            isFilesPanelVisible: filesPanelIsDocked,
+            filesDividerX: FilesPanelPlacementLayout.dividerX(
+                leadingSidebarWidth: visibleLeadingSidebarWidth(sidebarWidth),
+                filesPanelWidth: filesPanelWidth
+            )
         )
         let mayActivate = sidebarResizerOcclusionResolver.bandMayActivate(
             isDragging: isResizerDragging,
@@ -1595,6 +1639,7 @@ struct ContentView: View {
                 isResizerDragging = false
                 sidebarDragStartWidth = nil
                 fileExplorerDragStartWidth = nil
+                filesPanelDragStartWidth = nil
                 hoveredResizerHandles.removeAll()
                 releaseSidebarResizerCursorIfNeeded(force: true)
                 stopSidebarResizerCursorStabilizer()
@@ -1816,41 +1861,27 @@ struct ContentView: View {
         }
     }
 
-    @ViewBuilder
     private var rightSidebarResizerOverlay: some View {
-        if rightSidebarIsLeading {
-            // The leading placement's divider sits after the workspace sidebar,
-            // so only this branch tracks that width the way the left resizer
-            // does; the trailing divider never moves with it.
-            SidebarWidthReader(layout: sidebarLayout) { sidebarWidth in
-                placedSidebarResizerOverlay(
-                    handle: .explorerDivider,
-                    edge: RightSidebarPlacementLayout.resizerEdge(position: rightSidebarPosition),
-                    accessibilityIdentifier: "RightSidebarResizer",
-                    dividerX: { totalWidth in
-                        RightSidebarPlacementLayout.dividerX(
-                            position: rightSidebarPosition,
-                            totalWidth: totalWidth,
-                            leadingSidebarWidth: visibleLeadingSidebarWidth(sidebarWidth),
-                            rightSidebarWidth: rightSidebarWidth
-                        )
-                    }
-                )
-            }
-        } else {
-            // Trailing placement ignores the workspace sidebar's width, so no
-            // SidebarWidthReader here; the geometry still comes from the same
-            // enum as the leading branch so the two cannot drift apart.
+        placedSidebarResizerOverlay(
+            handle: .explorerDivider,
+            edge: .trailing,
+            accessibilityIdentifier: "RightSidebarResizer",
+            dividerX: { totalWidth in totalWidth - rightSidebarWidth }
+        )
+    }
+
+    /// The leading files panel's divider sits after the workspace sidebar, so
+    /// it tracks that width the way the left resizer does.
+    private var filesPanelResizerOverlay: some View {
+        SidebarWidthReader(layout: sidebarLayout) { sidebarWidth in
             placedSidebarResizerOverlay(
-                handle: .explorerDivider,
-                edge: RightSidebarPlacementLayout.resizerEdge(position: rightSidebarPosition),
-                accessibilityIdentifier: "RightSidebarResizer",
-                dividerX: { totalWidth in
-                    RightSidebarPlacementLayout.dividerX(
-                        position: rightSidebarPosition,
-                        totalWidth: totalWidth,
-                        leadingSidebarWidth: 0,
-                        rightSidebarWidth: rightSidebarWidth
+                handle: .filesDivider,
+                edge: .leading,
+                accessibilityIdentifier: "FilesPanelResizer",
+                dividerX: { _ in
+                    FilesPanelPlacementLayout.dividerX(
+                        leadingSidebarWidth: visibleLeadingSidebarWidth(sidebarWidth),
+                        filesPanelWidth: filesPanelWidth
                     )
                 }
             )
@@ -2033,17 +2064,17 @@ struct ContentView: View {
         // The right-sidebar shell remains in the view tree so its frame can
         // animate without SwiftUI insertion/removal. Cold hidden launches defer
         // heavy mode content until the sidebar has been shown at least once.
-        // `sidebar.rightPosition` only decides which side of the panes the
-        // shell is on; changing it remounts the shell, which is fine for a
-        // Settings change but is why visibility toggles never go through it.
+        // The files panel (`sidebar.filesPanelPlacement` = `leading`) is a
+        // separate leading slot: the row is `[files panel, panes, right
+        // sidebar]`, and the panel is conditional because `FileExplorerStore`
+        // already holds the tree's expansion and selection, so a remount on
+        // show costs one reload rather than any lost state.
         return HStack(spacing: 0) {
-            if rightSidebarIsLeading {
-                rightSidebarPanelWithBackdrop(appearance: appearance)
+            if filesPanelIsDocked {
+                filesPanelWithBackdrop(appearance: appearance)
             }
             terminalContentWithSidebarDropOverlay(appearance: appearance)
-            if !rightSidebarIsLeading {
-                rightSidebarPanelWithBackdrop(appearance: appearance)
-            }
+            rightSidebarPanelWithBackdrop(appearance: appearance)
         }
     }
 
@@ -2051,17 +2082,26 @@ struct ContentView: View {
         fileExplorerState.isVisible
     }
 
-    private var rightSidebarIsLeading: Bool {
-        rightSidebarPosition == .leading
+    /// Whether the file tree is laid out as its own panel left of the panes:
+    /// `sidebar.filesPanelPlacement` is `leading` and the user has not closed it.
+    private var filesPanelIsDocked: Bool {
+        FilesPanelPlacementLayout.isDocked(
+            placement: filesPanelPlacement,
+            isFilesPanelVisible: fileExplorerState.filesPanelVisible
+        )
     }
 
-    /// Whether the workspace titlebar band starts after both sidebars, which
-    /// is the leading placement with the panel shown
-    /// (`RightSidebarPlacementLayout.titlebarBandInsets(...).leading > 0`).
+    /// The files panel's laid-out width: its width while docked, else `0`.
+    private var filesPanelDockedWidth: CGFloat {
+        filesPanelIsDocked ? filesPanelWidth : 0
+    }
+
+    /// Whether the workspace titlebar band starts after the workspace sidebar
+    /// and the files panel (`FilesPanelPlacementLayout.titlebarBandInsets(...).leading > 0`).
     /// Independent of the workspace sidebar's width, so it never needs a
     /// `SidebarWidthReader`.
-    private var rightSidebarBandStartsAfterSidebars: Bool {
-        rightSidebarIsLeading && rightSidebarVisible
+    private var titlebarBandStartsAfterFilesPanel: Bool {
+        filesPanelIsDocked
     }
 
     /// The workspace sidebar's width as laid out: `width` while it is shown,
@@ -2070,11 +2110,11 @@ struct ContentView: View {
         sidebarState.isVisible ? width : 0
     }
 
-    /// The panel's mode bar moves under the titlebar strip when the panel sits
-    /// beneath the window controls, so the panel never has to grow for them.
-    private var rightSidebarModeBarNeedsOwnRow: Bool {
-        RightSidebarPlacementLayout.modeBarNeedsOwnRow(
-            position: rightSidebarPosition,
+    /// The files panel's header moves under an empty titlebar strip when the
+    /// panel sits beneath the window controls, so it never has to grow for them.
+    private var filesPanelHeaderNeedsOwnRow: Bool {
+        FilesPanelPlacementLayout.headerNeedsOwnRow(
+            placement: filesPanelPlacement,
             isLeadingSidebarVisible: sidebarState.isVisible
         )
     }
@@ -2124,18 +2164,10 @@ struct ContentView: View {
     }
 
     private func rightSidebarPanelWithBackdrop(appearance: WindowAppearanceSnapshot) -> some View {
-        // The panel stays pinned to its window edge when content reports an
-        // intrinsic width larger than the pane, and the chrome border always
-        // sits on the edge that faces the panes.
-        let panel = sidebarPanelContainer(
-            width: rightSidebarWidth,
-            alignment: rightSidebarIsLeading ? .leading : .trailing,
-            role: .rightSidebar,
-            appearance: appearance
-        ) {
+        let panel = sidebarPanelContainer(width: rightSidebarWidth, alignment: .trailing, role: .rightSidebar, appearance: appearance) {
             rightSidebarPanel(appearance: appearance)
         }
-        .overlay(alignment: rightSidebarIsLeading ? .trailing : .leading) {
+        .overlay(alignment: .leading) {
             if rightSidebarVisible {
                 WindowChromeBorder(
                     orientation: .vertical,
@@ -2156,7 +2188,6 @@ struct ContentView: View {
             sessionIndexStore: sessionIndexStore,
             changesStore: rightSidebarChangesStore,
             titlebarHeight: RightSidebarChromeMetrics.titlebarHeight,
-            modeBarBelowTitlebarStrip: rightSidebarModeBarNeedsOwnRow,
             windowAppearance: appearance,
             workspaceId: tabManager.selectedTabId,
             onResumeSession: { entry in
@@ -2206,6 +2237,65 @@ struct ContentView: View {
                 }
                 fileExplorerWidth = sanitized
             }
+        }
+    }
+
+    /// The file tree docked left of the panes. Same backdrop role and chrome
+    /// border as the right sidebar, with the border on the edge facing the panes.
+    private func filesPanelWithBackdrop(appearance: WindowAppearanceSnapshot) -> some View {
+        sidebarPanelContainer(width: filesPanelWidth, alignment: .leading, role: .rightSidebar, appearance: appearance) {
+            filesPanel(appearance: appearance)
+        }
+        .overlay(alignment: .trailing) {
+            WindowChromeBorder(
+                orientation: .vertical,
+                backgroundColor: appearance.resolvedChromeBackgroundColor
+            )
+        }
+    }
+
+    private func filesPanel(appearance: WindowAppearanceSnapshot) -> some View {
+        FilesPanelView(
+            fileExplorerStore: fileExplorerStore,
+            fileExplorerState: fileExplorerState,
+            titlebarHeight: RightSidebarChromeMetrics.titlebarHeight,
+            headerBelowTitlebarStrip: filesPanelHeaderNeedsOwnRow,
+            windowAppearance: appearance,
+            onOpenFilePreview: { filePath in
+                openFilePreviewFromSidebar(filePath: filePath)
+            },
+            onOpenAsPane: {
+                openRightSidebarToolPane(.files)
+            },
+            onClose: {
+                #if DEBUG
+                cmuxDebugLog("filesPanel.closeButton")
+                #endif
+                fileExplorerState.setFilesPanelVisible(false)
+            }
+        )
+        .frame(width: filesPanelWidth)
+        .clipped()
+        .transaction { $0.animation = nil }
+        .onAppear {
+            let sanitized = normalizedFilesPanelWidth(fileExplorerState.filesPanelWidth)
+            filesPanelWidth = sanitized
+            if abs(fileExplorerState.filesPanelWidth - sanitized) > 0.5 {
+                DispatchQueue.main.async {
+                    fileExplorerState.filesPanelWidth = sanitized
+                }
+            }
+        }
+        .onChange(of: fileExplorerState.filesPanelWidth) { _, newValue in
+            guard filesPanelDragStartWidth == nil else { return }
+            let sanitized = normalizedFilesPanelWidth(newValue)
+            if abs(newValue - sanitized) > 0.5 {
+                DispatchQueue.main.async {
+                    fileExplorerState.filesPanelWidth = sanitized
+                }
+                return
+            }
+            filesPanelWidth = sanitized
         }
     }
 
@@ -2329,11 +2419,12 @@ struct ContentView: View {
             )
                 .allowsHitTesting(false)
 
-            // With the right sidebar docked leading, `workspaceTitlebarBand`
-            // already starts this whole strip after both sidebars, so the
-            // title neither reserves the workspace sidebar's width nor the
-            // fullscreen controls (which stay over the panel's inset header).
-            let bandStartsAfterSidebars = rightSidebarBandStartsAfterSidebars
+            // With the file tree docked leading, `workspaceTitlebarBand`
+            // already starts this whole strip after the workspace sidebar and
+            // the files panel, so the title neither reserves the workspace
+            // sidebar's width nor the fullscreen controls (which stay over the
+            // panel's inset header).
+            let bandStartsAfterSidebars = titlebarBandStartsAfterFilesPanel
             SidebarWidthReader(layout: sidebarLayout) { width in
                 HStack(spacing: 8) {
                     if isFullScreen && !sidebarState.isVisible && !bandStartsAfterSidebars {
@@ -2380,8 +2471,8 @@ struct ContentView: View {
         .background(TitlebarDoubleClickMonitorView())
         .overlay(alignment: .bottom) {
             // The band is already inset past the workspace sidebar when the
-            // right sidebar is docked leading, so do not offset again here.
-            let bandStartsAfterSidebars = rightSidebarBandStartsAfterSidebars
+            // files panel is docked leading, so do not offset again here.
+            let bandStartsAfterSidebars = titlebarBandStartsAfterFilesPanel
             SidebarWidthReader(layout: sidebarLayout) { width in
                 WindowChromeBorder(
                     orientation: .horizontal,
@@ -2416,17 +2507,20 @@ struct ContentView: View {
                     // that here — otherwise this inset could animate out of step with the panel on
                     // toggle and momentarily expose (or re-cover) the mode bar mid-transition.
                     //
-                    // With `sidebar.rightPosition` set to `leading` the panel sits between the
-                    // workspace sidebar and the panes, so the band instead starts after both
-                    // sidebars (`RightSidebarPlacementLayout.titlebarBandInsets`).
+                    // With `sidebar.filesPanelPlacement` set to `leading` the file tree sits
+                    // between the workspace sidebar and the panes, so the band also starts
+                    // after the workspace sidebar and that panel
+                    // (`FilesPanelPlacementLayout.titlebarBandInsets`).
                     .modifier(TitlebarBandInsetsModifier(
                         layout: sidebarLayout,
-                        position: rightSidebarPosition,
+                        placement: filesPanelPlacement,
                         isLeadingSidebarVisible: sidebarState.isVisible,
+                        isFilesPanelVisible: filesPanelIsDocked,
+                        filesPanelWidth: filesPanelWidth,
                         rightSidebarWidth: rightSidebarWidth
                     ))
                     .animation(nil, value: rightSidebarWidth)
-                    .animation(nil, value: rightSidebarIsLeading)
+                    .animation(nil, value: filesPanelDockedWidth)
             }
             .overlay(alignment: .topLeading) {
                 if let placement = Self.fullscreenControlsPlacement(
@@ -2669,7 +2763,8 @@ struct ContentView: View {
     private var shouldSyncFileExplorerStore: Bool {
         FileExplorerRootSyncPolicy.shouldSyncFileExplorerStore(
             isRightSidebarVisible: fileExplorerState.isVisible,
-            mode: fileExplorerState.mode
+            mode: fileExplorerState.mode,
+            isFilesPanelDocked: filesPanelIsDocked
         )
     }
 
@@ -2747,8 +2842,7 @@ struct ContentView: View {
             // Overlay mode keeps the left sidebar on top, but the right
             // sidebar stays in an HStack so terminal rows are clipped before
             // the sidebar backdrop samples the window. The whole row is padded
-            // past the left sidebar so the right panel lands next to it when
-            // `sidebar.rightPosition` is `leading`.
+            // past the left sidebar so a leading files panel lands next to it.
             layout = AnyView(
                 ZStack(alignment: .leading) {
                     terminalContentWithRightSidebarPanel(appearance: appearance)
@@ -2786,6 +2880,12 @@ struct ContentView: View {
                 .overlay(alignment: .leading) {
                     if rightSidebarVisible {
                         rightSidebarResizerOverlay
+                            .zIndex(1000)
+                    }
+                }
+                .overlay(alignment: .leading) {
+                    if filesPanelIsDocked {
+                        filesPanelResizerOverlay
                             .zIndex(1000)
                     }
                 }
@@ -3629,6 +3729,31 @@ struct ContentView: View {
 
         view = AnyView(view.onChange(of: fileExplorerState.mode) { _, _ in
             syncFileExplorerDirectory()
+        })
+
+        // The docked files panel shares the right sidebar's lifecycle hooks:
+        // its tree root follows the selected workspace only while it is on
+        // screen, closing it hands focus back to the terminal when the tree
+        // owned it, and the portals re-measure around its width.
+        view = AnyView(view.onChange(of: fileExplorerState.filesPanelVisible) { _, isVisible in
+            if !isVisible {
+                _ = AppDelegate.shared?.restoreTerminalFocusAfterRightSidebarHidden(in: observedWindow)
+            }
+            syncFileExplorerDirectory()
+            if let observedWindow {
+                TerminalWindowPortalRegistry.scheduleExternalGeometrySynchronize(for: observedWindow)
+            } else {
+                TerminalWindowPortalRegistry.scheduleExternalGeometrySynchronizeForAllWindows()
+            }
+        })
+
+        view = AnyView(view.onChange(of: filesPanelPlacement) { _, _ in
+            syncFileExplorerDirectory()
+            if let observedWindow {
+                TerminalWindowPortalRegistry.scheduleExternalGeometrySynchronize(for: observedWindow)
+            } else {
+                TerminalWindowPortalRegistry.scheduleExternalGeometrySynchronizeForAllWindows()
+            }
         })
 
         view = AnyView(view.onChange(of: sidebarMatchTerminalBackground) { _ in

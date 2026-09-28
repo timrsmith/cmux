@@ -45,6 +45,21 @@ struct FileExplorerRootSyncPolicyTests {
             )
         }
     }
+
+    @Test("A docked leading files panel syncs the root whatever the right sidebar shows")
+    func dockedFilesPanelSyncsFileExplorerRoot() {
+        for mode in RightSidebarMode.allCases {
+            for rightSidebarVisible in [true, false] {
+                #expect(
+                    FileExplorerRootSyncPolicy.shouldSyncFileExplorerStore(
+                        isRightSidebarVisible: rightSidebarVisible,
+                        mode: mode,
+                        isFilesPanelDocked: true
+                    )
+                )
+            }
+        }
+    }
 }
 
 @MainActor

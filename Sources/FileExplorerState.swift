@@ -1,4 +1,5 @@
 import AppKit
+import CmuxSettings
 import SwiftUI
 
 // MARK: - State (visibility toggle)
@@ -6,6 +7,8 @@ import SwiftUI
 final class FileExplorerState: ObservableObject {
     private static let modeKey = "rightSidebar.mode"
     private static let customSidebarNameKey = "rightSidebar.customSidebarName"
+    static let filesPanelVisibleKey = "filesPanel.isVisible"
+    static let filesPanelWidthKey = "filesPanel.width"
 
     @Published var isVisible: Bool {
         didSet { persistVisibility() }
@@ -22,6 +25,19 @@ final class FileExplorerState: ObservableObject {
     }
     @Published var width: CGFloat {
         didSet { UserDefaults.standard.set(Double(width), forKey: "fileExplorer.width") }
+    }
+
+    /// Whether the leading files panel (the file tree docked between the
+    /// workspace sidebar and the panes) is shown. Only laid out while
+    /// `sidebar.filesPanelPlacement` is `leading`; the value is kept across
+    /// placement changes so switching back and forth restores the panel.
+    /// Independent of `isVisible`, which is the right sidebar.
+    @Published var filesPanelVisible: Bool {
+        didSet { UserDefaults.standard.set(filesPanelVisible, forKey: Self.filesPanelVisibleKey) }
+    }
+    /// Persisted width of the leading files panel.
+    @Published var filesPanelWidth: CGFloat {
+        didSet { UserDefaults.standard.set(Double(filesPanelWidth), forKey: Self.filesPanelWidthKey) }
     }
 
     /// Proportion of sidebar height allocated to the tab list (0.0-1.0).
@@ -64,6 +80,15 @@ final class FileExplorerState: ObservableObject {
         self.isVisible = defaults.bool(forKey: "fileExplorer.isVisible")
         let storedWidth = defaults.double(forKey: "fileExplorer.width")
         self.width = storedWidth > 0 ? CGFloat(storedWidth) : 220
+        // The docked file tree starts shown: a user who picks the leading
+        // placement wants the tree next to the workspace list, and closing it
+        // is the persisted exception.
+        let storedFilesPanelVisible = defaults.object(forKey: Self.filesPanelVisibleKey)
+        self.filesPanelVisible = storedFilesPanelVisible == nil ? true : defaults.bool(forKey: Self.filesPanelVisibleKey)
+        let storedFilesPanelWidth = defaults.double(forKey: Self.filesPanelWidthKey)
+        self.filesPanelWidth = storedFilesPanelWidth > 0
+            ? CGFloat(storedFilesPanelWidth)
+            : FilesPanelPlacementLayout.defaultWidth
         let storedPosition = defaults.double(forKey: "fileExplorer.dividerPosition")
         self.dividerPosition = storedPosition > 0 ? CGFloat(storedPosition) : 0.6
         let storedShowHidden = defaults.object(forKey: "fileExplorer.showHidden")
@@ -96,14 +121,87 @@ final class FileExplorerState: ObservableObject {
         defaults.string(forKey: customSidebarNameKey)?.nilIfEmpty
     }
 
+    /// Where the file tree lives (`sidebar.filesPanelPlacement`), read from the
+    /// catalog key the same way the mode availability checks read their gates,
+    /// so static callers (mode bar tabs, positional shortcut digits, focus
+    /// routing) agree with the live Settings value.
+    nonisolated static func filesPanelPlacement(defaults: UserDefaults = .standard) -> FilesPanelPlacement {
+        UserDefaultsSettingsClient(defaults: defaults).value(for: SidebarCatalogSection().filesPanelPlacement)
+    }
+
+    /// Whether the file tree is docked as its own leading panel rather than
+    /// being a right-sidebar tab.
+    nonisolated static func filesPanelIsLeading(defaults: UserDefaults = .standard) -> Bool {
+        filesPanelPlacement(defaults: defaults) == .leading
+    }
+
+    /// The one action path behind every "show Files" entry point (CLI
+    /// `right-sidebar files`, the Ctrl+1 mode shortcut, the command palette,
+    /// notification routing, `openRightSidebarToolPane` fallbacks). With the
+    /// leading placement it reveals the docked files panel and leaves the right
+    /// sidebar's visibility and mode alone; otherwise it shows the right sidebar
+    /// on its Files tab, exactly the pre-panel behavior. Focus is the
+    /// `MainWindowFocusController`'s job, which calls this before focusing the
+    /// registered `.files` host.
+    func showFiles(defaults: UserDefaults = .standard) {
+        if Self.filesPanelIsLeading(defaults: defaults) {
+            setFilesPanelVisible(true)
+        } else {
+            setVisible(true)
+            setMode(.files, defaults: defaults)
+        }
+    }
+
+    /// Hides the file tree wherever it lives: closes the leading panel, or
+    /// hides the right sidebar when it is showing the Files tab (any other tab
+    /// stays put, since it is not "Files" that is showing).
+    func hideFiles(defaults: UserDefaults = .standard) {
+        if Self.filesPanelIsLeading(defaults: defaults) {
+            setFilesPanelVisible(false)
+        } else if mode == .files {
+            setVisible(false)
+        }
+    }
+
+    /// Whether the file tree is currently on screen, wherever it lives.
+    func filesAreShown(defaults: UserDefaults = .standard) -> Bool {
+        if Self.filesPanelIsLeading(defaults: defaults) {
+            return filesPanelVisible
+        }
+        return isVisible && mode == .files
+    }
+
+    /// Toggles the file tree through `showFiles`/`hideFiles`.
+    func toggleFiles(defaults: UserDefaults = .standard) {
+        if filesAreShown(defaults: defaults) {
+            hideFiles(defaults: defaults)
+        } else {
+            showFiles(defaults: defaults)
+        }
+    }
+
+    func setFilesPanelVisible(_ nextValue: Bool) {
+        guard filesPanelVisible != nextValue else { return }
+        withoutLayoutAnimations {
+            filesPanelVisible = nextValue
+        }
+    }
+
     func toggle() {
         setVisible(!isVisible)
     }
 
     func setVisible(_ nextValue: Bool) {
         guard isVisible != nextValue else { return }
+        withoutLayoutAnimations {
+            isVisible = nextValue
+        }
+    }
 
-        // Suppress both SwiftUI transactions and AppKit/Core Animation implicit layout changes.
+    /// Runs `body` with SwiftUI transactions and AppKit/Core Animation implicit
+    /// layout changes suppressed, so a panel snaps open or closed instead of
+    /// animating out of step with the terminal portals.
+    private func withoutLayoutAnimations(_ body: () -> Void) {
         NSAnimationContext.beginGrouping()
         CATransaction.begin()
         defer {
@@ -117,9 +215,7 @@ final class FileExplorerState: ObservableObject {
 
         var transaction = Transaction(animation: nil)
         transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            isVisible = nextValue
-        }
+        withTransaction(transaction, body)
     }
 
     private func setMode(_ mode: RightSidebarMode, defaults: UserDefaults = .standard) {
@@ -134,11 +230,22 @@ final class FileExplorerState: ObservableObject {
         defaults.set(nextMode.rawValue, forKey: Self.modeKey)
     }
 
+    /// The mode the right sidebar may actually land on. Feature-gated modes
+    /// fall back like before; with the leading placement `.files` is no longer
+    /// a right-sidebar tab at all, so it (and any fallback) lands on the first
+    /// tab the mode bar shows instead.
     private static func availableMode(
         _ mode: RightSidebarMode,
         defaults: UserDefaults
     ) -> RightSidebarMode {
-        mode.isAvailable(defaults: defaults) ? mode : .files
+        let filesInRightSidebar = !filesPanelIsLeading(defaults: defaults)
+        if mode.isAvailable(defaults: defaults), mode != .files || filesInRightSidebar {
+            return mode
+        }
+        if filesInRightSidebar {
+            return .files
+        }
+        return RightSidebarMode.visibleModes(defaults: defaults).first ?? .find
     }
 
     private static func visibleMode(

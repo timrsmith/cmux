@@ -37,7 +37,7 @@ public struct SidebarSection: View {
     @State private var compactAgentStatus: DefaultsValueModel<Bool>
     @State private var rightMaxWidth: DefaultsValueModel<Double>
     @State private var rememberedRightMaxWidth: DefaultsValueModel<Double>
-    @State private var rightPosition: DefaultsValueModel<RightSidebarPosition>
+    @State private var filesPanelPlacement: DefaultsValueModel<FilesPanelPlacement>
     public init(defaultsStore: UserDefaultsSettingsStore, catalog: SettingCatalog, hostActions: SettingsHostActions) {
         self.catalog = catalog
         self.hostActions = hostActions
@@ -70,7 +70,7 @@ public struct SidebarSection: View {
         _compactAgentStatus = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebar.compactAgentStatus))
         _rightMaxWidth = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebar.rightMaxWidth))
         _rememberedRightMaxWidth = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebar.rememberedRightMaxWidth))
-        _rightPosition = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebar.rightPosition))
+        _filesPanelPlacement = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebar.filesPanelPlacement))
     }
     /// The rendered sidebar settings section.
     public var body: some View {
@@ -113,7 +113,7 @@ public struct SidebarSection: View {
             compactAgentStatus,
             rightMaxWidth,
             rememberedRightMaxWidth,
-            rightPosition,
+            filesPanelPlacement,
         ]
         models.forEach { $0.startObserving() }
     }
@@ -178,12 +178,12 @@ public struct SidebarSection: View {
         rightSidebarWidthSettings.clampedSettingsEditorMaximumWidth(value)
     }
 
-    private func rightPositionLabel(_ position: RightSidebarPosition) -> String {
-        switch position {
+    private func filesPanelPlacementLabel(_ placement: FilesPanelPlacement) -> String {
+        switch placement {
+        case .rightSidebar:
+            return String(localized: "settings.sidebar.filesPanelPlacement.rightSidebar", defaultValue: "In Right Sidebar")
         case .leading:
-            return String(localized: "settings.sidebar.rightPosition.left", defaultValue: "Left")
-        case .trailing:
-            return String(localized: "settings.sidebar.rightPosition.right", defaultValue: "Right")
+            return String(localized: "settings.sidebar.filesPanelPlacement.leading", defaultValue: "Left of Panes")
         }
     }
 
@@ -246,27 +246,21 @@ public struct SidebarSection: View {
             SettingsCardDivider()
 
             SettingsCardRow(
-                configurationReview: .json("sidebar.rightPosition"),
-                String(localized: "settings.sidebar.rightPosition", defaultValue: "Right Sidebar Position"),
-                subtitle: String(localized: "settings.sidebar.rightPosition.subtitle", defaultValue: "Dock the Files, Find, Dock, and other tool panels on the right edge, or on the left between the workspace sidebar and the panes.")
+                configurationReview: .json("sidebar.filesPanelPlacement"),
+                String(localized: "settings.sidebar.filesPanelPlacement", defaultValue: "Files Panel"),
+                subtitle: String(localized: "settings.sidebar.filesPanelPlacement.subtitle", defaultValue: "Show the file tree as a tab of the right sidebar, or as its own panel between the workspace sidebar and the panes. Find, Changes, and the other tools stay in the right sidebar.")
             ) {
                 Picker("", selection: Binding(
-                    get: { rightPosition.current },
-                    set: { rightPosition.set($0) }
+                    get: { filesPanelPlacement.current },
+                    set: { filesPanelPlacement.set($0) }
                 )) {
-                    ForEach(RightSidebarPosition.allCases, id: \.self) { position in
-                        Text(rightPositionLabel(position)).tag(position)
+                    ForEach(FilesPanelPlacement.allCases, id: \.self) { placement in
+                        Text(filesPanelPlacementLabel(placement)).tag(placement)
                     }
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
                 .fixedSize()
-                // "Left" and "Right" name window edges, not reading order: the
-                // placement math (`RightSidebarPlacementLayout`) works in LTR
-                // window coordinates like the existing left-sidebar resizer, so
-                // the segments must not mirror under RTL locales or "Left" would
-                // sit on the right of the control while still docking leading.
-                .environment(\.layoutDirection, .leftToRight)
             }
             SettingsCardDivider()
 

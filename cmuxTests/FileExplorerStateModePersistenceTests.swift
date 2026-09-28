@@ -13,6 +13,8 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
     private let customSidebarNameKey = "rightSidebar.customSidebarName"
     private let feedEnabledKey = RightSidebarBetaFeatureSettings.feedEnabledKey
     private let legacyDockBetaKey = "rightSidebar.beta.dock.enabled"
+    private let filesPanelPlacementKey = SidebarCatalogSection().filesPanelPlacement.userDefaultsKey
+    private let filesPanelVisibleKey = FileExplorerState.filesPanelVisibleKey
 
     func testDisabledFeedStoredModeFallsBackToFiles() {
         withSavedRightSidebarModeDefaults {
@@ -115,6 +117,108 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
         }
     }
 
+    // MARK: - sidebar.filesPanelPlacement = leading
+
+    func testLeadingPlacementDropsFilesFromTheModeBar() {
+        withSavedRightSidebarModeDefaults {
+            let defaults = UserDefaults.standard
+            defaults.set(FilesPanelPlacement.leading.rawValue, forKey: filesPanelPlacementKey)
+
+            XCTAssertFalse(RightSidebarMode.visibleModes(defaults: defaults).contains(.files))
+            XCTAssertTrue(
+                RightSidebarMode.files.isAvailable(defaults: defaults),
+                "Files stays a reachable mode (CLI, shortcut, palette); it is only not a tab"
+            )
+
+            defaults.set(FilesPanelPlacement.rightSidebar.rawValue, forKey: filesPanelPlacementKey)
+            XCTAssertEqual(RightSidebarMode.visibleModes(defaults: defaults).first, .files)
+        }
+    }
+
+    func testLeadingPlacementStoredFilesModeFallsBackToTheFirstVisibleTab() {
+        withSavedRightSidebarModeDefaults {
+            let defaults = UserDefaults.standard
+            defaults.set(FilesPanelPlacement.leading.rawValue, forKey: filesPanelPlacementKey)
+            defaults.set(RightSidebarMode.files.rawValue, forKey: modeKey)
+
+            let state = FileExplorerState()
+
+            let expected = RightSidebarMode.visibleModes(defaults: defaults).first
+            XCTAssertNotEqual(state.mode, .files)
+            XCTAssertEqual(state.mode, expected)
+            XCTAssertEqual(defaults.string(forKey: modeKey), expected?.rawValue)
+        }
+    }
+
+    func testLeadingPlacementModeSetterNeverLandsOnFiles() {
+        withSavedRightSidebarModeDefaults {
+            let defaults = UserDefaults.standard
+            defaults.set(FilesPanelPlacement.leading.rawValue, forKey: filesPanelPlacementKey)
+            let state = FileExplorerState()
+            state.mode = .changes
+            XCTAssertEqual(state.mode, .changes)
+
+            state.mode = .files
+            XCTAssertNotEqual(state.mode, .files, "the right sidebar has no Files tab to show")
+            XCTAssertEqual(state.mode, RightSidebarMode.visibleModes(defaults: defaults).first)
+        }
+    }
+
+    func testShowFilesRevealsTheLeadingPanelWithoutTouchingTheRightSidebar() {
+        withSavedRightSidebarModeDefaults {
+            let defaults = UserDefaults.standard
+            defaults.set(FilesPanelPlacement.leading.rawValue, forKey: filesPanelPlacementKey)
+            defaults.set(false, forKey: filesPanelVisibleKey)
+            let state = FileExplorerState()
+            state.setVisible(false)
+            state.mode = .changes
+            XCTAssertFalse(state.filesPanelVisible)
+            XCTAssertFalse(state.filesAreShown())
+
+            state.showFiles()
+
+            XCTAssertTrue(state.filesPanelVisible)
+            XCTAssertTrue(state.filesAreShown())
+            XCTAssertTrue(defaults.bool(forKey: filesPanelVisibleKey), "the panel's visibility persists")
+            XCTAssertFalse(state.isVisible, "the right sidebar stays hidden")
+            XCTAssertEqual(state.mode, .changes, "the right sidebar keeps its tab")
+
+            state.toggleFiles()
+            XCTAssertFalse(state.filesPanelVisible)
+            XCTAssertFalse(state.isVisible)
+
+            state.toggleFiles()
+            XCTAssertTrue(state.filesPanelVisible)
+        }
+    }
+
+    func testShowFilesOpensTheRightSidebarOnFilesWhenTheTreeIsATab() {
+        withSavedRightSidebarModeDefaults {
+            let defaults = UserDefaults.standard
+            defaults.set(FilesPanelPlacement.rightSidebar.rawValue, forKey: filesPanelPlacementKey)
+            defaults.set(false, forKey: filesPanelVisibleKey)
+            let state = FileExplorerState()
+            state.setVisible(false)
+            state.mode = .changes
+
+            state.showFiles()
+
+            XCTAssertTrue(state.isVisible)
+            XCTAssertEqual(state.mode, .files)
+            XCTAssertTrue(state.filesAreShown())
+            XCTAssertFalse(state.filesPanelVisible, "the leading panel's flag is untouched")
+
+            state.toggleFiles()
+            XCTAssertFalse(state.isVisible, "hiding Files hides the sidebar showing it")
+            XCTAssertEqual(state.mode, .files)
+
+            state.setVisible(true)
+            state.mode = .changes
+            state.hideFiles()
+            XCTAssertTrue(state.isVisible, "a sidebar on another tab is not showing Files, so it stays")
+        }
+    }
+
     func testCLIArgumentNormalizerMapsVaultAndSessionsToSessions() {
         XCTAssertEqual(RightSidebarMode.from(cliArgument: "files"), .files)
         XCTAssertEqual(RightSidebarMode.from(cliArgument: "find"), .find)
@@ -138,12 +242,21 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
         let previousCustomSidebarName = defaults.object(forKey: customSidebarNameKey)
         let previousFeedEnabled = defaults.object(forKey: feedEnabledKey)
         let previousLegacyDockBeta = defaults.object(forKey: legacyDockBetaKey)
+        let previousFilesPanelPlacement = defaults.object(forKey: filesPanelPlacementKey)
+        let previousFilesPanelVisible = defaults.object(forKey: filesPanelVisibleKey)
+        let previousRightSidebarVisible = defaults.object(forKey: "fileExplorer.isVisible")
         defer {
             restore(previousMode, forKey: modeKey)
             restore(previousCustomSidebarName, forKey: customSidebarNameKey)
             restore(previousFeedEnabled, forKey: feedEnabledKey)
             restore(previousLegacyDockBeta, forKey: legacyDockBetaKey)
+            restore(previousFilesPanelPlacement, forKey: filesPanelPlacementKey)
+            restore(previousFilesPanelVisible, forKey: filesPanelVisibleKey)
+            restore(previousRightSidebarVisible, forKey: "fileExplorer.isVisible")
         }
+        // The placement is read through the catalog on every check, so start
+        // each case from the catalog default unless the case sets it.
+        defaults.removeObject(forKey: filesPanelPlacementKey)
         body()
     }
 

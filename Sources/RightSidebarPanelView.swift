@@ -25,7 +25,15 @@ enum RightSidebarContentMountPolicy {
 }
 
 enum FileExplorerRootSyncPolicy {
-    static func shouldSyncFileExplorerStore(isRightSidebarVisible: Bool, mode: RightSidebarMode) -> Bool {
+    /// Whether the shared `FileExplorerStore` must follow the selected
+    /// workspace's root. True while a file view is on screen: the leading files
+    /// panel (docked and shown), or the right sidebar in Files or Find mode.
+    static func shouldSyncFileExplorerStore(
+        isRightSidebarVisible: Bool,
+        mode: RightSidebarMode,
+        isFilesPanelDocked: Bool = false
+    ) -> Bool {
+        if isFilesPanelDocked { return true }
         guard isRightSidebarVisible else { return false }
         switch mode {
         case .files, .find:
@@ -70,12 +78,6 @@ struct RightSidebarPanelView: View {
     /// never show the mode (tests, tool panes) need not build one.
     var changesStore: RightSidebarChangesStore? = nil
     let titlebarHeight: CGFloat
-    /// When the panel touches the window's leading edge (`sidebar.rightPosition`
-    /// is `leading` and the workspace sidebar is hidden) the traffic lights and
-    /// titlebar accessory controls sit over its top strip, so the mode bar moves
-    /// onto its own row beneath an empty, draggable titlebar-height strip. False
-    /// on the trailing edge and whenever the workspace sidebar is visible.
-    var modeBarBelowTitlebarStrip: Bool = false
     let windowAppearance: WindowAppearanceSnapshot
     let workspaceId: UUID?
     let onResumeSession: ((SessionEntry) -> Void)?
@@ -107,6 +109,9 @@ struct RightSidebarPanelView: View {
     @AppStorage(RightSidebarBetaFeatureSettings.cloudMachinesEnabledKey)
     private var cloudMachinesBetaEnabled = RightSidebarBetaFeatureSettings.defaultCloudMachinesEnabled
     @LiveSetting(\.customSidebars.renderer) private var customSidebarRenderer
+    /// With `leading` the file tree is its own panel left of the panes, so the
+    /// mode bar drops its Files tab (`RightSidebarMode.visibleModes`).
+    @LiveSetting(\.sidebar.filesPanelPlacement) private var filesPanelPlacement
     /// The right rail's OWN worker client. Never share the left sidebar's:
     /// the remote host swaps files in place on one client, so a shared client
     /// would make the two rails fight over one worker process.
@@ -119,12 +124,16 @@ struct RightSidebarPanelView: View {
         FeedCoordinator.shared.store?.pending.count ?? 0
     }
 
+    /// Modes that can be right-sidebar tabs: the feature-available modes,
+    /// minus Files while the file tree is docked as its own leading panel.
     private var featureAvailableModes: [RightSidebarMode] {
         _ = managedPolicyRevision
-        return RightSidebarMode.availableModes(
+        let modes = RightSidebarMode.availableModes(
             feedEnabled: feedEnabled,
             machinesEnabled: CloudMachinesFeature.isEnabled
         )
+        guard filesPanelPlacement == .leading else { return modes }
+        return modes.filter { $0 != .files }
     }
 
     /// Feature-available tabs in the user's order, for the customization
@@ -175,10 +184,6 @@ struct RightSidebarPanelView: View {
         // width wider than the panel, the overflow must fall off the trailing
         // edge instead of the default centering clipping the tree's leading columns.
         VStack(alignment: .leading, spacing: 0) {
-            if modeBarBelowTitlebarStrip {
-                // The window controls own this strip; keep it draggable and empty.
-                titlebarStrip
-            }
             modeBar
                 .rightSidebarChromeBottomBorder(
                     backgroundColor: windowAppearance.resolvedChromeBackgroundColor
@@ -223,6 +228,7 @@ struct RightSidebarPanelView: View {
         }
         .onChange(of: feedEnabled) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
         .onChange(of: cloudMachinesBetaEnabled) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
+        .onChange(of: filesPanelPlacement) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
         .onReceive(NotificationCenter.default.publisher(for: RightSidebarTabPreferences.didChangeNotification)) { _ in
             refreshModeAvailabilityAndFocusIfNeeded()
         }
@@ -231,19 +237,6 @@ struct RightSidebarPanelView: View {
             managedPolicyRevision &+= 1
             refreshModeAvailabilityAndFocusIfNeeded()
         }
-    }
-
-    /// An empty titlebar-height strip shown above the mode bar when the panel
-    /// sits under the window controls, so those controls never overlap the
-    /// mode buttons and the panel keeps the width the user chose. It drags
-    /// the window and handles titlebar double-click like the mode bar does.
-    private var titlebarStrip: some View {
-        WindowDragHandleView()
-            .frame(maxWidth: .infinity)
-            .frame(height: titlebarHeight)
-            .contentShape(Rectangle())
-            .background(TitlebarDoubleClickMonitorView())
-            .accessibilityHidden(true)
     }
 
     private var modeBar: some View {

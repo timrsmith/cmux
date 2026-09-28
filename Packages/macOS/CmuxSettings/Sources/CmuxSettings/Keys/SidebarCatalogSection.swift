@@ -201,14 +201,14 @@ public struct SidebarCatalogSection: SettingCatalogSection {
         userDefaultsKey: RightSidebarWidthSettings.rememberedMaxWidthKey
     )
 
-    /// Which window edge the right sidebar is docked to
-    /// (`sidebar.rightPosition`). `trailing` (the default) keeps it on the
-    /// right edge; `leading` places it between the workspace sidebar and the
-    /// panes.
-    public let rightPosition = DefaultsKey<RightSidebarPosition>(
-        id: "sidebar.rightPosition",
-        defaultValue: .trailing,
-        userDefaultsKey: "rightSidebarPosition"
+    /// Where the file tree lives (`sidebar.filesPanelPlacement`).
+    /// `rightSidebar` (the default) keeps it as the Files tab of the right
+    /// sidebar; `leading` docks it as its own panel between the workspace
+    /// sidebar and the panes while the right sidebar stays on the right edge.
+    public let filesPanelPlacement = DefaultsKey<FilesPanelPlacement>(
+        id: "sidebar.filesPanelPlacement",
+        defaultValue: .rightSidebar,
+        userDefaultsKey: "filesPanelPlacement"
     )
 
     public let activeTabIndicatorStyle = DefaultsKey<String>(

@@ -236,9 +236,13 @@ extension ContentView {
             focusFirstItem: true,
             preferredWindow: observedWindow ?? NSApp.keyWindow ?? NSApp.mainWindow
         ) != true {
-            fileExplorerState.setVisible(true)
-            if fileExplorerState.mode != mode {
-                fileExplorerState.mode = mode
+            if mode == .files {
+                fileExplorerState.showFiles()
+            } else {
+                fileExplorerState.setVisible(true)
+                if fileExplorerState.mode != mode {
+                    fileExplorerState.mode = mode
+                }
             }
         }
     }

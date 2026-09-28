@@ -1947,6 +1947,9 @@
 		A5001445A5001445A5001445 /* FilePreviewWorkspaceOpenSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5001444A5001444A5001444 /* FilePreviewWorkspaceOpenSupport.swift */; };
 		FE002103 /* FileSearchRipgrepParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE002003 /* FileSearchRipgrepParserTests.swift */; };
 		CFSF00000000000000000005 /* FileSearchScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFSR00000000000000000005 /* FileSearchScope.swift */; };
+		65D4427B316B2C291F5D9AFF /* FilesPanelPlacementLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26C6D5118DE67B311322C939 /* FilesPanelPlacementLayout.swift */; };
+		EABD4BDC792CECBB04751AD3 /* FilesPanelPlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF070650B6A1C26FFDC2679E /* FilesPanelPlacementTests.swift */; };
+		7738E46AC91FA44D374BE7BF /* FilesPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8384D7F6880CCA195D6406CA /* FilesPanelView.swift */; };
 		C35610000000000000000001 /* FinderFileDropRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35610000000000000000002 /* FinderFileDropRegressionTests.swift */; };
 		D0E0F0B4A1B2C3D4E5F60718 /* FindSelectionShortcutUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E0F0B5A1B2C3D4E5F60718 /* FindSelectionShortcutUITests.swift */; };
 		F1A0C0DE0000000000000002 /* FindTextFieldSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A0C0DE0000000000000001 /* FindTextFieldSupport.swift */; };
@@ -2829,8 +2832,6 @@
 		468110000000000000000005 /* RightSidebarModeShortcutMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 468110000000000000000006 /* RightSidebarModeShortcutMatcher.swift */; };
 		FE003103 /* RightSidebarPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE003003 /* RightSidebarPanelView.swift */; };
 		C57570010000000000000002 /* RightSidebarPanelViewTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C57570010000000000000001 /* RightSidebarPanelViewTestSupport.swift */; };
-		65D4427B316B2C291F5D9AFF /* RightSidebarPlacementLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26C6D5118DE67B311322C939 /* RightSidebarPlacementLayout.swift */; };
-		367BC978F2948D8D5373B5EA /* RightSidebarPositionSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DEFEE5A5D2E60E5D6BA20EB /* RightSidebarPositionSettingsTests.swift */; };
 		B37A0000000000000000000D /* RightSidebarRemoteCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B37A0000000000000000000E /* RightSidebarRemoteCommand.swift */; };
 		5F5553CB5553CB5553CB0001 /* RightSidebarRemoteCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F5553CB5553CB5553CB0002 /* RightSidebarRemoteCommandTests.swift */; };
 		07EB8695682FE486A366F22E /* RightSidebarTabCustomizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2217672A4FBF3048C6C17EA3 /* RightSidebarTabCustomizationTests.swift */; };
@@ -6082,6 +6083,9 @@
 		A5001444A5001444A5001444 /* FilePreviewWorkspaceOpenSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewWorkspaceOpenSupport.swift; sourceTree = "<group>"; };
 		FE002003 /* FileSearchRipgrepParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSearchRipgrepParserTests.swift; sourceTree = "<group>"; };
 		CFSR00000000000000000005 /* FileSearchScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSearchScope.swift; sourceTree = "<group>"; };
+		26C6D5118DE67B311322C939 /* FilesPanelPlacementLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesPanelPlacementLayout.swift; sourceTree = "<group>"; };
+		EF070650B6A1C26FFDC2679E /* FilesPanelPlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FilesPanelPlacementTests.swift"; sourceTree = "<group>"; };
+		8384D7F6880CCA195D6406CA /* FilesPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesPanelView.swift; sourceTree = "<group>"; };
 		C35610000000000000000002 /* FinderFileDropRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderFileDropRegressionTests.swift; sourceTree = "<group>"; };
 		D0E0F0B5A1B2C3D4E5F60718 /* FindSelectionShortcutUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindSelectionShortcutUITests.swift; sourceTree = "<group>"; };
 		F1A0C0DE0000000000000001 /* FindTextFieldSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Find/FindTextFieldSupport.swift; sourceTree = "<group>"; };
@@ -6948,8 +6952,6 @@
 		468110000000000000000006 /* RightSidebarModeShortcutMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarModeShortcutMatcher.swift; sourceTree = "<group>"; };
 		FE003003 /* RightSidebarPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarPanelView.swift; sourceTree = "<group>"; };
 		C57570010000000000000001 /* RightSidebarPanelViewTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarPanelViewTestSupport.swift; sourceTree = "<group>"; };
-		26C6D5118DE67B311322C939 /* RightSidebarPlacementLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarPlacementLayout.swift; sourceTree = "<group>"; };
-		0DEFEE5A5D2E60E5D6BA20EB /* RightSidebarPositionSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RightSidebarPositionSettingsTests.swift"; sourceTree = "<group>"; };
 		B37A0000000000000000000E /* RightSidebarRemoteCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarRemoteCommand.swift; sourceTree = "<group>"; };
 		5F5553CB5553CB5553CB0002 /* RightSidebarRemoteCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarRemoteCommandTests.swift; sourceTree = "<group>"; };
 		2217672A4FBF3048C6C17EA3 /* RightSidebarTabCustomizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarTabCustomizationTests.swift; sourceTree = "<group>"; };
@@ -11015,12 +11017,13 @@
 				B37A00000000000000000004 /* RightSidebarMode+Availability.swift */,
 				B37A0000000000000000000E /* RightSidebarRemoteCommand.swift */,
 				FE003003 /* RightSidebarPanelView.swift */,
+				8384D7F6880CCA195D6406CA /* FilesPanelView.swift */,
 				F7B6AE88191F61FF0881A991 /* DiffViewerCLILaunch.swift */,
 				F6A2631B5A656CFB37D1F82D /* RightSidebarChangesPanelView.swift */,
 				A50E3EFC5449D0AD5538574E /* RightSidebarChangesStore.swift */,
 				0265ACB8C78712473EAD71C1 /* GitStatusRepositoryWatch.swift */,
 				90D5B6B60FE51D6FCC8385DF /* FileExplorerFileTypeIcon.swift */,
-				26C6D5118DE67B311322C939 /* RightSidebarPlacementLayout.swift */,
+				26C6D5118DE67B311322C939 /* FilesPanelPlacementLayout.swift */,
 				272B367E39A68B0DCDE9E182 /* RightSidebarMode.swift */,
 				46814000000000000000000E /* RightSidebarModeShortcutEntry.swift */,
 				468110000000000000000006 /* RightSidebarModeShortcutMatcher.swift */,
@@ -12581,6 +12584,7 @@
 				DD1F94BEE2C23CB028816305 /* RightSidebarChangesStoreTests.swift */,
 				677DEDB5CB1B2A9C55BB9670 /* DiffViewerWriteActionsTests.swift */,
 				73A4C5374756559C8B3AD947 /* GitRepositoryTestSupport.swift */,
+				EF070650B6A1C26FFDC2679E /* FilesPanelPlacementTests.swift */,
 			);
 			path = cmuxTests;
 			sourceTree = "<group>";
@@ -14318,6 +14322,8 @@
 					F11E52270000000000005227 /* FilePreviewWordWrapSettings.swift in Sources */,
 				A5001445A5001445A5001445 /* FilePreviewWorkspaceOpenSupport.swift in Sources */,
 				CFSF00000000000000000005 /* FileSearchScope.swift in Sources */,
+				65D4427B316B2C291F5D9AFF /* FilesPanelPlacementLayout.swift in Sources */,
+				7738E46AC91FA44D374BE7BF /* FilesPanelView.swift in Sources */,
 				F1A0C0DE0000000000000002 /* FindTextFieldSupport.swift in Sources */,
 				F0C05170000000000000002 /* FocusHistory.swift in Sources */,
 				5E55400000000000000000D1 /* FocusStealingResponderConformances.swift in Sources */,
@@ -14857,7 +14863,6 @@
 				46814000000000000000000D /* RightSidebarModeShortcutEntry.swift in Sources */,
 				468110000000000000000005 /* RightSidebarModeShortcutMatcher.swift in Sources */,
 				FE003103 /* RightSidebarPanelView.swift in Sources */,
-				65D4427B316B2C291F5D9AFF /* RightSidebarPlacementLayout.swift in Sources */,
 				B37A0000000000000000000D /* RightSidebarRemoteCommand.swift in Sources */,
 				1C0259F302A2495DC4CF701E /* RightSidebarTabPreferences.swift in Sources */,
 				C4CAF70131EA4AB1ABB78678 /* RightSidebarToolDragPayload.swift in Sources */,
@@ -16743,6 +16748,7 @@
 				C01E00090000000000000001 /* FilePreviewSyntaxTestSupport.swift in Sources */,
 				C0DEFC100000000000000001 /* FilePreviewTextEditorTextKitTests.swift in Sources */,
 				FE002103 /* FileSearchRipgrepParserTests.swift in Sources */,
+				EABD4BDC792CECBB04751AD3 /* FilesPanelPlacementTests.swift in Sources */,
 				C35610000000000000000001 /* FinderFileDropRegressionTests.swift in Sources */,
 				C0F15A000000000000000001 /* FishShellIntegrationTests.swift in Sources */,
 				F17A5F010000000000000001 /* FocusedPanelFlashShortcutTests.swift in Sources */,
@@ -17030,7 +17036,6 @@
 				604817B02AD026F924A06A5D /* RightSidebarChangesStoreTests.swift in Sources */,
 				C3408A000000000000000003 /* RightSidebarCommandPaletteTests.swift in Sources */,
 				C57570010000000000000002 /* RightSidebarPanelViewTestSupport.swift in Sources */,
-				367BC978F2948D8D5373B5EA /* RightSidebarPositionSettingsTests.swift in Sources */,
 				5F5553CB5553CB5553CB0001 /* RightSidebarRemoteCommandTests.swift in Sources */,
 				07EB8695682FE486A366F22E /* RightSidebarTabCustomizationTests.swift in Sources */,
 				C46790000000000000000007 /* RosettaNativeRelaunchTests.swift in Sources */,
