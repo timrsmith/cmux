@@ -158,7 +158,7 @@ extension CMUXCLI {
         case url(String, defaultFocus: Bool)
     }
 
-    private struct DiffArguments {
+    struct DiffArguments {
         var workspace: String?
         var window: String?
         var surface: String?
@@ -528,7 +528,7 @@ extension CMUXCLI {
         }
 
         static func localized() -> DiffViewerLabels {
-            DiffViewerLabels(values: reviewParityLabels.merging([
+            DiffViewerLabels(values: reviewParityLabels.merging(worktreeWriteValues(), uniquingKeysWith: { $1 }).merging([
                 "additions": CMUXDiffViewerLocalization.string("diffViewer.additions", defaultValue: "Additions"),
                 "addComment": CMUXDiffViewerLocalization.string("diffViewer.addComment", defaultValue: "Add comment"),
                 "bars": CMUXDiffViewerLocalization.string("diffViewer.bars", defaultValue: "Bars"),
@@ -1072,7 +1072,7 @@ extension CMUXCLI {
         print("OK surface=\(surfaceText) pane=\(paneText)")
     }
 
-    private func diffViewerRuntime(socketPath: String) -> URL? {
+    func diffViewerRuntime(socketPath: String) -> URL? {
         if let taggedExecutableURL = taggedDiffViewerExecutableURL(socketPath: socketPath) {
             return taggedExecutableURL
         }
@@ -1124,7 +1124,7 @@ extension CMUXCLI {
         return url.standardizedFileURL
     }
 
-    private func canonicalDiffSourceContext(
+    func canonicalDiffSourceContext(
         workspaceHandle: String?,
         surfaceHandle: String?,
         windowHandle: String?,
@@ -1298,7 +1298,7 @@ extension CMUXCLI {
         return parsed
     }
 
-    private func parseDiffArguments(_ commandArgs: [String]) throws -> DiffArguments {
+    func parseDiffArguments(_ commandArgs: [String]) throws -> DiffArguments {
         var parsed = DiffArguments()
         var index = 0
         var isParsingOptions = true
@@ -1740,7 +1740,7 @@ extension CMUXCLI {
         return try gitRepoRoot(startingAt: repoRoot)
     }
 
-    private func gitRepoRoot(startingAt directory: String) throws -> String {
+    func gitRepoRoot(startingAt directory: String) throws -> String {
         do {
             return try standardizedDiffSourcePath(gitSingleLine(["rev-parse", "--show-toplevel"], in: directory))
         } catch {
@@ -3434,7 +3434,7 @@ extension CMUXCLI {
         URL(fileURLWithPath: NSString(string: path).expandingTildeInPath).standardizedFileURL.path
     }
 
-    private func diffViewerAppearance(socketPath: String, fontSizeOverride: Double?) -> DiffViewerAppearance {
+    func diffViewerAppearance(socketPath: String, fontSizeOverride: Double?) -> DiffViewerAppearance {
         var appearance = defaultDiffViewerAppearance()
         let targetBundleIdentifier = themeTargetBundleIdentifier(socketPath: socketPath)
         for url in themeConfigSearchURLs(targetBundleIdentifier: targetBundleIdentifier) {
@@ -3864,7 +3864,7 @@ extension CMUXCLI {
         }
     }
 
-    private func writeDiffViewer(
+    func writeDiffViewer(
         rawInput: String?,
         source: DiffSource?,
         titleOverride: String?,
@@ -4758,7 +4758,7 @@ extension CMUXCLI {
     }
 
 
-    private func completeDeferredDiffViewer(_ viewer: DiffViewerWriteResult) throws -> DiffViewerWriteResult {
+    func completeDeferredDiffViewer(_ viewer: DiffViewerWriteResult) throws -> DiffViewerWriteResult {
         do {
             if let completeDeferred = viewer.completeDeferred {
                 return try completeDeferred()

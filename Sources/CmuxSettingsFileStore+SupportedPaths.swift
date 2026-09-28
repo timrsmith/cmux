@@ -121,6 +121,7 @@ extension CmuxSettingsFileStore {
         "sidebar.compactAgentStatus",
         "sidebar.compactStatusIcons",
         RightSidebarWidthSettings.settingsPath,
+        "sidebar.rightPosition",
         "workspaceColors.indicatorStyle",
         "workspaceColors.selectionColor",
         "workspaceColors.subtleSelection",

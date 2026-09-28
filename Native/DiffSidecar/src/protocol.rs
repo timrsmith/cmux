@@ -22,6 +22,29 @@ pub enum DiffCommand {
     SessionClose(SessionRequest),
     BranchList(BranchListRequest),
     BranchChange(BranchChangeRequest),
+    WorktreeRevertFile(WorktreeFileRequest),
+    WorktreeStageFile(WorktreeFileRequest),
+    WorktreeUnstageFile(WorktreeFileRequest),
+    WorktreeRevertHunk(WorktreeHunkRequest),
+    WorktreeCommit(WorktreeCommitRequest),
+}
+
+impl DiffCommand {
+    /// Whether the command mutates a repository's index or working tree.
+    ///
+    /// Write commands are only reachable through the native stdio transport;
+    /// the loopback HTTP and WebSocket development routes reject them.
+    #[must_use]
+    pub fn is_worktree_write(&self) -> bool {
+        matches!(
+            self,
+            Self::WorktreeRevertFile(_)
+                | Self::WorktreeStageFile(_)
+                | Self::WorktreeUnstageFile(_)
+                | Self::WorktreeRevertHunk(_)
+                | Self::WorktreeCommit(_)
+        )
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, TS)]
@@ -66,6 +89,73 @@ pub enum DiffSource {
 pub struct SessionRequest {
     pub session_id: String,
     pub capability_token: String,
+}
+
+/// Targets one file of an open `unstaged` or `staged` session for a
+/// working-tree or index mutation. `path` (and the optional rename origin
+/// `previous_path`) are repository-relative and validated by the sidecar.
+#[derive(Clone, Debug, Deserialize, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub struct WorktreeFileRequest {
+    pub session_id: String,
+    pub capability_token: String,
+    pub source: DiffSource,
+    pub path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub previous_path: Option<String>,
+}
+
+/// Identifies one hunk by its `@@ -old,count +new,count @@` header ranges.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub struct HunkRef {
+    pub old_start: u32,
+    pub old_count: u32,
+    pub new_start: u32,
+    pub new_count: u32,
+}
+
+/// Targets one hunk of one file. `previous_path` names the rename origin of a
+/// staged rename so the sidecar re-reads the diff with both names in scope.
+#[derive(Clone, Debug, Deserialize, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub struct WorktreeHunkRequest {
+    pub session_id: String,
+    pub capability_token: String,
+    pub source: DiffSource,
+    pub path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub previous_path: Option<String>,
+    pub hunk: HunkRef,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub struct WorktreeCommitRequest {
+    pub session_id: String,
+    pub capability_token: String,
+    pub source: DiffSource,
+    pub message: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub struct WorktreeMutated {
+    pub source: DiffSource,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub struct CommitResult {
+    pub commit: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, TS)]
@@ -181,6 +271,8 @@ pub enum DiffResult {
     SessionClosed,
     Branches(BranchListResult),
     Navigation(NavigationResult),
+    WorktreeMutated(WorktreeMutated),
+    Committed(CommitResult),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, TS)]
@@ -281,6 +373,7 @@ pub fn handshake(id: String) -> DiffResponse {
         "resource.stream".to_owned(),
         "transport.webkit".to_owned(),
         "transport.stdio".to_owned(),
+        "worktree.write".to_owned(),
     ];
     #[cfg(feature = "http-server")]
     let capabilities = {

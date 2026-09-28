@@ -5215,6 +5215,8 @@ struct CMUXCLI {
             )
             return
         }
+        // Hidden: the right sidebar's Changes panel writes the diff viewer page without opening a split.
+        if command == "__diff-viewer-page" { try runDiffViewerPageCommand(commandArgs: commandArgs, socketPath: resolvedSocketPath); return }
         if command == "restore-session" {
             try runRestoreSession(
                 commandArgs: commandArgs,
@@ -21053,13 +21055,15 @@ struct CMUXCLI {
               show                           Show the right sidebar
               hide                           Hide the right sidebar
               focus                          Focus the current right sidebar mode
-              set <files|find|vault|sessions|feed|dock|cloud|devices|custom> [sidebar-name]
-                                             Show, switch mode, and focus. `custom`
+              set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name]
+                                             Show, switch mode, and focus. `changes`
+                                             (aliases `diff`, `git`) docks the
+                                             uncommitted-changes diff viewer. `custom`
                                              renders a JS/Swift sidebar from
                                              ~/.config/cmux/sidebars as a right panel;
                                              the optional name picks which one.
               mode                           Print {"visible":bool,"mode":string}
-              files|find|vault|sessions|feed|dock|cloud|devices|custom
+              files|find|vault|sessions|feed|dock|cloud|devices|changes|custom
                                              Alias for show + set + focus
 
             Flags:
@@ -21071,6 +21075,7 @@ struct CMUXCLI {
               cmux right-sidebar toggle
               cmux right-sidebar set find
               cmux right-sidebar set custom panel-info
+              cmux right-sidebar changes
               cmux right-sidebar mode
             """)
         case "sidebar":
@@ -21964,7 +21969,7 @@ struct CMUXCLI {
 
         case "set":
             guard parsed.positional.count == 2 || parsed.positional.count == 3 else {
-                throw CLIError(message: String(localized: "cli.rightSidebar.error.setRequiresMode", defaultValue: "right-sidebar set requires a mode: files, find, vault, sessions, feed, dock, cloud, devices, or custom [sidebar-name]"))
+                throw CLIError(message: String(localized: "cli.rightSidebar.error.setRequiresMode", defaultValue: "right-sidebar set requires a mode: files, find, vault, sessions, feed, dock, cloud, devices, changes, or custom [sidebar-name]"))
             }
             let mode = parsed.positional[1].trimmingCharacters(in: .whitespacesAndNewlines)
             guard isRightSidebarCLIMode(mode) else {
@@ -21984,7 +21989,7 @@ struct CMUXCLI {
             }
             return args
 
-        case "files", "find", "vault", "sessions", "feed", "dock", "cloud", "machines", "devices", "custom", "custom-sidebar":
+        case "files", "find", "vault", "sessions", "feed", "dock", "cloud", "machines", "devices", "changes", "diff", "git", "custom", "custom-sidebar":
             guard parsed.positional.count == 1 else {
                 throw CLIError(message: String(localized: "cli.rightSidebar.error.unexpectedArguments", defaultValue: "right-sidebar \(action) received unexpected arguments"))
             }

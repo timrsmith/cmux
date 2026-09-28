@@ -714,6 +714,34 @@ async fn verify_rpc(client: &reqwest::Client, port: u16, token: &str, group: &st
         .expect("unauthorized response bytes");
     assert_eq!(unauthorized["error"]["code"], "branchListFailed");
 
+    // Working-tree writes never run on the loopback development transport,
+    // even with a token that is otherwise authorized for the repository.
+    let write_request = serde_json::json!({
+        "id": "http-write",
+        "version": 1,
+        "method": "worktreeStageFile",
+        "params": {
+            "sessionId": uuid::Uuid::new_v4().to_string(),
+            "capabilityToken": token,
+            "source": {"kind": "unstaged", "repoRoot": root},
+            "path": "sample.patch"
+        }
+    });
+    let rejected_write: serde_json::Value = client
+        .post(&endpoint)
+        .header(reqwest::header::ORIGIN, &origin)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .body(write_request.to_string())
+        .send()
+        .await
+        .expect("http write request")
+        .bytes()
+        .await
+        .map(|bytes| serde_json::from_slice(&bytes).expect("http write response JSON"))
+        .expect("http write response bytes");
+    assert_eq!(rejected_write["id"], "http-write");
+    assert_eq!(rejected_write["error"]["code"], "notAllowed");
+
     let untrusted = client
         .post(&endpoint)
         .header(reqwest::header::CONTENT_TYPE, "application/json")
@@ -819,6 +847,35 @@ async fn verify_websocket(port: u16) {
 
     socket
         .send(tokio_tungstenite::tungstenite::Message::Text(
+            serde_json::json!({
+                "id": "ws-write",
+                "version": 1,
+                "method": "worktreeCommit",
+                "params": {
+                    "sessionId": uuid::Uuid::new_v4().to_string(),
+                    "capabilityToken": "0123456789abcdef",
+                    "source": {"kind": "staged", "repoRoot": "/tmp"},
+                    "message": "not over this transport"
+                }
+            })
+            .to_string()
+            .into(),
+        ))
+        .await
+        .expect("WebSocket write request");
+    let rejected = socket
+        .next()
+        .await
+        .expect("WebSocket write response")
+        .expect("valid WebSocket write response")
+        .into_text()
+        .expect("text write response");
+    let rejected: serde_json::Value = serde_json::from_str(&rejected).expect("JSON write response");
+    assert_eq!(rejected["id"], "ws-write");
+    assert_eq!(rejected["error"]["code"], "notAllowed");
+
+    socket
+        .send(tokio_tungstenite::tungstenite::Message::Text(
             "not-json".into(),
         ))
         .await
@@ -829,4 +886,473 @@ async fn verify_websocket(port: u16) {
         .expect("WebSocket close")
         .expect("valid WebSocket close");
     assert!(close.is_close());
+}
+
+#[test]
+// One repository fixture walks every write command in sequence; the shared
+// state between steps is the point of the test.
+#[allow(clippy::too_many_lines)]
+fn rpc_worktree_writes_mutate_the_repository_like_git() {
+    let root = std::env::temp_dir().join(format!(
+        "cmux-diff-sidecar-worktree-test-{}-{}",
+        std::process::id(),
+        uuid::Uuid::new_v4()
+    ));
+    let repo = root.join("repo");
+    let other_repo = root.join("other");
+    for directory in [&repo, &other_repo] {
+        std::fs::create_dir_all(directory).expect("create repo");
+        run_git(directory, &["init", "-q"]);
+        run_git(directory, &["config", "user.name", "cmux tests"]);
+        run_git(directory, &["config", "user.email", "cmux@example.invalid"]);
+        run_git(directory, &["config", "commit.gpgsign", "false"]);
+    }
+    #[cfg(unix)]
+    {
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
+            .expect("secure root permissions");
+    }
+    let mut original = String::new();
+    for line in 1..=30 {
+        original.push_str("line ");
+        original.push_str(&line.to_string());
+        original.push('\n');
+    }
+    std::fs::write(repo.join("story.txt"), &original).expect("write initial file");
+    run_git(&repo, &["add", "story.txt"]);
+    run_git(&repo, &["commit", "-q", "-m", "initial"]);
+    std::fs::write(other_repo.join("other.txt"), "other\n").expect("write other file");
+    run_git(&other_repo, &["add", "other.txt"]);
+    run_git(&other_repo, &["commit", "-q", "-m", "initial"]);
+
+    let token = "0123456789abcdef";
+    let attacker_token = "fedcba9876543210";
+    let shell = root.join("viewer.html");
+    std::fs::write(&shell, b"<!doctype html>").expect("write shell");
+    for (session_token, group, allowed) in [
+        (token, "worktree-test", &repo),
+        (attacker_token, "worktree-attacker", &other_repo),
+    ] {
+        std::fs::write(
+            root.join(format!(".manifest-{session_token}.json")),
+            serde_json::to_vec(&serde_json::json!({
+                "token": session_token,
+                "files": [{
+                    "request_path": "/viewer.html",
+                    "file_path": shell,
+                    "mime_type": "text/html"
+                }]
+            }))
+            .expect("encode manifest"),
+        )
+        .expect("write manifest");
+        std::fs::write(
+            root.join(format!(".branch-session-{group}.json")),
+            serde_json::to_vec(&serde_json::json!({
+                "token": session_token,
+                "groupID": group,
+                "allowedRepoRoots": [allowed]
+            }))
+            .expect("encode session"),
+        )
+        .expect("write session");
+    }
+    let unstaged = serde_json::json!({"kind": "unstaged", "repoRoot": repo});
+    let staged = serde_json::json!({"kind": "staged", "repoRoot": repo});
+    let unstaged_git = ["diff", "--no-ext-diff", "--no-color", "--binary", "--"];
+    let staged_git = [
+        "diff",
+        "--no-ext-diff",
+        "--no-color",
+        "--binary",
+        "--cached",
+        "--",
+    ];
+    let file_params = |session: &str, session_token: &str, source: &serde_json::Value, path| {
+        serde_json::json!({
+            "sessionId": session,
+            "capabilityToken": session_token,
+            "source": source,
+            "path": path
+        })
+    };
+
+    // Revert a modified tracked file through an unstaged session, then check
+    // every authorization boundary while that session is still open.
+    let modified = original.replacen("line 3\n", "line 3 changed\n", 1);
+    std::fs::write(repo.join("story.txt"), &modified).expect("modify file");
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &unstaged, &unstaged_git);
+    let branch = serde_json::json!({"kind": "branch", "repoRoot": repo, "baseRef": "HEAD"});
+    let patch = serde_json::json!({"kind": "patch", "path": "/viewer.html"});
+    let other = serde_json::json!({"kind": "unstaged", "repoRoot": other_repo});
+    for (params, code) in [
+        (
+            file_params(&session, token, &branch, "story.txt"),
+            "notAllowed",
+        ),
+        (
+            file_params(&session, token, &patch, "story.txt"),
+            "notAllowed",
+        ),
+        (
+            file_params(&session, attacker_token, &unstaged, "story.txt"),
+            "notAllowed",
+        ),
+        (
+            file_params(&session, attacker_token, &other, "other.txt"),
+            "notAllowed",
+        ),
+        (
+            file_params(
+                &uuid::Uuid::new_v4().to_string(),
+                token,
+                &unstaged,
+                "story.txt",
+            ),
+            "notAllowed",
+        ),
+        (
+            file_params(&session, token, &unstaged, "../story.txt"),
+            "invalidPath",
+        ),
+        (
+            file_params(&session, token, &unstaged, "/etc/passwd"),
+            "invalidPath",
+        ),
+        (
+            file_params(&session, token, &unstaged, "a/./story.txt"),
+            "invalidPath",
+        ),
+        (file_params(&session, token, &unstaged, ""), "invalidPath"),
+    ] {
+        let response = worktree_write(&root, "worktreeRevertFile", &params);
+        assert_eq!(response["error"]["code"], code, "{params} -> {response}");
+        assert_eq!(
+            std::fs::read_to_string(repo.join("story.txt")).expect("read file"),
+            modified
+        );
+    }
+    // An untracked path never comes from a `git diff` session, so reverting
+    // one is refused instead of cleaned away, on its own or as the rename
+    // origin of a tracked file.
+    std::fs::write(repo.join("untracked.txt"), "keep me\n").expect("write untracked file");
+    let untracked_alone = worktree_write(
+        &root,
+        "worktreeRevertFile",
+        &file_params(&session, token, &unstaged, "untracked.txt"),
+    );
+    assert_eq!(
+        untracked_alone["error"]["code"], "invalidPath",
+        "{untracked_alone}"
+    );
+    let untracked_origin = worktree_write(
+        &root,
+        "worktreeRevertFile",
+        &serde_json::json!({
+            "sessionId": session,
+            "capabilityToken": token,
+            "source": unstaged,
+            "path": "story.txt",
+            "previousPath": "untracked.txt"
+        }),
+    );
+    assert_eq!(
+        untracked_origin["error"]["code"], "invalidPath",
+        "{untracked_origin}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(repo.join("untracked.txt")).expect("untracked file survives"),
+        "keep me\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(repo.join("story.txt")).expect("read file"),
+        modified
+    );
+    std::fs::remove_file(repo.join("untracked.txt")).expect("remove untracked file");
+    let commit_on_unstaged = worktree_write(
+        &root,
+        "worktreeCommit",
+        &serde_json::json!({
+            "sessionId": session,
+            "capabilityToken": token,
+            "source": unstaged,
+            "message": "never"
+        }),
+    );
+    assert_eq!(commit_on_unstaged["error"]["code"], "notAllowed");
+    let reverted = worktree_write(
+        &root,
+        "worktreeRevertFile",
+        &file_params(&session, token, &unstaged, "story.txt"),
+    );
+    assert_eq!(reverted["result"]["type"], "worktreeMutated", "{reverted}");
+    assert_eq!(reverted["result"]["value"]["source"], unstaged);
+    assert_eq!(
+        std::fs::read_to_string(repo.join("story.txt")).expect("read reverted file"),
+        original
+    );
+    close_session(&root, token, &session, &request_path);
+    std::fs::write(repo.join("story.txt"), &modified).expect("modify file again");
+    let closed = worktree_write(
+        &root,
+        "worktreeRevertFile",
+        &file_params(&session, token, &unstaged, "story.txt"),
+    );
+    assert_eq!(closed["error"]["code"], "notAllowed");
+
+    // Stage and unstage one file.
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &unstaged, &unstaged_git);
+    let staged_response = worktree_write(
+        &root,
+        "worktreeStageFile",
+        &file_params(&session, token, &unstaged, "story.txt"),
+    );
+    assert_eq!(staged_response["result"]["type"], "worktreeMutated");
+    assert_eq!(
+        git_stdout(&repo, &["diff", "--cached", "--name-only"]),
+        "story.txt\n"
+    );
+    let unstaged_response = worktree_write(
+        &root,
+        "worktreeUnstageFile",
+        &file_params(&session, token, &unstaged, "story.txt"),
+    );
+    assert_eq!(unstaged_response["result"]["type"], "worktreeMutated");
+    assert_eq!(git_stdout(&repo, &["diff", "--cached", "--name-only"]), "");
+    close_session(&root, token, &session, &request_path);
+
+    // Revert one of two hunks, then observe the stale header afterwards.
+    let two_hunks = modified.replacen("line 27\n", "line 27 changed\n", 1);
+    std::fs::write(repo.join("story.txt"), &two_hunks).expect("write two hunks");
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &unstaged, &unstaged_git);
+    let hunks = hunk_refs(&git_stdout(&repo, &["diff", "--", "story.txt"]));
+    assert_eq!(hunks.len(), 2, "{hunks:?}");
+    let hunk_params = |session: &str, source: &serde_json::Value, hunk: &serde_json::Value| {
+        serde_json::json!({
+            "sessionId": session,
+            "capabilityToken": token,
+            "source": source,
+            "path": "story.txt",
+            "hunk": hunk
+        })
+    };
+    let hunk_reverted = worktree_write(
+        &root,
+        "worktreeRevertHunk",
+        &hunk_params(&session, &unstaged, &hunks[1]),
+    );
+    assert_eq!(
+        hunk_reverted["result"]["type"], "worktreeMutated",
+        "{hunk_reverted}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(repo.join("story.txt")).expect("read after hunk revert"),
+        modified
+    );
+    let stale = worktree_write(
+        &root,
+        "worktreeRevertHunk",
+        &hunk_params(&session, &unstaged, &hunks[1]),
+    );
+    assert_eq!(stale["error"]["code"], "staleHunk", "{stale}");
+    close_session(&root, token, &session, &request_path);
+
+    // A staged hunk revert discards the change from both the index and the
+    // working tree.
+    run_git(&repo, &["add", "story.txt"]);
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &staged, &staged_git);
+    let staged_hunks = hunk_refs(&git_stdout(&repo, &["diff", "--cached", "--", "story.txt"]));
+    assert_eq!(staged_hunks.len(), 1, "{staged_hunks:?}");
+    let staged_revert = worktree_write(
+        &root,
+        "worktreeRevertHunk",
+        &hunk_params(&session, &staged, &staged_hunks[0]),
+    );
+    assert_eq!(
+        staged_revert["result"]["type"], "worktreeMutated",
+        "{staged_revert}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(repo.join("story.txt")).expect("read after staged revert"),
+        original
+    );
+    assert_eq!(git_stdout(&repo, &["status", "--porcelain"]), "");
+    close_session(&root, token, &session, &request_path);
+
+    // Reverting a file staged as new removes it entirely.
+    std::fs::write(repo.join("new.txt"), "brand new\n").expect("write new file");
+    run_git(&repo, &["add", "new.txt"]);
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &staged, &staged_git);
+    let new_reverted = worktree_write(
+        &root,
+        "worktreeRevertFile",
+        &file_params(&session, token, &staged, "new.txt"),
+    );
+    assert_eq!(
+        new_reverted["result"]["type"], "worktreeMutated",
+        "{new_reverted}"
+    );
+    assert!(!repo.join("new.txt").exists());
+    assert_eq!(git_stdout(&repo, &["status", "--porcelain"]), "");
+    close_session(&root, token, &session, &request_path);
+
+    // A staged rename with edits keeps its hunks addressable when the request
+    // names the rename origin, and reverting one hunk keeps the rename. The
+    // user's `diff.noprefix` must not leak into the patch the sidecar applies.
+    run_git(&repo, &["config", "diff.noprefix", "true"]);
+    run_git(&repo, &["mv", "story.txt", "renamed.txt"]);
+    std::fs::write(repo.join("renamed.txt"), &two_hunks).expect("edit renamed file");
+    run_git(&repo, &["add", "renamed.txt"]);
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &staged, &staged_git);
+    let rename_hunks = hunk_refs(&git_stdout(
+        &repo,
+        &["diff", "--cached", "--", "renamed.txt", "story.txt"],
+    ));
+    assert_eq!(rename_hunks.len(), 2, "{rename_hunks:?}");
+    let rename_hunk_params = |hunk: &serde_json::Value, with_origin: bool| {
+        let mut params = serde_json::json!({
+            "sessionId": session,
+            "capabilityToken": token,
+            "source": staged,
+            "path": "renamed.txt",
+            "hunk": hunk
+        });
+        if with_origin {
+            params["previousPath"] = serde_json::json!("story.txt");
+        }
+        params
+    };
+    let without_origin = worktree_write(
+        &root,
+        "worktreeRevertHunk",
+        &rename_hunk_params(&rename_hunks[1], false),
+    );
+    assert_eq!(
+        without_origin["error"]["code"], "staleHunk",
+        "{without_origin}"
+    );
+    let rename_hunk_reverted = worktree_write(
+        &root,
+        "worktreeRevertHunk",
+        &rename_hunk_params(&rename_hunks[1], true),
+    );
+    assert_eq!(
+        rename_hunk_reverted["result"]["type"], "worktreeMutated",
+        "{rename_hunk_reverted}"
+    );
+    assert_eq!(
+        git_stdout(&repo, &["status", "--porcelain"]),
+        "R  story.txt -> renamed.txt\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(repo.join("renamed.txt")).expect("read renamed file"),
+        modified
+    );
+    close_session(&root, token, &session, &request_path);
+    run_git(&repo, &["config", "--unset", "diff.noprefix"]);
+    run_git(&repo, &["reset", "-q", "--hard", "HEAD"]);
+    assert_eq!(git_stdout(&repo, &["status", "--porcelain"]), "");
+
+    // Commit the index through a staged session.
+
+    std::fs::write(repo.join("story.txt"), &modified).expect("modify for commit");
+    run_git(&repo, &["add", "story.txt"]);
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &staged, &staged_git);
+    let commit_params = |message: &str| {
+        serde_json::json!({
+            "sessionId": session,
+            "capabilityToken": token,
+            "source": staged,
+            "message": message
+        })
+    };
+    let empty_message = worktree_write(&root, "worktreeCommit", &commit_params("   \n"));
+    assert_eq!(empty_message["error"]["code"], "invalidMessage");
+    let committed = worktree_write(
+        &root,
+        "worktreeCommit",
+        &commit_params("  Change line three\n\nBody text\n"),
+    );
+    assert_eq!(committed["result"]["type"], "committed", "{committed}");
+    assert_eq!(
+        committed["result"]["value"]["commit"],
+        git_stdout(&repo, &["rev-parse", "HEAD"]).trim()
+    );
+    assert_eq!(
+        git_stdout(&repo, &["log", "-1", "--format=%s"]),
+        "Change line three\n"
+    );
+    assert_eq!(git_stdout(&repo, &["status", "--porcelain"]), "");
+    let nothing = worktree_write(&root, "worktreeCommit", &commit_params("again"));
+    assert_eq!(nothing["error"]["code"], "nothingToCommit");
+    close_session(&root, token, &session, &request_path);
+
+    assert!(!root.join(".server.json").exists());
+    let _ = std::fs::remove_dir_all(root);
+}
+
+fn worktree_write(root: &Path, method: &str, params: &serde_json::Value) -> serde_json::Value {
+    let request = serde_json::to_vec(&serde_json::json!({
+        "id": method,
+        "version": 1,
+        "method": method,
+        "params": params
+    }))
+    .expect("encode write request");
+    let output = run_stdio_rpc_in_root(&request, root);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let response: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("decode write response");
+    assert_eq!(response["id"], method);
+    response
+}
+
+fn git_stdout(repo: &Path, arguments: &[&str]) -> String {
+    let output = Command::new("/usr/bin/git")
+        .arg("-C")
+        .arg(repo)
+        .args(arguments)
+        .output()
+        .expect("run git");
+    assert!(
+        output.status.success(),
+        "git failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("utf8 git output")
+}
+
+fn hunk_refs(diff: &str) -> Vec<serde_json::Value> {
+    diff.lines()
+        .filter_map(|line| {
+            let rest = line.strip_prefix("@@ -")?;
+            let (old, rest) = rest.split_once(" +")?;
+            let (new, _) = rest.split_once(" @@")?;
+            let range = |value: &str| -> Option<(u32, u32)> {
+                match value.split_once(',') {
+                    Some((start, count)) => Some((start.parse().ok()?, count.parse().ok()?)),
+                    None => Some((value.parse().ok()?, 1)),
+                }
+            };
+            let (old_start, old_count) = range(old)?;
+            let (new_start, new_count) = range(new)?;
+            Some(serde_json::json!({
+                "oldStart": old_start,
+                "oldCount": old_count,
+                "newStart": new_start,
+                "newCount": new_count
+            }))
+        })
+        .collect()
 }

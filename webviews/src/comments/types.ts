@@ -1,3 +1,5 @@
+import type { HunkRef } from "../diff/generated/protocol";
+
 export type DiffCommentSide = "additions" | "deletions";
 
 export type DiffCommentRecord = {
@@ -32,4 +34,7 @@ export type CommentDraft = {
 
 export type CommentAnnotationMetadata =
   | { kind: "draft" }
-  | { kind: "comment"; comment: DiffCommentRecord; anchor: AnchorResult };
+  | { kind: "comment"; comment: DiffCommentRecord; anchor: AnchorResult }
+  // Per-hunk write actions (revert hunk) share the annotation channel so they
+  // ride the same virtualized slot rendering as inline comments.
+  | { kind: "hunkActions"; index: number; hunk: HunkRef };

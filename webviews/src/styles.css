@@ -1593,3 +1593,211 @@ svg[data-icon-fill] {
     margin-left: 6px;
   }
 }
+
+/* Working-tree write actions (revert / stage / unstage / revert hunk / commit) */
+.worktree-file-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 6px;
+  font-family: var(--cmux-diff-ui-font-family);
+}
+.worktree-action {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--cmux-diff-text-muted);
+  cursor: pointer;
+}
+.worktree-action svg,
+.worktree-hunk-button svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.worktree-action:hover:not(:disabled) {
+  border-color: color-mix(in lab, var(--cmux-diff-fg) 14%, transparent);
+  background: var(--cmux-diff-hover-bg);
+  color: var(--cmux-diff-fg);
+}
+.worktree-action:disabled,
+.worktree-hunk-button:disabled,
+.worktree-confirm-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.worktree-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: calc(var(--cmux-diff-ui-font-size) - 1px);
+  white-space: nowrap;
+}
+.worktree-confirm-text {
+  color: var(--cmux-diff-text-muted);
+}
+.worktree-confirm-button {
+  padding: 1px 7px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--cmux-diff-hover-bg);
+  color: var(--cmux-diff-fg);
+  font: inherit;
+  cursor: pointer;
+}
+.worktree-confirm-danger {
+  background: color-mix(in lab, #ff5f56 22%, transparent);
+  color: color-mix(in lab, #ff5f56 70%, var(--cmux-diff-fg));
+}
+.worktree-hunk-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 2px 10px;
+  font-family: var(--cmux-diff-ui-font-family);
+  font-size: calc(var(--cmux-diff-ui-font-size) - 1px);
+  color: var(--cmux-diff-text-muted);
+  opacity: 0.72;
+}
+.worktree-hunk-actions:hover,
+.worktree-hunk-actions:focus-within {
+  opacity: 1;
+}
+.worktree-hunk-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border: 1px solid var(--cmux-diff-border);
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.worktree-hunk-button:hover:not(:disabled) {
+  background: var(--cmux-diff-hover-bg);
+  color: var(--cmux-diff-fg);
+}
+#commit-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in lab, var(--cmux-diff-fg) 14%, transparent);
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in lab, var(--cmux-diff-fg) 78%, var(--cmux-diff-bg));
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+#commit-button:hover:not(:disabled),
+#commit-button[aria-expanded="true"] {
+  background: color-mix(in lab, var(--cmux-diff-fg) 9%, transparent);
+  color: var(--cmux-diff-fg);
+}
+#commit-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+#commit-button svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#commit-popover {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 10px;
+  width: 340px;
+  max-width: calc(100vw - 20px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid color-mix(in lab, var(--cmux-diff-fg) 13%, transparent);
+  border-radius: 8px;
+  background: var(--cmux-diff-bg);
+  box-shadow: 0 16px 34px color-mix(in lab, #000 28%, transparent);
+  z-index: 100;
+  font-family: var(--cmux-diff-ui-font-family);
+}
+.commit-message-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 84px;
+  resize: vertical;
+  padding: 8px;
+  border: 1px solid var(--cmux-diff-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cmux-diff-fg);
+  font: inherit;
+  line-height: 1.4;
+}
+.commit-message-input::placeholder {
+  color: var(--cmux-diff-text-muted);
+}
+.commit-message-input:focus-visible {
+  outline: none;
+  border-color: color-mix(in lab, var(--cmux-diff-accent) 60%, var(--cmux-diff-border));
+  box-shadow: 0 0 0 3px color-mix(in lab, var(--cmux-diff-accent) 18%, transparent);
+}
+.commit-message-input[aria-invalid="true"] {
+  border-color: color-mix(in lab, #ff5f56 55%, var(--cmux-diff-border));
+}
+.commit-popover-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.commit-popover-hint {
+  min-width: 0;
+  color: color-mix(in lab, #ff5f56 70%, var(--cmux-diff-fg));
+  font-size: 12px;
+}
+.commit-popover-buttons {
+  display: inline-flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.worktree-notice {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 10px;
+  max-width: min(420px, calc(100vw - 20px));
+  padding: 6px 10px;
+  border: 1px solid color-mix(in lab, var(--cmux-diff-fg) 13%, transparent);
+  border-radius: 6px;
+  background: var(--cmux-diff-bg);
+  box-shadow: 0 8px 24px color-mix(in lab, #000 22%, transparent);
+  color: var(--cmux-diff-fg);
+  font-family: var(--cmux-diff-ui-font-family);
+  font-size: 12px;
+  z-index: 90;
+}
+.worktree-notice[data-error="true"] {
+  border-color: color-mix(in lab, #ff5f56 45%, transparent);
+  color: color-mix(in lab, #ff5f56 70%, var(--cmux-diff-fg));
+}

@@ -4,6 +4,9 @@ import AppKit
 struct FileExplorerPalette {
     let fileIconTint: NSColor
     let folderIconTint: NSColor
+    /// Whether file type icons use their category color. Monochrome styles
+    /// collapse every category onto `fileIconTint`.
+    let usesColoredFileTypeIcons: Bool
     private let modifiedText: NSColor
     private let addedText: NSColor
     private let deletedText: NSColor
@@ -20,9 +23,29 @@ struct FileExplorerPalette {
         }
     }
 
+    /// The tint for a file type icon category. Every color here is one of the
+    /// status colors, which already meet the 4.5:1 text contrast floor and so
+    /// clear the 3:1 icon floor over every row background.
+    func fileTypeTint(_ color: FileTypeIconColor) -> NSColor {
+        guard usesColoredFileTypeIcons else { return fileIconTint }
+        switch color {
+        case .gray: return fileIconTint
+        case .blue: return Self.blueIcon
+        case .yellow: return Self.yellow
+        case .orange: return Self.orange
+        case .green: return Self.green
+        case .teal: return Self.teal
+        case .purple: return Self.purple
+        case .pink: return Self.pink
+        case .red: return Self.red
+        case .cyan: return Self.cyan
+        }
+    }
+
     static let liquidGlass = FileExplorerPalette(
         fileIconTint: neutralIcon,
         folderIconTint: blueIcon,
+        usesColoredFileTypeIcons: true,
         modifiedText: orange,
         addedText: teal,
         deletedText: red,
@@ -33,6 +56,7 @@ struct FileExplorerPalette {
     static let highDensity = FileExplorerPalette(
         fileIconTint: neutralIcon,
         folderIconTint: neutralIcon,
+        usesColoredFileTypeIcons: true,
         modifiedText: yellow,
         addedText: green,
         deletedText: red,
@@ -43,6 +67,7 @@ struct FileExplorerPalette {
     static let terminalStealth = FileExplorerPalette(
         fileIconTint: terminalIcon,
         folderIconTint: terminalIcon,
+        usesColoredFileTypeIcons: false,
         modifiedText: terminalModified,
         addedText: terminalAdded,
         deletedText: terminalDeleted,
@@ -53,6 +78,7 @@ struct FileExplorerPalette {
     static let proStudio = FileExplorerPalette(
         fileIconTint: neutralIcon,
         folderIconTint: blueIcon,
+        usesColoredFileTypeIcons: true,
         modifiedText: yellow,
         addedText: green,
         deletedText: pink,
@@ -63,6 +89,7 @@ struct FileExplorerPalette {
     static let finder = FileExplorerPalette(
         fileIconTint: neutralIcon,
         folderIconTint: blueIcon,
+        usesColoredFileTypeIcons: false,
         modifiedText: orange,
         addedText: green,
         deletedText: red,

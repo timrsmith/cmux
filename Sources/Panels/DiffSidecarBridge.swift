@@ -79,9 +79,9 @@ final class DiffSidecarBridge: NSObject, WKScriptMessageHandlerWithReply {
         didReceive message: WKScriptMessage,
         replyHandler: @escaping (Any?, String?) -> Void
     ) {
-        guard Self.isTrustedSidecarFrame(message.frameInfo),
-              JSONSerialization.isValidJSONObject(message.body),
-              let body = message.body as? [String: Any] else {
+        // Trusted frame, known method, token bound to the frame, and (for
+        // writes) a panel-owned web view; see DiffSidecarRequestPolicy.
+        guard let body = DiffSidecarRequestPolicy.acceptedBody(for: message) else {
             replyHandler(Self.failureResponse(body: message.body, code: "notAllowed", message: "Diff sidecar request was rejected"), nil)
             return
         }

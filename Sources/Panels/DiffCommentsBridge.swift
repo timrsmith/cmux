@@ -19,11 +19,14 @@ final class DiffCommentsBridge: NSObject, WKScriptMessageHandlerWithReply {
     private static var handlerInstalledKey: UInt8 = 0
     private static var panelAssociationKey: UInt8 = 0
 
+    /// Which app object owns a diff viewer web view. Browser panels carry
+    /// their panel id; a host-owned view (the right sidebar's Changes panel)
+    /// belongs to a workspace directly and has no panel.
     private final class PanelAssociation: NSObject {
-        let panelId: UUID
+        let panelId: UUID?
         let workspaceId: UUID
 
-        init(panelId: UUID, workspaceId: UUID) {
+        init(panelId: UUID?, workspaceId: UUID) {
             self.panelId = panelId
             self.workspaceId = workspaceId
         }
@@ -90,10 +93,21 @@ final class DiffCommentsBridge: NSObject, WKScriptMessageHandlerWithReply {
     /// Records which browser panel owns a web view so the bridge can resolve
     /// the diff viewer's workspace for the pending submission pool.
     static func associate(panelId: UUID, workspaceId: UUID, with webView: WKWebView) {
+        setAssociation(PanelAssociation(panelId: panelId, workspaceId: workspaceId), on: webView)
+    }
+
+    /// Records the workspace behind a diff viewer the app hosts itself rather
+    /// than in a browser panel (the docked Changes panel). Associating again
+    /// with another workspace replaces the earlier binding.
+    static func associateHostOwned(workspaceId: UUID, with webView: WKWebView) {
+        setAssociation(PanelAssociation(panelId: nil, workspaceId: workspaceId), on: webView)
+    }
+
+    private static func setAssociation(_ association: PanelAssociation, on webView: WKWebView) {
         objc_setAssociatedObject(
             webView,
             &panelAssociationKey,
-            PanelAssociation(panelId: panelId, workspaceId: workspaceId),
+            association,
             .OBJC_ASSOCIATION_RETAIN_NONATOMIC
         )
     }
@@ -127,6 +141,13 @@ final class DiffCommentsBridge: NSObject, WKScriptMessageHandlerWithReply {
 
     static func isTrustedDiffViewerURL(_ url: URL?) -> Bool {
         DiffViewerSessionTrustRegistry.shared.isTrustedDiffViewerURL(url)
+    }
+
+    /// Whether a web view was registered by a browser panel, or as a
+    /// host-owned viewer, that still resolves to a live workspace. The sidecar
+    /// bridge requires this before forwarding any working-tree mutation.
+    static func isPanelAssociatedWebView(_ webView: WKWebView?) -> Bool {
+        (try? shared.resolveWorkspace(for: webView)) != nil
     }
 
     /// Extracts the diff viewer session token from a live page URL. Unlike
@@ -270,14 +291,22 @@ final class DiffCommentsBridge: NSObject, WKScriptMessageHandlerWithReply {
                   webView,
                   &Self.panelAssociationKey
               ) as? PanelAssociation,
-              let app = AppDelegate.shared,
-              let location = app.workspaceContainingPanel(
-                  panelId: association.panelId,
-                  preferredWorkspaceId: association.workspaceId
-              ) else {
+              let app = AppDelegate.shared else {
             throw BridgeError.invalidRequest("Diff viewer surface not found")
         }
-        return location.workspace
+        let workspace: Workspace?
+        if let panelId = association.panelId {
+            workspace = app.workspaceContainingPanel(
+                panelId: panelId,
+                preferredWorkspaceId: association.workspaceId
+            )?.workspace
+        } else {
+            workspace = app.workspaceFor(tabId: association.workspaceId)
+        }
+        guard let workspace else {
+            throw BridgeError.invalidRequest("Diff viewer surface not found")
+        }
+        return workspace
     }
 
     // MARK: - JSON mapping

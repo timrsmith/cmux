@@ -1121,6 +1121,54 @@ final class CMUXOpenCommandTests: XCTestCase {
         XCTAssertFalse(gitLog.contains(plainSiblingURL.path), gitLog)
     }
 
+    func testDiffViewerPageCommandPrintsSessionWithoutOpeningSplit() throws {
+        let cliPath = try bundledCLIPath()
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let repoURL = rootURL.appendingPathComponent("repo", isDirectory: true)
+        let fileURL = repoURL.appendingPathComponent("story.txt")
+        try FileManager.default.createDirectory(at: repoURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try runGit(["init"], in: repoURL)
+        try runGit(["checkout", "-b", "main"], in: repoURL)
+        try runGit(["config", "user.name", "cmux tests"], in: repoURL)
+        try runGit(["config", "user.email", "cmux@example.invalid"], in: repoURL)
+        try "one\n".write(to: fileURL, atomically: true, encoding: .utf8)
+        try runGit(["add", "story.txt"], in: repoURL)
+        try runGit(["commit", "-m", "initial"], in: repoURL)
+        try "one\ntwo\n".write(to: fileURL, atomically: true, encoding: .utf8)
+
+        // The right sidebar's Changes panel drives this verb; it must never
+        // reach browser.open_split (the mock server fails any request).
+        let result = runDiffCLIExpectingNoOpen(
+            cliPath: cliPath,
+            arguments: ["__diff-viewer-page", "--cwd", repoURL.path, "--workspace", UUID().uuidString]
+        )
+        XCTAssertEqual(result.status, 0, result.stderr)
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(result.stdout.utf8)) as? [String: Any],
+            result.stdout
+        )
+        // The contract is exactly what the app consumes: the page URL (whose
+        // host is the capability token), its allowlist, and the reload mode.
+        XCTAssertEqual(Set(payload.keys), ["url", "allowed_files", "reloadable"], result.stdout)
+        let rawURL = try XCTUnwrap(payload["url"] as? String)
+        let url = try XCTUnwrap(URL(string: rawURL))
+        XCTAssertEqual(url.scheme, "cmux-diff-viewer")
+        XCTAssertFalse((url.host ?? "").isEmpty, "the URL host carries the session token")
+        let files = try XCTUnwrap(payload["allowed_files"] as? [[String: Any]])
+        XCTAssertFalse(files.isEmpty)
+        XCTAssertTrue(files.allSatisfy {
+            $0["request_path"] is String && $0["file_path"] is String && $0["mime_type"] is String
+        })
+        XCTAssertNotNil(payload["reloadable"] as? Bool)
+        // The page itself is served from the allowlist and exists on disk.
+        let page = try XCTUnwrap(files.first { ($0["request_path"] as? String) == url.path }, result.stdout)
+        let pagePath = try XCTUnwrap(page["file_path"] as? String)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: pagePath))
+    }
+
     func testDiffCommandShowsFriendlyEmptyStateWhenEveryGitSourceIsEmpty() throws {
         let cliPath = try bundledCLIPath()
         let rootURL = FileManager.default.temporaryDirectory
@@ -2893,7 +2941,7 @@ final class CMUXOpenCommandTests: XCTestCase {
             Darwin.close(listenerFD)
             unlink(socketPath)
         }
-        _ = startMockServer(listenerFD: listenerFD, state: state) { line in
+        let serverHandled = startMockServer(listenerFD: listenerFD, state: state) { line in
             guard let payload = Self.v2Payload(from: line),
                   let id = payload["id"] as? String else {
                 return Self.v2Response(id: "unknown", ok: false, error: ["code": "unexpected"])
@@ -2908,6 +2956,11 @@ final class CMUXOpenCommandTests: XCTestCase {
             currentDirectoryURL: currentDirectoryURL
         )
         XCTAssertTrue(state.commands.isEmpty, state.commands.joined(separator: "\n"))
+        // The mock must never be reached, so the expectation is inverted and the
+        // wait doubles as the assertion (XCTest fails an expectation that is
+        // created but never waited on).
+        serverHandled.isInverted = true
+        wait(for: [serverHandled], timeout: 0.2)
         return result
     }
 
@@ -3118,6 +3171,21 @@ final class CMUXOpenCommandTests: XCTestCase {
             stdinPipe.fileHandleForWriting.closeFile()
         }
 
+        // Drain both pipes while the child runs. Reading only after exit
+        // deadlocks any command whose output exceeds the 64 KiB pipe buffer
+        // (the child blocks on write, the test waits for exit, then reports a
+        // bogus timeout with truncated stdout).
+        let drained = DispatchGroup()
+        let stdoutBox = AsyncValueBox(Data())
+        let stderrBox = AsyncValueBox(Data())
+        for (handle, box) in [(stdoutPipe.fileHandleForReading, stdoutBox), (stderrPipe.fileHandleForReading, stderrBox)] {
+            drained.enter()
+            DispatchQueue.global(qos: .userInitiated).async {
+                box.set(handle.readDataToEndOfFile())
+                drained.leave()
+            }
+        }
+
         let timedOut = waitForProcessExit(process, timeout: timeout) == .timedOut
         if timedOut {
             process.terminate()
@@ -3126,9 +3194,10 @@ final class CMUXOpenCommandTests: XCTestCase {
                 _ = waitForProcessExit(process, timeout: 1)
             }
         }
+        _ = drained.wait(timeout: .now() + 2)
 
-        let stdout = String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let stdout = String(data: stdoutBox.get(), encoding: .utf8) ?? ""
+        let stderr = String(data: stderrBox.get(), encoding: .utf8) ?? ""
         return ProcessRunResult(status: timedOut ? 124 : process.terminationStatus, stdout: stdout, stderr: stderr, timedOut: timedOut)
     }
 

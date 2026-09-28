@@ -314,3 +314,32 @@ extension CMUXCLI {
         try html.write(to: viewerURL, atomically: true, encoding: .utf8)
     }
 }
+
+extension CMUXCLI.DiffViewerLabels {
+    /// Labels for the diff viewer's working-tree write actions (revert, stage,
+    /// unstage, revert hunk, commit). Keys mirror `webviews/src/labels.ts`; the
+    /// existing `commit` label stays the "Commit N" series prefix.
+    static func worktreeWriteValues() -> [String: String] {
+        [
+            "cancel": CMUXDiffViewerLocalization.string("diffViewer.cancel", defaultValue: "Cancel"),
+            "commitChanges": CMUXDiffViewerLocalization.string("diffViewer.commitChanges", defaultValue: "Commit changes"),
+            "commitFailed": CMUXDiffViewerLocalization.string("diffViewer.commitFailed", defaultValue: "Could not create the commit."),
+            "commitMessageInvalid": CMUXDiffViewerLocalization.string("diffViewer.commitMessageInvalid", defaultValue: "Enter a commit message of at most 64 KiB."),
+            "commitMessagePlaceholder": CMUXDiffViewerLocalization.string("diffViewer.commitMessagePlaceholder", defaultValue: "Commit message"),
+            "commitRequiresStaged": CMUXDiffViewerLocalization.string("diffViewer.commitRequiresStaged", defaultValue: "Stage changes to commit them."),
+            "commitSubmit": CMUXDiffViewerLocalization.string("diffViewer.commitSubmit", defaultValue: "Commit"),
+            "committed": CMUXDiffViewerLocalization.string("diffViewer.committed", defaultValue: "Committed {commit}"),
+            "confirmRevert": CMUXDiffViewerLocalization.string("diffViewer.confirmRevert", defaultValue: "Revert"),
+            "hunkStale": CMUXDiffViewerLocalization.string("diffViewer.hunkStale", defaultValue: "This hunk changed on disk. The diff was reloaded."),
+            "nothingToCommit": CMUXDiffViewerLocalization.string("diffViewer.nothingToCommit", defaultValue: "Nothing to commit."),
+            "revertFile": CMUXDiffViewerLocalization.string("diffViewer.revertFile", defaultValue: "Revert changes"),
+            "revertHunk": CMUXDiffViewerLocalization.string("diffViewer.revertHunk", defaultValue: "Revert hunk"),
+            "revertPrompt": CMUXDiffViewerLocalization.string("diffViewer.revertPrompt", defaultValue: "Discard these changes?"),
+            "stageFile": CMUXDiffViewerLocalization.string("diffViewer.stageFile", defaultValue: "Stage file"),
+            "unstageFile": CMUXDiffViewerLocalization.string("diffViewer.unstageFile", defaultValue: "Unstage file"),
+            "worktreeConflict": CMUXDiffViewerLocalization.string("diffViewer.worktreeConflict", defaultValue: "The change could not be applied cleanly. The diff was reloaded."),
+            "worktreeNotAllowed": CMUXDiffViewerLocalization.string("diffViewer.worktreeNotAllowed", defaultValue: "Working-tree changes are not available for this diff."),
+            "worktreeWriteFailed": CMUXDiffViewerLocalization.string("diffViewer.worktreeWriteFailed", defaultValue: "Could not update the working tree."),
+        ]
+    }
+}

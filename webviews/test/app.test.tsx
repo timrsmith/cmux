@@ -1,35 +1,20 @@
-import { afterEach, expect, test } from "bun:test";
-import { JSDOM } from "jsdom";
-import { flushSync } from "react-dom";
-import { createRoot, type Root } from "react-dom/client";
+import { expect, test } from "bun:test";
+import type { JSDOM } from "jsdom";
 import { adjacentItemId, App, visibleItemId } from "../src/App";
 import { createDiffViewerStatus } from "../src/status";
+import {
+  createDom,
+  installDomGlobals,
+  registerDomCleanup,
+  render as renderApp,
+  unmountRoot,
+  waitFor,
+} from "./support/dom";
+import { handshakeResponse } from "./support/sidecar-mock";
 
-type FetchMock = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> | Response;
+registerDomCleanup();
 
-let root: Root | null = null;
 let dom: JSDOM | null = null;
-const originalGlobals = new Map<string, any>();
-for (const key of ["window", "document", "navigator", "Element", "Node", "HTMLElement", "HTMLStyleElement", "customElements", "fetch", "requestAnimationFrame", "cancelAnimationFrame"]) {
-  originalGlobals.set(key, (globalThis as any)[key]);
-}
-
-afterEach(async () => {
-  if (root) {
-    flushSync(() => root?.unmount());
-  }
-  root = null;
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  dom?.window.close();
-  dom = null;
-  for (const [key, value] of originalGlobals) {
-    if (value === undefined) {
-      delete (globalThis as any)[key];
-    } else {
-      (globalThis as any)[key] = value;
-    }
-  }
-});
 
 test("App renders the React-owned shell without starting a patch fetch for status-only payloads", async () => {
   dom = createDom();
@@ -122,6 +107,9 @@ test("custom-scheme pending pages stream exactly one typed Rust session", async 
     messageHandlers: {
       cmuxDiff: {
         async postMessage(request: any) {
+          if (request.method === "protocolHandshake") {
+            return handshakeResponse(request, []);
+          }
           requests.push(request);
           if (request.method === "sessionClose") {
             return { id: request.id, version: 1, result: { type: "sessionClosed" }, error: null };
@@ -194,7 +182,7 @@ test("custom-scheme pending pages stream exactly one typed Rust session", async 
   const commentLists = () => commentRequests.filter((request) => request.method === "comments.list");
   await waitFor(() => commentLists().length === 1);
   expect(commentLists()[0].params.repoRoot).toBe("/tmp/repo");
-  expect(requests[0].params.source).toEqual({ kind: "branch", repoRoot: "/tmp/repo", baseRef: "main" });
+  expect(requests.find((request) => request.method === "sessionOpen")?.params.source).toEqual({ kind: "branch", repoRoot: "/tmp/repo", baseRef: "main" });
   expect(fetched).toEqual(["cmux-diff-viewer://0123456789abcdef/diff-session.patch"]);
   expect(requests.filter((request) => request.method === "sessionClose")).toHaveLength(0);
   const repoSelect = dom.window.document.getElementById("repo-select") as HTMLSelectElement;
@@ -237,8 +225,7 @@ test("custom-scheme pending pages stream exactly one typed Rust session", async 
   const closeCountBeforePageHide = requests.filter((request) => request.method === "sessionClose").length;
   dom.window.dispatchEvent(new dom.window.Event("pagehide"));
   await waitFor(() => requests.filter((request) => request.method === "sessionClose").length > closeCountBeforePageHide);
-  flushSync(() => root?.unmount());
-  root = null;
+  unmountRoot();
   expect(requests.filter((request) => request.method === "sessionClose").length)
     .toBeGreaterThan(closeCountBeforePageHide);
 });
@@ -254,6 +241,9 @@ test("typed Rust empty diffs keep the localized source-specific message", async 
     messageHandlers: {
       cmuxDiff: {
         async postMessage(request: any) {
+          if (request.method === "protocolHandshake") {
+            return handshakeResponse(request, []);
+          }
           return {
             id: request.id,
             version: 1,
@@ -292,6 +282,9 @@ test("typed branch empty diffs keep the base picker available before base resolu
     messageHandlers: {
       cmuxDiff: {
         async postMessage(request: any) {
+          if (request.method === "protocolHandshake") {
+            return handshakeResponse(request, []);
+          }
           if (request.method === "sessionOpen") {
             return {
               id: request.id,
@@ -337,6 +330,9 @@ test("typed source switching preserves the last resolved branch base", async () 
     messageHandlers: {
       cmuxDiff: {
         async postMessage(request: any) {
+          if (request.method === "protocolHandshake") {
+            return handshakeResponse(request, []);
+          }
           requests.push(request);
           if (request.method === "sessionClose") {
             return { id: request.id, version: 1, result: { type: "sessionClosed" }, error: null };
@@ -417,6 +413,9 @@ test("pagehide cancels a typed session while its initial open is pending", async
     messageHandlers: {
       cmuxDiff: {
         async postMessage(request: any) {
+          if (request.method === "protocolHandshake") {
+            return handshakeResponse(request, []);
+          }
           requests.push(request);
           if (request.method === "sessionClose") {
             return { id: request.id, version: 1, result: { type: "sessionClosed" }, error: null };
@@ -451,6 +450,9 @@ test("Last Turn reveals repo selection after switching to a typed git source", a
     messageHandlers: {
       cmuxDiff: {
         async postMessage(request: any) {
+          if (request.method === "protocolHandshake") {
+            return handshakeResponse(request, []);
+          }
           requests.push(request);
           if (request.method === "sessionClose") {
             return { id: request.id, version: 1, result: { type: "sessionClosed" }, error: null };
@@ -609,8 +611,7 @@ test("layout toggle persists user choice while explicit payload layout wins", as
     return raw != null && JSON.parse(raw).layout === "split";
   });
   expect(dom.window.document.documentElement.dataset.layout).toBe("split");
-  flushSync(() => root?.unmount());
-  root = null;
+  unmountRoot();
 
   renderApp(
     <App
@@ -626,8 +627,7 @@ test("layout toggle persists user choice while explicit payload layout wins", as
   );
 
   expect(dom.window.document.documentElement.dataset.layout).toBe("split");
-  flushSync(() => root?.unmount());
-  root = null;
+  unmountRoot();
 
   renderApp(
     <App
@@ -758,6 +758,9 @@ test("refresh re-streams the typed session in place and keeps viewer options", a
     messageHandlers: {
       cmuxDiff: {
         async postMessage(request: any) {
+          if (request.method === "protocolHandshake") {
+            return handshakeResponse(request, []);
+          }
           requests.push(request);
           if (request.method === "sessionClose") {
             return { id: request.id, version: 1, result: { type: "sessionClosed" }, error: null };
@@ -935,6 +938,9 @@ test("viewed files load for the resolved typed session scope", async () => {
     messageHandlers: {
       cmuxDiff: {
         async postMessage(request: any) {
+          if (request.method === "protocolHandshake") {
+            return handshakeResponse(request, []);
+          }
           if (request.method === "sessionClose") {
             return { id: request.id, version: 1, result: { type: "sessionClosed" }, error: null };
           }
@@ -1002,35 +1008,6 @@ test("toggle viewed action is handled by the viewer app", () => {
   expect(action?.("diffViewerToggleViewed")).toBe(true);
 });
 
-function createDom(url = "http://127.0.0.1/diff"): JSDOM {
-  return new JSDOM("<!doctype html><html><body><div id='root'></div></body></html>", {
-    url,
-  });
-}
-
-function installDomGlobals(nextDom: JSDOM, fetchImpl: FetchMock): void {
-  (globalThis as any).window = nextDom.window;
-  (globalThis as any).document = nextDom.window.document;
-  (globalThis as any).navigator = nextDom.window.navigator;
-  (globalThis as any).Element = nextDom.window.Element;
-  (globalThis as any).Node = nextDom.window.Node;
-  (globalThis as any).HTMLElement = nextDom.window.HTMLElement;
-  (globalThis as any).HTMLStyleElement = nextDom.window.HTMLStyleElement;
-  (globalThis as any).customElements = nextDom.window.customElements;
-  (globalThis as any).fetch = fetchImpl;
-  (globalThis as any).requestAnimationFrame = (callback: FrameRequestCallback) => setTimeout(() => callback(performance.now()), 0);
-  (globalThis as any).cancelAnimationFrame = (handle: number) => clearTimeout(handle);
-}
-
-function renderApp(element: React.ReactNode): void {
-  const container = dom?.window.document.getElementById("root");
-  expect(container).toBeTruthy();
-  root = createRoot(container!);
-  flushSync(() => {
-    root?.render(element);
-  });
-}
-
 function menuButton(text: string): HTMLButtonElement | undefined {
   return Array.from(dom?.window.document.querySelectorAll<HTMLButtonElement>(".menu-item") ?? [])
     .find((button) => button.textContent?.includes(text));
@@ -1045,12 +1022,3 @@ function contentFilesWidth(): string | undefined {
   return dom?.window.document.getElementById("content")?.style.getPropertyValue("--cmux-diff-files-width");
 }
 
-async function waitFor(predicate: () => boolean): Promise<void> {
-  const timeoutAt = Date.now() + 500;
-  while (!predicate()) {
-    if (Date.now() > timeoutAt) {
-      throw new Error("Timed out waiting for app assertion");
-    }
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-}

@@ -47,7 +47,7 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
     func testDefaultOrderIsCanonical() {
         XCTAssertEqual(
             RightSidebarTabPreferences.orderedModes(defaults: defaults),
-            [.files, .find, .sessions, .feed, .dock, .machines]
+            [.files, .find, .sessions, .feed, .dock, .machines, .changes]
         )
     }
 
@@ -55,7 +55,7 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
         defaults.set(["machines", "bogus", "files", "custom-sidebar"], forKey: RightSidebarTabPreferences.orderKey)
         XCTAssertEqual(
             RightSidebarTabPreferences.orderedModes(defaults: defaults),
-            [.machines, .files, .find, .sessions, .feed, .dock]
+            [.machines, .files, .find, .sessions, .feed, .dock, .changes]
         )
     }
 
@@ -65,7 +65,7 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
         XCTAssertTrue(RightSidebarTabPreferences.setHidden(true, mode: .find, defaults: defaults))
         XCTAssertEqual(
             RightSidebarMode.visibleModes(defaults: defaults),
-            [.files, .sessions, .feed, .dock, .machines]
+            [.files, .sessions, .feed, .dock, .machines, .changes]
         )
     }
 
@@ -76,6 +76,7 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
         XCTAssertTrue(RightSidebarTabPreferences.setHidden(true, mode: .find, defaults: defaults))
         XCTAssertTrue(RightSidebarTabPreferences.setHidden(true, mode: .machines, defaults: defaults))
         XCTAssertTrue(RightSidebarTabPreferences.setHidden(true, mode: .dock, defaults: defaults))
+        XCTAssertTrue(RightSidebarTabPreferences.setHidden(true, mode: .changes, defaults: defaults))
         XCTAssertFalse(
             RightSidebarTabPreferences.setHidden(true, mode: .sessions, defaults: defaults),
             "the last visible tab must stay visible"
@@ -87,7 +88,7 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
         RightSidebarTabPreferences.move(.machines, offset: -5, defaults: defaults)
         XCTAssertEqual(
             RightSidebarTabPreferences.orderedModes(defaults: defaults),
-            [.machines, .files, .find, .sessions, .feed, .dock]
+            [.machines, .files, .find, .sessions, .feed, .dock, .changes]
         )
         RightSidebarTabPreferences.move(.machines, offset: -1, defaults: defaults)
         XCTAssertEqual(
@@ -108,7 +109,7 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
         )
         XCTAssertEqual(
             RightSidebarTabPreferences.orderedModes(defaults: defaults),
-            [.machines, .files, .find, .feed, .sessions, .dock],
+            [.machines, .files, .find, .feed, .sessions, .dock, .changes],
             "hidden Feed keeps its 4th slot while the displayed tabs permute around it"
         )
     }
@@ -182,7 +183,7 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
         RightSidebarTabPreferences.resetToDefaults(defaults: defaults)
         XCTAssertEqual(
             RightSidebarTabPreferences.orderedModes(defaults: defaults),
-            [.files, .find, .sessions, .feed, .dock, .machines]
+            [.files, .find, .sessions, .feed, .dock, .machines, .changes]
         )
         XCTAssertTrue(RightSidebarTabPreferences.hiddenModes(defaults: defaults).isEmpty)
     }
@@ -198,7 +199,7 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
         XCTAssertTrue(RightSidebarTabPreferences.setHidden(true, mode: .dock, defaults: defaults))
         XCTAssertEqual(
             RightSidebarMode.visibleModes(defaults: defaults),
-            [.files, .find, .sessions, .machines]
+            [.files, .find, .sessions, .machines, .changes]
         )
         XCTAssertEqual(
             KeyboardShortcutSettings.rightSidebarPositionalDefaultShortcut(for: .machines, defaults: defaults),
@@ -211,6 +212,7 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
         enableAllModeGates()
         let expected: [(RightSidebarMode, String)] = [
             (.files, "1"), (.find, "2"), (.sessions, "3"), (.feed, "4"), (.dock, "5"), (.machines, "6"),
+            (.changes, "7"),
         ]
         for (mode, digit) in expected {
             XCTAssertEqual(

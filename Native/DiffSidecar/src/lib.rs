@@ -2,9 +2,12 @@
 
 #[cfg(feature = "benchmark")]
 pub mod benchmark;
+pub(crate) mod git;
 pub mod manifest;
+
 pub mod protocol;
 pub mod server;
+pub(crate) mod worktree;
 
 pub const PROTOCOL_VERSION: u32 = 1;
 #[cfg(feature = "http-server")]

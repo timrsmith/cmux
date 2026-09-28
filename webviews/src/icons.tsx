@@ -12,6 +12,7 @@ export type IconName =
   | "clipboard"
   | "close"
   | "collapse"
+  | "commit"
   | "diffAdded"
   | "diffModified"
   | "diffRemoved"
@@ -26,10 +27,13 @@ export type IconName =
   | "none"
   | "numbers"
   | "refresh"
+  | "revert"
   | "search"
   | "sidebarCollapse"
   | "split"
+  | "stage"
   | "unified"
+  | "unstage"
   | "word"
   | "wrap";
 
@@ -87,6 +91,14 @@ function StrokeIconPaths({ name }: { name: IconName }) {
     return <><rect x="4" y="4" width="12" height="12" rx="2" /><rect x="6" y="6" width="3.5" height="8" rx="1" data-diff-deletion="true" /><rect x="10.5" y="6" width="3.5" height="8" rx="1" data-diff-addition="true" /></>;
   case "unified":
     return <><rect x="4" y="4" width="12" height="12" rx="2" /><rect x="6" y="6" width="8" height="3.5" rx="1" data-diff-deletion="true" /><rect x="6" y="10.5" width="8" height="3.5" rx="1" data-diff-addition="true" /></>;
+  case "commit":
+    return <><circle cx="10" cy="10" r="3" /><path d="M2.5 10H7" /><path d="M13 10h4.5" /></>;
+  case "revert":
+    return <><path d="M4 8h8a4 4 0 0 1 0 8H7" /><path d="m7 5-3 3 3 3" /></>;
+  case "stage":
+    return <><path d="M10 3v9" /><path d="m6.5 8.5 3.5 3.5 3.5-3.5" /><path d="M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" /></>;
+  case "unstage":
+    return <><path d="M10 12V3" /><path d="m6.5 6.5 3.5-3.5 3.5 3.5" /><path d="M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" /></>;
   default:
     return null;
   }

@@ -72,6 +72,28 @@ import Testing
         }
     }
 
+    @Test func fileTypeIconTintsMeetContrastInEveryAppearance() throws {
+        try forEachAppearance { appearance, baseBackground in
+            for style in FileExplorerStyle.allCases {
+                let backgrounds = try rowBackgrounds(
+                    for: style,
+                    appearance: appearance,
+                    baseBackground: baseBackground
+                )
+                for color in FileTypeIconColor.allCases {
+                    let foreground = try resolved(style.fileTypeTint(color), in: appearance)
+                    for (rowState, background) in backgrounds {
+                        let ratio = contrastRatio(foreground: foreground, background: background)
+                        #expect(
+                            ratio >= minimumIconContrast,
+                            "\(style.label) \(color) file type icon contrast in \(appearance.name.rawValue) \(rowState) row was \(ratio)"
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     @Test func paletteColorsAdaptWithoutAnotherLookupAndReuseProviders() throws {
         let lightAppearance = try #require(NSAppearance(named: .aqua))
         let darkAppearance = try #require(NSAppearance(named: .darkAqua))

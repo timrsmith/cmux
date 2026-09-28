@@ -43,6 +43,25 @@ extension TerminalControllerSocketSecurityTests {
         #expect(TerminalController.shared.handleSocketLine("right_sidebar set sessions --no-focus") == "OK")
         #expect(fileExplorerState.mode == .sessions)
 
+        // Changes (docked diff viewer) and its `diff` alias resolve to the same mode.
+        #expect(TerminalController.shared.handleSocketLine("right_sidebar set changes --no-focus") == "OK")
+        #expect(fileExplorerState.mode == .changes)
+
+        #expect(TerminalController.shared.handleSocketLine("right_sidebar set sessions --no-focus") == "OK")
+        #expect(TerminalController.shared.handleSocketLine("right_sidebar set diff --no-focus") == "OK")
+        #expect(fileExplorerState.mode == .changes)
+
+        #expect(TerminalController.shared.handleSocketLine("right_sidebar changes") == "OK")
+        #expect(fileExplorerState.mode == .changes)
+        #expect(fileExplorerState.isVisible)
+        let changesModeResponse = TerminalController.shared.handleSocketLine("right_sidebar mode")
+        let changesModeData = try #require(changesModeResponse.data(using: .utf8))
+        let changesModePayload = try #require(JSONSerialization.jsonObject(with: changesModeData) as? [String: Any])
+        #expect(changesModePayload["mode"] as? String == "changes")
+
+        #expect(TerminalController.shared.handleSocketLine("right_sidebar set sessions --no-focus") == "OK")
+        #expect(fileExplorerState.mode == .sessions)
+
         #expect(TerminalController.shared.handleSocketLine("right_sidebar hide") == "OK")
         #expect(!fileExplorerState.isVisible)
 

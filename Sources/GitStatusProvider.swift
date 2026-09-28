@@ -2,6 +2,13 @@ import CmuxFoundation
 import Foundation
 
 /// Runs non-locking `git status --porcelain` and parses results into a path-to-status map.
+///
+/// The provider distinguishes three path spaces:
+/// - `repoRoot`: where git runs and the base for the relative paths it prints.
+/// - `explorerRoot`: the canonical spelling of the explorer root, used only for
+///   the containment check (git prints physical paths such as `/private/var/...`).
+/// - `keyRoot`: the caller's spelling of the explorer root; every emitted key is
+///   re-spelled under it so `FileExplorerStore` lookups match its node paths.
 struct GitStatusProvider: Sendable {
     private static let nonLockingGitEnvironmentKey = "GIT_OPTIONAL_LOCKS"
     private static let nonLockingGitEnvironmentValue = "0"
@@ -21,24 +28,44 @@ struct GitStatusProvider: Sendable {
         self.environment = environment
     }
 
-    func fetchStatus(directory: String) -> [String: GitFileStatus] {
-        guard let repoRoot = gitRepoRoot(for: directory) else { return [:] }
-        // git reports the repo root physically (/private/var/...) while the caller may spell
-        // the explorer root through a symlink (/var, /tmp, a symlinked project dir). Resolve
-        // both to one spelling for the containment check, and emit keys under the caller's
-        // spelling so FileExplorerStore lookups match.
-        return parseGitStatus(
+    // MARK: - Local
+
+    /// The canonical working-tree root of the repository containing `directory`,
+    /// or `nil` when the directory is not inside a repository.
+    func repositoryRoot(for directory: String) -> String? {
+        guard let root = gitRepoRoot(for: directory), !root.isEmpty else { return nil }
+        return Self.canonicalPath(root)
+    }
+
+    /// Snapshot for one already-resolved repository.
+    ///
+    /// - Parameters:
+    ///   - repoRoot: The canonical repository working-tree root from
+    ///     ``repositoryRoot(for:)``; git runs here and prints paths below it.
+    ///   - explorerRoot: The canonical spelling of the explorer root (see
+    ///     ``canonicalPath(_:)``), compared against the paths git prints for the
+    ///     containment check. Parent-directory marks walk up to this root, so a
+    ///     repository nested below it marks every intermediate directory.
+    ///   - keyRoot: The spelling emitted keys are re-based on (the store's `rootPath`).
+    func fetchSnapshot(repoRoot: String, explorerRoot: String, keyRoot: String) -> GitStatusSnapshot {
+        parseGitStatus(
             output: runGit(in: repoRoot, arguments: ["status", "--porcelain=v1", "-z"]),
-            repoRoot: Self.canonicalPath(repoRoot),
-            explorerRoot: Self.canonicalPath(directory),
-            keyRoot: directory
+            repoRoot: repoRoot,
+            explorerRoot: explorerRoot,
+            keyRoot: keyRoot
         )
     }
 
-    func fetchStatusSSH(
-        directory: String, destination: String, port: Int?,
+    // MARK: - SSH
+
+    /// Resolves and fetches the remote repository containing `directory` in one
+    /// round trip. Keys are emitted under `explorerRoot`, which must contain
+    /// `directory`. Returns `nil` when the directory is not inside a repository or
+    /// the SSH command failed.
+    func fetchRepositoryStatusSSH(
+        directory: String, explorerRoot: String, destination: String, port: Int?,
         identityFile: String?, sshOptions: [String]
-    ) -> [String: GitFileStatus] {
+    ) -> GitRepositoryStatus? {
         let escapedDir = directory.replacingOccurrences(of: "'", with: "'\\''")
         let cmd = [
             "cd '\(escapedDir)' 2>/dev/null",
@@ -49,21 +76,28 @@ struct GitStatusProvider: Sendable {
         guard let output = runSSH(
             command: cmd, destination: destination,
             port: port, identityFile: identityFile, sshOptions: sshOptions
-        ) else { return [:] }
+        ) else { return nil }
 
         let parts = output.components(separatedBy: "---GIT_STATUS---\n")
-        guard parts.count == 2 else { return [:] }
+        guard parts.count == 2 else { return nil }
         let repoRoot = parts[0].trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        guard !repoRoot.isEmpty else { return nil }
         // Remote paths must not be resolved against the local filesystem, so the comparison
         // space and the key space are both the caller's spelling here.
-        return parseGitStatus(output: parts[1], repoRoot: repoRoot, explorerRoot: directory, keyRoot: directory)
+        let snapshot = parseGitStatus(
+            output: parts[1], repoRoot: repoRoot, explorerRoot: explorerRoot, keyRoot: explorerRoot
+        )
+        return GitRepositoryStatus(repoRoot: repoRoot, snapshot: snapshot)
     }
+
+    // MARK: - Parsing
 
     private func parseGitStatus(
         output: String?, repoRoot: String, explorerRoot: String, keyRoot: String
-    ) -> [String: GitFileStatus] {
-        guard let output, !output.isEmpty else { return [:] }
+    ) -> GitStatusSnapshot {
+        guard let output, !output.isEmpty else { return .empty }
         var statusMap: [String: GitFileStatus] = [:]
+        var deletedByParent: [String: Set<String>] = [:]
         let normalizedRepoRoot = Self.pathWithoutTrailingSlashes(repoRoot)
         let normalizedExplorerRoot = Self.pathWithoutTrailingSlashes(explorerRoot)
         let normalizedKeyRoot = Self.pathWithoutTrailingSlashes(keyRoot)
@@ -99,6 +133,10 @@ struct GitStatusProvider: Sendable {
             }
 
             statusMap[key] = status
+            if indexStatus == "D" || workTreeStatus == "D" {
+                let parent = (key as NSString).deletingLastPathComponent
+                deletedByParent[parent, default: []].insert(key)
+            }
             markParentDirectories(
                 absolutePath: key,
                 explorerRoot: normalizedKeyRoot,
@@ -106,7 +144,10 @@ struct GitStatusProvider: Sendable {
                 in: &statusMap
             )
         }
-        return statusMap
+        return GitStatusSnapshot(
+            statusByPath: statusMap,
+            deletedPathsByParent: deletedByParent.mapValues { $0.sorted() }
+        )
     }
 
     private func parseStatusChars(index: Character, workTree: Character) -> GitFileStatus? {
@@ -121,6 +162,9 @@ struct GitStatusProvider: Sendable {
         return nil
     }
 
+    /// Marks every directory between the changed file and the explorer root
+    /// (exclusive). The walk deliberately continues past the repository root so a
+    /// repository nested below the explorer root colors its ancestors too.
     private func markParentDirectories(
         absolutePath: String, explorerRoot: String,
         status: GitFileStatus, in map: inout [String: GitFileStatus]
@@ -139,7 +183,10 @@ struct GitStatusProvider: Sendable {
         index == "R" || workTree == "R" || index == "C" || workTree == "C"
     }
 
-    private static func canonicalPath(_ path: String) -> String {
+    /// The physical spelling of a local path (symlinks resolved), the space git
+    /// prints paths in. Callers resolve their explorer root once and pass it to
+    /// ``fetchSnapshot(repoRoot:explorerRoot:keyRoot:)`` for every fetch.
+    static func canonicalPath(_ path: String) -> String {
         URL(fileURLWithPath: path).resolvingSymlinksInPath().path
     }
 
@@ -155,7 +202,9 @@ struct GitStatusProvider: Sendable {
         return normalizedPath.hasPrefix(normalizedRoot + "/")
     }
 
-    private static func pathWithoutTrailingSlashes(_ path: String) -> String {
+    /// `path` without redundant trailing slashes (`"/"` stays `"/"`): the key
+    /// spelling shared by the parser and the store's per-directory indexes.
+    static func pathWithoutTrailingSlashes(_ path: String) -> String {
         var result = path
         while result.count > 1 && result.hasSuffix("/") {
             result.removeLast()

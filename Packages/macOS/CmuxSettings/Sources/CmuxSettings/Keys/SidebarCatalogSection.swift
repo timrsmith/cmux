@@ -211,6 +211,16 @@ public struct SidebarCatalogSection: SettingCatalogSection {
         userDefaultsKey: RightSidebarWidthSettings.rememberedMaxWidthKey
     )
 
+    /// Which window edge the right sidebar is docked to
+    /// (`sidebar.rightPosition`). `trailing` (the default) keeps it on the
+    /// right edge; `leading` places it between the workspace sidebar and the
+    /// panes.
+    public let rightPosition = DefaultsKey<RightSidebarPosition>(
+        id: "sidebar.rightPosition",
+        defaultValue: .trailing,
+        userDefaultsKey: "rightSidebarPosition"
+    )
+
     public let activeTabIndicatorStyle = DefaultsKey<String>(
         id: "sidebar.activeTabIndicatorStyle",
         defaultValue: "leftRail",

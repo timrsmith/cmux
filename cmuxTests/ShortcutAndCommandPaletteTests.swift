@@ -1316,6 +1316,7 @@ final class RightSidebarModeShortcutHintTests: XCTestCase {
         .switchRightSidebarToFeed,
         .switchRightSidebarToDock,
         .switchRightSidebarToMachines,
+        .switchRightSidebarToChanges,
     ]
     /// The digit defaults are positional over the visible tabs, so the
     /// expectations below pin every remaining mode gate on and clear any tab
@@ -1395,6 +1396,7 @@ final class RightSidebarModeShortcutHintTests: XCTestCase {
         XCTAssertEqual(RightSidebarMode.feed.shortcutAction, .switchRightSidebarToFeed)
         XCTAssertEqual(RightSidebarMode.dock.shortcutAction, .switchRightSidebarToDock)
         XCTAssertEqual(RightSidebarMode.machines.shortcutAction, .switchRightSidebarToMachines)
+        XCTAssertEqual(RightSidebarMode.changes.shortcutAction, .switchRightSidebarToChanges)
     }
 
     func testModeShortcutsUsePrivateControlDigitDefaults() {
@@ -1423,6 +1425,10 @@ final class RightSidebarModeShortcutHintTests: XCTestCase {
             RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "6", modifiers: [.control], keyCode: 22)),
             .machines
         )
+        XCTAssertEqual(
+            RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "7", modifiers: [.control], keyCode: 26)),
+            .changes
+        )
     }
 
     /// Hiding Feed and the standard Dock tab leaves Cloud as the 4th visible
@@ -1436,8 +1442,13 @@ final class RightSidebarModeShortcutHintTests: XCTestCase {
             RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "4", modifiers: [.control], keyCode: 21)),
             .machines
         )
+        // Changes is declared after Cloud, so it takes the next visible slot.
+        XCTAssertEqual(
+            RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "5", modifiers: [.control], keyCode: 23)),
+            .changes
+        )
         XCTAssertNil(
-            RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "5", modifiers: [.control], keyCode: 23))
+            RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "6", modifiers: [.control], keyCode: 22))
         )
     }
 

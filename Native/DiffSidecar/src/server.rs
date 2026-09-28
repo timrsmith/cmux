@@ -40,6 +40,7 @@ use tokio::sync::{RwLock, Semaphore};
 use tokio_util::io::ReaderStream;
 
 use crate::PROTOCOL_VERSION;
+use crate::git::{self, Access};
 use crate::manifest::{
     AllowedFile, Manifest, split_resource_path, valid_request_path, valid_token,
 };
@@ -47,6 +48,7 @@ use crate::protocol::{
     BranchListResult, DiffCommand, DiffRequest, DiffResourceRef, DiffResponse, DiffResult,
     DiffSource, NavigationResult, OpenSessionRequest, SessionOpened, SessionRequest, handshake,
 };
+use crate::worktree;
 #[cfg(feature = "http-server")]
 use crate::{HTTP_PROTOCOL_VERSION, health_response};
 
@@ -58,13 +60,15 @@ pub struct ServerConfig {
 }
 
 #[derive(Clone)]
-struct AppState {
-    config: Arc<ServerConfig>,
+pub(crate) struct AppState {
+    pub(crate) config: Arc<ServerConfig>,
     #[cfg(feature = "http-server")]
     client: Option<reqwest::Client>,
     port: u16,
+    /// Per-token manifest index, validated against the file's size and
+    /// modification time on every lookup (see [`manifest_files`]).
     manifests: Arc<RwLock<HashMap<String, CachedManifest>>>,
-    child_processes: Arc<Semaphore>,
+    pub(crate) child_processes: Arc<Semaphore>,
 }
 
 #[derive(Clone)]
@@ -96,7 +100,7 @@ const RPC_STDIN_READ_TIMEOUT: Duration = Duration::from_secs(10);
 const UNTRUSTED_RPC_REQUEST_ID: &str = "__cmux_untrusted_request__";
 const MAX_CONCURRENT_CHILD_PROCESSES: usize = 4;
 const BRANCH_LIST_CHILD_TIMEOUT: Duration = Duration::from_secs(30);
-const SESSION_GIT_TIMEOUT: Duration = Duration::from_secs(60);
+pub(crate) const SESSION_GIT_TIMEOUT: Duration = Duration::from_secs(60);
 const SESSION_OPEN_TIMEOUT: Duration = Duration::from_secs(120);
 const MAX_SESSION_PATCH_BYTES: u64 = 512 * 1024 * 1024;
 /// Upper bound on untracked files appended to an unstaged session patch. Later
@@ -117,12 +121,18 @@ const ORPHAN_SESSION_FINAL_MIN_AGE: Duration = Duration::from_secs(24 * 60 * 60)
 const MAX_ORPHAN_SCAN_ENTRIES: usize = 4096;
 const MAX_ORPHAN_REMOVALS: usize = 64;
 const MAX_TEMP_INDEX_ENTRIES: usize = 4096;
+const MAX_SESSION_OWNER_BYTES: u64 = 64 * 1024;
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct SessionOwner {
-    session_id: String,
-    capability_token: String,
+pub(crate) struct SessionOwner {
+    pub(crate) session_id: String,
+    pub(crate) capability_token: String,
+    /// Canonical repository root of a repository-backed session. Working-tree
+    /// write commands require it to match the repository they target; patch
+    /// sessions never carry one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) repo_root: Option<String>,
 }
 // Branch regeneration runs Git commands with 60-second deadlines, then writes
 // the page, patch, assets, and manifest. Keep the outer safety deadline above
@@ -401,7 +411,21 @@ async fn rpc(
     if !trusted_browser_request(&headers, state.port) {
         return not_found(false);
     }
+    if request.command.is_worktree_write() {
+        return Json(reject_worktree_write(request.id)).into_response();
+    }
     Json(handle_protocol_request(request, Some(&state)).await).into_response()
+}
+
+/// Working-tree mutations are only reachable through the native stdio
+/// transport, where the host has already bound the frame to its token.
+#[cfg(feature = "http-server")]
+fn reject_worktree_write(id: String) -> DiffResponse {
+    DiffResponse::failure(
+        id,
+        "notAllowed",
+        "Working-tree changes are not available on this transport",
+    )
 }
 
 #[cfg(feature = "http-server")]
@@ -430,7 +454,11 @@ async fn handle_websocket(mut socket: WebSocket, state: AppState) {
                     let _ = socket.send(Message::Close(None)).await;
                     break;
                 };
-                let response = handle_protocol_request(request, Some(&state)).await;
+                let response = if request.command.is_worktree_write() {
+                    reject_worktree_write(request.id)
+                } else {
+                    handle_protocol_request(request, Some(&state)).await
+                };
                 let Ok(encoded) = serde_json::to_string(&response) else {
                     break;
                 };
@@ -457,12 +485,15 @@ async fn handle_protocol_request(request: DiffRequest, state: Option<&AppState>)
             "Unsupported protocol version",
         );
     }
+    if matches!(request.command, DiffCommand::ProtocolHandshake) {
+        return handshake(request.id);
+    }
+    let Some(state) = state else {
+        return DiffResponse::failure(request.id, "hostUnavailable", "Host unavailable");
+    };
     match request.command {
-        DiffCommand::ProtocolHandshake => handshake(request.id),
+        DiffCommand::ProtocolHandshake => unreachable!("answered above"),
         DiffCommand::SessionOpen(params) => {
-            let Some(state) = state else {
-                return DiffResponse::failure(request.id, "hostUnavailable", "Host unavailable");
-            };
             match tokio::time::timeout(SESSION_OPEN_TIMEOUT, open_session(state, params)).await {
                 Ok(Ok(value)) => {
                     DiffResponse::success(request.id, DiffResult::SessionOpened(value))
@@ -483,9 +514,6 @@ async fn handle_protocol_request(request: DiffRequest, state: Option<&AppState>)
             }
         }
         DiffCommand::SessionClose(params) => {
-            let Some(state) = state else {
-                return DiffResponse::failure(request.id, "hostUnavailable", "Host unavailable");
-            };
             if close_session(state, &params).await {
                 DiffResponse::success(request.id, DiffResult::SessionClosed)
             } else {
@@ -493,9 +521,6 @@ async fn handle_protocol_request(request: DiffRequest, state: Option<&AppState>)
             }
         }
         DiffCommand::BranchList(params) => {
-            let Some(state) = state else {
-                return DiffResponse::failure(request.id, "hostUnavailable", "Host unavailable");
-            };
             match load_branch_refs(
                 state,
                 &params.repo_root,
@@ -511,9 +536,6 @@ async fn handle_protocol_request(request: DiffRequest, state: Option<&AppState>)
             }
         }
         DiffCommand::BranchChange(params) => {
-            let Some(state) = state else {
-                return DiffResponse::failure(request.id, "hostUnavailable", "Host unavailable");
-            };
             match change_branch(
                 state,
                 &params.group_id,
@@ -534,6 +556,38 @@ async fn handle_protocol_request(request: DiffRequest, state: Option<&AppState>)
                 ),
             }
         }
+        // Every `DiffCommand::is_worktree_write` variant; the loopback HTTP
+        // and WebSocket routes reject those before reaching this function.
+        DiffCommand::WorktreeRevertFile(params) => {
+            worktree_response(request.id, worktree::revert_file(state, &params)).await
+        }
+        DiffCommand::WorktreeStageFile(params) => {
+            worktree_response(request.id, worktree::stage_file(state, &params)).await
+        }
+        DiffCommand::WorktreeUnstageFile(params) => {
+            worktree_response(request.id, worktree::unstage_file(state, &params)).await
+        }
+        DiffCommand::WorktreeRevertHunk(params) => {
+            worktree_response(request.id, worktree::revert_hunk(state, &params)).await
+        }
+        DiffCommand::WorktreeCommit(params) => {
+            worktree_response(request.id, worktree::commit(state, &params)).await
+        }
+    }
+}
+
+async fn worktree_response(
+    id: String,
+    write: impl Future<Output = Result<DiffResult, worktree::WriteError>>,
+) -> DiffResponse {
+    match tokio::time::timeout(SESSION_OPEN_TIMEOUT, write).await {
+        Ok(Ok(result)) => DiffResponse::success(id, result),
+        Ok(Err(error)) => DiffResponse::failure(id, error.code(), error.message()),
+        Err(_) => DiffResponse::failure(
+            id,
+            worktree::WriteError::Failed.code(),
+            "Timed out while updating the working tree",
+        ),
     }
 }
 
@@ -593,24 +647,28 @@ async fn open_session(
         | DiffSource::Branch { repo_root, .. } => repo_root,
         DiffSource::Patch { .. } => unreachable!(),
     };
-    if !authorize_repo_for_token(state, &params.capability_token, repo).await {
-        return Err(SessionOpenError::Unauthorized);
-    }
     let canonical_repo = tokio::fs::canonicalize(repo)
         .await
         .map_err(|_| SessionOpenError::Unauthorized)?;
+    if !authorize_canonical_repo_for_token(state, &params.capability_token, &canonical_repo).await {
+        return Err(SessionOpenError::Unauthorized);
+    }
     let session_id = match params.session_id {
         Some(session_id) if uuid::Uuid::parse_str(&session_id).is_ok() => session_id,
         Some(_) => return Err(SessionOpenError::Unauthorized),
         None => uuid::Uuid::new_v4().to_string(),
     };
-    let file_name = format!("diff-session-{session_id}.patch");
-    let request_path = format!("/{file_name}");
+    let file_name = session_patch_file_name(&session_id);
+    let request_path = session_request_path(&session_id);
     let final_path = state.config.root.join(&file_name);
     let temporary_path = state.config.root.join(format!(".{file_name}.tmp"));
-    let owner_path =
-        reserve_session_owner(&state.config.root, &session_id, &params.capability_token)
-            .map_err(|_| SessionOpenError::Failed)?;
+    let owner_path = reserve_session_owner(
+        &state.config.root,
+        &session_id,
+        &params.capability_token,
+        Some(&canonical_repo),
+    )
+    .map_err(|_| SessionOpenError::Failed)?;
     reserve_session_temp(&state.config.root, &temporary_path)
         .inspect_err(|_| {
             let _ = std::fs::remove_file(&owner_path);
@@ -772,20 +830,11 @@ async fn run_git_patch_with_limit(
     output_path: &Path,
     max_patch_bytes: u64,
 ) -> Result<(), SessionOpenError> {
-    let mut arguments = vec![
-        "-C".to_owned(),
-        repo.to_string_lossy().into_owned(),
-        "diff".to_owned(),
-        "--no-ext-diff".to_owned(),
-        "--no-color".to_owned(),
-        "--binary".to_owned(),
-    ];
+    let mut arguments = vec!["diff", "--no-ext-diff", "--no-color", "--binary"];
+    let merge_base;
     match source {
-        DiffSource::Unstaged { .. } => arguments.push("--".to_owned()),
-        DiffSource::Staged { .. } => {
-            arguments.push("--cached".to_owned());
-            arguments.push("--".to_owned());
-        }
+        DiffSource::Unstaged { .. } => {}
+        DiffSource::Staged { .. } => arguments.push("--cached"),
         DiffSource::Branch {
             base_ref: Some(base_ref),
             ..
@@ -800,14 +849,14 @@ async fn run_git_patch_with_limit(
                 ],
             )
             .await?;
-            let merge_base = git_single_line(repo, &["merge-base", "HEAD", &base_commit]).await?;
-            arguments.push(merge_base);
-            arguments.push("--".to_owned());
+            merge_base = git_single_line(repo, &["merge-base", "HEAD", &base_commit]).await?;
+            arguments.push(&merge_base);
         }
         DiffSource::Branch { base_ref: None, .. } | DiffSource::Patch { .. } => {
             return Err(SessionOpenError::Failed);
         }
     }
+    arguments.push("--");
 
     let mut output = tokio::fs::File::create(output_path)
         .await
@@ -815,7 +864,7 @@ async fn run_git_patch_with_limit(
     let mut bytes_written = 0_u64;
     let result = async {
         stream_git_stdout(
-            arguments,
+            git::command(repo, &arguments, Access::ReadOnly),
             &[0],
             &mut output,
             &mut bytes_written,
@@ -856,21 +905,14 @@ async fn run_git_patch_with_limit(
 
 /// Streams one git command's stdout into `output`, enforcing the shared byte
 /// limit and the per-command timeout. Any failure kills the child; the caller
-/// owns the partially written file.
+/// owns the partially written file. `command` comes from [`git::command`].
 async fn stream_git_stdout(
-    arguments: Vec<String>,
+    mut command: Command,
     allowed_exit_codes: &[i32],
     output: &mut tokio::fs::File,
     bytes_written: &mut u64,
     max_patch_bytes: u64,
 ) -> Result<(), SessionOpenError> {
-    let mut command = Command::new("/usr/bin/git");
-    command
-        .args(arguments)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .kill_on_drop(true);
     let mut child = command.spawn().map_err(|_| SessionOpenError::Failed)?;
     let Some(mut stdout) = child.stdout.take() else {
         let _ = child.kill().await;
@@ -937,15 +979,12 @@ async fn git_generated_paths(source: &DiffSource, repo: &Path) -> Vec<String> {
         stdin_bytes.extend_from_slice(path.as_bytes());
         stdin_bytes.push(0);
     }
-    let mut command = Command::new("/usr/bin/git");
-    command
-        .arg("-C")
-        .arg(repo)
-        .args(["check-attr", "-z", "--stdin", "linguist-generated", "diff"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .kill_on_drop(true);
+    let mut command = git::command(
+        repo,
+        &["check-attr", "-z", "--stdin", "linguist-generated", "diff"],
+        Access::ReadOnly,
+    );
+    command.stdin(Stdio::piped());
     let Ok(mut child) = command.spawn() else {
         return Vec::new();
     };
@@ -1013,14 +1052,8 @@ async fn git_changed_paths(
         }
     }
     arguments.push("--".to_owned());
-    let mut command = Command::new("/usr/bin/git");
-    command
-        .arg("-C")
-        .arg(repo)
-        .args(&arguments)
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .kill_on_drop(true);
+    let argument_refs: Vec<&str> = arguments.iter().map(String::as_str).collect();
+    let mut command = git::command(repo, &argument_refs, Access::ReadOnly);
     let output = tokio::time::timeout(SESSION_GIT_TIMEOUT, command.output())
         .await
         .map_err(|_| SessionOpenError::Failed)?
@@ -1040,11 +1073,9 @@ async fn git_changed_paths(
 /// it, times out, or its output exceeds `budget` bytes. Output is buffered so a
 /// rejected file leaves nothing in the session patch.
 async fn git_untracked_file_patch(repo: &Path, path: String, budget: u64) -> Option<Vec<u8>> {
-    let mut command = Command::new("/usr/bin/git");
-    command
-        .arg("-C")
-        .arg(repo)
-        .args([
+    let mut command = git::command(
+        repo,
+        &[
             "diff",
             "--no-ext-diff",
             "--no-color",
@@ -1052,12 +1083,10 @@ async fn git_untracked_file_patch(repo: &Path, path: String, budget: u64) -> Opt
             "--no-index",
             "--",
             "/dev/null",
-        ])
-        .arg(path)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .kill_on_drop(true);
+            path.as_str(),
+        ],
+        Access::ReadOnly,
+    );
     let mut child = command.spawn().ok()?;
     let mut stdout = child.stdout.take()?;
     let collected = tokio::time::timeout(SESSION_GIT_TIMEOUT, async {
@@ -1091,14 +1120,11 @@ async fn git_untracked_file_patch(repo: &Path, path: String, budget: u64) -> Opt
 /// Untracked, non-ignored paths relative to `repo`, bounded so a huge
 /// unignored tree degrades to the tracked-only diff instead of stalling.
 async fn git_untracked_paths(repo: &Path) -> Result<Vec<String>, SessionOpenError> {
-    let mut command = Command::new("/usr/bin/git");
-    command
-        .arg("-C")
-        .arg(repo)
-        .args(["ls-files", "--others", "--exclude-standard", "-z"])
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .kill_on_drop(true);
+    let mut command = git::command(
+        repo,
+        &["ls-files", "--others", "--exclude-standard", "-z"],
+        Access::ReadOnly,
+    );
     let output = tokio::time::timeout(SESSION_GIT_TIMEOUT, command.output())
         .await
         .map_err(|_| SessionOpenError::Failed)?
@@ -1119,29 +1145,9 @@ async fn git_untracked_paths(repo: &Path) -> Result<Vec<String>, SessionOpenErro
 }
 
 async fn git_single_line(repo: &Path, arguments: &[&str]) -> Result<String, SessionOpenError> {
-    let mut command = Command::new("/usr/bin/git");
-    command
-        .arg("-C")
-        .arg(repo)
-        .args(arguments)
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .kill_on_drop(true);
-    let output = tokio::time::timeout(SESSION_GIT_TIMEOUT, command.output())
+    git::single_line(repo, arguments)
         .await
-        .map_err(|_| SessionOpenError::Failed)?
-        .map_err(|_| SessionOpenError::Failed)?;
-    if !output.status.success() || output.stdout.len() > 4096 {
-        return Err(SessionOpenError::Failed);
-    }
-    let line = String::from_utf8(output.stdout)
-        .map_err(|_| SessionOpenError::Failed)?
-        .trim()
-        .to_owned();
-    if line.is_empty() || line.contains(['\r', '\n']) {
-        return Err(SessionOpenError::Failed);
-    }
-    Ok(line)
+        .map_err(|()| SessionOpenError::Failed)
 }
 
 fn append_manifest_file(root: &Path, token: &str, file: AllowedFile) -> Result<(), String> {
@@ -1229,7 +1235,7 @@ fn reconcile_session_owners(root: &Path, minimum_age: Duration, scan_limit: usiz
             continue;
         };
         let temporary_name = format!(".diff-session-{session_id}.patch.tmp");
-        let final_name = format!("diff-session-{session_id}.patch");
+        let final_name = session_patch_file_name(session_id);
         let owned_name = if root.join(&final_name).exists() {
             Some(final_name)
         } else if root.join(&temporary_name).exists() {
@@ -1268,17 +1274,10 @@ fn remove_session_owner_for_name(root: &Path, name: &str) {
 
 fn remove_abandoned_session_manifest_entry(root: &Path, name: &str) -> Result<(), String> {
     let session_id = session_temp_id(name).ok_or("invalid session patch")?;
-    let owner_bytes = match std::fs::read(session_owner_path(root, session_id)) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error.to_string()),
+    let Some(owner) = read_session_owner(root, session_id)? else {
+        return Ok(());
     };
-    let owner: SessionOwner =
-        serde_json::from_slice(&owner_bytes).map_err(|error| error.to_string())?;
-    if owner.session_id != session_id || !valid_token(&owner.capability_token) {
-        return Err("invalid session owner".to_owned());
-    }
-    let request_path = format!("/diff-session-{session_id}.patch");
+    let request_path = session_request_path(session_id);
     mutate_manifest(root, &owner.capability_token, |manifest| {
         manifest
             .files
@@ -1361,15 +1360,53 @@ fn session_temp_id(name: &str) -> Option<&str> {
         })
 }
 
-fn session_owner_path(root: &Path, session_id: &str) -> PathBuf {
+/// The manifest request path of a session's patch.
+pub(crate) fn session_request_path(session_id: &str) -> String {
+    format!("/{}", session_patch_file_name(session_id))
+}
+
+/// The file name of a session's finished patch in the sidecar root.
+fn session_patch_file_name(session_id: &str) -> String {
+    format!("diff-session-{session_id}.patch")
+}
+
+pub(crate) fn session_owner_path(root: &Path, session_id: &str) -> PathBuf {
     session_owner_directory(root).join(format!("diff-session-{session_id}.owner.json"))
+}
+
+/// Reads a session's owner descriptor. `Ok(None)` means no descriptor exists;
+/// an oversized, malformed, or mismatched descriptor is an error.
+pub(crate) fn read_session_owner(
+    root: &Path,
+    session_id: &str,
+) -> Result<Option<SessionOwner>, String> {
+    let path = session_owner_path(root, session_id);
+    let metadata = match std::fs::metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.to_string()),
+    };
+    if !metadata.is_file() || metadata.len() > MAX_SESSION_OWNER_BYTES {
+        return Err("invalid session owner".to_owned());
+    }
+    let bytes = std::fs::read(&path).map_err(|error| error.to_string())?;
+    let owner: SessionOwner = serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
+    if owner.session_id != session_id || !valid_token(&owner.capability_token) {
+        return Err("invalid session owner".to_owned());
+    }
+    Ok(Some(owner))
 }
 
 fn session_owner_directory(root: &Path) -> PathBuf {
     root.join(".diff-session-owners")
 }
 
-fn reserve_session_owner(root: &Path, session_id: &str, token: &str) -> Result<PathBuf, String> {
+fn reserve_session_owner(
+    root: &Path,
+    session_id: &str,
+    token: &str,
+    repo_root: Option<&Path>,
+) -> Result<PathBuf, String> {
     let directory = session_owner_directory(root);
     std::fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
     #[cfg(unix)]
@@ -1382,6 +1419,7 @@ fn reserve_session_owner(root: &Path, session_id: &str, token: &str) -> Result<P
     let owner = SessionOwner {
         session_id: session_id.to_owned(),
         capability_token: token.to_owned(),
+        repo_root: repo_root.map(|path| path.to_string_lossy().into_owned()),
     };
     let bytes = serde_json::to_vec(&owner).map_err(|error| error.to_string())?;
     let mut file = OpenOptions::new()
@@ -1527,8 +1565,11 @@ async fn close_session(state: &AppState, params: &SessionRequest) -> bool {
     {
         return false;
     }
-    let request_path = format!("/diff-session-{}.patch", params.session_id);
-    let file_path = state.config.root.join(request_path.trim_start_matches('/'));
+    let request_path = session_request_path(&params.session_id);
+    let file_path = state
+        .config
+        .root
+        .join(session_patch_file_name(&params.session_id));
     let transaction = mutate_manifest(&state.config.root, &params.capability_token, |manifest| {
         let owned = manifest.files.iter().any(|entry| {
             entry.request_path == request_path
@@ -1914,6 +1955,20 @@ async fn resolve_allowed_file(
 ) -> Option<(String, AllowedFile)> {
     let normalized = format!("/{}", resource_path.trim_start_matches('/'));
     let (token, request_path) = split_resource_path(&normalized)?;
+    let file = manifest_files(state, token)
+        .await?
+        .get(&request_path)?
+        .clone();
+    Some((token.to_owned(), file))
+}
+
+/// The token's manifest indexed by request path. The cached index is reused
+/// only while the manifest file's size and modification time still match;
+/// otherwise the manifest is re-read and validated from disk.
+pub(crate) async fn manifest_files(
+    state: &AppState,
+    token: &str,
+) -> Option<Arc<HashMap<String, AllowedFile>>> {
     let path = state.config.root.join(format!(".manifest-{token}.json"));
     let metadata = tokio::fs::metadata(path).await.ok()?;
     let fingerprint = ManifestFingerprint {
@@ -1923,19 +1978,23 @@ async fn resolve_allowed_file(
     if let Some(cached) = state.manifests.read().await.get(token)
         && cached.fingerprint == fingerprint
     {
-        let file = cached.files.get(&request_path)?.clone();
-        return Some((token.to_owned(), file));
+        return Some(Arc::clone(&cached.files));
     }
 
     let manifest = Manifest::load(&state.config.root, token).await.ok()?;
     let files = Arc::new(manifest.files_by_path().ok()?);
-    let file = files.get(&request_path)?.clone();
     let mut manifests = state.manifests.write().await;
     if manifests.len() >= MAX_CACHED_MANIFESTS && !manifests.contains_key(token) {
         manifests.clear();
     }
-    manifests.insert(token.to_owned(), CachedManifest { fingerprint, files });
-    Some((token.to_owned(), file))
+    manifests.insert(
+        token.to_owned(),
+        CachedManifest {
+            fingerprint,
+            files: Arc::clone(&files),
+        },
+    );
+    Some(files)
 }
 
 #[cfg(feature = "http-server")]
@@ -1958,12 +2017,22 @@ fn trusted_browser_request(headers: &HeaderMap, port: u16) -> bool {
 }
 
 async fn authorize_repo_for_token(state: &AppState, token: &str, repo: &str) -> bool {
-    if !valid_token(token) {
-        return false;
-    }
     let Ok(canonical_repo) = tokio::fs::canonicalize(repo).await else {
         return false;
     };
+    authorize_canonical_repo_for_token(state, token, &canonical_repo).await
+}
+
+/// Whether some branch session of `token` allows `canonical_repo`, which the
+/// caller has already canonicalized.
+pub(crate) async fn authorize_canonical_repo_for_token(
+    state: &AppState,
+    token: &str,
+    canonical_repo: &Path,
+) -> bool {
+    if !valid_token(token) {
+        return false;
+    }
     let Ok(mut entries) = tokio::fs::read_dir(&state.config.root).await else {
         return false;
     };
@@ -1976,7 +2045,7 @@ async fn authorize_repo_for_token(state: &AppState, token: &str, repo: &str) -> 
         let Ok(session) = read_branch_session(&entry.path()).await else {
             continue;
         };
-        if session.token == token && session_allows_repo(&session, &canonical_repo).await {
+        if session.token == token && session_allows_repo(&session, canonical_repo).await {
             return true;
         }
     }
@@ -2374,7 +2443,7 @@ mod tests {
         let token = "b".repeat(64);
         let temporary = root.join(format!(".diff-session-{session_id}.patch.tmp"));
         let final_path = root.join(format!("diff-session-{session_id}.patch"));
-        reserve_session_owner(&root, &session_id, &token).expect("reserve owner");
+        reserve_session_owner(&root, &session_id, &token, None).expect("reserve owner");
         register_session_temp(&root, &temporary).expect("index temporary name");
         std::fs::write(&final_path, b"private diff after rename").expect("write final patch");
         let page = root.join("index.html");

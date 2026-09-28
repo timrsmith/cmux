@@ -86,11 +86,16 @@ final class RightSidebarCommandPaletteTests: XCTestCase {
                 XCTAssertTrue(contribution.enablement(context))
             }
 
-            // Files/Find/Vault, the graduated Dock, and the Cloud tab are
-            // discoverable before the local activation marker is set.
+            // Files/Find/Vault/Dock/Changes are always present, and the Cloud tab
+            // is discoverable before the local activation marker is set.
             let machinesAvailable = RightSidebarMode.machines.isAvailable()
             XCTAssertTrue(machinesAvailable)
-            XCTAssertEqual(contributions.count, 5)
+            XCTAssertEqual(contributions.count, 6)
+            XCTAssertEqual(
+                ContentView.commandPaletteRightSidebarModeCommandID(.changes),
+                "palette.showRightSidebarChanges"
+            )
+            XCTAssertNotNil(contributionsByID["palette.showRightSidebarChanges"])
             XCTAssertNil(contributionsByID[ContentView.commandPaletteRightSidebarModeCommandID(.feed)])
             XCTAssertNotNil(contributionsByID[ContentView.commandPaletteRightSidebarModeCommandID(.dock)])
             XCTAssertNotNil(contributionsByID[ContentView.commandPaletteRightSidebarModeCommandID(.machines)])

@@ -722,9 +722,33 @@ function annotatePatchIdentity(fileDiff: any, fileText: string): void {
   fileDiff.cmuxPatchByteLength = fileText.length;
 }
 
+/**
+ * The path a file diff is keyed by throughout the viewer (tree rows,
+ * comments, write actions): the new-side name when there is one, else the
+ * old-side name. Empty names and `/dev/null` never count as a path.
+ */
 export function fileName(fileDiff: any, fallback = "Untitled"): string {
-  return fileDiff.name ?? fileDiff.newName ?? fileDiff.oldName ?? fileDiff.prevName ?? fallback;
+  return filePath(fileDiff) ?? fallback;
 }
+
+export function filePath(fileDiff: any): string | null {
+  return firstPath(fileDiff.name, fileDiff.newName, fileDiff.oldName, fileDiff.prevName);
+}
+
+/** The old-side name of a rename or deletion, when the diff records one. */
+export function previousFilePath(fileDiff: any): string | null {
+  return firstPath(fileDiff.prevName, fileDiff.oldName);
+}
+
+function firstPath(...candidates: unknown[]): string | null {
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate !== "" && candidate !== "/dev/null") {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 
 function normalizeGitFileDiffPaths(fileDiff: any): void {
   if (fileDiff == null || typeof fileDiff !== "object") {

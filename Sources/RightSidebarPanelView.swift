@@ -30,7 +30,7 @@ enum FileExplorerRootSyncPolicy {
         switch mode {
         case .files, .find:
             return true
-        case .sessions, .feed, .dock, .machines, .customSidebar:
+        case .sessions, .feed, .dock, .machines, .changes, .customSidebar:
             return false
         }
     }
@@ -66,7 +66,15 @@ struct RightSidebarPanelView: View {
     @ObservedObject var fileExplorerStore: FileExplorerStore
     @ObservedObject var fileExplorerState: FileExplorerState
     @ObservedObject var sessionIndexStore: SessionIndexStore
+    /// Per-window Changes (docked diff viewer) state. Optional so hosts that
+    /// never show the mode (tests, tool panes) need not build one.
+    var changesStore: RightSidebarChangesStore? = nil
     let titlebarHeight: CGFloat
+    /// Extra leading padding for the mode bar when the panel touches the
+    /// window's leading edge (`sidebar.rightPosition` is `leading` and the
+    /// workspace sidebar is hidden), clearing the traffic lights or the
+    /// fullscreen accessory controls. Zero on the trailing edge.
+    var headerLeadingInset: CGFloat = 0
     let windowAppearance: WindowAppearanceSnapshot
     let workspaceId: UUID?
     let onResumeSession: ((SessionEntry) -> Void)?
@@ -162,16 +170,20 @@ struct RightSidebarPanelView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        // Leading alignment throughout: if the mode bar ever reports a minimum
+        // width wider than the panel (a large `headerLeadingInset` on a narrow
+        // panel), the overflow must fall off the trailing edge instead of the
+        // default centering clipping the tree's leading columns.
+        VStack(alignment: .leading, spacing: 0) {
             modeBar
                 .rightSidebarChromeBottomBorder(
                     backgroundColor: windowAppearance.resolvedChromeBackgroundColor
                 )
             contentForMode
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .rightSidebarButtonBorderShape()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         // Keep every mode (including Dock and AppKit-backed file rows) on the
         // same resolved cmux scheme as the window and left sidebar.
         .environment(\.colorScheme, windowAppearance.resolvedColorScheme)
@@ -269,7 +281,7 @@ struct RightSidebarPanelView: View {
             }
         }
         .rightSidebarChromeBar(
-            leadingPadding: RightSidebarChromeMetrics.headerLeadingPadding,
+            leadingPadding: RightSidebarChromeMetrics.headerLeadingPadding + headerLeadingInset,
             trailingPadding: RightSidebarChromeMetrics.headerTrailingPadding,
             height: titlebarHeight
         )
@@ -468,11 +480,26 @@ struct RightSidebarPanelView: View {
                     teamPickerPresentation: fileExplorerState.cloudTeamPickerPresentation,
                     activationCoordinator: cloudActivationCoordinator
                 )
+            case .changes:
+                changesPanel
             case .customSidebar:
                 customSidebarPanel
             }
         } else {
             Color.clear
+        }
+    }
+
+    /// Changes mode: the selected workspace's uncommitted diff, docked. The
+    /// store is owned by the window (next to `fileExplorerStore`) so the page
+    /// and its scheme-handler session outlive mode switches.
+    @ViewBuilder
+    private var changesPanel: some View {
+        if let changesStore {
+            RightSidebarChangesPanelView(store: changesStore)
+        } else {
+            Color.clear
+                .accessibilityIdentifier("RightSidebarChangesPanel")
         }
     }
 

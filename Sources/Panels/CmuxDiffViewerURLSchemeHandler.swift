@@ -14,15 +14,8 @@ final class CmuxDiffViewerURLSchemeHandler: NSObject, WKURLSchemeHandler {
 
     typealias RegisteredFile = CmuxDiffViewerRegisteredFile
     private typealias Session = CmuxDiffViewerPreparedSession
-    private typealias ActiveSchemeTask = (
-        generation: UUID,
-        task: WKURLSchemeTask,
-        operation: Task<Void, Never>?
-    )
-    private typealias ManifestLoad = (
-        generation: UUID,
-        task: Task<Session?, Never>
-    )
+    private typealias ActiveSchemeTask = (generation: UUID, task: WKURLSchemeTask, operation: Task<Void, Never>?)
+    private typealias ManifestLoad = (generation: UUID, task: Task<Session?, Never>)
 
     private var sessions: [String: Session] = [:]
     private var activeSchemeTasks: [ObjectIdentifier: ActiveSchemeTask] = [:]
@@ -153,18 +146,7 @@ final class CmuxDiffViewerURLSchemeHandler: NSObject, WKURLSchemeHandler {
             return
         }
 
-        var file = registeredFile(for: requestURL)
-        if file == nil {
-            // Typed sidecar sessions append their generated patch after the
-            // page's manifest has already been installed. Refresh only for an
-            // unknown path so the in-memory allowlist sees that new entry.
-            guard await registerFromManifest(token: token) else {
-                failSchemeTask(taskID, generation: generation, code: NSURLErrorFileDoesNotExist)
-                return
-            }
-            file = registeredFile(for: requestURL)
-        }
-        guard let file else {
+        guard let file = await registeredFileRefreshingSessionPatch(for: requestURL, token: token) else {
             failSchemeTask(taskID, generation: generation, code: NSURLErrorFileDoesNotExist)
             return
         }
@@ -174,6 +156,16 @@ final class CmuxDiffViewerURLSchemeHandler: NSObject, WKURLSchemeHandler {
             taskID: taskID,
             generation: generation
         )
+    }
+
+    /// Cache-only lookup, plus one manifest refresh for an unknown path: typed
+    /// sidecar sessions append their generated patch after the page's manifest
+    /// has already been installed, so the in-memory allowlist must see that
+    /// new entry before the request can fail.
+    func registeredFileRefreshingSessionPatch(for url: URL, token: String) async -> RegisteredFile? {
+        if let file = registeredFile(for: url) { return file }
+        guard await registerFromManifest(token: token) else { return nil }
+        return registeredFile(for: url)
     }
 
     private static func diffViewerQueryItems(from url: URL) -> [String: String] {
@@ -610,9 +602,7 @@ final class CmuxDiffViewerURLSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     private func pruneExpiredSessions(now: Date) {
-        sessions = sessions.filter { _, session in
-            now.timeIntervalSince(session.createdAt) <= maxSessionAge
-        }
+        sessions = sessions.filter { now.timeIntervalSince($0.value.createdAt) <= maxSessionAge }
     }
     private func responseHeaders(for file: RegisteredFile) -> [String: String] {
         var headers = [
