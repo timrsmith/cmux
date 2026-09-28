@@ -70,11 +70,12 @@ struct RightSidebarPanelView: View {
     /// never show the mode (tests, tool panes) need not build one.
     var changesStore: RightSidebarChangesStore? = nil
     let titlebarHeight: CGFloat
-    /// Extra leading padding for the mode bar when the panel touches the
-    /// window's leading edge (`sidebar.rightPosition` is `leading` and the
-    /// workspace sidebar is hidden), clearing the traffic lights or the
-    /// fullscreen accessory controls. Zero on the trailing edge.
-    var headerLeadingInset: CGFloat = 0
+    /// When the panel touches the window's leading edge (`sidebar.rightPosition`
+    /// is `leading` and the workspace sidebar is hidden) the traffic lights and
+    /// titlebar accessory controls sit over its top strip, so the mode bar moves
+    /// onto its own row beneath an empty, draggable titlebar-height strip. False
+    /// on the trailing edge and whenever the workspace sidebar is visible.
+    var modeBarBelowTitlebarStrip: Bool = false
     let windowAppearance: WindowAppearanceSnapshot
     let workspaceId: UUID?
     let onResumeSession: ((SessionEntry) -> Void)?
@@ -171,10 +172,13 @@ struct RightSidebarPanelView: View {
 
     var body: some View {
         // Leading alignment throughout: if the mode bar ever reports a minimum
-        // width wider than the panel (a large `headerLeadingInset` on a narrow
-        // panel), the overflow must fall off the trailing edge instead of the
-        // default centering clipping the tree's leading columns.
+        // width wider than the panel, the overflow must fall off the trailing
+        // edge instead of the default centering clipping the tree's leading columns.
         VStack(alignment: .leading, spacing: 0) {
+            if modeBarBelowTitlebarStrip {
+                // The window controls own this strip; keep it draggable and empty.
+                titlebarStrip
+            }
             modeBar
                 .rightSidebarChromeBottomBorder(
                     backgroundColor: windowAppearance.resolvedChromeBackgroundColor
@@ -226,6 +230,19 @@ struct RightSidebarPanelView: View {
             managedPolicyRevision &+= 1
             refreshModeAvailabilityAndFocusIfNeeded()
         }
+    }
+
+    /// An empty titlebar-height strip shown above the mode bar when the panel
+    /// sits under the window controls, so those controls never overlap the
+    /// mode buttons and the panel keeps the width the user chose. It drags
+    /// the window and handles titlebar double-click like the mode bar does.
+    private var titlebarStrip: some View {
+        WindowDragHandleView()
+            .frame(maxWidth: .infinity)
+            .frame(height: titlebarHeight)
+            .contentShape(Rectangle())
+            .background(TitlebarDoubleClickMonitorView())
+            .accessibilityHidden(true)
     }
 
     private var modeBar: some View {
@@ -281,7 +298,7 @@ struct RightSidebarPanelView: View {
             }
         }
         .rightSidebarChromeBar(
-            leadingPadding: RightSidebarChromeMetrics.headerLeadingPadding + headerLeadingInset,
+            leadingPadding: RightSidebarChromeMetrics.headerLeadingPadding,
             trailingPadding: RightSidebarChromeMetrics.headerTrailingPadding,
             height: titlebarHeight
         )

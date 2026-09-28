@@ -80,40 +80,16 @@ enum RightSidebarPlacementLayout {
         }
     }
 
-    /// The width the panel actually renders at. When the mode bar carries a
-    /// leading inset (see `modeBarLeadingInset`), the panel must grow by that
-    /// inset over its configured minimum, or the bar's minimum width exceeds
-    /// the panel and the whole content overflows and clips (#right-sidebar
-    /// leading dogfood: tree rows cut off with the workspace sidebar hidden).
-    static func effectivePanelWidth(
-        configuredWidth: CGFloat,
-        minimumWidth: CGFloat,
-        headerLeadingInset: CGFloat
-    ) -> CGFloat {
-        guard headerLeadingInset > 0 else { return configuredWidth }
-        return max(configuredWidth, minimumWidth + headerLeadingInset)
-    }
-
-    /// Extra leading padding for the panel's mode bar. Only needed when the
-    /// panel touches the window's leading edge (leading placement with the
-    /// workspace sidebar hidden), where the traffic lights or the fullscreen
-    /// accessory controls would otherwise sit on top of the first mode button.
-    static func modeBarLeadingInset(
+    /// Whether the panel's mode bar must move onto its own row beneath the
+    /// titlebar strip. That happens only when the panel touches the window's
+    /// leading edge (leading placement with the workspace sidebar hidden): the
+    /// traffic lights and the titlebar accessory controls occupy that strip,
+    /// and padding the bar past them would force the panel far wider than the
+    /// user chose. Giving the bar its own row keeps the panel width untouched.
+    static func modeBarNeedsOwnRow(
         position: RightSidebarPosition,
-        isLeadingSidebarVisible: Bool,
-        isFullScreen: Bool,
-        titlebarLeadingInset: CGFloat,
-        fullscreenControlsWidth: CGFloat,
-        fullscreenControlsLeadingPadding: CGFloat,
-        headerLeadingPadding: CGFloat
-    ) -> CGFloat {
-        guard position == .leading, !isLeadingSidebarVisible else { return 0 }
-        let required: CGFloat
-        if isFullScreen {
-            required = fullscreenControlsLeadingPadding + fullscreenControlsWidth + 8
-        } else {
-            required = titlebarLeadingInset
-        }
-        return max(0, required - headerLeadingPadding)
+        isLeadingSidebarVisible: Bool
+    ) -> Bool {
+        position == .leading && !isLeadingSidebarVisible
     }
 }
