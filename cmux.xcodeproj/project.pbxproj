@@ -1095,6 +1095,7 @@
 		807AC28C2C2457B59F8792AC /* CMUXCLI+Current.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A09ECE26DDC67D94CF18B1 /* CMUXCLI+Current.swift */; };
 		D1FF51000000000000000001 /* CMUXCLI+DiffSidecar.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1FF51000000000000000002 /* CMUXCLI+DiffSidecar.swift */; };
 		C0DE75890000000000000001 /* CMUXCLI+DiffViewerBundledAssets.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE75890000000000000002 /* CMUXCLI+DiffViewerBundledAssets.swift */; };
+		D73087F8C095BAAA9230BC13 /* CMUXCLI+DiffViewerPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97E7EA1D0373FB83CC88926F /* CMUXCLI+DiffViewerPage.swift */; };
 		C0DE79210000000000000001 /* CMUXCLI+DiffViewerShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE79210000000000000002 /* CMUXCLI+DiffViewerShortcuts.swift */; };
 		B9000035A1B2C3D4E5F60719 /* CMUXCLI+DocsSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9000031A1B2C3D4E5F60719 /* CMUXCLI+DocsSettings.swift */; };
 		B9000064A1B2C3D4E5F60719 /* CMUXCLI+Events.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9000065A1B2C3D4E5F60719 /* CMUXCLI+Events.swift */; };
@@ -1708,11 +1709,14 @@
 		D1FFC0DE000000000000C002 /* DiffCommentStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1FFC0DE000000000000C001 /* DiffCommentStoreTests.swift */; };
 		D1FFC0DE000000000000D002 /* DiffCommentSubmissionPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1FFC0DE000000000000D001 /* DiffCommentSubmissionPool.swift */; };
 		D1FFC0DE000000000000E002 /* DiffSidecarBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1FFC0DE000000000000E001 /* DiffSidecarBridge.swift */; };
+		57F78345792A49D39873F934 /* DiffSidecarRequestPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44E848F0A4AD99A29B2E84E /* DiffSidecarRequestPolicy.swift */; };
+		7D154EAB0095DFA34D13D9C8 /* DiffViewerCLILaunch.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7B6AE88191F61FF0881A991 /* DiffViewerCLILaunch.swift */; };
 		A28B087F0000000000000001 /* DiffViewerEditableFocusMessageHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28B087F0000000000000002 /* DiffViewerEditableFocusMessageHandler.swift */; };
 		A28B087F0000000000000019 /* DiffViewerLiveHTTPSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28B087F0000000000000018 /* DiffViewerLiveHTTPSession.swift */; };
 		9648DEAE0000000000000002 /* DiffViewerPickerCommandRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9648DEAE0000000000000001 /* DiffViewerPickerCommandRunnerTests.swift */; };
 		A28B087F0000000000000009 /* DiffViewerSessionTrustRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28B087F000000000000000A /* DiffViewerSessionTrustRegistry.swift */; };
 		9648DEAD0000000000000002 /* DiffViewerURLSchemeHandlerLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9648DEAD0000000000000001 /* DiffViewerURLSchemeHandlerLifecycleTests.swift */; };
+		CA62309BCC1C1D793493A34E /* DiffViewerWriteActionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 677DEDB5CB1B2A9C55BB9670 /* DiffViewerWriteActionsTests.swift */; };
 		B8F266266A1A3D9A45BD840F /* DisplayResolutionRegressionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8F266276A1A3D9A45BD840F /* DisplayResolutionRegressionUITests.swift */; };
 		DCDC1000000000000000B003 /* DockConfigFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCDC1000000000000000B004 /* DockConfigFile.swift */; };
 		DCDC1000000000000000B005 /* DockConfigIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCDC1000000000000000B006 /* DockConfigIdentity.swift */; };
@@ -1848,6 +1852,9 @@
 		FE002110 /* FileExplorerDoubleClickActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE002010 /* FileExplorerDoubleClickActionTests.swift */; };
 		FE5996080000000000000002 /* FileExplorerExternalOpenMenuItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE5996080000000000000001 /* FileExplorerExternalOpenMenuItems.swift */; };
 		FE5996090000000000000002 /* FileExplorerExternalOpenRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE5996090000000000000001 /* FileExplorerExternalOpenRequest.swift */; };
+		757A74312C7C1F540F1DDED1 /* FileExplorerFileTypeIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90D5B6B60FE51D6FCC8385DF /* FileExplorerFileTypeIcon.swift */; };
+		3AA086361395DA0DC5EBA416 /* FileExplorerFileTypeIconTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 268FB8DF5E3F9EE1C2658F03 /* FileExplorerFileTypeIconTests.swift */; };
+		9000ADCB1F2386586709CED8 /* FileExplorerGhostNodeCellTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C41FB30B1C06D35C200CF989 /* FileExplorerGhostNodeCellTests.swift */; };
 		FE002112 /* FileExplorerGitStatusProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE002012 /* FileExplorerGitStatusProviderTests.swift */; };
 		FE5996020000000000000002 /* FileExplorerHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE5996020000000000000001 /* FileExplorerHeaderView.swift */; };
 		FE001105 /* FileExplorerKeyboardShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE001005 /* FileExplorerKeyboardShortcuts.swift */; };
@@ -2059,7 +2066,9 @@
 		F50C3237EF790051B3B0A76B /* GhosttyWorkspaceActionTestHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 787B6BD93E69D2D1157A3AF8 /* GhosttyWorkspaceActionTestHarness.swift */; };
 		ED5DB47E40B1F74D486EEAB9 /* GhosttyWorkspaceActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C9035917ADD1609A214451A /* GhosttyWorkspaceActionTests.swift */; };
 		FE001107 /* GitFileStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE001007 /* GitFileStatus.swift */; };
+		897FE1BDA0E8F2EFA5C0A8A0 /* GitRepositoryTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73A4C5374756559C8B3AD947 /* GitRepositoryTestSupport.swift */; };
 		FE001106 /* GitStatusProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE001006 /* GitStatusProvider.swift */; };
+		06ED36846073A23F577492D7 /* GitStatusRepositoryWatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0265ACB8C78712473EAD71C1 /* GitStatusRepositoryWatch.swift */; };
 		3865A0023865A0023865A002 /* GlobalSearchCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3865B0023865B0023865B002 /* GlobalSearchCoordinator.swift */; };
 		3865A0073865A0073865A007 /* GlobalSearchDocuments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3865B0073865B0073865B007 /* GlobalSearchDocuments.swift */; };
 		8561A0018561A0018561A001 /* GlobalSearchInputOwnershipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8561B0018561B0018561B001 /* GlobalSearchInputOwnershipTests.swift */; };
@@ -2806,6 +2815,9 @@
 		F6572042A1B2C3D4E5F60718 /* RestoredAgentShellActivityLivenessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6572043A1B2C3D4E5F60718 /* RestoredAgentShellActivityLivenessTests.swift */; };
 		BB8CB1EFD62C8CAE14293195 /* RestoredStartupInputOwnershipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D41A7FBA0A3B1A9109982B /* RestoredStartupInputOwnershipTests.swift */; };
 		9200B0019200B0019200B001 /* ResumeLauncherCwdConsistencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9200B0019200B0019200B002 /* ResumeLauncherCwdConsistencyTests.swift */; };
+		95696112A88DF22B85601454 /* RightSidebarChangesPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6A2631B5A656CFB37D1F82D /* RightSidebarChangesPanelView.swift */; };
+		8341BFE4226EEE73307CAAF8 /* RightSidebarChangesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50E3EFC5449D0AD5538574E /* RightSidebarChangesStore.swift */; };
+		604817B02AD026F924A06A5D /* RightSidebarChangesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1F94BEE2C23CB028816305 /* RightSidebarChangesStoreTests.swift */; };
 		B7F9A600B7F9A600B7F9A600 /* RightSidebarChromeGeometryReporting.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F9A601B7F9A601B7F9A601 /* RightSidebarChromeGeometryReporting.swift */; };
 		AA1B2C3D4E5F60720 /* RightSidebarChromeHeightUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1B2C3D4E5F60721 /* RightSidebarChromeHeightUITests.swift */; };
 		B7F9A604B7F9A604B7F9A604 /* RightSidebarChromeStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F9A605B7F9A605B7F9A605 /* RightSidebarChromeStyle.swift */; };
@@ -2817,6 +2829,8 @@
 		468110000000000000000005 /* RightSidebarModeShortcutMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 468110000000000000000006 /* RightSidebarModeShortcutMatcher.swift */; };
 		FE003103 /* RightSidebarPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE003003 /* RightSidebarPanelView.swift */; };
 		C57570010000000000000002 /* RightSidebarPanelViewTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C57570010000000000000001 /* RightSidebarPanelViewTestSupport.swift */; };
+		65D4427B316B2C291F5D9AFF /* RightSidebarPlacementLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26C6D5118DE67B311322C939 /* RightSidebarPlacementLayout.swift */; };
+		367BC978F2948D8D5373B5EA /* RightSidebarPositionSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DEFEE5A5D2E60E5D6BA20EB /* RightSidebarPositionSettingsTests.swift */; };
 		B37A0000000000000000000D /* RightSidebarRemoteCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B37A0000000000000000000E /* RightSidebarRemoteCommand.swift */; };
 		5F5553CB5553CB5553CB0001 /* RightSidebarRemoteCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F5553CB5553CB5553CB0002 /* RightSidebarRemoteCommandTests.swift */; };
 		07EB8695682FE486A366F22E /* RightSidebarTabCustomizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2217672A4FBF3048C6C17EA3 /* RightSidebarTabCustomizationTests.swift */; };
@@ -5321,6 +5335,7 @@
 		E1A09ECE26DDC67D94CF18B1 /* CMUXCLI+Current.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CMUXCLI+Current.swift"; sourceTree = "<group>"; };
 		D1FF51000000000000000002 /* CMUXCLI+DiffSidecar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CMUXCLI+DiffSidecar.swift"; sourceTree = "<group>"; };
 		C0DE75890000000000000002 /* CMUXCLI+DiffViewerBundledAssets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CMUXCLI+DiffViewerBundledAssets.swift"; sourceTree = "<group>"; };
+		97E7EA1D0373FB83CC88926F /* CMUXCLI+DiffViewerPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CMUXCLI+DiffViewerPage.swift"; sourceTree = "<group>"; };
 		C0DE79210000000000000002 /* CMUXCLI+DiffViewerShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CMUXCLI+DiffViewerShortcuts.swift"; sourceTree = "<group>"; };
 		B9000031A1B2C3D4E5F60719 /* CMUXCLI+DocsSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CMUXCLI+DocsSettings.swift"; sourceTree = "<group>"; };
 		B9000065A1B2C3D4E5F60719 /* CMUXCLI+Events.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CMUXCLI+Events.swift"; sourceTree = "<group>"; };
@@ -5829,11 +5844,14 @@
 		D1FFC0DE000000000000C001 /* DiffCommentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffCommentStoreTests.swift; sourceTree = "<group>"; };
 		D1FFC0DE000000000000D001 /* DiffCommentSubmissionPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffCommentSubmissionPool.swift; sourceTree = "<group>"; };
 		D1FFC0DE000000000000E001 /* DiffSidecarBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/DiffSidecarBridge.swift; sourceTree = "<group>"; };
+		B44E848F0A4AD99A29B2E84E /* DiffSidecarRequestPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/DiffSidecarRequestPolicy.swift; sourceTree = "<group>"; };
+		F7B6AE88191F61FF0881A991 /* DiffViewerCLILaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffViewerCLILaunch.swift; sourceTree = "<group>"; };
 		A28B087F0000000000000002 /* DiffViewerEditableFocusMessageHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/DiffViewerEditableFocusMessageHandler.swift; sourceTree = "<group>"; };
 		A28B087F0000000000000018 /* DiffViewerLiveHTTPSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/DiffViewerLiveHTTPSession.swift; sourceTree = "<group>"; };
 		9648DEAE0000000000000001 /* DiffViewerPickerCommandRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffViewerPickerCommandRunnerTests.swift; sourceTree = "<group>"; };
 		A28B087F000000000000000A /* DiffViewerSessionTrustRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/DiffViewerSessionTrustRegistry.swift; sourceTree = "<group>"; };
 		9648DEAD0000000000000001 /* DiffViewerURLSchemeHandlerLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffViewerURLSchemeHandlerLifecycleTests.swift; sourceTree = "<group>"; };
+		677DEDB5CB1B2A9C55BB9670 /* DiffViewerWriteActionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DiffViewerWriteActionsTests.swift"; sourceTree = "<group>"; };
 		B8F266276A1A3D9A45BD840F /* DisplayResolutionRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayResolutionRegressionUITests.swift; sourceTree = "<group>"; };
 		DCDC1000000000000000B004 /* DockConfigFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockConfigFile.swift; sourceTree = "<group>"; };
 		DCDC1000000000000000B006 /* DockConfigIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockConfigIdentity.swift; sourceTree = "<group>"; };
@@ -5969,6 +5987,9 @@
 		FE002010 /* FileExplorerDoubleClickActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileExplorerDoubleClickActionTests.swift; sourceTree = "<group>"; };
 		FE5996080000000000000001 /* FileExplorerExternalOpenMenuItems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileExplorerExternalOpenMenuItems.swift; sourceTree = "<group>"; };
 		FE5996090000000000000001 /* FileExplorerExternalOpenRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileExplorerExternalOpenRequest.swift; sourceTree = "<group>"; };
+		90D5B6B60FE51D6FCC8385DF /* FileExplorerFileTypeIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileExplorerFileTypeIcon.swift; sourceTree = "<group>"; };
+		268FB8DF5E3F9EE1C2658F03 /* FileExplorerFileTypeIconTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileExplorerFileTypeIconTests.swift"; sourceTree = "<group>"; };
+		C41FB30B1C06D35C200CF989 /* FileExplorerGhostNodeCellTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileExplorerGhostNodeCellTests.swift"; sourceTree = "<group>"; };
 		FE002012 /* FileExplorerGitStatusProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileExplorerGitStatusProviderTests.swift; sourceTree = "<group>"; };
 		FE5996020000000000000001 /* FileExplorerHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileExplorerHeaderView.swift; sourceTree = "<group>"; };
 		FE001005 /* FileExplorerKeyboardShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileExplorerKeyboardShortcuts.swift; sourceTree = "<group>"; };
@@ -6180,7 +6201,9 @@
 		787B6BD93E69D2D1157A3AF8 /* GhosttyWorkspaceActionTestHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GhosttyWorkspaceActionTestHarness.swift"; sourceTree = "<group>"; };
 		5C9035917ADD1609A214451A /* GhosttyWorkspaceActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GhosttyWorkspaceActionTests.swift"; sourceTree = "<group>"; };
 		FE001007 /* GitFileStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitFileStatus.swift; sourceTree = "<group>"; };
+		73A4C5374756559C8B3AD947 /* GitRepositoryTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GitRepositoryTestSupport.swift"; sourceTree = "<group>"; };
 		FE001006 /* GitStatusProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStatusProvider.swift; sourceTree = "<group>"; };
+		0265ACB8C78712473EAD71C1 /* GitStatusRepositoryWatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStatusRepositoryWatch.swift; sourceTree = "<group>"; };
 		3865B0023865B0023865B002 /* GlobalSearchCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Search/GlobalSearchCoordinator.swift; sourceTree = "<group>"; };
 		3865B0073865B0073865B007 /* GlobalSearchDocuments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Search/GlobalSearchDocuments.swift; sourceTree = "<group>"; };
 		8561B0018561B0018561B001 /* GlobalSearchInputOwnershipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalSearchInputOwnershipTests.swift; sourceTree = "<group>"; };
@@ -6911,6 +6934,9 @@
 		F6572043A1B2C3D4E5F60718 /* RestoredAgentShellActivityLivenessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestoredAgentShellActivityLivenessTests.swift; sourceTree = "<group>"; };
 		D1D41A7FBA0A3B1A9109982B /* RestoredStartupInputOwnershipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RestoredStartupInputOwnershipTests.swift"; sourceTree = "<group>"; };
 		9200B0019200B0019200B002 /* ResumeLauncherCwdConsistencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResumeLauncherCwdConsistencyTests.swift; sourceTree = "<group>"; };
+		F6A2631B5A656CFB37D1F82D /* RightSidebarChangesPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarChangesPanelView.swift; sourceTree = "<group>"; };
+		A50E3EFC5449D0AD5538574E /* RightSidebarChangesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarChangesStore.swift; sourceTree = "<group>"; };
+		DD1F94BEE2C23CB028816305 /* RightSidebarChangesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RightSidebarChangesStoreTests.swift"; sourceTree = "<group>"; };
 		B7F9A601B7F9A601B7F9A601 /* RightSidebarChromeGeometryReporting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarChromeGeometryReporting.swift; sourceTree = "<group>"; };
 		AA1B2C3D4E5F60721 /* RightSidebarChromeHeightUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarChromeHeightUITests.swift; sourceTree = "<group>"; };
 		B7F9A605B7F9A605B7F9A605 /* RightSidebarChromeStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarChromeStyle.swift; sourceTree = "<group>"; };
@@ -6922,6 +6948,8 @@
 		468110000000000000000006 /* RightSidebarModeShortcutMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarModeShortcutMatcher.swift; sourceTree = "<group>"; };
 		FE003003 /* RightSidebarPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarPanelView.swift; sourceTree = "<group>"; };
 		C57570010000000000000001 /* RightSidebarPanelViewTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarPanelViewTestSupport.swift; sourceTree = "<group>"; };
+		26C6D5118DE67B311322C939 /* RightSidebarPlacementLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarPlacementLayout.swift; sourceTree = "<group>"; };
+		0DEFEE5A5D2E60E5D6BA20EB /* RightSidebarPositionSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RightSidebarPositionSettingsTests.swift"; sourceTree = "<group>"; };
 		B37A0000000000000000000E /* RightSidebarRemoteCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarRemoteCommand.swift; sourceTree = "<group>"; };
 		5F5553CB5553CB5553CB0002 /* RightSidebarRemoteCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarRemoteCommandTests.swift; sourceTree = "<group>"; };
 		2217672A4FBF3048C6C17EA3 /* RightSidebarTabCustomizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarTabCustomizationTests.swift; sourceTree = "<group>"; };
@@ -10545,6 +10573,7 @@
 				9648F1A10000000000000001 /* CmuxDiffViewerURLSchemeHandler.swift */,
 				D1FFC0DE000000000000B001 /* DiffCommentsBridge.swift */,
 				D1FFC0DE000000000000E001 /* DiffSidecarBridge.swift */,
+				B44E848F0A4AD99A29B2E84E /* DiffSidecarRequestPolicy.swift */,
 				A28B087F0000000000000002 /* DiffViewerEditableFocusMessageHandler.swift */,
 				A28B087F0000000000000004 /* MarkdownEditableFocusMessageHandler.swift */,
 				A28B087F0000000000000006 /* ViewerNavigationKeyRouter.swift */,
@@ -10986,6 +11015,12 @@
 				B37A00000000000000000004 /* RightSidebarMode+Availability.swift */,
 				B37A0000000000000000000E /* RightSidebarRemoteCommand.swift */,
 				FE003003 /* RightSidebarPanelView.swift */,
+				F7B6AE88191F61FF0881A991 /* DiffViewerCLILaunch.swift */,
+				F6A2631B5A656CFB37D1F82D /* RightSidebarChangesPanelView.swift */,
+				A50E3EFC5449D0AD5538574E /* RightSidebarChangesStore.swift */,
+				0265ACB8C78712473EAD71C1 /* GitStatusRepositoryWatch.swift */,
+				90D5B6B60FE51D6FCC8385DF /* FileExplorerFileTypeIcon.swift */,
+				26C6D5118DE67B311322C939 /* RightSidebarPlacementLayout.swift */,
 				272B367E39A68B0DCDE9E182 /* RightSidebarMode.swift */,
 				46814000000000000000000E /* RightSidebarModeShortcutEntry.swift */,
 				468110000000000000000006 /* RightSidebarModeShortcutMatcher.swift */,
@@ -11202,6 +11237,7 @@
 				B9000030A1B2C3D4E5F60719 /* cmux_open.swift */,
 				D1FF51000000000000000002 /* CMUXCLI+DiffSidecar.swift */,
 				D1FF52000000000000000002 /* CMUXCLI+TypedDiffViewer.swift */,
+				97E7EA1D0373FB83CC88926F /* CMUXCLI+DiffViewerPage.swift */,
 				CBF07000000000000000001 /* CMUXCLI+SSHStartupScripts.swift */,
 				C0DE1A060000000000000002 /* cmux_layout.swift */,
 				B9000040A1B2C3D4E5F60719 /* CMUXCLI+SSHCommandSupport.swift */,
@@ -12539,6 +12575,12 @@
 				A43345B5B3C60929B9F661CB /* ExitingProcessCensusReader.swift */,
 				09DC7DE176A93C580A263ADD /* PaneDropTargetIdentityTests.swift */,
 				08202CA6A24B08873B5CC6FD /* GhosttyDialogThemeTests.swift */,
+				0DEFEE5A5D2E60E5D6BA20EB /* RightSidebarPositionSettingsTests.swift */,
+				268FB8DF5E3F9EE1C2658F03 /* FileExplorerFileTypeIconTests.swift */,
+				C41FB30B1C06D35C200CF989 /* FileExplorerGhostNodeCellTests.swift */,
+				DD1F94BEE2C23CB028816305 /* RightSidebarChangesStoreTests.swift */,
+				677DEDB5CB1B2A9C55BB9670 /* DiffViewerWriteActionsTests.swift */,
+				73A4C5374756559C8B3AD947 /* GitRepositoryTestSupport.swift */,
 			);
 			path = cmuxTests;
 			sourceTree = "<group>";
@@ -14100,6 +14142,8 @@
 				D1FFC0DE000000000000A002 /* DiffCommentStore.swift in Sources */,
 				D1FFC0DE000000000000D002 /* DiffCommentSubmissionPool.swift in Sources */,
 				D1FFC0DE000000000000E002 /* DiffSidecarBridge.swift in Sources */,
+				57F78345792A49D39873F934 /* DiffSidecarRequestPolicy.swift in Sources */,
+				7D154EAB0095DFA34D13D9C8 /* DiffViewerCLILaunch.swift in Sources */,
 				A28B087F0000000000000001 /* DiffViewerEditableFocusMessageHandler.swift in Sources */,
 				A28B087F0000000000000019 /* DiffViewerLiveHTTPSession.swift in Sources */,
 				A28B087F0000000000000009 /* DiffViewerSessionTrustRegistry.swift in Sources */,
@@ -14201,6 +14245,7 @@
 				C40410010000000000000021 /* FileExplorerDoubleClickActionSettings.swift in Sources */,
 				FE5996080000000000000002 /* FileExplorerExternalOpenMenuItems.swift in Sources */,
 				FE5996090000000000000002 /* FileExplorerExternalOpenRequest.swift in Sources */,
+				757A74312C7C1F540F1DDED1 /* FileExplorerFileTypeIcon.swift in Sources */,
 				FE5996020000000000000002 /* FileExplorerHeaderView.swift in Sources */,
 				FE001105 /* FileExplorerKeyboardShortcuts.swift in Sources */,
 				FE5996030000000000000002 /* FileExplorerNSOutlineView.swift in Sources */,
@@ -14346,6 +14391,7 @@
 				46814000000000000000000B /* GhosttyTitleUpdateSurfaceState.swift in Sources */,
 				FE001107 /* GitFileStatus.swift in Sources */,
 				FE001106 /* GitStatusProvider.swift in Sources */,
+				06ED36846073A23F577492D7 /* GitStatusRepositoryWatch.swift in Sources */,
 					3865A0023865A0023865A002 /* GlobalSearchCoordinator.swift in Sources */,
 				3865A0073865A0073865A007 /* GlobalSearchDocuments.swift in Sources */,
 					8561A0058561A0058561A005 /* GlobalSearchKeyEvent+QueryEditing.swift in Sources */,
@@ -14801,6 +14847,8 @@
 				F6572052A1B2C3D4E5F60718 /* RestoredAgentForegroundProcess.swift in Sources */,
 				C7C5FAF2145342F395DB4C40 /* RestoredAgentLifecycleCoordinator.swift in Sources */,
 				F6572072A1B2C3D4E5F60718 /* RestoredAgentLiveness.swift in Sources */,
+				95696112A88DF22B85601454 /* RightSidebarChangesPanelView.swift in Sources */,
+				8341BFE4226EEE73307CAAF8 /* RightSidebarChangesStore.swift in Sources */,
 				B7F9A600B7F9A600B7F9A600 /* RightSidebarChromeGeometryReporting.swift in Sources */,
 				B7F9A604B7F9A604B7F9A604 /* RightSidebarChromeStyle.swift in Sources */,
 				B37A00000000000000000003 /* RightSidebarMode+Availability.swift in Sources */,
@@ -14809,6 +14857,7 @@
 				46814000000000000000000D /* RightSidebarModeShortcutEntry.swift in Sources */,
 				468110000000000000000005 /* RightSidebarModeShortcutMatcher.swift in Sources */,
 				FE003103 /* RightSidebarPanelView.swift in Sources */,
+				65D4427B316B2C291F5D9AFF /* RightSidebarPlacementLayout.swift in Sources */,
 				B37A0000000000000000000D /* RightSidebarRemoteCommand.swift in Sources */,
 				1C0259F302A2495DC4CF701E /* RightSidebarTabPreferences.swift in Sources */,
 				C4CAF70131EA4AB1ABB78678 /* RightSidebarToolDragPayload.swift in Sources */,
@@ -15866,6 +15915,7 @@
 				807AC28C2C2457B59F8792AC /* CMUXCLI+Current.swift in Sources */,
 				D1FF51000000000000000001 /* CMUXCLI+DiffSidecar.swift in Sources */,
 				C0DE75890000000000000001 /* CMUXCLI+DiffViewerBundledAssets.swift in Sources */,
+				D73087F8C095BAAA9230BC13 /* CMUXCLI+DiffViewerPage.swift in Sources */,
 				C0DE79210000000000000001 /* CMUXCLI+DiffViewerShortcuts.swift in Sources */,
 				B9000035A1B2C3D4E5F60719 /* CMUXCLI+DocsSettings.swift in Sources */,
 				B9000064A1B2C3D4E5F60719 /* CMUXCLI+Events.swift in Sources */,
@@ -16638,6 +16688,7 @@
 				D1FFC0DE000000000000C002 /* DiffCommentStoreTests.swift in Sources */,
 				9648DEAE0000000000000002 /* DiffViewerPickerCommandRunnerTests.swift in Sources */,
 				9648DEAD0000000000000002 /* DiffViewerURLSchemeHandlerLifecycleTests.swift in Sources */,
+				CA62309BCC1C1D793493A34E /* DiffViewerWriteActionsTests.swift in Sources */,
 				DCDC0000000000000000B001 /* DockControlDefinitionDecodingTests.swift in Sources */,
 				D7529001A1B2C3D4E5F60718 /* DockPaneDropUnfocusedRoutingTests.swift in Sources */,
 				D77800010000000000000001 /* DockPortalReconcileTests.swift in Sources */,
@@ -16670,6 +16721,8 @@
 				F12748000000000000000001 /* FileEditorWordWrapShortcutTests.swift in Sources */,
 				12914C0112914C0112914C01 /* FileExplorerContextMenuReloadTests.swift in Sources */,
 				FE002110 /* FileExplorerDoubleClickActionTests.swift in Sources */,
+				3AA086361395DA0DC5EBA416 /* FileExplorerFileTypeIconTests.swift in Sources */,
+				9000ADCB1F2386586709CED8 /* FileExplorerGhostNodeCellTests.swift in Sources */,
 				FE002112 /* FileExplorerGitStatusProviderTests.swift in Sources */,
 				9860F0029860F0029860F002 /* FileExplorerNativeDragOwnershipTests.swift in Sources */,
 				A2CFBE5869E987D3E306CB7A /* FileExplorerOpenedTabDragSourceTests.swift in Sources */,
@@ -16733,6 +16786,7 @@
 				A10190000000000000000001 /* GhosttyTitleUpdateIngressTests.swift in Sources */,
 				F50C3237EF790051B3B0A76B /* GhosttyWorkspaceActionTestHarness.swift in Sources */,
 				ED5DB47E40B1F74D486EEAB9 /* GhosttyWorkspaceActionTests.swift in Sources */,
+				897FE1BDA0E8F2EFA5C0A8A0 /* GitRepositoryTestSupport.swift in Sources */,
 				8561A0018561A0018561A001 /* GlobalSearchInputOwnershipTests.swift in Sources */,
 				3865A0113865A0113865A011 /* GlobalSearchPaletteModelTests.swift in Sources */,
 				D5AAB5856FF095F610EB565A /* GlobalSearchShortcutBehaviorTests.swift in Sources */,
@@ -16973,8 +17027,10 @@
 				F6572042A1B2C3D4E5F60718 /* RestoredAgentShellActivityLivenessTests.swift in Sources */,
 				BB8CB1EFD62C8CAE14293195 /* RestoredStartupInputOwnershipTests.swift in Sources */,
 				9200B0019200B0019200B001 /* ResumeLauncherCwdConsistencyTests.swift in Sources */,
+				604817B02AD026F924A06A5D /* RightSidebarChangesStoreTests.swift in Sources */,
 				C3408A000000000000000003 /* RightSidebarCommandPaletteTests.swift in Sources */,
 				C57570010000000000000002 /* RightSidebarPanelViewTestSupport.swift in Sources */,
+				367BC978F2948D8D5373B5EA /* RightSidebarPositionSettingsTests.swift in Sources */,
 				5F5553CB5553CB5553CB0001 /* RightSidebarRemoteCommandTests.swift in Sources */,
 				07EB8695682FE486A366F22E /* RightSidebarTabCustomizationTests.swift in Sources */,
 				C46790000000000000000007 /* RosettaNativeRelaunchTests.swift in Sources */,

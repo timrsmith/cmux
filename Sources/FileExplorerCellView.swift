@@ -98,8 +98,10 @@ final class FileExplorerCellView: NSTableCellView {
                 ))
             } else {
                 let pathExtension = (node.name as NSString).pathExtension
+                // `.workspaceIcon` keys the render cache by type, unlike `.image`,
+                // which re-rasterizes on every configure.
                 iconView.apply(CmuxResolvedIconRequest(
-                    source: .image(NSWorkspace.shared.icon(for: UTType(filenameExtension: pathExtension) ?? .data)),
+                    source: .workspaceIcon(UTType(filenameExtension: pathExtension) ?? .data),
                     size: NSSize(width: style.iconSize, height: style.iconSize),
                     tintColor: style.fileIconTint
                 ))
@@ -113,11 +115,15 @@ final class FileExplorerCellView: NSTableCellView {
                     symbolWeight: style.iconWeight
                 ))
             } else {
+                // Per-type symbol and color from the catalog; icons stay decorative
+                // (no accessibility description) because the name label carries meaning.
+                let icon = FileTypeIcon.icon(forFileName: node.name)
                 iconView.apply(CmuxResolvedIconRequest(
-                    source: .systemSymbol(name: "doc", accessibilityDescription: nil),
+                    source: .systemSymbol(name: icon.symbol, accessibilityDescription: nil),
                     size: NSSize(width: style.iconSize, height: style.iconSize),
-                    tintColor: style.fileIconTint,
-                    symbolWeight: style.iconWeight
+                    tintColor: style.fileTypeTint(icon.color),
+                    symbolWeight: style.iconWeight,
+                    fallbackSource: .systemSymbol(name: FileTypeIcon.genericFile.symbol, accessibilityDescription: nil)
                 ))
             }
         }
@@ -146,7 +152,30 @@ final class FileExplorerCellView: NSTableCellView {
             nameLabel.textColor = .labelColor
             nameLabel.toolTip = node.path
         }
+
+        // Ghost rows (files git reports as deleted) read as struck-through in the
+        // deleted palette color with a faded icon. The plain `stringValue`
+        // assignment above already reset the strikethrough for reused cells.
+        if node.isGhost {
+            let deletedColor = style.gitColor(for: .deleted)
+            nameLabel.textColor = deletedColor
+            nameLabel.attributedStringValue = NSAttributedString(
+                string: node.name,
+                attributes: [
+                    .font: style.nameFont,
+                    .foregroundColor: deletedColor,
+                    .strikethroughStyle: NSUnderlineStyle.single.rawValue,
+                    .strikethroughColor: deletedColor,
+                ]
+            )
+            iconView.alphaValue = Self.ghostIconAlpha
+        } else {
+            iconView.alphaValue = 1
+        }
     }
+
+    /// Icon opacity for ghost rows.
+    static let ghostIconAlpha: CGFloat = 0.55
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()

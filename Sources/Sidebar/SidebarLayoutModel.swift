@@ -1,3 +1,4 @@
+import CmuxSettings
 import Combine
 import SwiftUI
 
@@ -57,5 +58,29 @@ struct SidebarWidthLeadingPaddingModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content.padding(.leading, enabled ? layout.width : 0)
+    }
+}
+
+/// Leading and trailing padding derived from the sidebar width, for the
+/// titlebar band that must stop short of the right sidebar's mode bar on
+/// whichever edge it is docked. Like `SidebarWidthLeadingPaddingModifier`,
+/// only the padding tracks the width; the content value is built once. The
+/// remaining inputs are plain values so SwiftUI can skip the body when
+/// neither they nor the width changed.
+struct TitlebarBandInsetsModifier: ViewModifier {
+    @ObservedObject var layout: SidebarLayoutModel
+    let position: RightSidebarPosition
+    let isLeadingSidebarVisible: Bool
+    let rightSidebarWidth: CGFloat
+
+    func body(content: Content) -> some View {
+        let resolved = RightSidebarPlacementLayout.titlebarBandInsets(
+            position: position,
+            leadingSidebarWidth: isLeadingSidebarVisible ? layout.width : 0,
+            rightSidebarWidth: rightSidebarWidth
+        )
+        content
+            .padding(.leading, resolved.leading)
+            .padding(.trailing, resolved.trailing)
     }
 }

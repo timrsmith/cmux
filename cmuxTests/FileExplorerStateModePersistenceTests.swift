@@ -125,6 +125,10 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
         XCTAssertEqual(RightSidebarMode.from(cliArgument: " Vault "), .sessions)
         XCTAssertEqual(RightSidebarMode.from(cliArgument: "custom-sidebar"), .customSidebar)
         XCTAssertEqual(RightSidebarMode.from(cliArgument: "custom"), .customSidebar)
+        XCTAssertEqual(RightSidebarMode.from(cliArgument: "changes"), .changes)
+        XCTAssertEqual(RightSidebarMode.from(cliArgument: "diff"), .changes)
+        XCTAssertEqual(RightSidebarMode.from(cliArgument: "git"), .changes)
+        XCTAssertEqual(RightSidebarMode.from(cliArgument: " Changes "), .changes)
         XCTAssertNil(RightSidebarMode.from(cliArgument: "unknown"))
     }
 

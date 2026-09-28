@@ -666,6 +666,15 @@ final class CmuxSettingsFileStore {
             snapshot.managedUserDefaults[SidebarCatalogSection().notificationMessageLineLimit.userDefaultsKey] = .int(value)
         } else if section.keys.contains("notificationMessageLineLimit") { logInvalid("sidebar.notificationMessageLineLimit", sourcePath: sourcePath) }
         parseSidebarIndicatorPositionSettings(section, sourcePath: sourcePath, snapshot: &snapshot)
+        if let raw = jsonString(section["rightPosition"]) {
+            if let value = RightSidebarPosition.decodeFromJSON(raw) {
+                snapshot.managedUserDefaults[SidebarCatalogSection().rightPosition.userDefaultsKey] = .string(value.rawValue)
+            } else {
+                logInvalid("sidebar.rightPosition", sourcePath: sourcePath)
+            }
+        } else if section.keys.contains("rightPosition") {
+            logInvalid("sidebar.rightPosition", sourcePath: sourcePath)
+        }
         if let value = jsonDouble(section[RightSidebarWidthSettings.jsonKey]), value > 0 {
             snapshot.managedUserDefaults[RightSidebarWidthSettings.maxWidthKey] = .double(
                 RightSidebarWidthSettings().clampedSettingsEditorMaximumWidth(value)

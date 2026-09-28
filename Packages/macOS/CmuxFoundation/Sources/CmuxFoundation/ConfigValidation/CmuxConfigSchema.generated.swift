@@ -1475,6 +1475,12 @@ enum CmuxEmbeddedConfigSchema {
           "exclusiveMinimum": 0,
           "descriptionKey": "schemaDescriptions.sidebar.rightMaxWidth",
           "description": "Maximum width in points for the right sidebar. When omitted, the built-in dynamic cap applies."
+        },
+        "rightPosition": {
+          "type": "string",
+          "enum": ["leading", "trailing"],
+          "default": "trailing",
+          "description": "Which window edge the right sidebar (Files, Find, Dock, and the other tool panels) is docked to: trailing (the right edge, after the panes) or leading (between the workspace sidebar and the panes, so the file tree sits next to the workspace list)."
         }
       }
     },
@@ -2066,6 +2072,7 @@ enum CmuxEmbeddedConfigSchema {
               "switchRightSidebarToFeed",
               "switchRightSidebarToDock",
               "switchRightSidebarToMachines",
+              "switchRightSidebarToChanges",
               "triggerFlash",
               "nextSurface",
               "prevSurface",
@@ -2240,7 +2247,7 @@ enum CmuxEmbeddedConfigSchema {
         "when": {
           "type": "object",
           "default": {},
-          "description": "Optional per-action context predicates (VS Code-style `when` clauses), keyed by cmux action id. Each value is a boolean expression over context keys combined with !, &&, ||, and parentheses. Boolean keys: sidebarFocus, browserFocus, markdownFocus, filePreviewTextEditorFocus, simulatorFocus, terminalFocus, commandPaletteVisible, terminalFindVisible, workspaceCanvasLayout. Typed keys support comparisons: the string sidebarMode (files, find, sessions, feed, or dock) and the integers paneCount and workspaceCount. Comparison operators are ==, !=, =~ (regex), <, <=, >, >=, and `in [a, b]`; an unknown or absent key reads as false. The boolean literals true and false are also accepted; `key == false` is the same as `!key`. The action's shortcut only fires (and only conflicts with other shortcuts) when the clause holds. Examples: { \"selectWorkspaceByNumber\": \"!sidebarFocus\" } selects workspaces with Ctrl+1–9 everywhere except when the right sidebar is focused; { \"selectSurfaceByNumber\": \"sidebarMode == 'find' && paneCount > 1\" } scopes a binding to the Find sidebar when the workspace has multiple panes.",
+          "description": "Optional per-action context predicates (VS Code-style `when` clauses), keyed by cmux action id. Each value is a boolean expression over context keys combined with !, &&, ||, and parentheses. Boolean keys: sidebarFocus, browserFocus, markdownFocus, filePreviewTextEditorFocus, simulatorFocus, terminalFocus, commandPaletteVisible, terminalFindVisible, workspaceCanvasLayout. Typed keys support comparisons: the string sidebarMode (files, find, sessions, feed, dock, machines, or changes) and the integers paneCount and workspaceCount. Comparison operators are ==, !=, =~ (regex), <, <=, >, >=, and `in [a, b]`; an unknown or absent key reads as false. The boolean literals true and false are also accepted; `key == false` is the same as `!key`. The action's shortcut only fires (and only conflicts with other shortcuts) when the clause holds. Examples: { \"selectWorkspaceByNumber\": \"!sidebarFocus\" } selects workspaces with Ctrl+1–9 everywhere except when the right sidebar is focused; { \"selectSurfaceByNumber\": \"sidebarMode == 'find' && paneCount > 1\" } scopes a binding to the Find sidebar when the workspace has multiple panes.",
           "descriptionKey": "schemaDescriptions.shortcuts.when",
           "additionalProperties": {
             "type": "string"

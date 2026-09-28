@@ -8,7 +8,7 @@ import type {
 } from "./generated/protocol";
 
 type WithoutEnvelope<T> = T extends unknown ? Omit<T, "id" | "version"> : never;
-type DiffCommand = WithoutEnvelope<DiffRequest>;
+export type DiffCommand = WithoutEnvelope<DiffRequest>;
 type DiffEventListener = (event: DiffEvent) => void;
 
 declare global {
@@ -66,7 +66,10 @@ abstract class BaseDiffTransport implements DiffTransport {
       throw new DiffTransportError(response.error.code, response.error.message);
     }
     if (!response.result) {
-      throw new DiffTransportError("missingResult", "Diff transport returned no result");
+      throw new DiffTransportError(
+        "missingResult",
+        "Diff transport returned no result",
+      );
     }
     return response.result;
   }
@@ -88,17 +91,24 @@ export class FetchDiffTransport extends BaseDiffTransport {
       body: JSON.stringify(this.makeRequest(command)),
     });
     if (!response.ok) {
-      throw new DiffTransportError("requestFailed", `Diff transport request failed (${response.status})`);
+      throw new DiffTransportError(
+        "requestFailed",
+        `Diff transport request failed (${response.status})`,
+      );
     }
     return this.unwrap((await response.json()) as DiffResponse);
   }
 }
 
 export class WebKitDiffTransport extends BaseDiffTransport {
-  private readonly handler: NonNullable<NonNullable<NonNullable<Window["webkit"]>["messageHandlers"]>["cmuxDiff"]>;
+  private readonly handler: NonNullable<
+    NonNullable<NonNullable<Window["webkit"]>["messageHandlers"]>["cmuxDiff"]
+  >;
 
   constructor(
-    handler: NonNullable<NonNullable<NonNullable<Window["webkit"]>["messageHandlers"]>["cmuxDiff"]>,
+    handler: NonNullable<
+      NonNullable<NonNullable<Window["webkit"]>["messageHandlers"]>["cmuxDiff"]
+    >,
     version: number,
   ) {
     super(version);
@@ -107,7 +117,9 @@ export class WebKitDiffTransport extends BaseDiffTransport {
   }
 
   async request(command: DiffCommand): Promise<DiffResult> {
-    return this.unwrap(await this.handler.postMessage(this.makeRequest(command)));
+    return this.unwrap(
+      await this.handler.postMessage(this.makeRequest(command)),
+    );
   }
 
   override close(): void {
@@ -142,7 +154,9 @@ export class WebSocketDiffTransport extends BaseDiffTransport {
     this.socket?.close();
     this.socket = null;
     this.connecting = null;
-    this.rejectPending(new DiffTransportError("closed", "Diff transport closed"));
+    this.rejectPending(
+      new DiffTransportError("closed", "Diff transport closed"),
+    );
   }
 
   private connect(): Promise<WebSocket> {
@@ -154,21 +168,38 @@ export class WebSocketDiffTransport extends BaseDiffTransport {
     }
     this.connecting = new Promise<WebSocket>((resolve, reject) => {
       const socket = new WebSocket(this.endpoint);
-      socket.addEventListener("open", () => {
-        this.socket = socket;
-        this.connecting = null;
-        resolve(socket);
-      }, { once: true });
-      socket.addEventListener("message", (message) => this.handleMessage(message));
+      socket.addEventListener(
+        "open",
+        () => {
+          this.socket = socket;
+          this.connecting = null;
+          resolve(socket);
+        },
+        { once: true },
+      );
+      socket.addEventListener("message", (message) =>
+        this.handleMessage(message),
+      );
       socket.addEventListener("close", () => {
         this.socket = null;
         this.connecting = null;
-        this.rejectPending(new DiffTransportError("closed", "Diff transport closed"));
+        this.rejectPending(
+          new DiffTransportError("closed", "Diff transport closed"),
+        );
       });
-      socket.addEventListener("error", () => {
-        this.connecting = null;
-        reject(new DiffTransportError("connectFailed", "Could not connect to diff transport"));
-      }, { once: true });
+      socket.addEventListener(
+        "error",
+        () => {
+          this.connecting = null;
+          reject(
+            new DiffTransportError(
+              "connectFailed",
+              "Could not connect to diff transport",
+            ),
+          );
+        },
+        { once: true },
+      );
     });
     return this.connecting;
   }
@@ -187,7 +218,9 @@ export class WebSocketDiffTransport extends BaseDiffTransport {
       try {
         pending.resolve(this.unwrap(decoded));
       } catch (error) {
-        pending.reject(error instanceof Error ? error : new Error(String(error)));
+        pending.reject(
+          error instanceof Error ? error : new Error(String(error)),
+        );
       }
       return;
     }
@@ -202,7 +235,9 @@ export class WebSocketDiffTransport extends BaseDiffTransport {
   }
 }
 
-export function createDiffTransport(config: DiffTransportConfig | undefined): DiffTransport | null {
+export function createDiffTransport(
+  config: DiffTransportConfig | undefined,
+): DiffTransport | null {
   if (!config) {
     return null;
   }

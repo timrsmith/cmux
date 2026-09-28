@@ -9,6 +9,7 @@ export type IconName =
   | "close"
   | "collapse"
   | "clipboard"
+  | "commit"
   | "document"
   | "dots"
   | "expand"
@@ -17,10 +18,13 @@ export type IconName =
   | "files"
   | "numbers"
   | "refresh"
+  | "revert"
   | "search"
   | "sidebarCollapse"
   | "split"
+  | "stage"
   | "unified"
+  | "unstage"
   | "word"
   | "wrap";
 
@@ -54,6 +58,8 @@ function IconPaths({ name }: { name: IconName }) {
     return <><rect x="5" y="4" width="10" height="13" rx="2" /><path d="M8 4a2 2 0 0 1 4 0" /><path d="M8 7h4" /></>;
   case "close":
     return <><path d="m6 6 8 8" /><path d="m14 6-8 8" /></>;
+  case "commit":
+    return <><circle cx="10" cy="10" r="3" /><path d="M2.5 10H7" /><path d="M13 10h4.5" /></>;
   case "document":
     return <><path d="M6 3h6l4 4v10H6z" /><path d="M12 3v5h5" /></>;
   case "dots":
@@ -70,12 +76,18 @@ function IconPaths({ name }: { name: IconName }) {
     return <><path d="M5 5h2v10" /><path d="M4 15h4" /><path d="M11 6.5a2 2 0 1 1 3.2 1.6L11 12h4" /><path d="M11 15h4" /></>;
   case "refresh":
     return <><path d="M16 8a6 6 0 0 0-10.3-3.7L4 6" /><path d="M4 3v3h3" /><path d="M4 12a6 6 0 0 0 10.3 3.7L16 14" /><path d="M16 17v-3h-3" /></>;
+  case "revert":
+    return <><path d="M4 8h8a4 4 0 0 1 0 8H7" /><path d="m7 5-3 3 3 3" /></>;
   case "search":
     return <><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4 4" /></>;
+  case "stage":
+    return <><path d="M10 3v9" /><path d="m6.5 8.5 3.5 3.5 3.5-3.5" /><path d="M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" /></>;
   case "sidebarCollapse":
     return <><rect x="3.5" y="4" width="13" height="12" rx="2" /><path d="M8 4v12" /><path d="m12 8 2 2-2 2" /></>;
   case "split":
     return <><rect x="4" y="4" width="12" height="12" rx="2" /><rect x="6" y="6" width="3.5" height="8" rx="1" data-diff-deletion="true" /><rect x="10.5" y="6" width="3.5" height="8" rx="1" data-diff-addition="true" /></>;
+  case "unstage":
+    return <><path d="M10 12V3" /><path d="m6.5 6.5 3.5-3.5 3.5 3.5" /><path d="M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" /></>;
   case "unified":
     return <><rect x="4" y="4" width="12" height="12" rx="2" /><rect x="6" y="6" width="8" height="3.5" rx="1" data-diff-deletion="true" /><rect x="6" y="10.5" width="8" height="3.5" rx="1" data-diff-addition="true" /></>;
   case "word":

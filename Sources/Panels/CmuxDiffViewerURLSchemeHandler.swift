@@ -14,15 +14,8 @@ final class CmuxDiffViewerURLSchemeHandler: NSObject, WKURLSchemeHandler {
 
     typealias RegisteredFile = CmuxDiffViewerRegisteredFile
     private typealias Session = CmuxDiffViewerPreparedSession
-    private typealias ActiveSchemeTask = (
-        generation: UUID,
-        task: WKURLSchemeTask,
-        operation: Task<Void, Never>?
-    )
-    private typealias ManifestLoad = (
-        generation: UUID,
-        task: Task<Session?, Never>
-    )
+    private typealias ActiveSchemeTask = (generation: UUID, task: WKURLSchemeTask, operation: Task<Void, Never>?)
+    private typealias ManifestLoad = (generation: UUID, task: Task<Session?, Never>)
 
     private var sessions: [String: Session] = [:]
     private var activeSchemeTasks: [ObjectIdentifier: ActiveSchemeTask] = [:]
@@ -127,9 +120,8 @@ final class CmuxDiffViewerURLSchemeHandler: NSObject, WKURLSchemeHandler {
         }
         guard isSchemeTaskActive(taskID, generation: generation) else { return }
 
-        // Mirror the HTTP server's picker routes after the token is backed by a
-        // validated session. Ordinary file misses remain cache-only; only a
-        // successful branch regeneration explicitly reloads its manifest.
+        // Mirror the HTTP server's picker routes after the token is backed by a validated session.
+        // Ordinary file misses stay cache-only; typed session patches and branch regeneration reload the manifest.
         let path = URLComponents(
             url: requestURL,
             resolvingAgainstBaseURL: false
@@ -153,7 +145,7 @@ final class CmuxDiffViewerURLSchemeHandler: NSObject, WKURLSchemeHandler {
             return
         }
 
-        guard let file = registeredFile(for: requestURL) else {
+        guard let file = await registeredFileRefreshingSessionPatch(for: requestURL, token: token) else {
             failSchemeTask(taskID, generation: generation, code: NSURLErrorFileDoesNotExist)
             return
         }
@@ -163,6 +155,16 @@ final class CmuxDiffViewerURLSchemeHandler: NSObject, WKURLSchemeHandler {
             taskID: taskID,
             generation: generation
         )
+    }
+
+    /// Cache-only lookup, plus one manifest refresh for a `diff-session-*.patch` miss: the Rust
+    /// sidecar appends typed session patches to the on-disk manifest after this token was cached.
+    func registeredFileRefreshingSessionPatch(for url: URL, token: String) async -> RegisteredFile? {
+        if let file = registeredFile(for: url) { return file }
+        let path = URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedPath ?? url.path
+        guard path.hasPrefix("/diff-session-"), path.hasSuffix(".patch"),
+              await registerFromManifest(token: token) else { return nil }
+        return registeredFile(for: url)
     }
 
     private static func diffViewerQueryItems(from url: URL) -> [String: String] {
@@ -599,9 +601,7 @@ final class CmuxDiffViewerURLSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     private func pruneExpiredSessions(now: Date) {
-        sessions = sessions.filter { _, session in
-            now.timeIntervalSince(session.createdAt) <= maxSessionAge
-        }
+        sessions = sessions.filter { now.timeIntervalSince($0.value.createdAt) <= maxSessionAge }
     }
     private func responseHeaders(for file: RegisteredFile) -> [String: String] {
         var headers = [

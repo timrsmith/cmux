@@ -81,11 +81,16 @@ final class RightSidebarCommandPaletteTests: XCTestCase {
                 XCTAssertTrue(contribution.enablement(context))
             }
 
-            // Files/Find/Vault and the graduated Dock are always present;
-            // Machines follows the Cloud Machines beta toggle (pinned off above).
+            // Files/Find/Vault/Dock/Changes are always present; Machines follows
+            // the Cloud Machines beta toggle (pinned off above).
             let machinesAvailable = RightSidebarMode.machines.isAvailable()
             XCTAssertFalse(machinesAvailable)
-            XCTAssertEqual(contributions.count, 4)
+            XCTAssertEqual(contributions.count, 5)
+            XCTAssertEqual(
+                ContentView.commandPaletteRightSidebarModeCommandID(.changes),
+                "palette.showRightSidebarChanges"
+            )
+            XCTAssertNotNil(contributionsByID["palette.showRightSidebarChanges"])
             XCTAssertNil(contributionsByID[ContentView.commandPaletteRightSidebarModeCommandID(.feed)])
             XCTAssertNotNil(contributionsByID[ContentView.commandPaletteRightSidebarModeCommandID(.dock)])
             XCTAssertNil(contributionsByID[ContentView.commandPaletteRightSidebarModeCommandID(.machines)])

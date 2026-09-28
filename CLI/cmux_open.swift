@@ -158,7 +158,7 @@ extension CMUXCLI {
         case url(String, defaultFocus: Bool)
     }
 
-    private struct DiffArguments {
+    struct DiffArguments {
         var workspace: String?
         var window: String?
         var surface: String?
@@ -532,7 +532,7 @@ extension CMUXCLI {
         }
 
         static func localized() -> DiffViewerLabels {
-            DiffViewerLabels(values: [
+            DiffViewerLabels(values: worktreeWriteValues().merging([
                 "additions": CMUXDiffViewerLocalization.string("diffViewer.additions", defaultValue: "Additions"),
                 "addComment": CMUXDiffViewerLocalization.string("diffViewer.addComment", defaultValue: "Add comment"),
                 "bars": CMUXDiffViewerLocalization.string("diffViewer.bars", defaultValue: "Bars"),
@@ -611,7 +611,7 @@ extension CMUXCLI {
                 "switchToSplitDiff": CMUXDiffViewerLocalization.string("diffViewer.switchToSplitDiff", defaultValue: "Switch to split diff"),
                 "switchToUnifiedDiff": CMUXDiffViewerLocalization.string("diffViewer.switchToUnifiedDiff", defaultValue: "Switch to unified diff"),
                 "untitled": CMUXDiffViewerLocalization.string("diffViewer.untitled", defaultValue: "Untitled"),
-            ])
+            ]) { _, viewer in viewer })
         }
     }
 
@@ -1076,7 +1076,7 @@ extension CMUXCLI {
         print("OK surface=\(surfaceText) pane=\(paneText)")
     }
 
-    private func diffViewerRuntime(socketPath: String) -> URL? {
+    func diffViewerRuntime(socketPath: String) -> URL? {
         if let taggedExecutableURL = taggedDiffViewerExecutableURL(socketPath: socketPath) {
             return taggedExecutableURL
         }
@@ -1128,7 +1128,7 @@ extension CMUXCLI {
         return url.standardizedFileURL
     }
 
-    private func canonicalDiffSourceContext(
+    func canonicalDiffSourceContext(
         workspaceHandle: String?,
         surfaceHandle: String?,
         windowHandle: String?,
@@ -1302,7 +1302,7 @@ extension CMUXCLI {
         return parsed
     }
 
-    private func parseDiffArguments(_ commandArgs: [String]) throws -> DiffArguments {
+    func parseDiffArguments(_ commandArgs: [String]) throws -> DiffArguments {
         var parsed = DiffArguments()
         var index = 0
         var isParsingOptions = true
@@ -1422,7 +1422,7 @@ extension CMUXCLI {
         return roundedDiffViewerMetric(size)
     }
 
-    private func resolveDiffViewerLayout(rawLayout: String?) throws -> (layout: String, source: String) {
+    func resolveDiffViewerLayout(rawLayout: String?) throws -> (layout: String, source: String) {
         if let rawLayout {
             return (try parseDiffViewerLayout(rawLayout, errorMessage: "--layout must be split|unified"), "explicit")
         }
@@ -1795,7 +1795,7 @@ extension CMUXCLI {
         return try gitRepoRoot(startingAt: repoRoot)
     }
 
-    private func gitRepoRoot(startingAt directory: String) throws -> String {
+    func gitRepoRoot(startingAt directory: String) throws -> String {
         do {
             return try standardizedDiffSourcePath(gitSingleLine(["rev-parse", "--show-toplevel"], in: directory))
         } catch {
@@ -3489,7 +3489,7 @@ extension CMUXCLI {
         URL(fileURLWithPath: NSString(string: path).expandingTildeInPath).standardizedFileURL.path
     }
 
-    private func diffViewerAppearance(socketPath: String, fontSizeOverride: Double?) -> DiffViewerAppearance {
+    func diffViewerAppearance(socketPath: String, fontSizeOverride: Double?) -> DiffViewerAppearance {
         var appearance = defaultDiffViewerAppearance()
         let targetBundleIdentifier = themeTargetBundleIdentifier(socketPath: socketPath)
         for url in themeConfigSearchURLs(targetBundleIdentifier: targetBundleIdentifier) {
@@ -3919,7 +3919,7 @@ extension CMUXCLI {
         }
     }
 
-    private func writeDiffViewer(
+    func writeDiffViewer(
         rawInput: String?,
         source: DiffSource?,
         titleOverride: String?,
@@ -4813,7 +4813,7 @@ extension CMUXCLI {
     }
 
 
-    private func completeDeferredDiffViewer(_ viewer: DiffViewerWriteResult) throws -> DiffViewerWriteResult {
+    func completeDeferredDiffViewer(_ viewer: DiffViewerWriteResult) throws -> DiffViewerWriteResult {
         do {
             if let completeDeferred = viewer.completeDeferred {
                 return try completeDeferred()

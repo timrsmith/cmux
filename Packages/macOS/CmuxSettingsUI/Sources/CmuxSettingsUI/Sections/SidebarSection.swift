@@ -37,6 +37,7 @@ public struct SidebarSection: View {
     @State private var compactAgentStatus: DefaultsValueModel<Bool>
     @State private var rightMaxWidth: DefaultsValueModel<Double>
     @State private var rememberedRightMaxWidth: DefaultsValueModel<Double>
+    @State private var rightPosition: DefaultsValueModel<RightSidebarPosition>
     public init(defaultsStore: UserDefaultsSettingsStore, catalog: SettingCatalog, hostActions: SettingsHostActions) {
         self.catalog = catalog
         self.hostActions = hostActions
@@ -69,6 +70,7 @@ public struct SidebarSection: View {
         _compactAgentStatus = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebar.compactAgentStatus))
         _rightMaxWidth = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebar.rightMaxWidth))
         _rememberedRightMaxWidth = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebar.rememberedRightMaxWidth))
+        _rightPosition = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebar.rightPosition))
     }
     /// The rendered sidebar settings section.
     public var body: some View {
@@ -111,6 +113,7 @@ public struct SidebarSection: View {
             compactAgentStatus,
             rightMaxWidth,
             rememberedRightMaxWidth,
+            rightPosition,
         ]
         models.forEach { $0.startObserving() }
     }
@@ -175,6 +178,15 @@ public struct SidebarSection: View {
         rightSidebarWidthSettings.clampedSettingsEditorMaximumWidth(value)
     }
 
+    private func rightPositionLabel(_ position: RightSidebarPosition) -> String {
+        switch position {
+        case .leading:
+            return String(localized: "settings.sidebar.rightPosition.left", defaultValue: "Left")
+        case .trailing:
+            return String(localized: "settings.sidebar.rightPosition.right", defaultValue: "Right")
+        }
+    }
+
     @ViewBuilder
     private var mainCard: some View {
         SettingsCard {
@@ -230,6 +242,25 @@ public struct SidebarSection: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+            }
+            SettingsCardDivider()
+
+            SettingsCardRow(
+                configurationReview: .json("sidebar.rightPosition"),
+                String(localized: "settings.sidebar.rightPosition", defaultValue: "Right Sidebar Position"),
+                subtitle: String(localized: "settings.sidebar.rightPosition.subtitle", defaultValue: "Dock the Files, Find, Dock, and other tool panels on the right edge, or on the left between the workspace sidebar and the panes.")
+            ) {
+                Picker("", selection: Binding(
+                    get: { rightPosition.current },
+                    set: { rightPosition.set($0) }
+                )) {
+                    ForEach(RightSidebarPosition.allCases, id: \.self) { position in
+                        Text(rightPositionLabel(position)).tag(position)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .fixedSize()
             }
             SettingsCardDivider()
 

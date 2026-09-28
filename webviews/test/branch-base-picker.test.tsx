@@ -1,38 +1,26 @@
-import { afterEach, expect, test } from "bun:test";
-import { JSDOM } from "jsdom";
-import { flushSync } from "react-dom";
-import { createRoot, type Root } from "react-dom/client";
+import { expect, test } from "bun:test";
+import type { JSDOM } from "jsdom";
 import { BranchBasePicker, branchPickerStateKey, buildFlatRows, toCurrentOriginRelative, type BranchPickerPayload } from "../src/BranchBasePicker";
 import type { DiffTransport } from "../src/diff/transport";
 import { createDiffViewerLabelResolver } from "../src/labels";
+import { flushSync } from "react-dom";
+import { createDom, installDomGlobals, registerDomCleanup, render, waitFor } from "./support/dom";
+
+registerDomCleanup();
 
 // Behavior coverage for the render cap (huge refs lists must not render every
 // row) and the empty-state "type to filter" affordance, plus the filtered total
 // cap. The data is fetched once; these assert only how many rows become DOM.
 
-let root: Root | null = null;
 let dom: JSDOM | null = null;
-const originalGlobals = new Map<string, unknown>();
-for (const key of ["window", "document", "navigator", "Element", "Node", "HTMLElement", "customElements", "fetch"]) {
-  originalGlobals.set(key, (globalThis as Record<string, unknown>)[key]);
-}
 
-afterEach(async () => {
-  if (root) {
-    flushSync(() => root?.unmount());
-  }
-  root = null;
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  dom?.window.close();
-  dom = null;
-  for (const [key, value] of originalGlobals) {
-    if (value === undefined) {
-      delete (globalThis as Record<string, unknown>)[key];
-    } else {
-      (globalThis as Record<string, unknown>)[key] = value;
-    }
-  }
-});
+// Resolves the data: URLs the picker fetches (Bun's global Response).
+function dataURLFetch(input: RequestInfo | URL): Promise<Response> {
+  const url = String(input);
+  const comma = url.indexOf(",");
+  const json = decodeURIComponent(url.slice(comma + 1));
+  return Promise.resolve(new Response(json, { status: 200 }));
+}
 
 const label = createDiffViewerLabelResolver(undefined);
 
@@ -62,7 +50,7 @@ function pickerPayload(remoteCount: number): BranchPickerPayload {
 
 test("base picker caps a huge remotes group and shows a type-to-filter affordance", async () => {
   dom = createDom();
-  installDomGlobals(dom);
+  installDomGlobals(dom, dataURLFetch);
   renderPicker(pickerPayload(2304));
 
   // Open the popover; fetch resolves the data: URL.
@@ -79,31 +67,28 @@ test("base picker caps a huge remotes group and shows a type-to-filter affordanc
 
 test("switching repositories remounts the picker and ignores an older refs load", async () => {
   dom = createDom();
-  installDomGlobals(dom);
+  installDomGlobals(dom, dataURLFetch);
   const completions = new Map<string, (response: Response) => void>();
   (globalThis as any).fetch = (input: RequestInfo | URL) => new Promise<Response>((resolve) => {
     completions.set(String(input), resolve);
   });
   const first = { ...pickerPayload(0), repoRoot: "/tmp/first", capabilityToken: "first", refsURL: "/first" };
   const second = { ...pickerPayload(0), repoRoot: "/tmp/second", capabilityToken: "second", refsURL: "/second" };
-  const render = (picker: BranchPickerPayload) => {
-    flushSync(() => {
-      root?.render(
-        <BranchBasePicker
-          key={branchPickerStateKey(picker)}
-          label={label}
-          onNavigate={() => {}}
-          picker={picker}
-        />,
-      );
-    });
+  const show = (picker: BranchPickerPayload) => {
+    render(
+      <BranchBasePicker
+        key={branchPickerStateKey(picker)}
+        label={label}
+        onNavigate={() => {}}
+        picker={picker}
+      />,
+    );
   };
-  root = createRoot(document.getElementById("root")!);
-  render(first);
+  show(first);
   document.querySelector<HTMLButtonElement>(".base-picker-button")?.click();
   await waitFor(() => completions.has("/first"));
 
-  render(second);
+  show(second);
   document.querySelector<HTMLButtonElement>(".base-picker-button")?.click();
   await waitFor(() => completions.has("/second"));
   completions.get("/second")?.(new Response(JSON.stringify({
@@ -125,7 +110,7 @@ test("switching repositories remounts the picker and ignores an older refs load"
   expect(document.body.textContent).not.toContain("stale-ref");
 
   const changedBase = { ...second, currentRef: "new-base", refsURL: "/changed-base" };
-  render(changedBase);
+  show(changedBase);
   document.querySelector<HTMLButtonElement>(".base-picker-button")?.click();
   await waitFor(() => completions.has("/changed-base"));
   completions.get("/changed-base")?.(new Response(JSON.stringify({
@@ -137,7 +122,7 @@ test("switching repositories remounts the picker and ignores an older refs load"
 
 test("button renders the head -> base comparison with the base as the bold ref", () => {
   dom = createDom();
-  installDomGlobals(dom);
+  installDomGlobals(dom, dataURLFetch);
   renderPicker(pickerPayload(0));
 
   const head = document.querySelector(".base-picker-head");
@@ -152,7 +137,7 @@ test("button renders the head -> base comparison with the base as the bold ref",
 
 test("button title is the full untruncated comparison string", () => {
   dom = createDom();
-  installDomGlobals(dom);
+  installDomGlobals(dom, dataURLFetch);
   renderPicker(pickerPayload(0));
 
   const button = document.querySelector<HTMLButtonElement>(".base-picker-button");
@@ -227,7 +212,7 @@ test("toCurrentOriginRelative leaves a data: URL and an already-relative path un
 
 test("selecting a ref navigates to a root-relative regenerate URL", async () => {
   dom = createDom();
-  installDomGlobals(dom);
+  installDomGlobals(dom, dataURLFetch);
   const navigated: string[] = [];
   const picker: BranchPickerPayload = {
     repoRoot: "/tmp/mock",
@@ -242,11 +227,7 @@ test("selecting a ref navigates to a root-relative regenerate URL", async () => 
     // Absolute HTTP origin as embedded in a freshly generated page.
     regenerateURLTemplate: "http://127.0.0.1:51234/__cmux_diff_viewer_branch?group=g&repo=%2Ftmp%2Fmock&token=abc&base={ref}",
   };
-  const container = document.getElementById("root");
-  root = createRoot(container!);
-  flushSync(() => {
-    root?.render(<BranchBasePicker label={label} onNavigate={(url) => navigated.push(url)} picker={picker} />);
-  });
+  render(<BranchBasePicker label={label} onNavigate={(url) => navigated.push(url)} picker={picker} />);
 
   document.querySelector<HTMLButtonElement>(".base-picker-button")?.click();
   await waitFor(() => rowCount() > 0);
@@ -263,14 +244,10 @@ test("selecting a ref navigates to a root-relative regenerate URL", async () => 
 
 test("selecting the active base closes without regenerating the same URL", async () => {
   dom = createDom();
-  installDomGlobals(dom);
+  installDomGlobals(dom, dataURLFetch);
   const navigated: string[] = [];
   const picker = pickerPayload(0);
-  const container = document.getElementById("root");
-  root = createRoot(container!);
-  flushSync(() => {
-    root?.render(<BranchBasePicker label={label} onNavigate={(url) => navigated.push(url)} picker={picker} />);
-  });
+  render(<BranchBasePicker label={label} onNavigate={(url) => navigated.push(url)} picker={picker} />);
 
   document.querySelector<HTMLButtonElement>(".base-picker-button")?.click();
   await waitFor(() => rowCount() > 0);
@@ -287,7 +264,7 @@ test("selecting the active base closes without regenerating the same URL", async
 
 test("a failed branch regeneration leaves cached refs available for retry", async () => {
   dom = createDom();
-  installDomGlobals(dom);
+  installDomGlobals(dom, dataURLFetch);
   let changeAttempts = 0;
   const navigated: string[] = [];
   const transport: DiffTransport = {
@@ -314,11 +291,7 @@ test("a failed branch regeneration leaves cached refs available for retry", asyn
     groupId: "1234567890-group",
     capabilityToken: "0123456789abcdef",
   };
-  const container = document.getElementById("root");
-  root = createRoot(container!);
-  flushSync(() => {
-    root?.render(<BranchBasePicker label={label} onNavigate={(url) => navigated.push(url)} picker={picker} transport={transport} />);
-  });
+  render(<BranchBasePicker label={label} onNavigate={(url) => navigated.push(url)} picker={picker} transport={transport} />);
 
   document.querySelector<HTMLButtonElement>(".base-picker-button")?.click();
   await waitFor(() => rowCount() === 1);
@@ -344,58 +317,11 @@ test("a failed branch regeneration leaves cached refs available for retry", asyn
   expect(navigated).toEqual(["/retry-succeeded"]);
 });
 
-function createDom(): JSDOM {
-  return new JSDOM("<!doctype html><html><body><div id='root'></div></body></html>", {
-    url: "http://127.0.0.1/diff",
-  });
-}
-
-function installDomGlobals(nextDom: JSDOM): void {
-  const g = globalThis as Record<string, unknown>;
-  g.window = nextDom.window;
-  g.document = nextDom.window.document;
-  g.navigator = nextDom.window.navigator;
-  g.Element = nextDom.window.Element;
-  g.Node = nextDom.window.Node;
-  g.HTMLElement = nextDom.window.HTMLElement;
-  g.customElements = nextDom.window.customElements;
-  // The autofocused filter input makes React run its legacy IE onpropertychange
-  // polyfill (JSDOM misreports 'input' support), which calls attach/detachEvent
-  // on the active element. JSDOM lacks them; stub no-ops on Element.prototype.
-  const elementProto = nextDom.window.Element.prototype as unknown as {
-    attachEvent: () => void;
-    detachEvent: () => void;
-  };
-  elementProto.attachEvent = () => {};
-  elementProto.detachEvent = () => {};
-  // Resolve data: URLs the picker fetches (Bun's global Response).
-  g.fetch = (input: RequestInfo | URL) => {
-    const url = String(input);
-    const comma = url.indexOf(",");
-    const json = decodeURIComponent(url.slice(comma + 1));
-    return Promise.resolve(new Response(json, { status: 200 }));
-  };
-}
-
 function renderPicker(picker: BranchPickerPayload): void {
-  const container = document.getElementById("root");
-  expect(container).toBeTruthy();
-  root = createRoot(container!);
-  flushSync(() => {
-    root?.render(<BranchBasePicker label={label} onNavigate={() => {}} picker={picker} />);
-  });
+  render(<BranchBasePicker label={label} onNavigate={() => {}} picker={picker} />);
 }
 
 function rowCount(): number {
   return document.querySelectorAll(".base-picker-row").length;
 }
 
-async function waitFor(predicate: () => boolean): Promise<void> {
-  const timeoutAt = Date.now() + 1000;
-  while (!predicate()) {
-    if (Date.now() > timeoutAt) {
-      throw new Error("Timed out waiting for picker assertion");
-    }
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-}

@@ -103,6 +103,7 @@ struct FileExplorerPanelView: NSViewRepresentable {
         weak var outlineView: NSOutlineView?
         private var lastRootNodeCount: Int = -1
         private var lastContentRevision: Int = -1
+        private var lastGitStatusRevision: Int = -1
         private var observationCancellable: AnyCancellable?
         private var styleObserver: Any?
         private var isUpdatingOutlineProgrammatically = false
@@ -212,6 +213,7 @@ struct FileExplorerPanelView: NSViewRepresentable {
 
             let newCount = store.rootNodes.count
             let newContentRevision = store.contentRevision
+            let newGitStatusRevision = store.gitStatusRevision
             withProgrammaticOutlineUpdate {
                 if newCount != lastRootNodeCount || newContentRevision != lastContentRevision {
                     lastRootNodeCount = newCount
@@ -221,7 +223,19 @@ struct FileExplorerPanelView: NSViewRepresentable {
                     restoreExpansionState(expandedPaths, in: outlineView)
                 } else {
                     refreshLoadedNodes(in: outlineView)
+                    if newGitStatusRevision != lastGitStatusRevision, outlineView.numberOfRows > 0 {
+                        // refreshLoadedNodes only reloads directory items, so a
+                        // status-only change would leave root-level file rows with
+                        // stale colors. Reconfigure the rows on screen in place;
+                        // rows scrolled into view later are configured fresh by
+                        // the data source anyway.
+                        outlineView.reloadData(
+                            forRowIndexes: Self.rowsToReconfigure(in: outlineView),
+                            columnIndexes: IndexSet(integersIn: 0..<outlineView.numberOfColumns)
+                        )
+                    }
                 }
+                lastGitStatusRevision = newGitStatusRevision
                 applyStoredSelection(in: outlineView, fallbackToFirstVisible: false, scroll: false)
             }
         }
@@ -234,6 +248,16 @@ struct FileExplorerPanelView: NSViewRepresentable {
                 guard let self, self.needsReloadAfterContextMenu else { return }
                 self.reloadIfNeeded()
             }
+        }
+
+        /// The rows inside the outline view's visible rect, or every row when
+        /// the view has no visible rect yet (before its first layout).
+        private static func rowsToReconfigure(in outlineView: NSOutlineView) -> IndexSet {
+            let visibleRows = outlineView.rows(in: outlineView.visibleRect)
+            guard visibleRows.length > 0, let range = Range(visibleRows) else {
+                return IndexSet(integersIn: 0..<outlineView.numberOfRows)
+            }
+            return IndexSet(integersIn: range)
         }
 
         private func restoreExpansionState(_ expandedPaths: Set<String>, in outlineView: NSOutlineView) {
@@ -663,7 +687,8 @@ struct FileExplorerPanelView: NSViewRepresentable {
         // MARK: - Drag-to-Preview
 
         func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> (any NSPasteboardWriting)? {
-            guard let node = item as? FileExplorerNode, !node.isDirectory else { return nil }
+            // Ghost rows stand for deleted files; there is nothing on disk to drag.
+            guard let node = item as? FileExplorerNode, !node.isDirectory, !node.isGhost else { return nil }
             guard store.provider is LocalFileExplorerProvider else { return nil }
             let writer = FilePreviewDragPasteboardWriter(
                 filePath: node.path,
@@ -840,8 +865,11 @@ struct FileExplorerPanelView: NSViewRepresentable {
                   let node = outlineView.item(atRow: clickedRow) as? FileExplorerNode else { return }
 
             let isLocal = store.provider is LocalFileExplorerProvider
+            // A ghost row's file is gone from disk: nothing to open or reveal,
+            // but its path is still worth copying.
+            let existsOnDisk = !node.isGhost
 
-            if !node.isDirectory && isLocal {
+            if !node.isDirectory && isLocal && existsOnDisk {
                 FileExplorerExternalOpenMenuItems(
                     fileURL: URL(fileURLWithPath: node.path),
                     target: self,
@@ -849,7 +877,7 @@ struct FileExplorerPanelView: NSViewRepresentable {
                 ).add(to: menu)
             }
 
-            if isLocal {
+            if isLocal && existsOnDisk {
                 let revealItem = NSMenuItem(
                     title: FileExternalOpenText.revealInFinder,
                     action: #selector(contextMenuRevealInFinder(_:)),

@@ -908,6 +908,10 @@ struct ContentView: View {
     /// updated from its change notification. This view is the window root,
     /// so it cannot read the accent from its own environment modifier.
     @State private var cmuxAccent = AppDelegate.shared?.accentColor ?? CmuxAccentColor()
+    /// Which window edge the right sidebar (Files, Find, Dock, …) is docked to.
+    /// Every placement decision below goes through `RightSidebarPlacementLayout`
+    /// so the leading and trailing layouts cannot drift apart.
+    @LiveSetting(\.sidebar.rightPosition) private var rightSidebarPosition
     /// Canonical sidebar width, deliberately NOT observed by ContentView:
     /// divider ticks re-evaluate only the SidebarWidthReader wrappers that
     /// consume the width, never this body. All reads/writes outside view
@@ -939,6 +943,7 @@ struct ContentView: View {
     @State private var sidebarRenderWorkerClient: RenderWorkerClient?
     @StateObject private var fullscreenControlsViewModel = TitlebarControlsViewModel()
     @StateObject private var fileExplorerStore = FileExplorerStore()
+    @StateObject private var rightSidebarChangesStore = RightSidebarChangesStore()
     @StateObject private var sessionIndexStore = SessionIndexStore()
     @StateObject private var selectedWorkspaceDirectoryObserver = SelectedWorkspaceDirectoryObserver()
     @State private var commandPaletteOverlayRenderModel = CommandPaletteOverlayRenderModel()
@@ -1297,12 +1302,20 @@ struct ContentView: View {
             )
         case .explorerDivider:
             return (
-                currentWidth: fileExplorerWidth,
-                captureStart: { fileExplorerDragStartWidth = fileExplorerWidth },
+                currentWidth: rightSidebarWidth,
+                // Start from the rendered width, not the configured one: the
+                // leading placement may widen the panel past `fileExplorerWidth`
+                // (`effectivePanelWidth`), and a drag that starts from the
+                // narrower value would make the handle jump on the first tick.
+                captureStart: { fileExplorerDragStartWidth = rightSidebarWidth },
                 updateWidth: { translation in
-                    let startWidth = fileExplorerDragStartWidth ?? fileExplorerWidth
+                    let startWidth = fileExplorerDragStartWidth ?? rightSidebarWidth
                     let nextWidth = Self.clampedRightSidebarWidth(
-                        startWidth - translation,
+                        RightSidebarPlacementLayout.draggedWidth(
+                            startWidth: startWidth,
+                            translation: translation,
+                            position: rightSidebarPosition
+                        ),
                         availableWidth: resolvedRightSidebarAvailableWidth(availableWidth),
                         configuredMaximumWidth: rightSidebarConfiguredMaximumWidth
                     )
@@ -1805,13 +1818,35 @@ struct ContentView: View {
         }
     }
 
+    @ViewBuilder
     private var rightSidebarResizerOverlay: some View {
-        placedSidebarResizerOverlay(
-            handle: .explorerDivider,
-            edge: .trailing,
-            accessibilityIdentifier: "RightSidebarResizer",
-            dividerX: { totalWidth in totalWidth - rightSidebarWidth }
-        )
+        if rightSidebarIsLeading {
+            // The leading placement's divider sits after the workspace sidebar,
+            // so only this branch tracks that width the way the left resizer
+            // does; the trailing divider never moves with it.
+            SidebarWidthReader(layout: sidebarLayout) { sidebarWidth in
+                placedSidebarResizerOverlay(
+                    handle: .explorerDivider,
+                    edge: RightSidebarPlacementLayout.resizerEdge(position: rightSidebarPosition),
+                    accessibilityIdentifier: "RightSidebarResizer",
+                    dividerX: { totalWidth in
+                        RightSidebarPlacementLayout.dividerX(
+                            position: rightSidebarPosition,
+                            totalWidth: totalWidth,
+                            leadingSidebarWidth: visibleLeadingSidebarWidth(sidebarWidth),
+                            rightSidebarWidth: rightSidebarWidth
+                        )
+                    }
+                )
+            }
+        } else {
+            placedSidebarResizerOverlay(
+                handle: .explorerDivider,
+                edge: .trailing,
+                accessibilityIdentifier: "RightSidebarResizer",
+                dividerX: { totalWidth in totalWidth - rightSidebarWidth }
+            )
+        }
     }
 
     private var sidebarView: some View {
@@ -1870,6 +1905,11 @@ struct ContentView: View {
         return -max(0, min(titlebarPadding, hostingSafeAreaTop))
     }
 
+    /// Gap between the title row and whatever sits to its left: the workspace
+    /// sidebar's trailing edge, or the start of the titlebar band when the
+    /// band already begins after the sidebars.
+    nonisolated static let customTitlebarTitleInset: CGFloat = 12
+
     nonisolated static func customTitlebarLeadingPadding(
         isFullScreen: Bool,
         isSidebarVisible: Bool,
@@ -1881,12 +1921,12 @@ struct ContentView: View {
             return 8
         }
 
-        let minimumSidebarTitleInset = max(titlebarLeadingInset, minimumSidebarWidth + 12)
+        let minimumSidebarTitleInset = max(titlebarLeadingInset, minimumSidebarWidth + customTitlebarTitleInset)
         guard isSidebarVisible else {
             return minimumSidebarTitleInset
         }
 
-        let visibleSidebarTitleInset = sidebarWidth + 12
+        let visibleSidebarTitleInset = sidebarWidth + customTitlebarTitleInset
         // Absorb floating-point drift around the minimum-width clamp.
         guard sidebarWidth > minimumSidebarWidth + 0.5 else {
             return minimumSidebarTitleInset
@@ -1985,9 +2025,17 @@ struct ContentView: View {
         // The right-sidebar shell remains in the view tree so its frame can
         // animate without SwiftUI insertion/removal. Cold hidden launches defer
         // heavy mode content until the sidebar has been shown at least once.
+        // `sidebar.rightPosition` only decides which side of the panes the
+        // shell is on; changing it remounts the shell, which is fine for a
+        // Settings change but is why visibility toggles never go through it.
         return HStack(spacing: 0) {
+            if rightSidebarIsLeading {
+                rightSidebarPanelWithBackdrop(appearance: appearance)
+            }
             terminalContentWithSidebarDropOverlay(appearance: appearance)
-            rightSidebarPanelWithBackdrop(appearance: appearance)
+            if !rightSidebarIsLeading {
+                rightSidebarPanelWithBackdrop(appearance: appearance)
+            }
         }
     }
 
@@ -1995,8 +2043,47 @@ struct ContentView: View {
         fileExplorerState.isVisible
     }
 
+    private var rightSidebarIsLeading: Bool {
+        rightSidebarPosition == .leading
+    }
+
+    /// Whether the workspace titlebar band starts after both sidebars, which
+    /// is the leading placement with the panel shown
+    /// (`RightSidebarPlacementLayout.titlebarBandInsets(...).leading > 0`).
+    /// Independent of the workspace sidebar's width, so it never needs a
+    /// `SidebarWidthReader`.
+    private var rightSidebarBandStartsAfterSidebars: Bool {
+        rightSidebarIsLeading && rightSidebarVisible
+    }
+
+    /// The workspace sidebar's width as laid out: `width` while it is shown,
+    /// `0` while hidden.
+    private func visibleLeadingSidebarWidth(_ width: CGFloat) -> CGFloat {
+        sidebarState.isVisible ? width : 0
+    }
+
+    private var rightSidebarHeaderLeadingInset: CGFloat {
+        RightSidebarPlacementLayout.modeBarLeadingInset(
+            position: rightSidebarPosition,
+            isLeadingSidebarVisible: sidebarState.isVisible,
+            isFullScreen: isFullScreen,
+            titlebarLeadingInset: titlebarLeadingInset,
+            fullscreenControlsWidth: fullscreenControlsWidth,
+            fullscreenControlsLeadingPadding: Self.fullscreenControlsPlacement(
+                isFullScreen: isFullScreen,
+                isSidebarVisible: sidebarState.isVisible
+            )?.leadingPadding ?? 0,
+            headerLeadingPadding: RightSidebarChromeMetrics.headerLeadingPadding
+        )
+    }
+
     private var rightSidebarWidth: CGFloat {
-        rightSidebarVisible ? fileExplorerWidth : 0
+        guard rightSidebarVisible else { return 0 }
+        return RightSidebarPlacementLayout.effectivePanelWidth(
+            configuredWidth: fileExplorerWidth,
+            minimumWidth: Self.minimumRightSidebarWidth,
+            headerLeadingInset: rightSidebarHeaderLeadingInset
+        )
     }
 
     private func sidebarBackdropLayer(
@@ -2040,10 +2127,18 @@ struct ContentView: View {
     }
 
     private func rightSidebarPanelWithBackdrop(appearance: WindowAppearanceSnapshot) -> some View {
-        let panel = sidebarPanelContainer(width: rightSidebarWidth, alignment: .trailing, role: .rightSidebar, appearance: appearance) {
+        // The panel stays pinned to its window edge when content reports an
+        // intrinsic width larger than the pane, and the chrome border always
+        // sits on the edge that faces the panes.
+        let panel = sidebarPanelContainer(
+            width: rightSidebarWidth,
+            alignment: rightSidebarIsLeading ? .leading : .trailing,
+            role: .rightSidebar,
+            appearance: appearance
+        ) {
             rightSidebarPanel(appearance: appearance)
         }
-        .overlay(alignment: .leading) {
+        .overlay(alignment: rightSidebarIsLeading ? .trailing : .leading) {
             if rightSidebarVisible {
                 WindowChromeBorder(
                     orientation: .vertical,
@@ -2062,7 +2157,9 @@ struct ContentView: View {
             fileExplorerStore: fileExplorerStore,
             fileExplorerState: fileExplorerState,
             sessionIndexStore: sessionIndexStore,
+            changesStore: rightSidebarChangesStore,
             titlebarHeight: RightSidebarChromeMetrics.titlebarHeight,
+            headerLeadingInset: rightSidebarHeaderLeadingInset,
             windowAppearance: appearance,
             workspaceId: tabManager.selectedTabId,
             onResumeSession: { entry in
@@ -2235,9 +2332,14 @@ struct ContentView: View {
             )
                 .allowsHitTesting(false)
 
+            // With the right sidebar docked leading, `workspaceTitlebarBand`
+            // already starts this whole strip after both sidebars, so the
+            // title neither reserves the workspace sidebar's width nor the
+            // fullscreen controls (which stay over the panel's inset header).
+            let bandStartsAfterSidebars = rightSidebarBandStartsAfterSidebars
             SidebarWidthReader(layout: sidebarLayout) { width in
                 HStack(spacing: 8) {
-                    if isFullScreen && !sidebarState.isVisible {
+                    if isFullScreen && !sidebarState.isVisible && !bandStartsAfterSidebars {
                         // Reserve the controls' width so the title flows to their right.
                         // The visible controls are rendered once in the band overlay (see
                         // `workspaceTitlebarBand`) so their position never depends on
@@ -2265,7 +2367,7 @@ struct ContentView: View {
                 }
                 .frame(height: titlebarContentHeight)
                 .padding(.top, 2)
-                .padding(.leading, Self.customTitlebarLeadingPadding(
+                .padding(.leading, bandStartsAfterSidebars ? Self.customTitlebarTitleInset : Self.customTitlebarLeadingPadding(
                     isFullScreen: isFullScreen,
                     isSidebarVisible: sidebarState.isVisible,
                     sidebarWidth: width,
@@ -2280,12 +2382,15 @@ struct ContentView: View {
         .contentShape(Rectangle())
         .background(TitlebarDoubleClickMonitorView())
         .overlay(alignment: .bottom) {
+            // The band is already inset past the workspace sidebar when the
+            // right sidebar is docked leading, so do not offset again here.
+            let bandStartsAfterSidebars = rightSidebarBandStartsAfterSidebars
             SidebarWidthReader(layout: sidebarLayout) { width in
                 WindowChromeBorder(
                     orientation: .horizontal,
                     backgroundColor: appearance.resolvedChromeBackgroundColor
                 )
-                    .padding(.leading, sidebarState.isVisible ? width : 0)
+                    .padding(.leading, bandStartsAfterSidebars ? 0 : visibleLeadingSidebarWidth(width))
             }
         }
     }
@@ -2313,8 +2418,18 @@ struct ContentView: View {
                     // snaps without animation (`.transaction { $0.animation = nil }`), so we match
                     // that here — otherwise this inset could animate out of step with the panel on
                     // toggle and momentarily expose (or re-cover) the mode bar mid-transition.
-                    .padding(.trailing, rightSidebarWidth)
+                    //
+                    // With `sidebar.rightPosition` set to `leading` the panel sits between the
+                    // workspace sidebar and the panes, so the band instead starts after both
+                    // sidebars (`RightSidebarPlacementLayout.titlebarBandInsets`).
+                    .modifier(TitlebarBandInsetsModifier(
+                        layout: sidebarLayout,
+                        position: rightSidebarPosition,
+                        isLeadingSidebarVisible: sidebarState.isVisible,
+                        rightSidebarWidth: rightSidebarWidth
+                    ))
                     .animation(nil, value: rightSidebarWidth)
+                    .animation(nil, value: rightSidebarIsLeading)
             }
             .overlay(alignment: .topLeading) {
                 if let placement = Self.fullscreenControlsPlacement(
@@ -2525,8 +2640,10 @@ struct ContentView: View {
             // sessions panel doesn't keep filtering by a stale previous tab.
             sessionIndexStore.setCurrentDirectoryIfChanged(nil)
             fileExplorerStore.applyWorkspaceRoot(.none)
+            syncRightSidebarChangesStore(workspace: nil)
             return
         }
+        syncRightSidebarChangesStore(workspace: tab)
 
         fileExplorerStore.showHiddenFiles = true
 
@@ -2539,6 +2656,17 @@ struct ContentView: View {
             return
         }
         fileExplorerStore.syncWorkspaceRoot(from: tab)
+    }
+
+    /// Same cadence as the file explorer root sync: the Changes store follows
+    /// the selected workspace's directory and only watches the repository while
+    /// the sidebar is visible in Changes mode.
+    private func syncRightSidebarChangesStore(workspace: Workspace?) {
+        rightSidebarChangesStore.sync(
+            workspace: workspace,
+            isRightSidebarVisible: fileExplorerState.isVisible,
+            mode: fileExplorerState.mode
+        )
     }
 
     private var shouldSyncFileExplorerStore: Bool {
@@ -2611,7 +2739,7 @@ struct ContentView: View {
                         ))
                     SidebarWidthReader(layout: sidebarLayout) { width in
                         sidebarPanelWithBackdrop(appearance: appearance)
-                            .frame(width: sidebarState.isVisible ? width : 0, alignment: .leading)
+                            .frame(width: visibleLeadingSidebarWidth(width), alignment: .leading)
                             .clipped()
                             .allowsHitTesting(sidebarState.isVisible)
                             .accessibilityHidden(!sidebarState.isVisible)
@@ -2621,19 +2749,18 @@ struct ContentView: View {
         } else if useWithinWindow {
             // Overlay mode keeps the left sidebar on top, but the right
             // sidebar stays in an HStack so terminal rows are clipped before
-            // the sidebar backdrop samples the window.
+            // the sidebar backdrop samples the window. The whole row is padded
+            // past the left sidebar so the right panel lands next to it when
+            // `sidebar.rightPosition` is `leading`.
             layout = AnyView(
                 ZStack(alignment: .leading) {
-                    HStack(spacing: 0) {
-                        terminalContentWithSidebarDropOverlay(appearance: appearance)
-                            .modifier(SidebarWidthLeadingPaddingModifier(
-                                layout: sidebarLayout,
-                                enabled: sidebarState.isVisible
-                            ))
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .layoutPriority(1)
-                        rightSidebarPanelWithBackdrop(appearance: appearance)
-                    }
+                    terminalContentWithRightSidebarPanel(appearance: appearance)
+                        .modifier(SidebarWidthLeadingPaddingModifier(
+                            layout: sidebarLayout,
+                            enabled: sidebarState.isVisible
+                        ))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .layoutPriority(1)
                     if sidebarState.isVisible {
                         sidebarPanelWithBackdrop(appearance: appearance)
                     }
@@ -3542,6 +3669,10 @@ struct ContentView: View {
         view = AnyView(view.onDisappear {
             sidebarState.removeVisibilityWillChangeHandler(ownerId: windowId)
             workspaceSwitchPortalSignalRouter.clearSources()
+            // The Changes store is only ever driven by `sync(...)`; a window
+            // closed in Changes mode would otherwise keep its repository
+            // watcher alive.
+            rightSidebarChangesStore.stop()
             if isResizerDragging {
                 TerminalWindowPortalRegistry.endInteractiveGeometryResize(owner: tabManager)
                 isResizerDragging = false

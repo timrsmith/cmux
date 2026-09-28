@@ -8,6 +8,9 @@ enum RightSidebarMode: String, CaseIterable, Codable, Sendable {
     case feed
     case dock
     case machines
+    /// Docked git diff viewer for the selected workspace's uncommitted changes.
+    /// Declared after the older tabs so their positional digit defaults do not shift.
+    case changes
     case customSidebar = "custom-sidebar"
 
     var label: String {
@@ -18,6 +21,7 @@ enum RightSidebarMode: String, CaseIterable, Codable, Sendable {
         case .feed: return String(localized: "rightSidebar.mode.feed", defaultValue: "Feed")
         case .dock: return String(localized: "rightSidebar.mode.dock", defaultValue: "Dock")
         case .machines: return String(localized: "rightSidebar.mode.machines", defaultValue: "Cloud")
+        case .changes: return String(localized: "rightSidebar.mode.changes", defaultValue: "Changes")
         case .customSidebar: return String(localized: "rightSidebar.mode.customSidebar", defaultValue: "Custom")
         }
     }
@@ -31,6 +35,7 @@ enum RightSidebarMode: String, CaseIterable, Codable, Sendable {
         case .feed: return "dot.radiowaves.left.and.right"
         case .dock: return "dock.rectangle"
         case .machines: return "cloud"
+        case .changes: return "plusminus.circle"
         case .customSidebar: return "wand.and.stars"
         }
     }
@@ -43,6 +48,7 @@ enum RightSidebarMode: String, CaseIterable, Codable, Sendable {
         case .feed: return .switchRightSidebarToFeed
         case .dock: return .switchRightSidebarToDock
         case .machines: return .switchRightSidebarToMachines
+        case .changes: return .switchRightSidebarToChanges
         case .customSidebar: return nil
         }
     }

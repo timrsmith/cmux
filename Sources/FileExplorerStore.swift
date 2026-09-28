@@ -143,6 +143,12 @@ enum FileExplorerStyle: Int, CaseIterable {
         palette.gitColor(for: status)
     }
 
+    /// Tint for a file type icon category in this style; monochrome styles
+    /// return `fileIconTint` for every category.
+    func fileTypeTint(_ color: FileTypeIconColor) -> NSColor {
+        palette.fileTypeTint(color)
+    }
+
     private var palette: FileExplorerPalette {
         switch self {
         case .liquidGlass: .liquidGlass
@@ -175,22 +181,32 @@ final class FileExplorerNode: Identifiable {
     let name: String
     let path: String
     let isDirectory: Bool
+    /// A file git reports as deleted that no longer exists on disk. Ghost rows
+    /// are rendered struck through and cannot be opened, dragged, or revealed.
+    let isGhost: Bool
     var children: [FileExplorerNode]?
     var isLoading: Bool = false
     var error: String?
     var resourceContextID: UUID?
 
-    init(name: String, path: String, isDirectory: Bool) {
+    init(name: String, path: String, isDirectory: Bool, isGhost: Bool = false) {
         self.id = path
         self.name = name
         self.path = path
         self.isDirectory = isDirectory
+        self.isGhost = isGhost
     }
 
-    var isExpandable: Bool { isDirectory }
+    var isExpandable: Bool { isDirectory && !isGhost }
 
     var sortedChildren: [FileExplorerNode]? {
-        children?.sorted { a, b in
+        children.map(FileExplorerNode.sorted)
+    }
+
+    /// Directories first, then case-insensitive by name; the one ordering used
+    /// for listings, ghost insertion, and the outline view.
+    static func sorted(_ nodes: [FileExplorerNode]) -> [FileExplorerNode] {
+        nodes.sorted { a, b in
             if a.isDirectory != b.isDirectory { return a.isDirectory }
             return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
         }
@@ -754,10 +770,21 @@ final class FileExplorerStore: ObservableObject {
     @Published var rootPath: String = ""
     @Published var rootNodes: [FileExplorerNode] = []
     @Published private(set) var isRootLoading: Bool = false
+    /// Merged status across every discovered repository (see `statusByRepoRoot`).
     @Published private(set) var gitStatusByPath: [String: GitFileStatus] = [:]
+    /// The single trigger for reconfiguring the visible rows after a status
+    /// change. It is bumped exactly when `gitStatusByPath` is replaced, so the
+    /// outline view compares one integer per store update instead of diffing
+    /// the dictionary, and a status-only change (no listing changed, so
+    /// `contentRevision` is untouched) still recolors root-level file rows
+    /// that no structural reload would visit.
+    @Published private(set) var gitStatusRevision = 0
     @Published private(set) var contentRevision = 0
     @Published private(set) var rootStatusMessage: String?
     private(set) var workspaceRootIdentity: UUID?
+
+    /// Deleted (ghost) file paths per parent directory, merged across repositories.
+    private(set) var deletedPathsByParent: [String: [String]] = [:]
 
     var provider: FileExplorerProvider?
 
@@ -800,10 +827,47 @@ final class FileExplorerStore: ObservableObject {
     private(set) var resourceContextID = UUID()
 
     private let gitStatusProvider: GitStatusProvider
+    private let repositoryWatchFactory: GitStatusRepositoryWatchFactory
+    /// Monotonic token source for every asynchronous git request.
     private var gitStatusGeneration: UInt64 = 0
 
-    init(gitStatusProvider: GitStatusProvider = GitStatusProvider()) {
+    // MARK: Per-repository git index
+    //
+    // Repositories are discovered per directory (the root always, a nested
+    // directory when its listing shows a `.git` entry) and fetched once each.
+    // `gitStatusByPath` is the merge of every snapshot; nested repositories
+    // override the parent-directory marks of the repositories enclosing them.
+
+    /// Repository root per probed directory; `.some(nil)` caches "not a repository".
+    private var repoRootByDirectory: [String: String?] = [:]
+    /// Latest snapshot per repository root.
+    private var statusByRepoRoot: [String: GitStatusSnapshot] = [:]
+    /// Latest accepted request token per probed directory.
+    private var discoveryGenerationByDirectory: [String: UInt64] = [:]
+    /// Token of the `git status` run in flight per repository; absent when none
+    /// is running, which is what makes `refetchRepository` single-flight.
+    private var fetchGenerationByRepoRoot: [String: UInt64] = [:]
+    /// Repositories that changed again while their run was in flight; each is
+    /// refetched once more when that run lands.
+    private var dirtyRepoRoots: Set<String> = []
+    /// `rootPath` in the physical spelling git prints (resolved once per root
+    /// instead of resolving symlinks on every fetch).
+    private var canonicalRootPathCache: (rootPath: String, canonical: String)?
+    /// Live watchers per local repository root, their event consumers, and
+    /// the in-flight registrations.
+    private var repositoryWatches: [String: GitStatusRepositoryWatch] = [:]
+    private var repositoryWatchTasks: [String: Task<Void, Never>] = [:]
+    private var repositoryWatchStartTasks: [String: Task<Void, Never>] = [:]
+    /// Whether the root listing has completed for the current tree, so ghost
+    /// reconciliation may touch `rootNodes`.
+    private var rootListingLoaded = false
+
+    init(
+        gitStatusProvider: GitStatusProvider = GitStatusProvider(),
+        repositoryWatchFactory: @escaping GitStatusRepositoryWatchFactory = GitStatusRepositoryWatching.defaultFactory
+    ) {
         self.gitStatusProvider = gitStatusProvider
+        self.repositoryWatchFactory = repositoryWatchFactory
     }
 
     var displayRootPath: String {
@@ -879,7 +943,8 @@ final class FileExplorerStore: ObservableObject {
         if !preservingNavigation {
             selectedPath = nil; selectedPaths = []; expandedPaths = []
         }
-        rootNodes = []; nodesByPath = [:]; gitStatusByPath = [:]
+        rootNodes = []; nodesByPath = [:]; rootListingLoaded = false
+        resetGitStatusIndex()
         contentRevision &+= 1
     }
 
@@ -900,31 +965,370 @@ final class FileExplorerStore: ObservableObject {
         }
         resourceContextID = UUID()
         rootPath = path
+        resetGitStatusIndex()
         reload()
         refreshGitStatus()
         updateDirectoryWatcher()
     }
 
+    /// Re-resolves the root repository and re-fetches every repository already
+    /// discovered below the root. Nested repositories not yet discovered are
+    /// picked up by their directory listings (`loadChildren`).
     func refreshGitStatus() {
-        gitStatusGeneration &+= 1
-        let generation = gitStatusGeneration, path = rootPath
-        let context = resourceContextID, source = gitStatusProvider
-        guard !path.isEmpty, provider?.isAvailable == true,
-              provider is LocalFileExplorerProvider || provider is SSHFileExplorerProvider else {
-            gitStatusByPath = [:]
+        refreshGitStatus(includingNestedRepositories: true)
+    }
+
+    /// Root-listing changes only re-resolve and re-fetch the root repository;
+    /// nested local repositories have their own watchers. So does the root
+    /// repository once it is discovered and watched: its watcher fires for the
+    /// same save, so refetching here too would run `git status` twice.
+    private func refreshRootRepositoryStatus() {
+        if case .some(.some(let rootRepo)) = repoRootByDirectory[rootPath],
+           repositoryWatches[rootRepo] != nil {
             return
         }
-        let connection = (provider as? SSHFileExplorerProvider)?.connection
+        refreshGitStatus(includingNestedRepositories: false)
+    }
+
+    private func refreshGitStatus(includingNestedRepositories: Bool) {
+        guard gitStatusIsSupported else {
+            resetGitStatusIndex()
+            return
+        }
+        let root = rootPath
+        var repoRootsToRefetch: Set<String> = includingNestedRepositories ? Set(statusByRepoRoot.keys) : []
+        if case .some(.some(let rootRepo)) = repoRootByDirectory[root] {
+            // The root already resolved to a repository: a plain refetch is enough.
+            repoRootsToRefetch.insert(rootRepo)
+        } else {
+            discoverRepository(at: root, requiresGitEntry: false)
+        }
+        for repoRoot in repoRootsToRefetch {
+            refetchRepository(repoRoot)
+        }
+    }
+
+    // MARK: - Per-repository git status
+
+    private var gitStatusIsSupported: Bool {
+        guard !rootPath.isEmpty, let provider, provider.isAvailable else { return false }
+        return provider is LocalFileExplorerProvider || provider is SSHFileExplorerProvider
+    }
+
+    private var sshConnection: SSHFileExplorerConnection? {
+        (provider as? SSHFileExplorerProvider)?.connection
+    }
+
+    private func nextGitStatusGeneration() -> UInt64 {
+        gitStatusGeneration &+= 1
+        return gitStatusGeneration
+    }
+
+    /// Drops every repository, snapshot, pending request, and watcher. Called
+    /// when the root changes or the resource context is reset.
+    private func resetGitStatusIndex() {
+        gitStatusGeneration &+= 1
+        repoRootByDirectory = [:]
+        statusByRepoRoot = [:]
+        discoveryGenerationByDirectory = [:]
+        fetchGenerationByRepoRoot = [:]
+        dirtyRepoRoots = []
+        stopAllRepositoryWatches()
+        deletedPathsByParent = [:]
+        if !gitStatusByPath.isEmpty {
+            gitStatusByPath = [:]
+            gitStatusRevision &+= 1
+        }
+    }
+
+    /// Forgets cached "not a repository" answers so the next listing re-probes;
+    /// positive answers stay because their repositories are refetched explicitly.
+    private func forgetNegativeRepositoryProbes() {
+        repoRootByDirectory = repoRootByDirectory.filter { $0.value != nil }
+    }
+
+    /// Cheap pre-filter for nested repository discovery, run after a directory
+    /// listing arrives. Probes only where a `.git` entry is plausible:
+    /// - local: the listing shows `.git`, or hidden files are off and a stat off
+    ///   the main actor decides;
+    /// - SSH: only when the listing shows `.git` (a remote stat costs a round trip).
+    private func discoverNestedRepositoryIfNeeded(directory: String, listingNames: [String]) {
+        guard gitStatusIsSupported, directory != rootPath else { return }
+        if let cached = repoRootByDirectory[directory] {
+            // A known repository stays known; a cached negative is only revisited
+            // when the listing now shows `.git`.
+            guard cached == nil, listingNames.contains(".git") else { return }
+        }
+        let listingShowsGit = listingNames.contains(".git")
+        if provider is LocalFileExplorerProvider {
+            if showHiddenFiles, !listingShowsGit {
+                repoRootByDirectory[directory] = .some(nil)
+                return
+            }
+            discoverRepository(at: directory, requiresGitEntry: !listingShowsGit)
+        } else if sshConnection != nil {
+            guard listingShowsGit else { return }
+            discoverRepository(at: directory, requiresGitEntry: false)
+        }
+    }
+
+    /// The `git status` fetch for one repository, bound to the provider, root,
+    /// and connection at the time it was made so it can run detached from the
+    /// main actor. SSH resolves and fetches in one round trip and never
+    /// canonicalizes (remote paths must not be resolved locally); local fetches
+    /// compare against the canonical explorer root and key under the store's.
+    private struct RepositoryStatusFetch: Sendable {
+        let provider: GitStatusProvider
+        /// The store's `rootPath`; every emitted key is spelled under it.
+        let keyRoot: String
+        /// `keyRoot` in the physical spelling git prints, for containment checks.
+        let canonicalRoot: String
+        let connection: SSHFileExplorerConnection?
+
+        /// Resolves the repository containing `directory` and fetches its status,
+        /// or `nil` when there is none. `requiresGitEntry` makes a local probe
+        /// bail unless `directory/.git` exists, which keeps unrelated directories
+        /// to one stat.
+        func discover(directory: String, requiresGitEntry: Bool) -> GitRepositoryStatus? {
+            if connection != nil { return fetchSSH(directory: directory) }
+            if requiresGitEntry,
+               !FileManager.default.fileExists(atPath: (directory as NSString).appendingPathComponent(".git")) {
+                return nil
+            }
+            guard let repoRoot = provider.repositoryRoot(for: directory) else { return nil }
+            return GitRepositoryStatus(repoRoot: repoRoot, snapshot: fetchLocal(repoRoot: repoRoot))
+        }
+
+        /// Re-runs `git status` for one known repository root.
+        func refetch(repoRoot: String) -> GitStatusSnapshot {
+            if connection != nil { return fetchSSH(directory: repoRoot)?.snapshot ?? .empty }
+            return fetchLocal(repoRoot: repoRoot)
+        }
+
+        private func fetchSSH(directory: String) -> GitRepositoryStatus? {
+            guard let connection else { return nil }
+            return provider.fetchRepositoryStatusSSH(
+                directory: directory, explorerRoot: keyRoot, destination: connection.destination,
+                port: connection.port, identityFile: connection.identityFile, sshOptions: connection.sshOptions
+            )
+        }
+
+        private func fetchLocal(repoRoot: String) -> GitStatusSnapshot {
+            provider.fetchSnapshot(repoRoot: repoRoot, explorerRoot: canonicalRoot, keyRoot: keyRoot)
+        }
+    }
+
+    /// A fetch bound to the current root and provider. The canonical root is
+    /// resolved on the first local fetch for a root and reused afterwards.
+    private func makeRepositoryStatusFetch() -> RepositoryStatusFetch {
+        let root = rootPath
+        let connection = sshConnection
+        let canonicalRoot: String
+        if connection != nil {
+            canonicalRoot = root
+        } else if let cached = canonicalRootPathCache, cached.rootPath == root {
+            canonicalRoot = cached.canonical
+        } else {
+            canonicalRoot = GitStatusProvider.canonicalPath(root)
+            canonicalRootPathCache = (rootPath: root, canonical: canonicalRoot)
+        }
+        return RepositoryStatusFetch(
+            provider: gitStatusProvider, keyRoot: root, canonicalRoot: canonicalRoot, connection: connection
+        )
+    }
+
+    /// Resolves the repository containing `directory` and fetches its status off
+    /// the main actor (see `RepositoryStatusFetch.discover`).
+    private func discoverRepository(at directory: String, requiresGitEntry: Bool) {
+        guard gitStatusIsSupported else { return }
+        let generation = nextGitStatusGeneration()
+        discoveryGenerationByDirectory[directory] = generation
+        let context = resourceContextID, fetch = makeRepositoryStatusFetch()
         Task { [weak self] in
-            let status = await Task.detached(priority: .utility) {
-                if let connection {
-                    return source.fetchStatusSSH(directory: path, destination: connection.destination,
-                        port: connection.port, identityFile: connection.identityFile, sshOptions: connection.sshOptions)
-                }
-                return source.fetchStatus(directory: path)
+            let result = await Task.detached(priority: .utility) {
+                fetch.discover(directory: directory, requiresGitEntry: requiresGitEntry)
             }.value
-            guard let self, self.gitStatusGeneration == generation, self.resourceContextID == context else { return }
-            self.gitStatusByPath = status
+            guard let self, self.resourceContextID == context,
+                  self.discoveryGenerationByDirectory[directory] == generation else { return }
+            self.discoveryGenerationByDirectory.removeValue(forKey: directory)
+            guard let result else {
+                self.repoRootByDirectory[directory] = .some(nil)
+                return
+            }
+            self.repoRootByDirectory[directory] = result.repoRoot
+            // A concurrent per-repository refetch that started later is fresher.
+            if self.fetchGenerationByRepoRoot[result.repoRoot].map({ $0 > generation }) != true {
+                self.statusByRepoRoot[result.repoRoot] = result.snapshot
+                self.rebuildMergedGitStatus()
+            }
+            self.startRepositoryWatchIfNeeded(repoRoot: result.repoRoot)
+        }
+    }
+
+    /// Re-runs `git status` for one known repository. Single-flight per
+    /// repository: an event that lands while a run is in progress marks the
+    /// repository dirty and schedules exactly one follow-up run when that run
+    /// completes, so a burst of watcher events costs at most two processes
+    /// instead of one each and the final snapshot still reflects the last event.
+    private func refetchRepository(_ repoRoot: String) {
+        guard gitStatusIsSupported else { return }
+        if fetchGenerationByRepoRoot[repoRoot] != nil {
+            dirtyRepoRoots.insert(repoRoot)
+            return
+        }
+        let generation = nextGitStatusGeneration()
+        fetchGenerationByRepoRoot[repoRoot] = generation
+        let context = resourceContextID, fetch = makeRepositoryStatusFetch()
+        Task { [weak self] in
+            let snapshot = await Task.detached(priority: .utility) {
+                fetch.refetch(repoRoot: repoRoot)
+            }.value
+            guard let self, self.resourceContextID == context,
+                  self.fetchGenerationByRepoRoot[repoRoot] == generation else { return }
+            self.fetchGenerationByRepoRoot.removeValue(forKey: repoRoot)
+            self.statusByRepoRoot[repoRoot] = snapshot
+            self.rebuildMergedGitStatus()
+            if self.dirtyRepoRoots.remove(repoRoot) != nil {
+                self.refetchRepository(repoRoot)
+            }
+        }
+    }
+
+    /// Merges every repository snapshot into `gitStatusByPath` and
+    /// `deletedPathsByParent`, then reconciles ghost rows in loaded directories.
+    /// Outer repositories merge first so a nested repository's entries win.
+    private func rebuildMergedGitStatus() {
+        var merged: [String: GitFileStatus] = [:]
+        var deleted: [String: Set<String>] = [:]
+        for repoRoot in statusByRepoRoot.keys.sorted(by: { $0.count < $1.count || ($0.count == $1.count && $0 < $1) }) {
+            guard let snapshot = statusByRepoRoot[repoRoot] else { continue }
+            merged.merge(snapshot.statusByPath) { _, nested in nested }
+            for (parent, paths) in snapshot.deletedPathsByParent {
+                deleted[GitStatusProvider.pathWithoutTrailingSlashes(parent), default: []].formUnion(paths)
+            }
+        }
+        let mergedDeleted = deleted.mapValues { $0.sorted() }
+        guard merged != gitStatusByPath || mergedDeleted != deletedPathsByParent else { return }
+        gitStatusByPath = merged
+        deletedPathsByParent = mergedDeleted
+        gitStatusRevision &+= 1
+        reconcileGhostNodes()
+    }
+
+    // MARK: Repository watchers (local only)
+
+    private func startRepositoryWatchIfNeeded(repoRoot: String) {
+        guard provider is LocalFileExplorerProvider,
+              repositoryWatches[repoRoot] == nil,
+              repositoryWatchStartTasks[repoRoot] == nil else { return }
+        let context = resourceContextID, factory = repositoryWatchFactory
+        repositoryWatchStartTasks[repoRoot] = Task { [weak self] in
+            let watch = await factory(repoRoot)
+            guard let self else {
+                if let watch { await watch.stop() }
+                return
+            }
+            self.repositoryWatchStartTasks.removeValue(forKey: repoRoot)
+            guard self.resourceContextID == context,
+                  self.statusByRepoRoot[repoRoot] != nil,
+                  self.repositoryWatches[repoRoot] == nil,
+                  let watch else {
+                if let watch { await watch.stop() }
+                return
+            }
+            self.repositoryWatches[repoRoot] = watch
+            let events = watch.events
+            self.repositoryWatchTasks[repoRoot] = Task { @MainActor [weak self] in
+                for await _ in events {
+                    guard let self, !Task.isCancelled else { break }
+                    guard self.resourceContextID == context else { break }
+                    self.refetchRepository(repoRoot)
+                }
+            }
+        }
+    }
+
+    private func stopAllRepositoryWatches() {
+        for task in repositoryWatchStartTasks.values { task.cancel() }
+        repositoryWatchStartTasks.removeAll()
+        for task in repositoryWatchTasks.values { task.cancel() }
+        repositoryWatchTasks.removeAll()
+        let watches = Array(repositoryWatches.values)
+        repositoryWatches.removeAll()
+        guard !watches.isEmpty else { return }
+        Task.detached(priority: .utility) {
+            for watch in watches { await watch.stop() }
+        }
+    }
+
+    // MARK: Ghost rows for deleted files
+
+    private func makeGhostNode(path: String) -> FileExplorerNode {
+        let node = FileExplorerNode(
+            name: (path as NSString).lastPathComponent,
+            path: path,
+            isDirectory: false,
+            isGhost: true
+        )
+        node.resourceContextID = resourceContextID
+        return node
+    }
+
+    /// Deleted paths that belong in `directory` and are not backed by a listed entry.
+    private func ghostPaths(in directory: String, excluding realPaths: Set<String>) -> [String] {
+        (deletedPathsByParent[GitStatusProvider.pathWithoutTrailingSlashes(directory)] ?? []).filter { path in
+            guard !realPaths.contains(path) else { return false }
+            return showHiddenFiles || !(path as NSString).lastPathComponent.hasPrefix(".")
+        }
+    }
+
+    /// The rows `directory` displays: `real` listed entries plus a ghost row for
+    /// every deleted path no listed entry has taken back, sorted with the shared
+    /// comparator. Ghost nodes in `existingGhosts` are reused so outline
+    /// identity stays stable across reconciliations.
+    private func displayChildren(
+        real: [FileExplorerNode], directory: String, reusingGhosts existingGhosts: [FileExplorerNode] = []
+    ) -> [FileExplorerNode] {
+        var existingByPath: [String: FileExplorerNode] = [:]
+        for ghost in existingGhosts { existingByPath[ghost.path] = ghost }
+        let ghosts = ghostPaths(in: directory, excluding: Set(real.map(\.path))).map {
+            existingByPath[$0] ?? makeGhostNode(path: $0)
+        }
+        return FileExplorerNode.sorted(real + ghosts)
+    }
+
+    /// Returns `children` with ghost rows added or removed to match the current
+    /// deleted-path index, or `children` itself when nothing changed.
+    private func childrenReconcilingGhosts(_ children: [FileExplorerNode], directory: String, changed: inout Bool) -> [FileExplorerNode] {
+        let real = children.filter { !$0.isGhost }
+        let existingGhosts = children.filter(\.isGhost)
+        let wanted = ghostPaths(in: directory, excluding: Set(real.map(\.path))).sorted()
+        guard wanted != existingGhosts.map(\.path).sorted() else { return children }
+        changed = true
+        return displayChildren(real: real, directory: directory, reusingGhosts: existingGhosts)
+    }
+
+    /// Adds or removes ghost rows in every loaded directory after the merged
+    /// status changed, bumping `contentRevision` when the tree changed shape.
+    private func reconcileGhostNodes() {
+        var changed = false
+        if rootListingLoaded, !rootPath.isEmpty {
+            let reconciled = childrenReconcilingGhosts(rootNodes, directory: rootPath, changed: &changed)
+            if changed { rootNodes = reconciled }
+        }
+        for node in nodesByPath.values where node.isDirectory && !node.isGhost {
+            guard let children = node.children,
+                  node.resourceContextID == nil || node.resourceContextID == resourceContextID else { continue }
+            var nodeChanged = false
+            let reconciled = childrenReconcilingGhosts(children, directory: node.path, changed: &nodeChanged)
+            if nodeChanged {
+                node.children = reconciled
+                changed = true
+            }
+        }
+        if changed {
+            contentRevision &+= 1
+            objectWillChange.send()
         }
     }
 
@@ -967,7 +1371,7 @@ final class FileExplorerStore: ObservableObject {
                 for await _ in events {
                     guard let self else { break }
                     self.reload()
-                    self.refreshGitStatus()
+                    self.refreshRootRepositoryStatus()
                 }
             }
         } else {
@@ -1016,6 +1420,8 @@ final class FileExplorerStore: ObservableObject {
         cancelAllLoads()
         rootNodes = []
         nodesByPath = [:]
+        rootListingLoaded = false
+        forgetNegativeRepositoryProbes()
         guard !rootPath.isEmpty, provider != nil else { return }
         isRootLoading = true
         let path = rootPath
@@ -1027,8 +1433,16 @@ final class FileExplorerStore: ObservableObject {
     }
 
     func expand(node: FileExplorerNode) {
-        guard node.resourceContextID == nil || node.resourceContextID == resourceContextID, node.isDirectory else { return }
+        guard node.resourceContextID == nil || node.resourceContextID == resourceContextID, node.isDirectory, !node.isGhost else { return }
         expandedPaths.insert(node.path)
+        if let children = node.children {
+            // Already listed (e.g. by a silent prefetch, or before a reload dropped
+            // a cached negative): re-run the cheap repository pre-filter.
+            discoverNestedRepositoryIfNeeded(
+                directory: node.path,
+                listingNames: children.filter { !$0.isGhost }.map(\.name)
+            )
+        }
         if node.children == nil, loadTasks[node.path] == nil, !loadingPaths.contains(node.path) {
             node.isLoading = true
             node.error = nil
@@ -1085,7 +1499,7 @@ final class FileExplorerStore: ObservableObject {
     }
 
     func prefetchChildren(for node: FileExplorerNode) {
-        guard node.resourceContextID == nil || node.resourceContextID == resourceContextID, node.isDirectory, node.children == nil, !loadingPaths.contains(node.path) else { return }
+        guard node.resourceContextID == nil || node.resourceContextID == resourceContextID, node.isDirectory, !node.isGhost, node.children == nil, !loadingPaths.contains(node.path) else { return }
         // Debounce: only prefetch if hover persists for 200ms
         let path = node.path
         let scheduler = prefetchSchedulers[path] ?? MainActorDeferredActionScheduler()
@@ -1134,15 +1548,15 @@ final class FileExplorerStore: ObservableObject {
         do {
             let entries = try await provider.listDirectory(path: path, showHidden: showHiddenFiles)
             try Task.checkCancellation()
-            let children = entries.map { entry in
+            let listed = entries.map { entry in
                 let node = FileExplorerNode(name: entry.name, path: entry.path, isDirectory: entry.isDirectory)
                 node.resourceContextID = resourceContextID
                 nodesByPath[entry.path] = node
                 return node
-            }.sorted { a, b in
-                if a.isDirectory != b.isDirectory { return a.isDirectory }
-                return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
             }
+            // Files git reports as deleted are gone from disk; keep them visible
+            // as ghost rows unless a listed entry has taken the path back.
+            let children = displayChildren(real: listed, directory: path)
 
             if let parentNode {
                 parentNode.children = children
@@ -1156,6 +1570,7 @@ final class FileExplorerStore: ObservableObject {
                 }
             } else {
                 rootNodes = children
+                rootListingLoaded = true
                 isRootLoading = false
                 setRootStatusMessage(nil)
                 if selectedPath == nil {
@@ -1166,6 +1581,12 @@ final class FileExplorerStore: ObservableObject {
             loadingPaths.remove(path)
             loadTasks.removeValue(forKey: path)
             objectWillChange.send()
+
+            // Nested repositories are discovered from their own listing; the root
+            // repository is resolved by refreshGitStatus().
+            if parentNode != nil {
+                discoverNestedRepositoryIfNeeded(directory: path, listingNames: entries.map(\.name))
+            }
 
             // Auto-expand children that were previously expanded
             for child in children where child.isDirectory && expandedPaths.contains(child.path) {
@@ -1230,5 +1651,9 @@ final class FileExplorerStore: ObservableObject {
     deinit {
         remoteHomeResolutionTask?.cancel()
         directoryWatchTask?.cancel()
+        for task in repositoryWatchStartTasks.values { task.cancel() }
+        for task in repositoryWatchTasks.values { task.cancel() }
+        // The watches' underlying watchers tear down in their own deinit once
+        // these references drop; no stop() call is needed here.
     }
 }

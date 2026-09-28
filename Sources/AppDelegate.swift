@@ -7315,33 +7315,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         sessionId: String?,
         focus: Bool = true
     ) -> Bool {
-        let process = Process()
-        process.executableURL = cliURL
         var arguments = [
-            "--socket", socketPath,
-            "diff",
             useLastTurnSource ? "--last-turn" : "--unstaged",
-            "--cwd", cwd,
-            "--workspace", workspaceId.uuidString,
             "--focus", focus ? "true" : "false",
         ]
-        if let surfaceId {
-            arguments.append(contentsOf: ["--surface", surfaceId.uuidString])
-        }
         if useLastTurnSource, let sessionId {
             arguments.append(contentsOf: ["--session", sessionId])
         }
-        process.arguments = arguments
-        var environment = ProcessInfo.processInfo.environment
-        environment["CMUX_SOCKET_PATH"] = socketPath
-        environment["CMUX_BUNDLED_CLI_PATH"] = cliURL.path
-        environment["CMUX_WORKSPACE_ID"] = workspaceId.uuidString
-        if let surfaceId {
-            environment["CMUX_SURFACE_ID"] = surfaceId.uuidString
-        }
-        environment.removeValue(forKey: "CMUX_SOCKET")
-        process.environment = environment
-        process.standardInput = FileHandle.nullDevice
+        let process = DiffViewerCLILaunch(cliURL: cliURL, socketPath: socketPath).makeProcess(
+            command: "diff",
+            cwd: cwd,
+            workspaceId: workspaceId,
+            surfaceId: surfaceId,
+            arguments: arguments
+        )
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()

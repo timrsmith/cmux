@@ -114,6 +114,50 @@ private final class DeferredListFileExplorerProvider: FileExplorerProvider {
     }
 }
 
+// MARK: - Git fixtures
+
+/// Hand-driven stand-in for the per-repository `RecursivePathWatcher`: records
+/// which repository roots the store asked to watch and lets a test fire events.
+private final class FakeRepositoryWatchSource: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuationsByRepoRoot: [String: AsyncStream<Void>.Continuation] = [:]
+    private var stopped: [String] = []
+
+    var startedRepoRoots: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return continuationsByRepoRoot.keys.sorted()
+    }
+
+    var stoppedRepoRoots: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return stopped
+    }
+
+    var factory: GitStatusRepositoryWatchFactory {
+        { [self] repoRoot in
+            let (events, continuation) = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+            self.lock.lock()
+            self.continuationsByRepoRoot[repoRoot] = continuation
+            self.lock.unlock()
+            return GitStatusRepositoryWatch(events: events) { [self] in
+                self.lock.lock()
+                self.stopped.append(repoRoot)
+                self.lock.unlock()
+                continuation.finish()
+            }
+        }
+    }
+
+    func fire(repoRoot: String) {
+        lock.lock()
+        let continuation = continuationsByRepoRoot[repoRoot]
+        lock.unlock()
+        continuation?.yield(())
+    }
+}
+
 // MARK: - Store Tests
 
 /// The store's `@Published` state is driven by unstructured `Task { ... }` calls that
@@ -161,6 +205,180 @@ struct FileExplorerStoreTests {
             }
             throw error
         }
+    }
+
+    // MARK: - Nested repository git status and ghost rows
+
+    /// A non-repository explorer root containing one repository with a modified
+    /// tracked file and a deleted tracked file.
+    private struct NestedRepoTree {
+        let rootURL: URL
+        let repoURL: URL
+        let modifiedURL: URL
+        let deletedURL: URL
+
+        var canonicalRepoRoot: String { repoURL.resolvingSymlinksInPath().path }
+
+        static func make() throws -> NestedRepoTree {
+            let rootURL = try GitRepositoryTestSupport.makeTemporaryDirectory(prefix: "cmux-file-explorer-store-git-")
+            let repoURL = rootURL.appendingPathComponent("repo", isDirectory: true)
+            try GitRepositoryTestSupport.initializeRepo(at: repoURL)
+            let modifiedURL = repoURL.appendingPathComponent("tracked.txt")
+            let deletedURL = repoURL.appendingPathComponent("gone.txt")
+            try "one\n".write(to: modifiedURL, atomically: true, encoding: .utf8)
+            try "gone\n".write(to: deletedURL, atomically: true, encoding: .utf8)
+            try GitRepositoryTestSupport.runGit(["add", "."], in: repoURL)
+            try GitRepositoryTestSupport.runGit(["commit", "-q", "-m", "initial"], in: repoURL)
+            try "two\n".write(to: modifiedURL, atomically: true, encoding: .utf8)
+            try FileManager.default.removeItem(at: deletedURL)
+            return NestedRepoTree(rootURL: rootURL, repoURL: repoURL, modifiedURL: modifiedURL, deletedURL: deletedURL)
+        }
+
+        func cleanUp() {
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+    }
+
+    private func expandRepoNode(in store: FileExplorerStore, tree: NestedRepoTree) async throws -> FileExplorerNode {
+        try await waitFor("root listing shows the repository", timeout: 10) {
+            store.rootNodes.contains { $0.name == "repo" && $0.isDirectory }
+        }
+        let repoNode = try #require(store.rootNodes.first { $0.name == "repo" })
+        store.expand(node: repoNode)
+        try await waitFor("repository listing loaded", timeout: 10) { repoNode.children != nil }
+        return repoNode
+    }
+
+    @Test
+    func testNestedRepositoryBelowNonRepoRootColorsModifiedFileAfterExpand() async throws {
+        let tree = try NestedRepoTree.make()
+        defer { tree.cleanUp() }
+        let watchSource = FakeRepositoryWatchSource()
+        let store = FileExplorerStore(gitStatusProvider: GitStatusProvider(), repositoryWatchFactory: watchSource.factory)
+        store.showHiddenFiles = true
+        store.setProviderForTesting(LocalFileExplorerProvider())
+        store.setRootPath(tree.rootURL.path)
+
+        _ = try await expandRepoNode(in: store, tree: tree)
+
+        try await waitFor("nested repository status applied", timeout: 10) {
+            store.gitStatusByPath[tree.modifiedURL.path] == .modified
+        }
+        // The intermediate directory between the explorer root and the file is
+        // marked too, even though the explorer root itself is not a repository.
+        #expect(store.gitStatusByPath[tree.repoURL.path] == .modified)
+        #expect(store.gitStatusByPath[tree.rootURL.path] == nil)
+        #expect(store.gitStatusRevision > 0)
+    }
+
+    @Test
+    func testDeletedFileShowsAsGhostUntilRestoredAndRefreshed() async throws {
+        let tree = try NestedRepoTree.make()
+        defer { tree.cleanUp() }
+        let watchSource = FakeRepositoryWatchSource()
+        let store = FileExplorerStore(gitStatusProvider: GitStatusProvider(), repositoryWatchFactory: watchSource.factory)
+        store.showHiddenFiles = true
+        store.setProviderForTesting(LocalFileExplorerProvider())
+        store.setRootPath(tree.rootURL.path)
+
+        let repoNode = try await expandRepoNode(in: store, tree: tree)
+
+        try await waitFor("deleted file appears as a ghost row", timeout: 10) {
+            repoNode.children?.contains { $0.isGhost && $0.name == "gone.txt" } == true
+        }
+        let ghost = try #require(repoNode.children?.first { $0.isGhost })
+        #expect(ghost.path == tree.deletedURL.path)
+        #expect(!ghost.isExpandable)
+        #expect(store.gitStatusByPath[tree.deletedURL.path] == .deleted)
+        // Ghosts sort with the files, after directories, case-insensitively.
+        #expect(repoNode.sortedChildren?.map(\.name) == [".git", "gone.txt", "tracked.txt"])
+        let revisionWithGhost = store.contentRevision
+
+        // Restore the file, then refresh the tree and git status the way the root
+        // watcher does: the ghost gives way to a real node.
+        try GitRepositoryTestSupport.runGit(["checkout", "--", "gone.txt"], in: tree.repoURL)
+        store.reload()
+        store.refreshGitStatus()
+
+        try await waitFor("restored file replaces the ghost", timeout: 10) {
+            guard let node = store.rootNodes.first(where: { $0.name == "repo" }),
+                  let children = node.children else { return false }
+            return children.contains { !$0.isGhost && $0.name == "gone.txt" } &&
+                !children.contains(where: \.isGhost) &&
+                store.gitStatusByPath[tree.deletedURL.path] == nil
+        }
+        #expect(store.contentRevision != revisionWithGhost)
+        #expect(store.gitStatusByPath[tree.modifiedURL.path] == .modified)
+    }
+
+    @Test
+    func testGhostRowsReconcileInLoadedDirectoriesWhenStatusChanges() async throws {
+        let tree = try NestedRepoTree.make()
+        defer { tree.cleanUp() }
+        let watchSource = FakeRepositoryWatchSource()
+        let store = FileExplorerStore(gitStatusProvider: GitStatusProvider(), repositoryWatchFactory: watchSource.factory)
+        store.showHiddenFiles = true
+        store.setProviderForTesting(LocalFileExplorerProvider())
+        store.setRootPath(tree.rootURL.path)
+
+        let repoNode = try await expandRepoNode(in: store, tree: tree)
+        try await waitFor("ghost present", timeout: 10) {
+            repoNode.children?.contains(where: \.isGhost) == true
+        }
+        try await waitFor("repository watcher installed", timeout: 10) {
+            watchSource.startedRepoRoots == [tree.canonicalRepoRoot]
+        }
+
+        // Restoring the file in git and re-fetching only that repository (no
+        // listing reload) removes the ghost from the already-loaded directory.
+        try GitRepositoryTestSupport.runGit(["checkout", "--", "gone.txt"], in: tree.repoURL)
+        let revisionBefore = store.contentRevision
+        watchSource.fire(repoRoot: tree.canonicalRepoRoot)
+
+        try await waitFor("ghost removed after watcher-triggered refetch", timeout: 10) {
+            repoNode.children?.contains(where: \.isGhost) == false
+        }
+        #expect(store.contentRevision != revisionBefore)
+        #expect(store.gitStatusByPath[tree.deletedURL.path] == nil)
+    }
+
+    @Test
+    func testRepositoryWatchEventRefetchesOnlyThatRepository() async throws {
+        let tree = try NestedRepoTree.make()
+        defer { tree.cleanUp() }
+        let watchSource = FakeRepositoryWatchSource()
+        let store = FileExplorerStore(gitStatusProvider: GitStatusProvider(), repositoryWatchFactory: watchSource.factory)
+        store.showHiddenFiles = true
+        store.setProviderForTesting(LocalFileExplorerProvider())
+        store.setRootPath(tree.rootURL.path)
+
+        _ = try await expandRepoNode(in: store, tree: tree)
+        try await waitFor("initial nested status applied", timeout: 10) {
+            store.gitStatusByPath[tree.modifiedURL.path] == .modified
+        }
+        try await waitFor("repository watcher installed", timeout: 10) {
+            watchSource.startedRepoRoots == [tree.canonicalRepoRoot]
+        }
+
+        // Revert the modification on disk; nothing observes it until the
+        // repository watcher fires.
+        try "one\n".write(to: tree.modifiedURL, atomically: true, encoding: .utf8)
+        watchSource.fire(repoRoot: tree.canonicalRepoRoot)
+
+        try await waitFor("watcher event re-fetched the repository", timeout: 10) {
+            store.gitStatusByPath[tree.modifiedURL.path] == nil
+        }
+        // The deleted file is still deleted, so the directory stays marked.
+        #expect(store.gitStatusByPath[tree.repoURL.path] == .modified)
+
+        // Changing the root tears the watcher down.
+        let otherRoot = try GitRepositoryTestSupport.makeTemporaryDirectory(prefix: "cmux-file-explorer-store-git-")
+        defer { try? FileManager.default.removeItem(at: otherRoot) }
+        store.setRootPath(otherRoot.path)
+        try await waitFor("watcher stopped on root change", timeout: 10) {
+            watchSource.stoppedRepoRoots == [tree.canonicalRepoRoot]
+        }
+        #expect(store.gitStatusByPath.isEmpty)
     }
 
     // MARK: - Basic loading

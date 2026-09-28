@@ -48,6 +48,34 @@ class SidebarAliasTests(unittest.TestCase):
                     server.shutdown()
                     thread.join(timeout=5)
 
+    def test_aliases_send_the_canonical_changes_mode(self):
+        cli = os.environ["CMUX_CLI_BIN"]
+        env = {k: v for k, v in os.environ.items() if not k.startswith("CMUX_")}
+        with tempfile.TemporaryDirectory(prefix="sidebar-alias-", dir="/tmp") as root:
+            test_home = str(Path(root) / "home")
+            Path(test_home).mkdir()
+            env.update(HOME=test_home, CFFIXED_USER_HOME=test_home)
+            socket_path = str(Path(root) / "s")
+            with socketserver.ThreadingUnixStreamServer(socket_path, SidebarHandler) as server:
+                server.commands = []
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                try:
+                    for alias in ["changes", "diff", "git", "CHANGES"]:
+                        for prefix, suffix in [([], []), (["set"], []), (["set"], ["--no-focus"])]:
+                            args = [*prefix, alias, *suffix]
+                            with self.subTest(args=args):
+                                server.commands.clear()
+                                result = subprocess.run(
+                                    [cli, "--socket", socket_path, "right-sidebar", *args],
+                                    env=env, capture_output=True, text=True, timeout=15
+                                )
+                                self.assertEqual(result.returncode, 0, result.stderr)
+                                self.assertEqual(server.commands, [["right_sidebar", "set", "changes", *suffix]])
+                finally:
+                    server.shutdown()
+                    thread.join(timeout=5)
+
 
 if __name__ == "__main__":
     unittest.main()

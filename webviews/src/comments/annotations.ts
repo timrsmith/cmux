@@ -1,5 +1,6 @@
 import type { DiffLineAnnotation } from "@pierre/diffs";
 import { fileName, type DiffItem } from "../diff-stream";
+import { hunkActionTargets } from "../worktree-actions";
 import { anchorComment } from "./anchor";
 import type {
   AnchorResult,
@@ -14,6 +15,7 @@ export type CommentAnnotation = DiffLineAnnotation<CommentAnnotationMetadata>;
  * Derives the inline annotations for one diff item from the saved comments
  * and the in-progress draft. Comments anchor against the item's fileDiff;
  * outdated comments get no inline annotation (they stay sidebar-only).
+ * Hunk action rows are not part of this: see `withHunkActionAnnotations`.
  */
 export function annotationsForItem(
   item: DiffItem,
@@ -48,6 +50,47 @@ export function annotationsForItem(
   return annotations;
 }
 
+// Keyed by the reducer's item object: a decorated copy is reused until the
+// reducer hands out a new item (new annotations bump its version and identity).
+const itemsWithHunkActions = new WeakMap<DiffItem, DiffItem>();
+
+/**
+ * Attaches the per-hunk write-action rows to an item at render time, when
+ * the viewer has write actions. The rows live outside the reducer because
+ * whether they show depends on the transport and the sidecar's capabilities,
+ * which the reducer does not own. The decorated item gets a version from a
+ * disjoint (negative) range so the CodeView always sees a change when the
+ * rows appear or disappear, whatever the source item's version does.
+ */
+export function withHunkActionAnnotations(item: DiffItem): DiffItem {
+  if (item.fileDiff == null) {
+    return item;
+  }
+  const cached = itemsWithHunkActions.get(item);
+  if (cached != null) {
+    return cached;
+  }
+  const rows: CommentAnnotation[] = hunkActionTargets(item.fileDiff).map((target) => ({
+    side: target.anchor.side,
+    lineNumber: target.anchor.lineNumber,
+    metadata: { kind: "hunkActions", index: target.index, hunk: target.hunk },
+  }));
+  const decorated = rows.length === 0
+    ? item
+    : {
+        ...item,
+        annotations: [...((item.annotations as CommentAnnotation[] | undefined) ?? []), ...rows],
+        version: -1 - (item.version ?? 0),
+      };
+  itemsWithHunkActions.set(item, decorated);
+  return decorated;
+}
+
+/** `withHunkActionAnnotations` over a list; the list identity changes, item identities are cached. */
+export function attachHunkActionAnnotations(items: readonly DiffItem[]): DiffItem[] {
+  return items.map(withHunkActionAnnotations);
+}
+
 function sameAnchor(previous: AnchorResult, next: AnchorResult): boolean {
   if (previous.state !== next.state) {
     return false;
@@ -58,17 +101,28 @@ function sameAnchor(previous: AnchorResult, next: AnchorResult): boolean {
   return previous.line === next.line;
 }
 
-function sameCommentAnnotation(previous: CommentAnnotation, next: CommentAnnotation): boolean {
+function sameCommentAnnotation(
+  previous: CommentAnnotation,
+  next: CommentAnnotation,
+): boolean {
   if (previous.side !== next.side || previous.lineNumber !== next.lineNumber) {
     return false;
   }
   const previousMetadata = previous.metadata;
   const nextMetadata = next.metadata;
-  if (previousMetadata.kind === "draft" || nextMetadata.kind === "draft") {
-    return previousMetadata.kind === nextMetadata.kind;
+  if (previousMetadata.kind !== nextMetadata.kind) {
+    return false;
   }
-  return previousMetadata.comment === nextMetadata.comment &&
-    sameAnchor(previousMetadata.anchor, nextMetadata.anchor);
+  if (previousMetadata.kind === "draft") {
+    return true;
+  }
+  if (previousMetadata.kind !== "comment" || nextMetadata.kind !== "comment") {
+    return false;
+  }
+  return (
+    previousMetadata.comment === nextMetadata.comment &&
+    sameAnchor(previousMetadata.anchor, nextMetadata.anchor)
+  );
 }
 
 export function sameCommentAnnotations(
@@ -97,7 +151,10 @@ export function withCommentAnnotations(
   draft: CommentDraft | null,
 ): DiffItem {
   const annotations = annotationsForItem(item, comments, draft);
-  if (annotations.length === 0 && (item.annotations == null || item.annotations.length === 0)) {
+  if (
+    annotations.length === 0 &&
+    (item.annotations == null || item.annotations.length === 0)
+  ) {
     return item;
   }
   return { ...item, annotations };
@@ -116,9 +173,15 @@ export function applyCommentAnnotations(
   let changed = false;
   const next = items.map((item) => {
     const annotations = annotationsForItem(item, comments, draft);
+
     // Diff viewer items are always type "diff", so their annotations are
     // DiffLineAnnotation values even though CodeViewItem unions in file items.
-    if (sameCommentAnnotations(item.annotations as CommentAnnotation[] | undefined, annotations)) {
+    if (
+      sameCommentAnnotations(
+        item.annotations as CommentAnnotation[] | undefined,
+        annotations,
+      )
+    ) {
       return item;
     }
     changed = true;
@@ -150,7 +213,10 @@ export function sidebarCommentEntries(
   return comments.map((comment) => {
     let fallback: { itemId: string; anchor: AnchorResult } | null = null;
     for (const item of items) {
-      if (item.fileDiff == null || fileName(item.fileDiff, "") !== comment.filePath) {
+      if (
+        item.fileDiff == null ||
+        fileName(item.fileDiff, "") !== comment.filePath
+      ) {
         continue;
       }
       const anchor = anchorComment(item.fileDiff, comment);

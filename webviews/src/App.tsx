@@ -11,6 +11,7 @@ import { BranchBasePicker, branchPickerStateKey, type BranchPickerPayload } from
 import { lineTextFor, type CommentFileDiff } from "./comments/anchor";
 import {
   applyCommentAnnotations,
+  attachHunkActionAnnotations,
   sidebarCommentEntries,
   withCommentAnnotations,
   type CommentAnnotation,
@@ -55,8 +56,32 @@ import { createDiffTransport, DiffTransportError, type DiffTransport } from "./d
 import { FindBar } from "./find/FindBar";
 import { useDiffFind, type DiffFindController } from "./find/useDiffFind";
 import { useFindKeyboard } from "./find/useFindKeyboard";
-import type { DiffSource, DiffTransportConfig } from "./diff/generated/protocol";
+import type { DiffSource, DiffTransportConfig, HunkRef } from "./diff/generated/protocol";
+import type { DiffCommand } from "./diff/transport";
 import { createDiffWorkerPoolOptions } from "./worker-pool";
+import {
+  buildCommitRequest,
+  buildFileRequest,
+  buildHunkRequest,
+  commitAvailability,
+  fileActionsForSource,
+  worktreeErrorLabelKey,
+  worktreeErrorReloads,
+  worktreeFileTarget,
+  worktreeWriteAvailable,
+  writableDiffSource,
+  type FileWriteAction,
+  type WritableDiffSource,
+} from "./worktree-actions";
+import {
+  CommitButton,
+  CommitPopover,
+  FileWriteActions,
+  HunkWriteActions,
+  WorktreeNoticeView,
+  useCommitPopoverDismiss,
+  type WorktreeNotice,
+} from "./WorktreeActions";
 
 type ConfigProps = {
   config: DiffViewerConfig;
@@ -89,13 +114,15 @@ type AppState = {
   metrics: StreamMetrics | null;
   options: DiffViewerOptions;
   optionsOpen: boolean;
+  /** Item ids to re-collapse as they stream back in after a write action reload. */
+  restoreCollapsed: ReadonlySet<string> | null;
   status: DiffViewerStatus;
   treeSource: FileTreeSource | null;
 };
 
 type AppAction =
   | { type: "append-items"; items: DiffItem[] }
-  | { type: "reset-diff"; status: DiffViewerStatus }
+  | { type: "reset-diff"; status: DiffViewerStatus; restoreCollapsed?: ReadonlySet<string> }
   | { type: "remove-comment"; id: string }
   | { type: "rename-item"; oldId: string; newId: string }
   | { type: "set-active-item"; itemId: string; treePath?: string }
@@ -151,6 +178,7 @@ function initialAppState(config: DiffViewerConfig, initialStatus: DiffViewerStat
       wordWrap: false,
     } as DiffViewerOptions,
     optionsOpen: false,
+    restoreCollapsed: null,
     status: initialStatus,
     treeSource: null,
   };
@@ -162,7 +190,8 @@ function reducer(state: AppState, action: AppAction): AppState {
     const nextItems = action.items.map((item) => {
       resolveDiffItemLanguage(item);
       const annotated = withCommentAnnotations(item, state.comments, state.draft);
-      return state.options.collapsed ? { ...annotated, collapsed: true } : annotated;
+      const collapsed = state.options.collapsed || state.restoreCollapsed?.has(item.id) === true;
+      return collapsed ? { ...annotated, collapsed: true } : annotated;
     });
     const languages = mergeLanguages(state.languages, nextItems.flatMap(diffItemPreloadLanguages));
     return {
@@ -182,6 +211,7 @@ function reducer(state: AppState, action: AppAction): AppState {
       items: [],
       languages: ["text"],
       metrics: null,
+      restoreCollapsed: action.restoreCollapsed ?? null,
       status: action.status,
       treeSource: null,
     };
@@ -404,8 +434,133 @@ export function App({ config, initialStatus }: ConfigProps) {
   useOptionsDismiss(state.optionsOpen, dispatch);
   useFileSearchDismiss(state.fileSearchOpen, dispatch);
 
+  // Working-tree write actions: only for typed unstaged/staged sessions on a
+  // sidecar that advertised `worktree.write`. Patch and branch sources never
+  // show them.
+  const hasTypedSession = transport != null && typeof payload.capabilityToken === "string";
+  const sidecarCapabilities = useSidecarCapabilities(transport, hasTypedSession);
+  const writeSource = writableDiffSource(resolvedSessionSource ?? activeSessionSource);
+  const writeAvailable = worktreeWriteAvailable(writeSource, sidecarCapabilities, hasTypedSession);
+  // Hunk action rows are attached at render time (cached per item) rather
+  // than stored on the reducer's items, so `writeAvailable` stays the single
+  // source of truth for whether they show.
+  const renderedItems = useMemo(
+    () => (writeAvailable ? attachHunkActionAnnotations(state.items) : state.items),
+    [state.items, writeAvailable],
+  );
+  const [pendingWrite, setPendingWrite] = useState(false);
+  const pendingWriteRef = useRef(false);
+  const [commitOpen, setCommitOpen] = useState(false);
+  const [worktreeNotice, setWorktreeNotice] = useState<WorktreeNotice | null>(null);
+  const noticeTokenRef = useRef(0);
+  const restoreScrollRef = useRef<number | null>(null);
+  const closeCommitPopover = useCallback(() => setCommitOpen(false), []);
+  useCommitPopoverDismiss(commitOpen, closeCommitPopover);
+  const expireNotice = useCallback((token: number) => {
+    setWorktreeNotice((current) => (current?.token === token ? null : current));
+  }, []);
+  const showWorktreeNotice = (message: string, error: boolean) => {
+    noticeTokenRef.current += 1;
+    setWorktreeNotice({ error, message, token: noticeTokenRef.current });
+  };
+  const selectSessionSource = (source: DiffSource, restoreCollapsed?: ReadonlySet<string>) => {
+    const currentSource = resolvedSessionSource ?? activeSessionSource;
+    const selectedSource = source.kind === "branch"
+      && (currentSource?.kind !== "branch" || source.baseRef == null)
+      ? branchSourceByRepoRef.current.get(source.repoRoot) ?? source
+      : source;
+    if (selectedSource.kind === "branch") {
+      branchSourceByRepoRef.current.set(selectedSource.repoRoot, selectedSource);
+    }
+    const status = createDiffViewerStatus(label("loadingDiff"), { pending: true });
+    applyDiffViewerStatusToDocument(status);
+    dispatch({ type: "reset-diff", status, restoreCollapsed });
+    setActivePatchURL(undefined);
+    void closeActiveSession();
+    setResolvedSessionSource(selectedSource);
+    setActiveSessionSource(selectedSource);
+  };
+  // After a mutation the session is reopened in place (no page reload); the
+  // collapsed files and scroll offset are carried across the reload.
+  const reloadAfterWrite = (source: WritableDiffSource) => {
+    const current = latestState.current;
+    const collapsed = new Set(current.items.filter((item) => item.collapsed).map((item) => item.id));
+    restoreScrollRef.current = codeViewScrollTopRef.current;
+    selectSessionSource({ ...source }, collapsed);
+  };
+  const runWorktreeWrite = async (command: DiffCommand, source: WritableDiffSource) => {
+    if (!transport || pendingWriteRef.current) {
+      return;
+    }
+    pendingWriteRef.current = true;
+    setPendingWrite(true);
+    try {
+      const result = await transport.request(command);
+      if (result.type === "committed") {
+        showWorktreeNotice(label("committed").replace("{commit}", result.value.commit.slice(0, 10)), false);
+        setCommitOpen(false);
+      } else if (result.type !== "worktreeMutated") {
+        throw new DiffTransportError("invalidResponse", "Diff transport did not confirm the change");
+      }
+      reloadAfterWrite(source);
+    } catch (error) {
+      const code = error instanceof DiffTransportError ? error.code : undefined;
+      showWorktreeNotice(label(worktreeErrorLabelKey(code)), true);
+      if (worktreeErrorReloads(code)) {
+        reloadAfterWrite(source);
+      }
+    } finally {
+      pendingWriteRef.current = false;
+      setPendingWrite(false);
+    }
+  };
+  const onFileWriteAction = (item: DiffItem, action: FileWriteAction) => {
+    const session = activeSessionRef.current;
+    const target = worktreeFileTarget(item.fileDiff);
+    if (!writeSource || !session || !target) {
+      return;
+    }
+    void runWorktreeWrite(buildFileRequest(action, session, writeSource, target), writeSource);
+  };
+  const onHunkRevert = (item: DiffItem, hunk: HunkRef) => {
+    const session = activeSessionRef.current;
+    const target = worktreeFileTarget(item.fileDiff);
+    if (!writeSource || !session || !target) {
+      return;
+    }
+    void runWorktreeWrite(buildHunkRequest(session, writeSource, target, hunk), writeSource);
+  };
+  const onCommit = (message: string) => {
+    const session = activeSessionRef.current;
+    if (!writeSource || !session) {
+      return;
+    }
+    void runWorktreeWrite(buildCommitRequest(session, writeSource, message), writeSource);
+  };
+  const availability = commitAvailability(writeSource);
+  const commitControl = writeAvailable && availability !== "hidden"
+    ? {
+        availability,
+        onClose: closeCommitPopover,
+        onCommit,
+        onToggle: () => setCommitOpen((open) => !open),
+        open: commitOpen,
+        pending: pendingWrite,
+      }
+    : null;
+
+
   const renderCommentAnnotation = (annotation: CommentAnnotation, item: DiffItem) => {
     const metadata = annotation.metadata;
+    if (metadata.kind === "hunkActions") {
+      return (
+        <HunkWriteActions
+          label={label}
+          onRevert={() => onHunkRevert(item, metadata.hunk)}
+          pending={pendingWrite}
+        />
+      );
+    }
     if (metadata.kind === "draft") {
       return (
         <CommentComposer
@@ -426,6 +581,17 @@ export function App({ config, initialStatus }: ConfigProps) {
   };
 
   const diffStreamComplete = Number.isFinite(state.metrics?.completedAt) && (state.metrics?.completedAt ?? 0) > 0;
+  useEffect(() => {
+    if (!diffStreamComplete || restoreScrollRef.current == null) {
+      return;
+    }
+    const position = restoreScrollRef.current;
+    restoreScrollRef.current = null;
+    const frame = requestAnimationFrame(() => {
+      codeViewRef.current?.scrollTo({ type: "position", position, behavior: "instant" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [diffStreamComplete]);
   const commentEntries = sidebarCommentEntries(state.items, state.comments, diffStreamComplete);
   const selectCommentEntry = (entry: SidebarCommentEntry) => {
     if (entry.itemId == null) {
@@ -523,23 +689,10 @@ export function App({ config, initialStatus }: ConfigProps) {
           window.location.href = resolveDiffNavigationURL(url);
         }}
         activeSessionSource={resolvedSessionSource ?? activeSessionSource}
-        onSelectSessionSource={(source) => {
-          const currentSource = resolvedSessionSource ?? activeSessionSource;
-          const selectedSource = source.kind === "branch"
-            && (currentSource?.kind !== "branch" || source.baseRef == null)
-            ? branchSourceByRepoRef.current.get(source.repoRoot) ?? source
-            : source;
-          if (selectedSource.kind === "branch") {
-            branchSourceByRepoRef.current.set(selectedSource.repoRoot, selectedSource);
-          }
-          const status = createDiffViewerStatus(label("loadingDiff"), { pending: true });
-          applyDiffViewerStatusToDocument(status);
-          dispatch({ type: "reset-diff", status });
-          setActivePatchURL(undefined);
-          void closeActiveSession();
-          setResolvedSessionSource(selectedSource);
-          setActiveSessionSource(selectedSource);
-        }}
+        commit={commitControl}
+        onSelectSessionSource={(source) => selectSessionSource(source)}
+        worktreeNotice={worktreeNotice}
+        onWorktreeNoticeExpire={expireNotice}
         onReload={async () => {
           await closeActiveSession();
           window.location.reload();
@@ -584,11 +737,22 @@ export function App({ config, initialStatus }: ConfigProps) {
                 ref={codeViewRef}
                 className="code-view-root"
                 containerRef={viewerContainerRef}
-                items={state.items}
+                items={renderedItems}
                 onScroll={handleCodeViewScroll}
                 options={renderedCodeViewOptions}
                 renderHeaderMetadata={(item) => (
-                  <DiffHeaderMetadata fileDiff={(item as DiffItem).fileDiff} label={label} />
+                  <>
+                    {writeAvailable ? (
+                      <FileWriteActions
+                        actions={fileActionsForSource(writeSource)}
+                        label={label}
+                        onAction={(action) => onFileWriteAction(item as DiffItem, action)}
+                        pending={pendingWrite}
+
+                      />
+                    ) : null}
+                    <DiffHeaderMetadata fileDiff={(item as DiffItem).fileDiff} label={label} />
+                  </>
                 )}
                 renderAnnotation={(annotation, item) =>
                   renderCommentAnnotation(annotation as CommentAnnotation, item as DiffItem)}
@@ -783,8 +947,18 @@ function WorkerRenderOptionsSync({
   return null;
 }
 
+type CommitControlProps = {
+  availability: "enabled" | "requiresStaged";
+  onClose: () => void;
+  onCommit: (message: string) => void;
+  onToggle: () => void;
+  open: boolean;
+  pending: boolean;
+};
+
 function Toolbar({
   activeSessionSource,
+  commit,
   config,
   dispatch,
   label,
@@ -794,10 +968,13 @@ function Toolbar({
   onSelectSessionSource,
   onReload,
   onSetLayout,
+  onWorktreeNoticeExpire,
   state,
   transport,
+  worktreeNotice,
 }: {
   activeSessionSource: DiffSource | null;
+  commit: CommitControlProps | null;
   config: DiffViewerConfig;
   dispatch: React.Dispatch<AppAction>;
   label: DiffViewerLabelResolver;
@@ -807,8 +984,10 @@ function Toolbar({
   onSelectSessionSource: (source: DiffSource) => void;
   onReload: () => void;
   onSetLayout: (layout: DiffViewerLayout) => void;
+  onWorktreeNoticeExpire: (token: number) => void;
   state: AppState;
   transport: DiffTransport | null;
+  worktreeNotice: WorktreeNotice | null;
 }) {
   const payload = config.payload ?? {};
   const externalURL =
@@ -824,6 +1003,7 @@ function Toolbar({
   // never be dropped — it shrinks/ellipsizes in place instead). Estimated widths
   // include each control's ~4px inter-item gap.
   const overflowItems = [
+    ...(commit ? [{ id: "commit-button" as const, width: TOOLBAR_COMMIT_SLOT }] : []),
     { id: "files-toggle" as const, width: TOOLBAR_ICON_SLOT },
     { id: "layout-toggle" as const, width: TOOLBAR_ICON_SLOT },
     ...(externalURL ? [{ id: "external-link" as const, width: TOOLBAR_ICON_SLOT }] : []),
@@ -846,6 +1026,7 @@ function Toolbar({
   const showFilesToggle = !overflow.has("files-toggle");
   const showLayoutToggle = !overflow.has("layout-toggle");
   const showExternalLink = externalURL != null && !overflow.has("external-link");
+  const showCommitButton = commit != null && !overflow.has("commit-button");
   return (
     <header id="toolbar" ref={toolbarRef}>
       <SourceControls
@@ -870,6 +1051,15 @@ function Toolbar({
         />
       </div>
       <div className="toolbar-actions flex items-center gap-1.5">
+        {showCommitButton && commit ? (
+          <CommitButton
+            availability={commit.availability}
+            label={label}
+            onToggle={commit.onToggle}
+            open={commit.open}
+            pending={commit.pending}
+          />
+        ) : null}
         {showExternalLink ? (
           <a
             id="external-link"
@@ -926,6 +1116,7 @@ function Toolbar({
       </div>
       {state.optionsOpen ? (
         <OptionsMenu
+          commit={commit}
           dispatch={dispatch}
           externalURL={externalURL}
           label={label}
@@ -935,6 +1126,15 @@ function Toolbar({
           state={state}
         />
       ) : null}
+      {commit?.open ? (
+        <CommitPopover
+          label={label}
+          onCancel={commit.onClose}
+          onCommit={commit.onCommit}
+          pending={commit.pending}
+        />
+      ) : null}
+      <WorktreeNoticeView notice={worktreeNotice} onExpire={onWorktreeNoticeExpire} />
     </header>
   );
 }
@@ -944,6 +1144,9 @@ function Toolbar({
 // the toolbar cells is the hard no-overlap guarantee, so exactness is not load
 // bearing.
 const TOOLBAR_ICON_SLOT = 28;
+// Labeled Commit button (icon + "Commit" text + gap). It overflows into the
+// "..." menu last, where `commitChanges` is its canonical fallback.
+const TOOLBAR_COMMIT_SLOT = 92;
 // Width reserved for the always-present zone (source select + Base picker + the
 // "..." button + horizontal padding/gaps). Deliberately generous: the optional
 // controls shed early rather than allowing the always-present zone to overflow.
@@ -1271,6 +1474,7 @@ export function JumpSelect({
 }
 
 function OptionsMenu({
+  commit,
   dispatch,
   externalURL,
   label,
@@ -1279,6 +1483,7 @@ function OptionsMenu({
   onSetLayout,
   state,
 }: {
+  commit: CommitControlProps | null;
   dispatch: React.Dispatch<AppAction>;
   externalURL: string | null;
   label: DiffViewerLabelResolver;
@@ -1291,6 +1496,18 @@ function OptionsMenu({
   return (
     <div id="options-menu" aria-label={label("options")}>
       <MenuButton icon="refresh" label={label("refresh")} onClick={onReload} />
+      {commit ? (
+        <MenuButton
+          disabled={commit.availability !== "enabled" || commit.pending}
+          icon="commit"
+          label={label("commitChanges")}
+          title={commit.availability === "requiresStaged" ? label("commitRequiresStaged") : undefined}
+          onClick={() => {
+            dispatch({ type: "set-options-open", open: false });
+            commit.onToggle();
+          }}
+        />
+      ) : null}
       <MenuButton checked={state.options.wordWrap} icon="wrap" label={state.options.wordWrap ? label("disableWordWrap") : label("enableWordWrap")} onClick={() => toggle("wordWrap")} />
       <MenuButton checked={state.options.collapsed} icon={state.options.collapsed ? "expand" : "collapse"} label={state.options.collapsed ? label("expandAllDiffs") : label("collapseAllDiffs")} onClick={() => toggle("collapsed")} />
       <div className="menu-separator" />
@@ -1338,20 +1555,26 @@ function OptionsMenu({
 
 function MenuButton({
   checked,
+  disabled,
   icon,
   label,
   onClick,
+  title,
 }: {
   checked?: boolean;
+  disabled?: boolean;
   icon: Parameters<typeof Icon>[0]["name"];
   label: string;
   onClick: () => void;
+  title?: string;
 }) {
   return (
     <button
       type="button"
       className="menu-item"
       aria-pressed={checked == null ? undefined : checked}
+      disabled={disabled}
+      title={title}
       onClick={onClick}
     >
       <Icon name={icon} />
@@ -2115,6 +2338,31 @@ function useFileSearchDismiss(fileSearchOpen: boolean, dispatch: React.Dispatch<
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [dispatch, fileSearchOpen]);
+}
+
+/**
+ * One handshake per page: the sidecar's advertised capabilities gate the
+ * write actions so a host without `worktree.write` renders a read-only diff.
+ */
+function useSidecarCapabilities(transport: DiffTransport | null, enabled: boolean): string[] | null {
+  const [capabilities, setCapabilities] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (!transport || !enabled) {
+      return;
+    }
+    let cancelled = false;
+    transport.request({ method: "protocolHandshake" })
+      .then((result) => {
+        if (!cancelled && result.type === "handshake") {
+          setCapabilities(result.value.capabilities);
+        }
+      })
+      .catch((error) => console.warn("cmux diff sidecar handshake failed", error));
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, transport]);
+  return capabilities;
 }
 
 function useDiffTransport(config: DiffTransportConfig | undefined): DiffTransport | null {

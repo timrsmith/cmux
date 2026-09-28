@@ -12,17 +12,19 @@ export type BranchPickerGroup = { id: string, label: string, rows: Array<BranchP
 
 export type BranchPickerRow = { ref: string, label: string, secondary?: string, reason?: string, confidence?: BranchPickerConfidence, current?: boolean, worktreeDir?: string, };
 
+export type CommitResult = { commit: string, };
+
 export type DiffEvent = { "type": "sessionStatus", sessionId: string, status: DiffSessionStatus, } | { "type": "patchReady", sessionId: string, patch: DiffResourceRef, } | { "type": "sessionFailed", sessionId: string, error: DiffProtocolError, };
 
 export type DiffProtocolError = { code: string, message: string, };
 
-export type DiffRequest = { id: string, version: number, } & ({ "method": "protocolHandshake" } | { "method": "sessionOpen", "params": OpenSessionRequest } | { "method": "sessionClose", "params": SessionRequest } | { "method": "branchList", "params": BranchListRequest } | { "method": "branchChange", "params": BranchChangeRequest });
+export type DiffRequest = { id: string, version: number, } & ({ "method": "protocolHandshake" } | { "method": "sessionOpen", "params": OpenSessionRequest } | { "method": "sessionClose", "params": SessionRequest } | { "method": "branchList", "params": BranchListRequest } | { "method": "branchChange", "params": BranchChangeRequest } | { "method": "worktreeRevertFile", "params": WorktreeFileRequest } | { "method": "worktreeStageFile", "params": WorktreeFileRequest } | { "method": "worktreeUnstageFile", "params": WorktreeFileRequest } | { "method": "worktreeRevertHunk", "params": WorktreeHunkRequest } | { "method": "worktreeCommit", "params": WorktreeCommitRequest });
 
 export type DiffResourceRef = { id: string, mediaType: string, byteLength: number | null, revision: number, };
 
 export type DiffResponse = { id: string, version: number, result: DiffResult | null, error: DiffProtocolError | null, };
 
-export type DiffResult = { "type": "handshake", "value": HandshakeResult } | { "type": "sessionOpened", "value": SessionOpened } | { "type": "sessionClosed" } | { "type": "branches", "value": BranchListResult } | { "type": "navigation", "value": NavigationResult };
+export type DiffResult = { "type": "handshake", "value": HandshakeResult } | { "type": "sessionOpened", "value": SessionOpened } | { "type": "sessionClosed" } | { "type": "branches", "value": BranchListResult } | { "type": "navigation", "value": NavigationResult } | { "type": "worktreeMutated", "value": WorktreeMutated } | { "type": "committed", "value": CommitResult };
 
 export type DiffSessionStatus = "opening" | "ready" | "closed";
 
@@ -34,6 +36,11 @@ export type DiffTransportKind = "fetch" | "webSocket" | "webKit";
 
 export type HandshakeResult = { protocolVersion: number, capabilities: Array<string>, };
 
+/**
+ * Identifies one hunk by its `@@ -old,count +new,count @@` header ranges.
+ */
+export type HunkRef = { oldStart: number, oldCount: number, newStart: number, newCount: number, };
+
 export type NavigationResult = { url: string, };
 
 export type OpenSessionRequest = { source: DiffSource, capabilityToken: string, sessionId?: string, };
@@ -41,3 +48,20 @@ export type OpenSessionRequest = { source: DiffSource, capabilityToken: string, 
 export type SessionOpened = { sessionId: string, patch: DiffResourceRef, source: DiffSource, };
 
 export type SessionRequest = { sessionId: string, capabilityToken: string, };
+
+export type WorktreeCommitRequest = { sessionId: string, capabilityToken: string, source: DiffSource, message: string, };
+
+/**
+ * Targets one file of an open `unstaged` or `staged` session for a
+ * working-tree or index mutation. `path` (and the optional rename origin
+ * `previous_path`) are repository-relative and validated by the sidecar.
+ */
+export type WorktreeFileRequest = { sessionId: string, capabilityToken: string, source: DiffSource, path: string, previousPath?: string, };
+
+/**
+ * Targets one hunk of one file. `previous_path` names the rename origin of a
+ * staged rename so the sidecar re-reads the diff with both names in scope.
+ */
+export type WorktreeHunkRequest = { sessionId: string, capabilityToken: string, source: DiffSource, path: string, previousPath?: string, hunk: HunkRef, };
+
+export type WorktreeMutated = { source: DiffSource, };

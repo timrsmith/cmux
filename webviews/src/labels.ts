@@ -7,7 +7,8 @@ const DEFAULT_DIFF_VIEWER_LABELS = {
   branchPickerBasePrefix: "Base:",
   branchPickerComparing: "Comparing {head} against {base}",
   branchPickerFilterPlaceholder: "Filter branches",
-  branchPickerGenerateFailed: "Could not generate the diff. Choose a branch to retry.",
+  branchPickerGenerateFailed:
+    "Could not generate the diff. Choose a branch to retry.",
   branchPickerGenerating: "Generating diff against {ref}...",
   branchPickerGroupBranches: "Branches",
   branchPickerGroupRecent: "Recent",
@@ -20,11 +21,31 @@ const DEFAULT_DIFF_VIEWER_LABELS = {
   branchPickerNoMatches: "No matching branches",
   branchPickerOpen: "Change diff base",
   branchPickerUseRaw: 'Use "{ref}" (raw)',
+  cancel: "Cancel",
   changedFiles: "Changed files",
   classic: "Classic",
   collapseAllDiffs: "Collapse all diffs",
   collapseUnchangedContext: "Collapse unchanged context",
   commit: "Commit",
+  commitChanges: "Commit changes",
+  commitFailed: "Could not create the commit.",
+  commitMessageInvalid: "Enter a commit message of at most 64 KiB.",
+  commitMessagePlaceholder: "Commit message",
+  commitRequiresStaged: "Stage changes to commit them.",
+  commitSubmit: "Commit",
+  committed: "Committed {commit}",
+  confirmRevert: "Revert",
+  hunkStale: "This hunk changed on disk. The diff was reloaded.",
+  nothingToCommit: "Nothing to commit.",
+  revertFile: "Revert changes",
+  revertHunk: "Revert hunk",
+  revertPrompt: "Discard these changes?",
+  stageFile: "Stage file",
+  unstageFile: "Unstage file",
+  worktreeConflict:
+    "The change could not be applied cleanly. The diff was reloaded.",
+  worktreeNotAllowed: "Working-tree changes are not available for this diff.",
+  worktreeWriteFailed: "Could not update the working tree.",
   copyFailedGitApplyCommand: "Could not copy git apply command.",
   copiedGitApplyCommand: "Copied git apply command",
   copyGitApplyCommand: "Copy git apply command",
@@ -58,7 +79,8 @@ const DEFAULT_DIFF_VIEWER_LABELS = {
   options: "Options",
   parsingDiff: "Parsing diff...",
   refresh: "Refresh",
-  renderFailed: "Could not render this diff. Check the patch input and try again.",
+  renderFailed:
+    "Could not render this diff. Check the patch input and try again.",
   renderingDiff: "Rendering diff...",
   repoPath: "Repository path",
   showBackgrounds: "Show backgrounds",
@@ -83,7 +105,7 @@ export function shouldAssertMissingLabels(): boolean {
 
 export function createDiffViewerLabelResolver(
   labels: Record<string, string> | undefined,
-  options: LabelResolverOptions = {}
+  options: LabelResolverOptions = {},
 ): DiffViewerLabelResolver {
   const missingKeys = new Set<DiffViewerLabelKey>();
   return (key) => {

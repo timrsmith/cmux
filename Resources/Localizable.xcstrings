@@ -1,6 +1,2071 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "settings.search.alias.setting.sidebarAppearance.right-position": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sidebar.rightPosition right sidebar position left right leading trailing files find dock panel edge next to workspace list"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sidebar.rightPosition right sidebar position left right leading trailing files find dock panel edge next to workspace list position rechte seitenleiste links rechts dateien suche dock"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sidebar.rightPosition right sidebar position left right leading trailing files find dock panel edge next to workspace list position barre latérale droite gauche droite fichiers recherche dock"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sidebar.rightPosition right sidebar position left right leading trailing files find dock panel edge next to workspace list موضع الشريط الجانبي الأيمن يسار يمين الملفات البحث"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sidebar.rightPosition right sidebar position left right leading trailing files find dock panel edge next to workspace list posición barra lateral derecha izquierda derecha archivos buscar dock"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sidebar.rightPosition right sidebar position left right leading trailing files find dock panel edge next to workspace list 右側邊欄 位置 左 右 檔案 搜尋 Dock"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sidebar.rightPosition right sidebar position left right leading trailing files find dock panel edge next to workspace list 右侧边栏 位置 左 右 文件 查找 Dock"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sidebar.rightPosition right sidebar position left right leading trailing files find dock panel edge next to workspace list 오른쪽 사이드바 위치 왼쪽 오른쪽 파일 찾기 Dock"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sidebar.rightPosition right sidebar position left right leading trailing files find dock panel edge next to workspace list 右サイドバー 位置 左 右 ファイル 検索 Dock"
+          }
+        }
+      }
+    },
+    "settings.sidebar.rightPosition.right": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Right"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rechts"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Droite"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يمين"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Derecha"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오른쪽"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右"
+          }
+        }
+      }
+    },
+    "settings.sidebar.rightPosition.left": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Left"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Links"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gauche"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يسار"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Izquierda"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "왼쪽"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左"
+          }
+        }
+      }
+    },
+    "settings.sidebar.rightPosition.subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dock the Files, Find, Dock, and other tool panels on the right edge, or on the left between the workspace sidebar and the panes."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateien, Suche, Dock und die anderen Werkzeugpanels am rechten Rand anzeigen oder links zwischen der Workspace-Seitenleiste und den Bereichen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Affichez Fichiers, Recherche, Dock et les autres panneaux d’outils sur le bord droit, ou à gauche entre la barre latérale des espaces de travail et les volets."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اعرض لوحات الملفات والبحث وDock وبقية الأدوات على الحافة اليمنى، أو على اليسار بين الشريط الجانبي لمساحات العمل والألواح."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muestra Archivos, Buscar, Dock y los demás paneles de herramientas en el borde derecho, o a la izquierda entre la barra lateral de espacios de trabajo y los paneles."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "將檔案、搜尋、Dock 及其他工具面板停靠在右側邊緣，或停靠在左側、工作區側邊欄與窗格之間。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将文件、查找、Dock 及其他工具面板停靠在右侧边缘，或停靠在左侧、工作区侧边栏与窗格之间。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파일, 찾기, Dock 및 기타 도구 패널을 오른쪽 가장자리에 두거나, 왼쪽의 워크스페이스 사이드바와 패널 사이에 둡니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイル、検索、Dock などのツールパネルを右端に配置するか、左側のワークスペースサイドバーとペインの間に配置します。"
+          }
+        }
+      }
+    },
+    "settings.sidebar.rightPosition": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Right Sidebar Position"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Position der rechten Seitenleiste"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Position de la barre latérale droite"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "موضع الشريط الجانبي الأيمن"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Posición de la barra lateral derecha"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右側邊欄位置"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右侧边栏位置"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오른쪽 사이드바 위치"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右サイドバーの位置"
+          }
+        }
+      }
+    },
+    "rightSidebar.changes.error.cliFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux diff exited with status %lld."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux diff wurde mit Status %lld beendet."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux diff s'est terminé avec le statut %lld."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "انتهى cmux diff بالحالة %lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux diff finalizó con el estado %lld."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux diff 以狀態 %lld 結束。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux diff 以状态 %lld 退出。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux diff가 상태 %lld(으)로 종료되었습니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux diff はステータス %lld で終了しました。"
+          }
+        }
+      }
+    },
+    "rightSidebar.changes.error.invalidPage": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The diff viewer did not return a usable page."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Diff-Viewer hat keine verwendbare Seite zurückgegeben."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L'afficheur de diff n'a pas renvoyé de page utilisable."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لم يُرجع عارض الفروق صفحة قابلة للاستخدام."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El visor de diferencias no devolvió una página utilizable."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差異檢視器未回傳可用的頁面。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差异查看器未返回可用的页面。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "diff 뷰어가 사용 가능한 페이지를 반환하지 않았습니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差分ビューアが使用可能なページを返しませんでした。"
+          }
+        }
+      }
+    },
+    "rightSidebar.changes.error.cliMissing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The bundled cmux command line tool is missing."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das mitgelieferte cmux-Befehlszeilenwerkzeug fehlt."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L'outil en ligne de commande cmux intégré est introuvable."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أداة سطر أوامر cmux المضمّنة مفقودة."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Falta la herramienta de línea de comandos cmux incluida."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到內建的 cmux 命令列工具。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缺少内置的 cmux 命令行工具。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "번들된 cmux 명령줄 도구가 없습니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同梱の cmux コマンドラインツールが見つかりません。"
+          }
+        }
+      }
+    },
+    "rightSidebar.changes.remoteUnsupported": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changes are available for local workspaces only."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen sind nur für lokale Arbeitsbereiche verfügbar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les modifications ne sont disponibles que pour les espaces de travail locaux."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "التغييرات متاحة لمساحات العمل المحلية فقط."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los cambios solo están disponibles para espacios de trabajo locales."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "變更僅適用於本機工作區。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改仅适用于本地工作区。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "변경 사항은 로컬 작업 공간에서만 사용할 수 있습니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更はローカルのワークスペースでのみ利用できます。"
+          }
+        }
+      }
+    },
+    "rightSidebar.changes.failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't load changes"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen konnten nicht geladen werden"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de charger les modifications"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذّر تحميل التغييرات"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron cargar los cambios"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法載入變更"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载更改"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "변경 사항을 불러올 수 없습니다"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更を読み込めませんでした"
+          }
+        }
+      }
+    },
+    "rightSidebar.changes.loading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading changes…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen werden geladen …"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chargement des modifications…"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "جارٍ تحميل التغييرات…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cargando cambios…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在載入變更…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加载更改…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "변경 사항을 불러오는 중…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更を読み込み中…"
+          }
+        }
+      }
+    },
+    "rightSidebar.changes.empty.notARepository": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not a Git repository"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Git-Repository"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas un dépôt Git"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ليس مستودع Git"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No es un repositorio Git"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不是 Git 儲存庫"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不是 Git 仓库"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git 저장소가 아닙니다"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git リポジトリではありません"
+          }
+        }
+      }
+    },
+    "rightSidebar.changes.empty.noWorkspaceHint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select a workspace to see its uncommitted changes."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle einen Arbeitsbereich, um seine nicht committeten Änderungen zu sehen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sélectionnez un espace de travail pour voir ses modifications non validées."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "حدد مساحة عمل لعرض تغييراتها غير المُلتزَم بها."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecciona un espacio de trabajo para ver sus cambios sin confirmar."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選取工作區以查看其未提交的變更。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择一个工作区以查看其未提交的更改。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "작업 공간을 선택하면 커밋되지 않은 변경 사항을 볼 수 있습니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ワークスペースを選択すると、未コミットの変更が表示されます。"
+          }
+        }
+      }
+    },
+    "rightSidebar.changes.empty.noWorkspace": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No workspace selected"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Arbeitsbereich ausgewählt"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun espace de travail sélectionné"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لم يتم تحديد مساحة عمل"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ningún espacio de trabajo seleccionado"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未選取工作區"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未选择工作区"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선택된 작업 공간 없음"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ワークスペースが選択されていません"
+          }
+        }
+      }
+    },
+    "shortcut.switchRightSidebarToChanges.label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Sidebar Changes"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitenleiste „Änderungen“ anzeigen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher la barre latérale Modifications"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إظهار التغييرات في الشريط الجانبي"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar Cambios en la barra lateral"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示側邊欄變更"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示边栏更改"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사이드바 변경 사항 표시"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サイドバーに変更を表示"
+          }
+        }
+      }
+    },
+    "rightSidebar.mode.changes": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changes"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modifications"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "التغييرات"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambios"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "變更"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "변경 사항"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更"
+          }
+        }
+      }
+    },
+    "diffViewer.worktreeWriteFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not update the working tree."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Arbeitsverzeichnis konnte nicht aktualisiert werden."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de mettre à jour l'arbre de travail."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذّر تحديث شجرة العمل."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo actualizar el árbol de trabajo."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法更新工作樹。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法更新工作树。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "작업 트리를 업데이트할 수 없습니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "作業ツリーを更新できませんでした。"
+          }
+        }
+      }
+    },
+    "diffViewer.worktreeNotAllowed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Working-tree changes are not available for this diff."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen am Arbeitsverzeichnis sind für diesen Diff nicht verfügbar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les modifications de l'arbre de travail ne sont pas disponibles pour ce diff."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تغييرات شجرة العمل غير متاحة لهذه الفروقات."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los cambios en el árbol de trabajo no están disponibles para este diff."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此差異不支援工作樹變更。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此差异不支持工作树更改。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 diff에서는 작업 트리 변경을 사용할 수 없습니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この差分では作業ツリーの変更は利用できません。"
+          }
+        }
+      }
+    },
+    "diffViewer.worktreeConflict": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The change could not be applied cleanly. The diff was reloaded."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Änderung konnte nicht sauber angewendet werden. Der Diff wurde neu geladen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La modification n'a pas pu être appliquée proprement. Le diff a été rechargé."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذّر تطبيق التغيير بشكل سليم. تمت إعادة تحميل الفروقات."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El cambio no se pudo aplicar limpiamente. Se recargó el diff."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法乾淨地套用此變更，已重新載入差異。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法干净地应用此更改，已重新加载差异。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "변경 사항을 깔끔하게 적용할 수 없습니다. diff를 다시 불러왔습니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更を正しく適用できませんでした。差分を再読み込みしました。"
+          }
+        }
+      }
+    },
+    "diffViewer.unstageFile": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unstage file"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei aus dem Stage entfernen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Désindexer le fichier"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إلغاء تجهيز الملف"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar archivo del stage"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消暫存檔案"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消暂存文件"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파일 스테이징 해제"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイルのステージを解除"
+          }
+        }
+      }
+    },
+    "diffViewer.stageFile": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stage file"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei stagen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indexer le fichier"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تجهيز الملف"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparar archivo"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫存檔案"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂存文件"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파일 스테이징"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイルをステージ"
+          }
+        }
+      }
+    },
+    "diffViewer.revertPrompt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discard these changes?"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Änderungen verwerfen?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abandonner ces modifications ?"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "هل تريد تجاهل هذه التغييرات؟"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Descartar estos cambios?"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要捨棄這些變更嗎？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要放弃这些更改吗？"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 변경 사항을 버릴까요?"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これらの変更を破棄しますか？"
+          }
+        }
+      }
+    },
+    "diffViewer.revertHunk": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revert hunk"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hunk verwerfen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annuler le bloc"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "التراجع عن المقطع"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revertir fragmento"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還原區塊"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还原代码块"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "헝크 되돌리기"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ハンクを元に戻す"
+          }
+        }
+      }
+    },
+    "diffViewer.revertFile": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revert changes"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen verwerfen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annuler les modifications"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "التراجع عن التغييرات"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revertir cambios"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還原變更"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还原更改"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "변경 사항 되돌리기"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更を元に戻す"
+          }
+        }
+      }
+    },
+    "diffViewer.nothingToCommit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing to commit."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nichts zu committen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rien à valider."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لا يوجد ما يُودَع."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nada que confirmar."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有可提交的內容。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有可提交的内容。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "커밋할 내용이 없습니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コミットする変更はありません。"
+          }
+        }
+      }
+    },
+    "diffViewer.hunkStale": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This hunk changed on disk. The diff was reloaded."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Hunk hat sich auf der Festplatte geändert. Der Diff wurde neu geladen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce bloc a changé sur le disque. Le diff a été rechargé."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تغيّر هذا المقطع على القرص. تمت إعادة تحميل الفروقات."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este fragmento cambió en el disco. Se recargó el diff."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此區塊在磁碟上已變更，已重新載入差異。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此代码块在磁盘上已更改，已重新加载差异。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 헝크가 디스크에서 변경되었습니다. diff를 다시 불러왔습니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このハンクはディスク上で変更されました。差分を再読み込みしました。"
+          }
+        }
+      }
+    },
+    "diffViewer.confirmRevert": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revert"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwerfen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annuler les modifications"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تراجع"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revertir"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還原"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还原"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "되돌리기"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "元に戻す"
+          }
+        }
+      }
+    },
+    "diffViewer.committed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Committed {commit}"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{commit} committet"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{commit} validé"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تم إيداع {commit}"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se confirmó {commit}"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已提交 {commit}"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已提交 {commit}"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{commit} 커밋됨"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{commit} をコミットしました"
+          }
+        }
+      }
+    },
+    "diffViewer.commitSubmit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Commit"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Committen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Valider"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إيداع"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirmar"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提交"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提交"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "커밋"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コミット"
+          }
+        }
+      }
+    },
+    "diffViewer.commitRequiresStaged": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stage changes to commit them."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stage Änderungen, um sie zu committen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indexez les modifications pour les valider."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أضف التغييرات إلى منطقة التجهيز لإيداعها."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prepara los cambios para confirmarlos."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先暫存變更才能提交。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先暂存更改才能提交。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "변경 사항을 스테이징하면 커밋할 수 있습니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更をステージするとコミットできます。"
+          }
+        }
+      }
+    },
+    "diffViewer.commitMessagePlaceholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Commit message"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Commit-Nachricht"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Message de commit"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "رسالة الإيداع"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mensaje del commit"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提交訊息"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提交信息"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "커밋 메시지"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コミットメッセージ"
+          }
+        }
+      }
+    },
+    "diffViewer.commitMessageInvalid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a commit message of at most 64 KiB."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gib eine Commit-Nachricht mit höchstens 64 KiB ein."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saisissez un message de commit de 64 Kio au maximum."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أدخل رسالة إيداع لا تتجاوز 64 كيبيبايت."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe un mensaje de commit de 64 KiB como máximo."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請輸入最多 64 KiB 的提交訊息。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入不超过 64 KiB 的提交信息。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "64 KiB 이하의 커밋 메시지를 입력하세요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "64 KiB 以下のコミットメッセージを入力してください。"
+          }
+        }
+      }
+    },
+    "diffViewer.commitFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not create the commit."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Commit konnte nicht erstellt werden."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de créer le commit."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذّر إنشاء الإيداع."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo crear el commit."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法建立提交。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法创建提交。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "커밋을 생성할 수 없습니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コミットを作成できませんでした。"
+          }
+        }
+      }
+    },
+    "diffViewer.commitChanges": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Commit changes"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen committen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Valider les modifications"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إيداع التغييرات"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirmar cambios"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提交變更"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提交更改"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "변경 사항 커밋"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更をコミット"
+          }
+        }
+      }
+    },
+    "diffViewer.cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abbrechen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annuler"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إلغاء"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelar"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "취소"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キャンセル"
+          }
+        }
+      }
+    },
     "browser.omnibar.accessibilityLabel": {
       "extractionState": "manual",
       "localizations": {
@@ -99337,55 +101402,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar set requires a mode: files, find, vault, sessions, feed, dock, cloud, devices, or custom [sidebar-name]"
+            "value": "right-sidebar set requires a mode: files, find, vault, sessions, feed, dock, cloud, devices, changes, or custom [sidebar-name]"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar set にはモードが必要です: files, find, vault, sessions, feed, dock, cloud, devices, custom [sidebar-name]"
+            "value": "right-sidebar set にはモードが必要です: files、find、vault、sessions、feed、dock、cloud、devices、changes、または custom [sidebar-name]"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar set 需要一个模式：files、find、vault、sessions、feed、dock、cloud、devices 或 custom [sidebar-name]"
+            "value": "right-sidebar set 需要一个模式：files、find、vault、sessions、feed、dock、cloud、devices、changes 或 custom [sidebar-name]"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar set erfordert einen Modus: files, find, vault, sessions, feed, dock, cloud, devices oder custom [Seitenleisten-Name]"
+            "value": "right-sidebar set benötigt einen Modus: files, find, vault, sessions, feed, dock, cloud, devices, changes oder custom [sidebar-name]"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar set requiert un mode : files, find, vault, sessions, feed, dock, cloud, devices ou custom [nom-barre-latérale]"
+            "value": "right-sidebar set requiert un mode : files, find, vault, sessions, feed, dock, cloud, devices, changes ou custom [sidebar-name]"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يتطلب أمر right-sidebar set وضعًا: files، أو find، أو vault، أو sessions، أو feed، أو dock، أو cloud، أو devices، أو custom [sidebar-name]"
+            "value": "يتطلب right-sidebar set وضعًا: files أو find أو vault أو sessions أو feed أو dock أو cloud أو devices أو changes أو custom [sidebar-name]"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar set requiere un modo: files, find, vault, sessions, feed, dock, cloud, devices o custom [sidebar-name]"
+            "value": "right-sidebar set requiere un modo: files, find, vault, sessions, feed, dock, cloud, devices, changes o custom [sidebar-name]"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar set 需要模式：files、find、vault、sessions、feed、dock、cloud、devices 或 custom [sidebar-name]"
+            "value": "right-sidebar set 需要一個模式：files、find、vault、sessions、feed、dock、cloud、devices、changes 或 custom [sidebar-name]"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar set에는 다음 모드 중 하나가 필요합니다: files, find, vault, sessions, feed, dock, cloud, devices 또는 custom [sidebar-name]"
+            "value": "right-sidebar set에는 모드가 필요합니다: files, find, vault, sessions, feed, dock, cloud, devices, changes 또는 custom [sidebar-name]"
           }
         },
         "bs": {
@@ -99934,55 +101999,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set <files|find|vault|sessions|feed|dock|cloud|custom> [sidebar-name]\n                                 Show, switch mode, and focus. `custom` renders a\n                                 JS/Swift sidebar from ~/.config/cmux/sidebars as\n                                 a right panel; the optional name picks which one.\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  files|find|vault|sessions|feed|dock|cloud|custom\n                                 Alias for show + set + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name]\n                                 Show, switch mode, and focus. `changes`\n                                 (aliases `diff`, `git`) docks the\n                                 uncommitted-changes diff viewer. `custom`\n                                 renders a JS/Swift sidebar from\n                                 ~/.config/cmux/sidebars as a right panel;\n                                 the optional name picks which one.\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  files|find|vault|sessions|feed|dock|cloud|devices|changes|custom\n                                 Alias for show + set + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set custom panel-info\n  cmux right-sidebar changes\n  cmux right-sidebar mode"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "使用法: cmux right-sidebar <command> [flags]\n\nCLI から右サイドバーを操作します。\n\nコマンド:\n  toggle                         右サイドバーの表示を切り替えます\n  show                           右サイドバーを表示します\n  hide                           右サイドバーを隠します\n  focus                          現在の右サイドバーモードにフォーカスします\n  set <files|find|vault|sessions|feed|dock|cloud|custom> [sidebar-name]\n                                 表示して、モードを切り替え、フォーカスします。custom は\n                                 ~/.config/cmux/sidebars の JS/Swift サイドバーを右パネルに\n                                 表示します（名前で選択できます）\n  mode                           {\"visible\":bool,\"mode\":string} を出力します\n  files|find|vault|sessions|feed|dock|cloud|custom\n                                 show + set + focus のエイリアス\n\nフラグ:\n  --workspace <id|ref|index>     ワークスペースを含むウィンドウを対象にします\n  --window <id|ref|index>        ウィンドウを対象にします\n  --no-focus                     set で、フォーカスを移さずにモードだけ切り替えます\n\n例:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "使用法: cmux right-sidebar <command> [flags]\n\nCLI から右サイドバーを操作します。\n\nコマンド:\n  toggle                         右サイドバーの表示を切り替えます\n  show                           右サイドバーを表示します\n  hide                           右サイドバーを隠します\n  focus                          現在の右サイドバーモードにフォーカスします\n  set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name]\n                                 `changes`（別名 `diff`、`git`）は\n                                 未コミットの変更の差分ビューアーを\n                                 ドックします。\n                                 表示して、モードを切り替え、フォーカスします。custom は\n                                 ~/.config/cmux/sidebars の JS/Swift サイドバーを右パネルに\n                                 表示します（名前で選択できます）\n  mode                           {\"visible\":bool,\"mode\":string} を出力します\n  files|find|vault|sessions|feed|dock|cloud|devices|changes|custom\n                                 show + set + focus のエイリアス\n\nフラグ:\n  --workspace <id|ref|index>     ワークスペースを含むウィンドウを対象にします\n  --window <id|ref|index>        ウィンドウを対象にします\n  --no-focus                     set で、フォーカスを移さずにモードだけ切り替えます\n\n例:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar changes\n  cmux right-sidebar mode"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "用法：cmux right-sidebar <command> [flags]\n\n从 CLI 控制右侧边栏。\n\n命令:\n  toggle                         切换右侧边栏的显示与隐藏\n  show                           显示右侧边栏\n  hide                           隐藏右侧边栏\n  focus                          聚焦当前的右侧边栏模式\n  set <files|find|vault|sessions|feed|dock|cloud|custom> [sidebar-name]\n                                 显示、切换模式并聚焦。`custom` 会把\n                                 ~/.config/cmux/sidebars 中的 JS/Swift 侧边栏\n                                 渲染为右侧面板；可选的名称用于指定其中一个。\n  mode                           打印 {\"visible\":bool,\"mode\":string}\n  files|find|vault|sessions|feed|dock|cloud|custom\n                                 show + set + focus 的别名\n\n标志:\n  --workspace <id|ref|index>     指向包含该工作区的窗口\n  --window <id|ref|index>        指向某个窗口\n  --no-focus                     与 set 同用时，只切换模式不移动焦点\n\n示例:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "用法：cmux right-sidebar <command> [flags]\n\n从 CLI 控制右侧边栏。\n\n命令:\n  toggle                         切换右侧边栏的显示与隐藏\n  show                           显示右侧边栏\n  hide                           隐藏右侧边栏\n  focus                          聚焦当前的右侧边栏模式\n  set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name]\n                                 `changes`（别名 `diff`、`git`）\n                                 会停靠未提交更改的\n                                 差异查看器。\n                                 显示、切换模式并聚焦。`custom` 会把\n                                 ~/.config/cmux/sidebars 中的 JS/Swift 侧边栏\n                                 渲染为右侧面板；可选的名称用于指定其中一个。\n  mode                           打印 {\"visible\":bool,\"mode\":string}\n  files|find|vault|sessions|feed|dock|cloud|devices|changes|custom\n                                 show + set + focus 的别名\n\n标志:\n  --workspace <id|ref|index>     指向包含该工作区的窗口\n  --window <id|ref|index>        指向某个窗口\n  --no-focus                     与 set 同用时，只切换模式不移动焦点\n\n示例:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar changes\n  cmux right-sidebar mode"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verwendung: cmux right-sidebar <Befehl> [Flags]\n\nSteuern Sie die rechte Seitenleiste über die CLI.\n\nBefehle:\n  toggle                         Sichtbarkeit der rechten Seitenleiste umschalten\n  show                           Die rechte Seitenleiste anzeigen\n  hide                           Die rechte Seitenleiste ausblenden\n  focus                          Den aktuellen Modus der rechten Seitenleiste fokussieren\n  set <files|find|vault|sessions|feed|dock|cloud|custom> [Seitenleisten-Name]\n                                 Anzeigen, Modus wechseln und fokussieren. `custom` rendert eine\n                                 JS/Swift-Seitenleiste aus ~/.config/cmux/sidebars als\n                                 rechtes Panel; der optionale Name wählt aus, welche.\n  mode                           {\"visible\":bool,\"mode\":string} ausgeben\n  files|find|vault|sessions|feed|dock|cloud|custom\n                                 Alias für show + set + focus\n\nFlags:\n  --workspace <id|ref|index>     Zielt auf das Fenster ab, das einen Arbeitsbereich enthält\n  --window <id|ref|index>        Zielt auf ein Fenster ab\n  --no-focus                     Mit set den Modus wechseln, ohne den Fokus zu verschieben\n\nBeispiele:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "Verwendung: cmux right-sidebar <Befehl> [Flags]\n\nSteuern Sie die rechte Seitenleiste über die CLI.\n\nBefehle:\n  toggle                         Sichtbarkeit der rechten Seitenleiste umschalten\n  show                           Die rechte Seitenleiste anzeigen\n  hide                           Die rechte Seitenleiste ausblenden\n  focus                          Den aktuellen Modus der rechten Seitenleiste fokussieren\n  set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [Seitenleisten-Name]\n                                 `changes` (Aliase `diff`, `git`) dockt den\n                                 Diff-Viewer für nicht committete\n                                 Änderungen an.\n                                 Anzeigen, Modus wechseln und fokussieren. `custom` rendert eine\n                                 JS/Swift-Seitenleiste aus ~/.config/cmux/sidebars als\n                                 rechtes Panel; der optionale Name wählt aus, welche.\n  mode                           {\"visible\":bool,\"mode\":string} ausgeben\n  files|find|vault|sessions|feed|dock|cloud|devices|changes|custom\n                                 Alias für show + set + focus\n\nFlags:\n  --workspace <id|ref|index>     Zielt auf das Fenster ab, das einen Arbeitsbereich enthält\n  --window <id|ref|index>        Zielt auf ein Fenster ab\n  --no-focus                     Mit set den Modus wechseln, ohne den Fokus zu verschieben\n\nBeispiele:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar changes\n  cmux right-sidebar mode"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Utilisation : cmux right-sidebar <commande> [options]\n\nContrôler la barre latérale droite depuis l'interface en ligne de commande.\n\nCommandes :\n  toggle                         Basculer la visibilité de la barre latérale droite\n  show                           Afficher la barre latérale droite\n  hide                           Masquer la barre latérale droite\n  focus                          Donner le focus au mode actuel de la barre latérale droite\n  set <files|find|vault|sessions|feed|dock|cloud|custom> [nom-barre-latérale]\n                                 Afficher, changer de mode et donner le focus. `custom` affiche une\n                                 barre latérale JS/Swift depuis ~/.config/cmux/sidebars sous forme de\n                                 panneau droit ; le nom optionnel permet de choisir laquelle.\n  mode                           Afficher {\"visible\":bool,\"mode\":string}\n  files|find|vault|sessions|feed|dock|cloud|custom\n                                 Alias pour show + set + focus\n\nOptions :\n  --workspace <id|ref|index>     Cibler la fenêtre contenant un espace de travail\n  --window <id|ref|index>        Cibler une fenêtre\n  --no-focus                     Avec set, changer de mode sans déplacer le focus\n\nExemples :\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "Utilisation : cmux right-sidebar <commande> [options]\n\nContrôler la barre latérale droite depuis l'interface en ligne de commande.\n\nCommandes :\n  toggle                         Basculer la visibilité de la barre latérale droite\n  show                           Afficher la barre latérale droite\n  hide                           Masquer la barre latérale droite\n  focus                          Donner le focus au mode actuel de la barre latérale droite\n  set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [nom-barre-latérale]\n                                 `changes` (alias `diff`, `git`) ancre la vue\n                                 des modifications non validées dans\n                                 la barre latérale.\n                                 Afficher, changer de mode et donner le focus. `custom` affiche une\n                                 barre latérale JS/Swift depuis ~/.config/cmux/sidebars sous forme de\n                                 panneau droit ; le nom optionnel permet de choisir laquelle.\n  mode                           Afficher {\"visible\":bool,\"mode\":string}\n  files|find|vault|sessions|feed|dock|cloud|devices|changes|custom\n                                 Alias pour show + set + focus\n\nOptions :\n  --workspace <id|ref|index>     Cibler la fenêtre contenant un espace de travail\n  --window <id|ref|index>        Cibler une fenêtre\n  --no-focus                     Avec set, changer de mode sans déplacer le focus\n\nExemples :\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar changes\n  cmux right-sidebar mode"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "الاستخدام: cmux right-sidebar <command> [flags]\n\nالتحكم في الشريط الجانبي الأيمن من واجهة CLI.\n\nالأوامر:\n  toggle                         تبديل رؤية الشريط الجانبي الأيمن\n  show                           إظهار الشريط الجانبي الأيمن\n  hide                           إخفاء الشريط الجانبي الأيمن\n  focus                          تركيز وضع الشريط الجانبي الأيمن الحالي\n  set <files|find|vault|sessions|feed|dock|cloud|custom> [sidebar-name]\n                                 إظهار، وتبديل الوضع، والتركيز. يقوم `custom` بتقديم\n                                 شريط جانبي JS/Swift من ~/.config/cmux/sidebars كـ\n                                 لوحة يمنى؛ ويحدد الاسم الاختياري أيًا منها.\n  mode                           طباعة {\"visible\":bool,\"mode\":string}\n  files|find|vault|sessions|feed|dock|cloud|custom\n                                 اسم مستعار لـ show + set + focus\n\nالأعلام:\n  --workspace <id|ref|index>     استهداف النافذة التي تحتوي على مساحة عمل\n  --window <id|ref|index>        استهداف نافذة\n  --no-focus                     مع أمر set، يتم تبديل الوضع دون نقل التركيز\n\nأمثلة:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "الاستخدام: cmux right-sidebar <command> [flags]\n\nالتحكم في الشريط الجانبي الأيمن من واجهة CLI.\n\nالأوامر:\n  toggle                         تبديل رؤية الشريط الجانبي الأيمن\n  show                           إظهار الشريط الجانبي الأيمن\n  hide                           إخفاء الشريط الجانبي الأيمن\n  focus                          تركيز وضع الشريط الجانبي الأيمن الحالي\n  set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name]\n                                 `changes` (الأسماء البديلة `diff` و`git`)\n                                 يثبّت عارض الفروق للتغييرات\n                                 غير المُرسلة.\n                                 إظهار، وتبديل الوضع، والتركيز. يقوم `custom` بتقديم\n                                 شريط جانبي JS/Swift من ~/.config/cmux/sidebars كـ\n                                 لوحة يمنى؛ ويحدد الاسم الاختياري أيًا منها.\n  mode                           طباعة {\"visible\":bool,\"mode\":string}\n  files|find|vault|sessions|feed|dock|cloud|devices|changes|custom\n                                 اسم مستعار لـ show + set + focus\n\nالأعلام:\n  --workspace <id|ref|index>     استهداف النافذة التي تحتوي على مساحة عمل\n  --window <id|ref|index>        استهداف نافذة\n  --no-focus                     مع أمر set، يتم تبديل الوضع دون نقل التركيز\n\nأمثلة:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar changes\n  cmux right-sidebar mode"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uso: cmux right-sidebar <command> [flags]\n\nControlar la barra lateral derecha desde la CLI.\n\nComandos:\n  toggle                         Alternar la visibilidad de la barra lateral derecha\n  show                           Mostrar la barra lateral derecha\n  hide                           Ocultar la barra lateral derecha\n  focus                          Enfocar el modo actual de la barra lateral derecha\n  set <files|find|vault|sessions|feed|dock|cloud|custom> [sidebar-name]\n                                 Mostrar, cambiar de modo y enfocar. `custom` renderiza una\n                                 barra lateral JS/Swift de ~/.config/cmux/sidebars como\n                                 un panel derecho; el nombre opcional elige cuál.\n  mode                           Imprimir {\"visible\":bool,\"mode\":string}\n  files|find|vault|sessions|feed|dock|cloud|custom\n                                 Alias para show + set + focus\n\nOpciones:\n  --workspace <id|ref|index>     Apuntar a la ventana que contiene un espacio de trabajo\n  --window <id|ref|index>        Apuntar a una ventana\n  --no-focus                     Con set, cambiar de modo sin mover el foco\n\nEjemplos:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "Uso: cmux right-sidebar <command> [flags]\n\nControlar la barra lateral derecha desde la CLI.\n\nComandos:\n  toggle                         Alternar la visibilidad de la barra lateral derecha\n  show                           Mostrar la barra lateral derecha\n  hide                           Ocultar la barra lateral derecha\n  focus                          Enfocar el modo actual de la barra lateral derecha\n  set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name]\n                                 `changes` (alias `diff`, `git`) ancla el\n                                 visor de cambios sin confirmar en la\n                                 barra lateral.\n                                 Mostrar, cambiar de modo y enfocar. `custom` renderiza una\n                                 barra lateral JS/Swift de ~/.config/cmux/sidebars como\n                                 un panel derecho; el nombre opcional elige cuál.\n  mode                           Imprimir {\"visible\":bool,\"mode\":string}\n  files|find|vault|sessions|feed|dock|cloud|devices|changes|custom\n                                 Alias para show + set + focus\n\nOpciones:\n  --workspace <id|ref|index>     Apuntar a la ventana que contiene un espacio de trabajo\n  --window <id|ref|index>        Apuntar a una ventana\n  --no-focus                     Con set, cambiar de modo sin mover el foco\n\nEjemplos:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar changes\n  cmux right-sidebar mode"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "用法：cmux right-sidebar <command> [flags]\n\n從 CLI 控制右側邊欄。\n\n指令：\n  toggle                         切換右側邊欄可見性\n  show                           顯示右側邊欄\n  hide                           隱藏右側邊欄\n  focus                          聚焦至目前的右側邊欄模式\n  set <files|find|vault|sessions|feed|dock|cloud|custom> [sidebar-name]\n                                 顯示、切換模式並聚焦。`custom` 會將\n                                 來自 ~/.config/cmux/sidebars 的 JS/Swift 側邊欄\n                                 轉譯為右側面板；選用名稱可選擇其中一個。\n  mode                           列印 {\"visible\":bool,\"mode\":string}\n  files|find|vault|sessions|feed|dock|cloud|custom\n                                 show + set + focus 的別名\n\n旗標：\n  --workspace <id|ref|index>     以包含工作區的視窗為目標\n  --window <id|ref|index>        以視窗為目標\n  --no-focus                     搭配 set 使用時，切換模式但不移動焦點\n\n範例：\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "用法：cmux right-sidebar <command> [flags]\n\n從 CLI 控制右側邊欄。\n\n指令：\n  toggle                         切換右側邊欄可見性\n  show                           顯示右側邊欄\n  hide                           隱藏右側邊欄\n  focus                          聚焦至目前的右側邊欄模式\n  set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name]\n                                 `changes`（別名 `diff`、`git`）\n                                 會停靠未提交變更的\n                                 差異檢視器。\n                                 顯示、切換模式並聚焦。`custom` 會將\n                                 來自 ~/.config/cmux/sidebars 的 JS/Swift 側邊欄\n                                 轉譯為右側面板；選用名稱可選擇其中一個。\n  mode                           列印 {\"visible\":bool,\"mode\":string}\n  files|find|vault|sessions|feed|dock|cloud|devices|changes|custom\n                                 show + set + focus 的別名\n\n旗標：\n  --workspace <id|ref|index>     以包含工作區的視窗為目標\n  --window <id|ref|index>        以視窗為目標\n  --no-focus                     搭配 set 使用時，切換模式但不移動焦點\n\n範例：\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar changes\n  cmux right-sidebar mode"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "사용법: cmux right-sidebar <command> [flags]\n\nCLI에서 오른쪽 사이드바를 제어합니다.\n\n명령어:\n  toggle                         오른쪽 사이드바 표시 여부 토글\n  show                           오른쪽 사이드바 표시\n  hide                           오른쪽 사이드바 숨기기\n  focus                          현재 오른쪽 사이드바 모드에 포커스 지정\n  set <files|find|vault|sessions|feed|dock|cloud|custom> [sidebar-name]\n                                 표시, 모드 전환 및 포커스 지정. `custom`은\n                                 ~/.config/cmux/sidebars의 JS/Swift 사이드바를\n                                 오른쪽 패널로 렌더링하며, 선택 사항인 이름으로 대상을 선택합니다.\n  mode                           {\"visible\":bool,\"mode\":string} 출력\n  files|find|vault|sessions|feed|dock|cloud|custom\n                                 show + set + focus의 별칭\n\n플래그:\n  --workspace <id|ref|index>     작업 공간을 포함하는 창을 대상으로 지정\n  --window <id|ref|index>        창을 대상으로 지정\n  --no-focus                     set 사용 시 포커스를 이동하지 않고 모드 전환\n\n예시:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "사용법: cmux right-sidebar <command> [flags]\n\nCLI에서 오른쪽 사이드바를 제어합니다.\n\n명령어:\n  toggle                         오른쪽 사이드바 표시 여부 토글\n  show                           오른쪽 사이드바 표시\n  hide                           오른쪽 사이드바 숨기기\n  focus                          현재 오른쪽 사이드바 모드에 포커스 지정\n  set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name]\n                                 `changes`(별칭 `diff`, `git`)는\n                                 커밋되지 않은 변경 사항의\n                                 diff 뷰어를 도킹합니다.\n                                 표시, 모드 전환 및 포커스 지정. `custom`은\n                                 ~/.config/cmux/sidebars의 JS/Swift 사이드바를\n                                 오른쪽 패널로 렌더링하며, 선택 사항인 이름으로 대상을 선택합니다.\n  mode                           {\"visible\":bool,\"mode\":string} 출력\n  files|find|vault|sessions|feed|dock|cloud|devices|changes|custom\n                                 show + set + focus의 별칭\n\n플래그:\n  --workspace <id|ref|index>     작업 공간을 포함하는 창을 대상으로 지정\n  --window <id|ref|index>        창을 대상으로 지정\n  --no-focus                     set 사용 시 포커스를 이동하지 않고 모드 전환\n\n예시:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar changes\n  cmux right-sidebar mode"
           }
         }
       }
@@ -285840,55 +287905,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar set <files|find|vault|sessions|feed|dock|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "ERROR: Usage: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: 使用法: right_sidebar set <files|find|vault|sessions|feed|dock|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "エラー: 使用法: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "错误：用法：right_sidebar set <files|find|vault|sessions|feed|dock|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "错误：用法：right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "FEHLER: Verwendung: right_sidebar set <files|find|vault|sessions|feed|dock|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "FEHLER: Verwendung: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERREUR : utilisation : right_sidebar set <files|find|vault|sessions|feed|dock|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "ERREUR : Utilisation : right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "خطأ: الاستخدام: right_sidebar set <files|find|vault|sessions|feed|dock|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "خطأ: الاستخدام: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Uso: right_sidebar set <files|find|vault|sessions|feed|dock|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "ERROR: Uso: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "錯誤：用法：right_sidebar set <files|find|vault|sessions|feed|dock|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "錯誤：用法：right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "오류: 사용법: right_sidebar set <files|find|vault|sessions|feed|dock|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "오류: 사용법: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         }
       }
