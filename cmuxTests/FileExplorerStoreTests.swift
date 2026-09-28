@@ -381,6 +381,265 @@ struct FileExplorerStoreTests {
         #expect(store.gitStatusByPath.isEmpty)
     }
 
+    // MARK: - Explorer root is the repository
+
+    /// An explorer root that is itself a repository with one committed file.
+    private struct RootRepoTree {
+        let rootURL: URL
+        let trackedURL: URL
+
+        var canonicalRepoRoot: String { rootURL.resolvingSymlinksInPath().path }
+
+        static func make() throws -> RootRepoTree {
+            let rootURL = try GitRepositoryTestSupport.makeTemporaryDirectory(prefix: "cmux-file-explorer-store-git-")
+            try GitRepositoryTestSupport.initializeRepo(at: rootURL)
+            let trackedURL = rootURL.appendingPathComponent("tracked.txt")
+            try "one\n".write(to: trackedURL, atomically: true, encoding: .utf8)
+            try GitRepositoryTestSupport.runGit(["add", "."], in: rootURL)
+            try GitRepositoryTestSupport.runGit(["commit", "-q", "-m", "initial"], in: rootURL)
+            return RootRepoTree(rootURL: rootURL, trackedURL: trackedURL)
+        }
+
+        func cleanUp() {
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+    }
+
+    @Test
+    func testRootRepositoryRecolorsUntrackedFilesFromTheDirectoryWatcher() async throws {
+        // The repository watcher's descriptor passes only tracked paths, so an
+        // untracked file created or deleted at the root is seen by the root
+        // directory watcher alone; that path must refetch the root repository
+        // even though it already has a repository watcher.
+        let tree = try RootRepoTree.make()
+        defer { tree.cleanUp() }
+        let watchSource = FakeRepositoryWatchSource()
+        let store = FileExplorerStore(gitStatusProvider: GitStatusProvider(), repositoryWatchFactory: watchSource.factory)
+        store.showHiddenFiles = true
+        store.setProviderForTesting(LocalFileExplorerProvider())
+        store.setRootPath(tree.rootURL.path)
+
+        try await waitFor("root listing loaded", timeout: 10) {
+            store.rootNodes.contains { $0.name == "tracked.txt" }
+        }
+        try await waitFor("root repository watcher installed", timeout: 10) {
+            watchSource.startedRepoRoots == [tree.canonicalRepoRoot]
+        }
+        #expect(store.gitStatusByPath[tree.trackedURL.path] == nil)
+
+        // Only the directory watcher observes this; the fake repository watcher never fires.
+        let untrackedURL = tree.rootURL.appendingPathComponent("scratch.txt")
+        try "new\n".write(to: untrackedURL, atomically: true, encoding: .utf8)
+
+        try await waitFor("new untracked file is colored", timeout: 10) {
+            store.gitStatusByPath[untrackedURL.path] == .untracked
+        }
+        #expect(store.rootNodes.contains { $0.name == "scratch.txt" && !$0.isGhost })
+
+        try FileManager.default.removeItem(at: untrackedURL)
+
+        try await waitFor("deleted untracked file loses its mark", timeout: 10) {
+            store.gitStatusByPath[untrackedURL.path] == nil
+        }
+        #expect(!store.rootNodes.contains { $0.name == "scratch.txt" })
+    }
+
+    @Test
+    func testDeletedDirectoryShowsAsGhostDirectoryWithGhostChildren() async throws {
+        let tree = try RootRepoTree.make()
+        defer { tree.cleanUp() }
+        let dirURL = tree.rootURL.appendingPathComponent("dir", isDirectory: true)
+        try FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true)
+        let aURL = dirURL.appendingPathComponent("a.txt")
+        let bURL = dirURL.appendingPathComponent("b.txt")
+        try "a\n".write(to: aURL, atomically: true, encoding: .utf8)
+        try "b\n".write(to: bURL, atomically: true, encoding: .utf8)
+        try GitRepositoryTestSupport.runGit(["add", "."], in: tree.rootURL)
+        try GitRepositoryTestSupport.runGit(["commit", "-q", "-m", "dir"], in: tree.rootURL)
+        try FileManager.default.removeItem(at: dirURL)
+
+        let watchSource = FakeRepositoryWatchSource()
+        let store = FileExplorerStore(gitStatusProvider: GitStatusProvider(), repositoryWatchFactory: watchSource.factory)
+        store.showHiddenFiles = true
+        store.setProviderForTesting(LocalFileExplorerProvider())
+        store.setRootPath(tree.rootURL.path)
+
+        try await waitFor("deleted directory appears as a ghost directory row", timeout: 10) {
+            store.rootNodes.contains { $0.isGhost && $0.isDirectory && $0.name == "dir" }
+        }
+        let ghostDir = try #require(store.rootNodes.first { $0.isGhost && $0.name == "dir" })
+        #expect(ghostDir.path == dirURL.path)
+        #expect(ghostDir.isExpandable)
+        #expect(store.gitStatusByPath[dirURL.path] == .modified)
+        // Directories first, so the ghost directory precedes the real file.
+        let rootNames = store.rootNodes.map(\.name)
+        let dirIndex = try #require(rootNames.firstIndex(of: "dir"))
+        let fileIndex = try #require(rootNames.firstIndex(of: "tracked.txt"))
+        #expect(dirIndex < fileIndex, "\(rootNames)")
+
+        let ghostChildren = try #require(ghostDir.sortedChildren)
+        #expect(ghostChildren.map(\.name) == ["a.txt", "b.txt"])
+        #expect(ghostChildren.allSatisfy { $0.isGhost && !$0.isDirectory && !$0.isExpandable })
+        #expect(ghostChildren.map(\.path) == [aURL.path, bURL.path])
+        #expect(store.gitStatusByPath[aURL.path] == .deleted)
+
+        // Expanding a ghost directory needs no listing: it is expanded in place.
+        store.expand(node: ghostDir)
+        #expect(store.isExpanded(ghostDir))
+
+        // Restoring the directory replaces the ghost with the real listing.
+        try GitRepositoryTestSupport.runGit(["checkout", "--", "dir"], in: tree.rootURL)
+        store.reload()
+        store.refreshGitStatus()
+        try await waitFor("restored directory replaces the ghost", timeout: 10) {
+            store.rootNodes.contains { !$0.isGhost && $0.isDirectory && $0.name == "dir" } &&
+                !store.rootNodes.contains(where: \.isGhost) &&
+                store.gitStatusByPath[aURL.path] == nil
+        }
+    }
+
+    @Test
+    func testSymlinkedDirectoryIntoAnOutsideRepositoryIsNeitherFetchedNorWatched() async throws {
+        // root (not a repository) / link -> outside repository with a modified file.
+        // The link resolves to a repository whose root lies outside the explorer
+        // root, so it contributes no rows and must be cached as "not a repository".
+        let rootURL = try GitRepositoryTestSupport.makeTemporaryDirectory(prefix: "cmux-file-explorer-store-git-")
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let outsideRepoURL = try GitRepositoryTestSupport.makeTemporaryDirectory(prefix: "cmux-file-explorer-store-git-outside-")
+        defer { try? FileManager.default.removeItem(at: outsideRepoURL) }
+        try GitRepositoryTestSupport.initializeRepo(at: outsideRepoURL)
+        let outsideTrackedURL = outsideRepoURL.appendingPathComponent("tracked.txt")
+        try "one\n".write(to: outsideTrackedURL, atomically: true, encoding: .utf8)
+        try GitRepositoryTestSupport.runGit(["add", "."], in: outsideRepoURL)
+        try GitRepositoryTestSupport.runGit(["commit", "-q", "-m", "initial"], in: outsideRepoURL)
+        try "two\n".write(to: outsideTrackedURL, atomically: true, encoding: .utf8)
+
+        let linkURL = rootURL.appendingPathComponent("link", isDirectory: true)
+        try FileManager.default.createSymbolicLink(at: linkURL, withDestinationURL: outsideRepoURL)
+
+        let watchSource = FakeRepositoryWatchSource()
+        let store = FileExplorerStore(gitStatusProvider: GitStatusProvider(), repositoryWatchFactory: watchSource.factory)
+        store.showHiddenFiles = true
+        store.setProviderForTesting(LocalFileExplorerProvider())
+        store.setRootPath(rootURL.path)
+
+        try await waitFor("root listing shows the link as a directory", timeout: 10) {
+            store.rootNodes.contains { $0.name == "link" && $0.isDirectory }
+        }
+        let linkNode = try #require(store.rootNodes.first { $0.name == "link" })
+        store.expand(node: linkNode)
+        try await waitFor("link listing loaded", timeout: 10) { linkNode.children != nil }
+        #expect(linkNode.children?.contains { $0.name == ".git" } == true)
+
+        try await waitFor("link probed and cached as not a repository", timeout: 10) {
+            store.cachedRepositoryRootForTesting(directory: linkURL.path) == .some(nil)
+        }
+        #expect(watchSource.startedRepoRoots.isEmpty)
+        #expect(store.gitStatusByPath[linkURL.appendingPathComponent("tracked.txt").path] == nil)
+        #expect(store.gitStatusByPath[linkURL.path] == nil)
+        #expect(store.gitStatusByPath.isEmpty)
+    }
+
+    @Test
+    func testOlderInFlightRefetchDoesNotOverwriteFresherDiscoverSnapshot() async throws {
+        // Two runs target the same repository: a watcher-driven refetch that
+        // started first and is still running, and a discover (for a nested
+        // directory the fake git resolves to the same root) that started later
+        // and lands first. The refetch observed an older work tree, so when it
+        // finally lands it must not replace the fresher snapshot.
+        let rootURL = try GitRepositoryTestSupport.makeTemporaryDirectory(prefix: "cmux-file-explorer-store-git-")
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        // Control files live outside the explorer root so the root directory
+        // watcher never sees them.
+        let controlURL = try GitRepositoryTestSupport.makeTemporaryDirectory(prefix: "cmux-file-explorer-store-git-control-")
+        defer { try? FileManager.default.removeItem(at: controlURL) }
+        let subURL = rootURL.appendingPathComponent("sub", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: subURL.appendingPathComponent(".git", isDirectory: true), withIntermediateDirectories: true
+        )
+        let callsURL = controlURL.appendingPathComponent("calls", isDirectory: true)
+        let gatesURL = controlURL.appendingPathComponent("gates", isDirectory: true)
+        try FileManager.default.createDirectory(at: callsURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: gatesURL, withIntermediateDirectories: true)
+        let stateURL = controlURL.appendingPathComponent("state.txt")
+        try "a.txt".write(to: stateURL, atomically: true, encoding: .utf8)
+
+        // Every `status` run records its ordinal, snapshots the state file, then
+        // blocks while a gate file with its ordinal exists before printing.
+        let fakeGitURL = controlURL.appendingPathComponent("fake-git")
+        try #"""
+        #!/bin/sh
+        while [ "$1" = "-c" ]; do shift 2; done
+        case "$1" in
+        rev-parse) printf '%s\n' "$CMUX_TEST_REPO_ROOT" ;;
+        status)
+            state=$(cat "$CMUX_TEST_STATE_FILE")
+            n=$(ls "$CMUX_TEST_CALLS_DIR" | wc -l | tr -d ' ')
+            n=$((n + 1))
+            : > "$CMUX_TEST_CALLS_DIR/$n"
+            while [ -e "$CMUX_TEST_GATES_DIR/$n" ]; do sleep 0.05; done
+            printf ' M %s\0' "$state"
+            ;;
+        *) exit 2 ;;
+        esac
+        """#.write(to: fakeGitURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeGitURL.path)
+        let canonicalRoot = rootURL.resolvingSymlinksInPath().path
+        var environment = ProcessInfo.processInfo.environment
+        environment["CMUX_TEST_REPO_ROOT"] = canonicalRoot
+        environment["CMUX_TEST_STATE_FILE"] = stateURL.path
+        environment["CMUX_TEST_CALLS_DIR"] = callsURL.path
+        environment["CMUX_TEST_GATES_DIR"] = gatesURL.path
+        let aPath = rootURL.appendingPathComponent("a.txt").path
+        let bPath = rootURL.appendingPathComponent("b.txt").path
+
+        let watchSource = FakeRepositoryWatchSource()
+        let store = FileExplorerStore(
+            gitStatusProvider: GitStatusProvider(gitExecutableURL: fakeGitURL, environment: environment),
+            repositoryWatchFactory: watchSource.factory
+        )
+        store.showHiddenFiles = true
+        store.setProviderForTesting(LocalFileExplorerProvider())
+        store.setRootPath(rootURL.path)
+
+        // Run 1: the root discover.
+        try await waitFor("initial root status applied", timeout: 10) {
+            store.gitStatusByPath[aPath] == .modified
+        }
+        try await waitFor("root repository watcher installed", timeout: 10) {
+            watchSource.startedRepoRoots == [canonicalRoot]
+        }
+        try await waitFor("root listing shows sub", timeout: 10) {
+            store.rootNodes.contains { $0.name == "sub" && $0.isDirectory }
+        }
+
+        // Run 2: a refetch that snapshots "a.txt" and then blocks on its gate.
+        let gate2URL = gatesURL.appendingPathComponent("2")
+        try Data().write(to: gate2URL)
+        watchSource.fire(repoRoot: canonicalRoot)
+        try await waitFor("refetch run started", timeout: 10) {
+            FileManager.default.fileExists(atPath: callsURL.appendingPathComponent("2").path)
+        }
+        #expect(store.hasInFlightStatusFetchForTesting(repoRoot: canonicalRoot))
+
+        // Run 3: the work tree moves on, then a discover for `sub` (which the
+        // fake resolves to the root repository) starts later and lands first.
+        try "b.txt".write(to: stateURL, atomically: true, encoding: .utf8)
+        let subNode = try #require(store.rootNodes.first { $0.name == "sub" })
+        store.expand(node: subNode)
+        try await waitFor("later discover landed with the fresher snapshot", timeout: 10) {
+            store.gitStatusByPath[bPath] == .modified && store.gitStatusByPath[aPath] == nil
+        }
+
+        // Release run 2: its stale snapshot must be dropped, not stored.
+        try FileManager.default.removeItem(at: gate2URL)
+        try await waitFor("stale refetch landed", timeout: 10) {
+            !store.hasInFlightStatusFetchForTesting(repoRoot: canonicalRoot)
+        }
+        #expect(store.gitStatusByPath[bPath] == .modified)
+        #expect(store.gitStatusByPath[aPath] == nil)
+    }
+
     // MARK: - Basic loading
 
     @Test

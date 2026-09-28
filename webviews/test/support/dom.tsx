@@ -16,19 +16,32 @@ const DOM_GLOBAL_KEYS = [
   "window",
   "document",
   "navigator",
-  "Element",
-  "Node",
-  "HTMLElement",
-  "HTMLStyleElement",
   "customElements",
+  "ResizeObserver",
+  "MutationObserver",
+  "getComputedStyle",
   "fetch",
   "requestAnimationFrame",
   "cancelAnimationFrame",
+  "Worker",
 ] as const;
+
+// Every DOM interface constructor (`HTMLDivElement`, `SVGElement`,
+// `ShadowRoot`, `KeyboardEvent`, ...) that Pierre's components and React
+// reach for through `instanceof`. Copied from the JSDOM window wholesale so
+// a new component never fails on one more missing class.
+const DOM_INTERFACE_PATTERN =
+  /^(HTML\w*Element|SVG\w*Element|\w*Event|Node|Text|Comment|Element|Document\w*|ShadowRoot|CSSStyleSheet|Range|Selection|DOMRect\w*|NodeList|HTMLCollection|CharacterData)$/;
 
 const originalGlobals = new Map<string, unknown>();
 for (const key of DOM_GLOBAL_KEYS) {
   originalGlobals.set(key, (globalThis as Record<string, unknown>)[key]);
+}
+
+function domInterfaceKeys(dom: JSDOM): string[] {
+  return Object.getOwnPropertyNames(dom.window).filter((name) =>
+    DOM_INTERFACE_PATTERN.test(name),
+  );
 }
 
 let currentDom: JSDOM | null = null;
@@ -60,11 +73,41 @@ export function installDomGlobals(dom: JSDOM, fetchImpl: FetchMock): void {
   g.window = dom.window;
   g.document = dom.window.document;
   g.navigator = dom.window.navigator;
-  g.Element = dom.window.Element;
-  g.Node = dom.window.Node;
-  g.HTMLElement = dom.window.HTMLElement;
-  g.HTMLStyleElement = dom.window.HTMLStyleElement;
+  const windowRecord = dom.window as unknown as Record<string, unknown>;
+  for (const key of domInterfaceKeys(dom)) {
+    if (!originalGlobals.has(key)) {
+      originalGlobals.set(key, g[key]);
+    }
+    g[key] = windowRecord[key];
+  }
   g.customElements = dom.window.customElements;
+  g.MutationObserver = dom.window.MutationObserver;
+  g.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
+  // JSDOM has no ResizeObserver; Pierre's CodeView observes its container
+  // and only needs the constructor to exist to render its initial range.
+  const resizeObserver = class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  };
+  g.ResizeObserver = resizeObserver;
+  windowRecord.ResizeObserver = resizeObserver;
+  // Pierre's highlighter pool spawns module workers from the page URL, which
+  // Bun cannot load here. A silent worker leaves the rendered plain text in
+  // place (highlighting never arrives) without logging load errors.
+  const silentWorker = class {
+    onmessage: unknown = null;
+    onerror: unknown = null;
+    postMessage(): void {}
+    terminate(): void {}
+    addEventListener(): void {}
+    removeEventListener(): void {}
+    dispatchEvent(): boolean {
+      return true;
+    }
+  };
+  g.Worker = silentWorker;
+  windowRecord.Worker = silentWorker;
   // A focused input makes React run its legacy IE onpropertychange polyfill
   // (JSDOM misreports 'input' support), which calls attach/detachEvent on the
   // active element. JSDOM lacks them; stub no-ops on Element.prototype.

@@ -58,6 +58,16 @@ final class CmuxDiffViewerURLSchemeHandler: NSObject, WKURLSchemeHandler {
         sessions[preparedSession.token] = preparedSession
     }
 
+    /// Drops one token's in-memory session once nothing displays its page
+    /// any more (a replaced or evicted docked Changes page, a closed window).
+    /// Scoped to that token only; an unknown or malformed token is a no-op.
+    /// Like the age-based prune, this is not a hard revocation: a request for
+    /// the token can still restore it from a valid on-disk manifest.
+    func unregister(token: String) {
+        guard Self.isValidToken(token) else { return }
+        sessions.removeValue(forKey: token)
+    }
+
     /// Whether the token currently has a registered in-memory session.
     /// Used to trust-gate native bridge calls after a page has begun loading.
     func hasActiveSession(token: String, now: Date = Date()) -> Bool {

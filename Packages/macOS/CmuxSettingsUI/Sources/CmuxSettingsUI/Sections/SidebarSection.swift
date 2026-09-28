@@ -261,6 +261,12 @@ public struct SidebarSection: View {
                 .labelsHidden()
                 .pickerStyle(.segmented)
                 .fixedSize()
+                // "Left" and "Right" name window edges, not reading order: the
+                // placement math (`RightSidebarPlacementLayout`) works in LTR
+                // window coordinates like the existing left-sidebar resizer, so
+                // the segments must not mirror under RTL locales or "Left" would
+                // sit on the right of the control while still docking leading.
+                .environment(\.layoutDirection, .leftToRight)
             }
             SettingsCardDivider()
 

@@ -181,9 +181,14 @@ final class FileExplorerNode: Identifiable {
     let name: String
     let path: String
     let isDirectory: Bool
-    /// A file git reports as deleted that no longer exists on disk. Ghost rows
+    /// A path git reports as deleted that no longer exists on disk. Ghost rows
     /// are rendered struck through and cannot be opened, dragged, or revealed.
+    /// A ghost directory stands in for a deleted directory whose files are
+    /// all ghosts; its `children` are populated by the store, never listed.
     let isGhost: Bool
+    /// Invariant: always in `FileExplorerNode.sorted` order. The store assigns
+    /// this only from `displayChildren`, which sorts once per listing or ghost
+    /// reconciliation, so readers need not re-sort.
     var children: [FileExplorerNode]?
     var isLoading: Bool = false
     var error: String?
@@ -197,11 +202,15 @@ final class FileExplorerNode: Identifiable {
         self.isGhost = isGhost
     }
 
-    var isExpandable: Bool { isDirectory && !isGhost }
-
-    var sortedChildren: [FileExplorerNode]? {
-        children.map(FileExplorerNode.sorted)
+    /// Real directories expand by listing; a ghost directory expands only
+    /// into the ghost rows the store synthesized for it.
+    var isExpandable: Bool {
+        guard isDirectory else { return false }
+        return isGhost ? (children?.isEmpty == false) : true
     }
+
+    /// `children`, which are kept sorted at every write (see `children`).
+    var sortedChildren: [FileExplorerNode]? { children }
 
     /// Directories first, then case-insensitive by name; the one ordering used
     /// for listings, ghost insertion, and the outline view.
@@ -785,6 +794,9 @@ final class FileExplorerStore: ObservableObject {
 
     /// Deleted (ghost) file paths per parent directory, merged across repositories.
     private(set) var deletedPathsByParent: [String: [String]] = [:]
+    /// Directories that may be missing from disk because git only knows them
+    /// through deleted files, keyed by parent (see `rebuildGhostDirectoryIndex`).
+    private var ghostDirectoriesByParent: [String: Set<String>] = [:]
 
     var provider: FileExplorerProvider?
 
@@ -842,6 +854,12 @@ final class FileExplorerStore: ObservableObject {
     private var repoRootByDirectory: [String: String?] = [:]
     /// Latest snapshot per repository root.
     private var statusByRepoRoot: [String: GitStatusSnapshot] = [:]
+    /// Token of the run that produced `statusByRepoRoot[repoRoot]`. Runs land
+    /// out of order (a discover for a symlinked directory and a watcher-driven
+    /// refetch can target the same repository concurrently), and a run that
+    /// started later observed a later state of the work tree, so a snapshot
+    /// is only accepted when its token is newer than the stored one.
+    private var snapshotGenerationByRepoRoot: [String: UInt64] = [:]
     /// Latest accepted request token per probed directory.
     private var discoveryGenerationByDirectory: [String: UInt64] = [:]
     /// Token of the `git status` run in flight per repository; absent when none
@@ -979,14 +997,13 @@ final class FileExplorerStore: ObservableObject {
     }
 
     /// Root-listing changes only re-resolve and re-fetch the root repository;
-    /// nested local repositories have their own watchers. So does the root
-    /// repository once it is discovered and watched: its watcher fires for the
-    /// same save, so refetching here too would run `git status` twice.
+    /// nested local repositories have their own watchers. The root repository
+    /// is refetched even when it has a watcher of its own: that watcher's
+    /// descriptor filter passes only tracked paths, so an untracked file
+    /// created or deleted at the root is seen by the directory watcher alone.
+    /// When both fire for one save, `refetchRepository` coalesces the pair
+    /// into at most two runs (single-flight plus one dirty follow-up).
     private func refreshRootRepositoryStatus() {
-        if case .some(.some(let rootRepo)) = repoRootByDirectory[rootPath],
-           repositoryWatches[rootRepo] != nil {
-            return
-        }
         refreshGitStatus(includingNestedRepositories: false)
     }
 
@@ -1030,11 +1047,13 @@ final class FileExplorerStore: ObservableObject {
         gitStatusGeneration &+= 1
         repoRootByDirectory = [:]
         statusByRepoRoot = [:]
+        snapshotGenerationByRepoRoot = [:]
         discoveryGenerationByDirectory = [:]
         fetchGenerationByRepoRoot = [:]
         dirtyRepoRoots = []
         stopAllRepositoryWatches()
         deletedPathsByParent = [:]
+        ghostDirectoriesByParent = [:]
         if !gitStatusByPath.isEmpty {
             gitStatusByPath = [:]
             gitStatusRevision &+= 1
@@ -1096,6 +1115,14 @@ final class FileExplorerStore: ObservableObject {
                 return nil
             }
             guard let repoRoot = provider.repositoryRoot(for: directory) else { return nil }
+            // A nested directory whose repository resolves outside the explorer
+            // root (a symlink into another checkout, a `.git` file pointing
+            // elsewhere) contributes no rows below the root, so it is treated
+            // as "not a repository": nothing to fetch or watch. The explorer
+            // root itself may of course sit inside an enclosing repository.
+            if directory != keyRoot, !GitStatusProvider.path(repoRoot, isContainedIn: canonicalRoot) {
+                return nil
+            }
             return GitRepositoryStatus(repoRoot: repoRoot, snapshot: fetchLocal(repoRoot: repoRoot))
         }
 
@@ -1156,13 +1183,23 @@ final class FileExplorerStore: ObservableObject {
                 return
             }
             self.repoRootByDirectory[directory] = result.repoRoot
-            // A concurrent per-repository refetch that started later is fresher.
-            if self.fetchGenerationByRepoRoot[result.repoRoot].map({ $0 > generation }) != true {
-                self.statusByRepoRoot[result.repoRoot] = result.snapshot
-                self.rebuildMergedGitStatus()
-            }
+            // Ordering with a concurrent refetch of the same repository: both
+            // go through `storeSnapshot`, which keeps whichever run started
+            // later. A refetch that started earlier and lands afterwards is
+            // dropped there instead of overwriting this fresher snapshot.
+            self.storeSnapshot(result.snapshot, for: result.repoRoot, generation: generation)
             self.startRepositoryWatchIfNeeded(repoRoot: result.repoRoot)
         }
+    }
+
+    /// Records `snapshot` as the current status of `repoRoot` unless a run
+    /// that started later has already landed, and rebuilds the merged index
+    /// when it was accepted.
+    private func storeSnapshot(_ snapshot: GitStatusSnapshot, for repoRoot: String, generation: UInt64) {
+        if let stored = snapshotGenerationByRepoRoot[repoRoot], stored > generation { return }
+        snapshotGenerationByRepoRoot[repoRoot] = generation
+        statusByRepoRoot[repoRoot] = snapshot
+        rebuildMergedGitStatus()
     }
 
     /// Re-runs `git status` for one known repository. Single-flight per
@@ -1185,14 +1222,29 @@ final class FileExplorerStore: ObservableObject {
             }.value
             guard let self, self.resourceContextID == context,
                   self.fetchGenerationByRepoRoot[repoRoot] == generation else { return }
+            // Release the in-flight token first: a timed-out or failed run
+            // reports an empty snapshot and must still let the next event
+            // schedule a fresh run.
             self.fetchGenerationByRepoRoot.removeValue(forKey: repoRoot)
-            self.statusByRepoRoot[repoRoot] = snapshot
-            self.rebuildMergedGitStatus()
+            self.storeSnapshot(snapshot, for: repoRoot, generation: generation)
             if self.dirtyRepoRoots.remove(repoRoot) != nil {
                 self.refetchRepository(repoRoot)
             }
         }
     }
+
+    #if DEBUG
+    /// The cached repository probe for `directory`: `nil` when never probed,
+    /// `.some(nil)` for "not a repository", otherwise the repository root.
+    func cachedRepositoryRootForTesting(directory: String) -> String?? {
+        repoRootByDirectory[directory]
+    }
+
+    /// Whether a `git status` run for `repoRoot` is currently in flight.
+    func hasInFlightStatusFetchForTesting(repoRoot: String) -> Bool {
+        fetchGenerationByRepoRoot[repoRoot] != nil
+    }
+    #endif
 
     /// Merges every repository snapshot into `gitStatusByPath` and
     /// `deletedPathsByParent`, then reconciles ghost rows in loaded directories.
@@ -1211,6 +1263,7 @@ final class FileExplorerStore: ObservableObject {
         guard merged != gitStatusByPath || mergedDeleted != deletedPathsByParent else { return }
         gitStatusByPath = merged
         deletedPathsByParent = mergedDeleted
+        rebuildGhostDirectoryIndex()
         gitStatusRevision &+= 1
         reconcileGhostNodes()
     }
@@ -1263,38 +1316,102 @@ final class FileExplorerStore: ObservableObject {
 
     // MARK: Ghost rows for deleted files
 
-    private func makeGhostNode(path: String) -> FileExplorerNode {
+    private func makeGhostNode(path: String, isDirectory: Bool) -> FileExplorerNode {
         let node = FileExplorerNode(
             name: (path as NSString).lastPathComponent,
             path: path,
-            isDirectory: false,
+            isDirectory: isDirectory,
             isGhost: true
         )
         node.resourceContextID = resourceContextID
         return node
     }
 
-    /// Deleted paths that belong in `directory` and are not backed by a listed entry.
-    private func ghostPaths(in directory: String, excluding realPaths: Set<String>) -> [String] {
-        (deletedPathsByParent[GitStatusProvider.pathWithoutTrailingSlashes(directory)] ?? []).filter { path in
-            guard !realPaths.contains(path) else { return false }
-            return showHiddenFiles || !(path as NSString).lastPathComponent.hasPrefix(".")
+    /// Rebuilds `ghostDirectoriesByParent` from `deletedPathsByParent`: every
+    /// directory on the chain from a deleted file's parent up to (excluding)
+    /// the explorer root, keyed by its own parent. A whole deleted directory
+    /// is missing from its parent's listing, so the parent needs a ghost
+    /// directory row that expands into the ghost files; directories that
+    /// still exist are listed for real and never consulted here.
+    private func rebuildGhostDirectoryIndex() {
+        var index: [String: Set<String>] = [:]
+        let root = GitStatusProvider.pathWithoutTrailingSlashes(rootPath)
+        guard !root.isEmpty else {
+            ghostDirectoriesByParent = [:]
+            return
         }
+        for parent in deletedPathsByParent.keys {
+            var current = parent
+            while GitStatusProvider.path(current, isContainedIn: root), current != root {
+                let grandparent = (current as NSString).deletingLastPathComponent
+                index[grandparent, default: []].insert(current)
+                current = grandparent
+            }
+        }
+        ghostDirectoriesByParent = index
+    }
+
+    private func isGhostPathVisible(_ path: String) -> Bool {
+        showHiddenFiles || !(path as NSString).lastPathComponent.hasPrefix(".")
+    }
+
+    /// Deleted file paths that belong in `directory` and are not backed by a listed entry.
+    private func ghostFilePaths(in directory: String, excluding realPaths: Set<String>) -> [String] {
+        (deletedPathsByParent[GitStatusProvider.pathWithoutTrailingSlashes(directory)] ?? []).filter { path in
+            !realPaths.contains(path) && isGhostPathVisible(path)
+        }
+    }
+
+    /// Deleted directories directly under `directory` that no listed entry has
+    /// taken back, sorted.
+    private func ghostDirectoryPaths(in directory: String, excluding realPaths: Set<String>) -> [String] {
+        (ghostDirectoriesByParent[GitStatusProvider.pathWithoutTrailingSlashes(directory)] ?? [])
+            .filter { !realPaths.contains($0) && isGhostPathVisible($0) }
+            .sorted()
+    }
+
+    /// Every ghost path `directory` should show, including the files below its
+    /// ghost directories, sorted. The comparison key for reconciliation.
+    private func wantedGhostPaths(in directory: String, excluding realPaths: Set<String>) -> [String] {
+        var paths = ghostFilePaths(in: directory, excluding: realPaths)
+        for ghostDirectory in ghostDirectoryPaths(in: directory, excluding: realPaths) {
+            paths.append(ghostDirectory)
+            paths += wantedGhostPaths(in: ghostDirectory, excluding: [])
+        }
+        return paths.sorted()
+    }
+
+    /// The paths of `ghosts` and, recursively, of their ghost children, sorted.
+    private func flattenedGhostPaths(_ ghosts: [FileExplorerNode]) -> [String] {
+        var paths: [String] = []
+        for ghost in ghosts {
+            paths.append(ghost.path)
+            paths += flattenedGhostPaths(ghost.children ?? [])
+        }
+        return paths.sorted()
     }
 
     /// The rows `directory` displays: `real` listed entries plus a ghost row for
     /// every deleted path no listed entry has taken back, sorted with the shared
     /// comparator. Ghost nodes in `existingGhosts` are reused so outline
-    /// identity stays stable across reconciliations.
+    /// identity stays stable across reconciliations; a reused ghost directory
+    /// gets its children rebuilt the same way.
     private func displayChildren(
         real: [FileExplorerNode], directory: String, reusingGhosts existingGhosts: [FileExplorerNode] = []
     ) -> [FileExplorerNode] {
         var existingByPath: [String: FileExplorerNode] = [:]
         for ghost in existingGhosts { existingByPath[ghost.path] = ghost }
-        let ghosts = ghostPaths(in: directory, excluding: Set(real.map(\.path))).map {
-            existingByPath[$0] ?? makeGhostNode(path: $0)
+        let realPaths = Set(real.map(\.path))
+        let ghostFiles = ghostFilePaths(in: directory, excluding: realPaths).map { path in
+            existingByPath[path].flatMap { $0.isDirectory ? nil : $0 } ?? makeGhostNode(path: path, isDirectory: false)
         }
-        return FileExplorerNode.sorted(real + ghosts)
+        let ghostDirectories = ghostDirectoryPaths(in: directory, excluding: realPaths).map { path in
+            let node = existingByPath[path].flatMap { $0.isDirectory ? $0 : nil }
+                ?? makeGhostNode(path: path, isDirectory: true)
+            node.children = displayChildren(real: [], directory: path, reusingGhosts: node.children ?? [])
+            return node
+        }
+        return FileExplorerNode.sorted(real + ghostFiles + ghostDirectories)
     }
 
     /// Returns `children` with ghost rows added or removed to match the current
@@ -1302,8 +1419,8 @@ final class FileExplorerStore: ObservableObject {
     private func childrenReconcilingGhosts(_ children: [FileExplorerNode], directory: String, changed: inout Bool) -> [FileExplorerNode] {
         let real = children.filter { !$0.isGhost }
         let existingGhosts = children.filter(\.isGhost)
-        let wanted = ghostPaths(in: directory, excluding: Set(real.map(\.path))).sorted()
-        guard wanted != existingGhosts.map(\.path).sorted() else { return children }
+        let wanted = wantedGhostPaths(in: directory, excluding: Set(real.map(\.path)))
+        guard wanted != flattenedGhostPaths(existingGhosts) else { return children }
         changed = true
         return displayChildren(real: real, directory: directory, reusingGhosts: existingGhosts)
     }
@@ -1433,7 +1550,15 @@ final class FileExplorerStore: ObservableObject {
     }
 
     func expand(node: FileExplorerNode) {
-        guard node.resourceContextID == nil || node.resourceContextID == resourceContextID, node.isDirectory, !node.isGhost else { return }
+        guard node.resourceContextID == nil || node.resourceContextID == resourceContextID, node.isDirectory else { return }
+        if node.isGhost {
+            // A ghost directory already carries the ghost rows the store
+            // synthesized for it; there is nothing on disk to list.
+            guard node.isExpandable else { return }
+            expandedPaths.insert(node.path)
+            objectWillChange.send()
+            return
+        }
         expandedPaths.insert(node.path)
         if let children = node.children {
             // Already listed (e.g. by a silent prefetch, or before a reload dropped

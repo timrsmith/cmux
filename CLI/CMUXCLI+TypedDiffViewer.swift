@@ -339,6 +339,7 @@ extension CMUXCLI.DiffViewerLabels {
             "unstageFile": CMUXDiffViewerLocalization.string("diffViewer.unstageFile", defaultValue: "Unstage file"),
             "worktreeConflict": CMUXDiffViewerLocalization.string("diffViewer.worktreeConflict", defaultValue: "The change could not be applied cleanly. The diff was reloaded."),
             "worktreeNotAllowed": CMUXDiffViewerLocalization.string("diffViewer.worktreeNotAllowed", defaultValue: "Working-tree changes are not available for this diff."),
+            "worktreePartialRevert": CMUXDiffViewerLocalization.string("diffViewer.worktreePartialRevert", defaultValue: "The change was unstaged but is still in the working tree. The diff was reloaded."),
             "worktreeWriteFailed": CMUXDiffViewerLocalization.string("diffViewer.worktreeWriteFailed", defaultValue: "Could not update the working tree."),
         ]
     }

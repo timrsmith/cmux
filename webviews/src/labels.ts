@@ -45,6 +45,8 @@ const DEFAULT_DIFF_VIEWER_LABELS = {
   worktreeConflict:
     "The change could not be applied cleanly. The diff was reloaded.",
   worktreeNotAllowed: "Working-tree changes are not available for this diff.",
+  worktreePartialRevert:
+    "The change was unstaged but is still in the working tree. The diff was reloaded.",
   worktreeWriteFailed: "Could not update the working tree.",
   copyFailedGitApplyCommand: "Could not copy git apply command.",
   copiedGitApplyCommand: "Copied git apply command",

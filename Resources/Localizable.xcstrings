@@ -1,6 +1,124 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "rightSidebar.changes.error.timedOut": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux diff did not finish in time."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux diff wurde nicht rechtzeitig abgeschlossen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux diff ne s'est pas terminé à temps."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لم ينتهِ cmux diff في الوقت المحدد."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux diff no terminó a tiempo."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux diff 未能及時完成。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux diff 未能及时完成。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux diff가 제시간에 완료되지 않았습니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux diff が時間内に完了しませんでした。"
+          }
+        }
+      }
+    },
+    "diffViewer.worktreePartialRevert": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The change was unstaged but is still in the working tree. The diff was reloaded."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Änderung wurde aus dem Index entfernt, ist aber noch im Arbeitsverzeichnis. Der Diff wurde neu geladen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La modification a été retirée de l'index mais reste dans l'arborescence de travail. Le diff a été rechargé."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أُزيل التغيير من منطقة التحضير لكنه ما زال في شجرة العمل. تمت إعادة تحميل الفروقات."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El cambio se quitó del índice pero sigue en el árbol de trabajo. Se recargó el diff."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此變更已取消暫存，但仍在工作目錄中，已重新載入差異。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此更改已取消暂存，但仍在工作目录中，已重新加载差异。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "변경 사항이 스테이징에서 제거되었지만 작업 트리에는 남아 있습니다. diff를 다시 불러왔습니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更はステージから外されましたが、作業ツリーにはまだ残っています。差分を再読み込みしました。"
+          }
+        }
+      }
+    },
     "settings.search.alias.setting.sidebarAppearance.right-position": {
       "extractionState": "manual",
       "localizations": {
@@ -287905,55 +288023,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "ERROR: Usage: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|diff|git|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "エラー: 使用法: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "エラー: 使用法: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|diff|git|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "错误：用法：right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "错误：用法：right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|diff|git|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "FEHLER: Verwendung: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "FEHLER: Verwendung: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|diff|git|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERREUR : Utilisation : right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "ERREUR : Utilisation : right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|diff|git|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "خطأ: الاستخدام: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "خطأ: الاستخدام: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|diff|git|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Uso: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "ERROR: Uso: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|diff|git|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "錯誤：用法：right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "錯誤：用法：right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|diff|git|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "오류: 사용법: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "오류: 사용법: right_sidebar set <files|find|vault|sessions|feed|dock|cloud|devices|changes|diff|git|custom> [sidebar-name] [--no-focus] [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         }
       }

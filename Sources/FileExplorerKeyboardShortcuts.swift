@@ -31,8 +31,9 @@ extension FileExplorerPanelView.Coordinator {
         guard row >= 0,
               let node = outlineView.item(atRow: row) as? FileExplorerNode,
               node.resourceContextID == nil || node.resourceContextID == store.resourceContextID else { return }
-        // A ghost row is a deleted file; there is nothing on disk to open.
-        guard !node.isGhost else { return }
+        // A ghost file is deleted; there is nothing on disk to open. A ghost
+        // directory still toggles like any folder so its deleted children show.
+        guard !node.isGhost || node.isDirectory else { return }
 
         if node.isDirectory {
             if outlineView.isItemExpanded(node) {

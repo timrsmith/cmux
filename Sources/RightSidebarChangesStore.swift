@@ -76,6 +76,15 @@ final class RightSidebarChangesStore: ObservableObject {
         _ launch: DiffViewerCLILaunch?
     ) async throws -> RightSidebarChangesPage
 
+    /// How long one page production may take before the panel reports a
+    /// failure instead of spinning; the CLI child is terminated on the way out.
+    static let defaultProductionTimeout: TimeInterval = 60
+    /// Positive repository probes kept per directory; the oldest is dropped.
+    static let repoRootCacheLimit = 64
+    /// Pages kept for repositories the panel showed recently, so returning to
+    /// one reuses its document instead of spawning the CLI again.
+    static let recentPageLimit = 4
+
     @Published private(set) var state: RightSidebarChangesViewerState = .noWorkspace
     /// Bumped when the hosted web view should `reload()` the current page.
     @Published private(set) var reloadGeneration: UInt64 = 0
@@ -90,16 +99,27 @@ final class RightSidebarChangesStore: ObservableObject {
     private let pageProducer: PageProducer
     private let watchFactory: GitStatusRepositoryWatchFactory
     private let schemeHandler: CmuxDiffViewerURLSchemeHandler
-    private var repoRootCache: [String: String?] = [:]
+    private let productionTimeout: TimeInterval
+    /// Positive probes only, most recently used last. Negative answers are
+    /// never cached: a `git init` in the selected directory must show up on
+    /// the next sync, and a negative probe is one cheap `git rev-parse`.
+    private var repoRootCache: [String: String] = [:]
+    private var repoRootCacheOrder: [String] = []
+    /// The probe in flight, so a burst of syncs for one directory waits for
+    /// the answer instead of spawning `git` per sync.
+    private var pendingProbe: (directory: String, workspaceId: UUID)?
     private var resolveGeneration: UInt64 = 0
     /// Set when the target's repository changed and no page has been
     /// generated for it yet; cleared when production starts.
     private var needsPage = false
-    /// Set when the panel becomes active again; the existing page refreshes
-    /// once the target is settled.
+    /// Set when the panel becomes active again or comes back to a recently
+    /// shown repository; the existing page refreshes once the target settles.
     private var needsRefresh = false
     private var loadGeneration: UInt64 = 0
     private var loadTask: Task<Void, Never>?
+    /// Pages by repository root, most recently shown last. Every page here
+    /// keeps its scheme session registered; eviction or replacement drops it.
+    private var recentPages: [(repoRoot: String, page: RightSidebarChangesPage)] = []
     private var watch: GitStatusRepositoryWatch?
     private var watchRepoRoot: String?
     private var watchStartTask: Task<Void, Never>?
@@ -110,18 +130,27 @@ final class RightSidebarChangesStore: ObservableObject {
         repoRootResolver: @escaping RepoRootResolver = RightSidebarChangesStore.defaultRepoRootResolver,
         pageProducer: @escaping PageProducer = RightSidebarChangesStore.defaultPageProducer,
         watchFactory: @escaping GitStatusRepositoryWatchFactory = GitStatusRepositoryWatching.defaultFactory,
-        schemeHandler: CmuxDiffViewerURLSchemeHandler = .shared
+        schemeHandler: CmuxDiffViewerURLSchemeHandler = .shared,
+        productionTimeout: TimeInterval = RightSidebarChangesStore.defaultProductionTimeout
     ) {
         self.repoRootResolver = repoRootResolver
         self.pageProducer = pageProducer
         self.watchFactory = watchFactory
         self.schemeHandler = schemeHandler
+        self.productionTimeout = productionTimeout
     }
 
     deinit {
         loadTask?.cancel()
         watchStartTask?.cancel()
         watchEventsTask?.cancel()
+        // Nothing displays these documents any more; their sessions go too.
+        let tokens = recentPages.map { $0.page.token }
+        guard !tokens.isEmpty else { return }
+        let handler = schemeHandler
+        Task { @MainActor in
+            for token in tokens { handler.unregister(token: token) }
+        }
     }
 
     // MARK: Inputs
@@ -150,18 +179,17 @@ final class RightSidebarChangesStore: ObservableObject {
         let becameActive = isActive && !self.isActive
         self.isActive = isActive
         if becameActive {
-            // A directory probed as "not a repository" while hidden may have
-            // been `git init`ed since; only positive answers stay cached.
-            repoRootCache = repoRootCache.filter { $0.value != nil }
             // Edits made while the panel was hidden were not watched.
             needsRefresh = true
         }
         guard let workspaceId, let directory = directory?.trimmingCharacters(in: .whitespacesAndNewlines),
               !directory.isEmpty else {
+            invalidatePendingProbe()
             setTarget(nil, state: .noWorkspace)
             return
         }
         guard !isRemote else {
+            invalidatePendingProbe()
             setTarget(nil, state: .failed(message: String(
                 localized: "rightSidebar.changes.remoteUnsupported",
                 defaultValue: "Changes are available for local workspaces only."
@@ -169,32 +197,71 @@ final class RightSidebarChangesStore: ObservableObject {
             return
         }
         if let cached = repoRootCache[directory] {
+            invalidatePendingProbe()
+            touchRepoRootCache(directory)
             applyResolvedRepoRoot(cached, directory: directory, workspaceId: workspaceId)
+            return
+        }
+        // The same question is already being asked; its answer will apply.
+        if let pendingProbe, pendingProbe.directory == directory, pendingProbe.workspaceId == workspaceId {
             return
         }
         resolveGeneration &+= 1
         let generation = resolveGeneration
+        pendingProbe = (directory, workspaceId)
         let resolver = repoRootResolver
         Task { [weak self] in
             let repoRoot = await resolver(directory)
             guard let self, self.resolveGeneration == generation else { return }
-            // `.some(nil)` records "not a repository" so the lookup is not repeated.
-            self.repoRootCache[directory] = .some(repoRoot)
+            self.pendingProbe = nil
+            if let repoRoot { self.cacheRepoRoot(repoRoot, for: directory) }
             self.applyResolvedRepoRoot(repoRoot, directory: directory, workspaceId: workspaceId)
         }
     }
 
-    /// Window teardown: drops the watcher and any in-flight work. The page
-    /// stays so a re-shown panel does not flash.
+    /// Window teardown: drops the watcher, any in-flight work, and every kept
+    /// page's scheme session (nothing displays them any more). A later sync
+    /// regenerates the page for the recorded target.
     func stop() {
         isActive = false
-        resolveGeneration &+= 1
-        if loadTask != nil {
-            loadTask?.cancel(); loadTask = nil
-            needsPage = true
-        }
+        invalidatePendingProbe()
+        cancelLoad()
         stopWatch()
+        for entry in recentPages {
+            schemeHandler.unregister(token: entry.page.token)
+        }
+        recentPages = []
+        page = nil
+        if target != nil {
+            needsPage = true
+            if state != .loading(previousURL: nil) { state = .loading(previousURL: nil) }
+        }
     }
+
+    // MARK: Repository probes
+
+    private func invalidatePendingProbe() {
+        guard pendingProbe != nil else { return }
+        pendingProbe = nil
+        resolveGeneration &+= 1
+    }
+
+    private func cacheRepoRoot(_ repoRoot: String, for directory: String) {
+        repoRootCache[directory] = repoRoot
+        touchRepoRootCache(directory)
+        while repoRootCacheOrder.count > Self.repoRootCacheLimit {
+            let oldest = repoRootCacheOrder.removeFirst()
+            repoRootCache.removeValue(forKey: oldest)
+        }
+    }
+
+    private func touchRepoRootCache(_ directory: String) {
+        repoRootCacheOrder.removeAll { $0 == directory }
+        repoRootCacheOrder.append(directory)
+    }
+
+    /// Directories with a cached positive answer, oldest first (tests).
+    var cachedRepoRootDirectories: [String] { repoRootCacheOrder }
 
     // MARK: Target
 
@@ -204,20 +271,29 @@ final class RightSidebarChangesStore: ObservableObject {
             return
         }
         let next = RightSidebarChangesTarget(workspaceId: workspaceId, repoRoot: repoRoot)
-        // Same repository under another workspace keeps the page (the diff is
-        // a property of the repository); another repository starts over.
+        // Same repository under another workspace keeps the page and any
+        // in-flight load (the diff is a property of the repository); another
+        // repository starts over, or comes straight back if it was shown recently.
         if target?.repoRoot != repoRoot {
-            loadTask?.cancel(); loadTask = nil
-            page = nil
-            needsPage = true
-            state = .loading(previousURL: state.displayedURL)
+            cancelLoad()
+            if let recent = recentPage(for: repoRoot) {
+                page = recent
+                needsPage = false
+                // Edits made while this repository was not watched went unseen.
+                needsRefresh = true
+                state = .ready(url: recent.url)
+            } else {
+                page = nil
+                needsPage = true
+                state = .loading(previousURL: state.displayedURL)
+            }
         }
         if target != next { target = next }
         reconcile()
     }
 
     private func setTarget(_ target: RightSidebarChangesTarget?, state: RightSidebarChangesViewerState) {
-        loadTask?.cancel(); loadTask = nil
+        cancelLoad()
         needsPage = false
         if self.target != target { self.target = target }
         page = nil
@@ -244,33 +320,89 @@ final class RightSidebarChangesStore: ObservableObject {
 
     // MARK: Page production
 
-    private func producePage(for target: RightSidebarChangesTarget) {
+    /// Cancels the in-flight load. Bumping the generation also retires a
+    /// producer that ignores cancellation, so its late result is dropped.
+    private func cancelLoad() {
+        guard loadTask != nil else { return }
         loadTask?.cancel()
+        loadTask = nil
+        loadGeneration &+= 1
+    }
+
+    /// Whether a load started at `generation` for `repoRoot` is still the one
+    /// the panel is waiting for. The workspace is deliberately not compared:
+    /// a same-repository workspace switch keeps the load and only retargets.
+    private func isCurrentLoad(_ generation: UInt64, repoRoot: String) -> Bool {
+        loadGeneration == generation && target?.repoRoot == repoRoot
+    }
+
+    private func producePage(for target: RightSidebarChangesTarget) {
+        cancelLoad()
         loadGeneration &+= 1
         let generation = loadGeneration
         let producer = pageProducer
         let handler = schemeHandler
         let launch = DiffViewerCLILaunch.current()
+        let timeout = productionTimeout
+        let repoRoot = target.repoRoot
         loadTask = Task { [weak self] in
             do {
-                let page = try await producer(target, launch)
-                try Task.checkCancellation()
+                let page = try await RightSidebarChangesProductionRace.run(timeout: timeout) {
+                    try await producer(target, launch)
+                }
+                // Register only for a load the panel still waits for; the
+                // session would otherwise outlive any document that uses it.
+                guard let self, self.isCurrentLoad(generation, repoRoot: repoRoot) else { return }
                 try await handler.register(token: page.token, files: page.allowedFiles)
-                try Task.checkCancellation()
-                guard let self, self.loadGeneration == generation, self.target == target else { return }
+                guard self.isCurrentLoad(generation, repoRoot: repoRoot) else {
+                    handler.unregister(token: page.token)
+                    return
+                }
                 self.loadTask = nil
-                self.page = page
+                self.installPage(page, for: repoRoot)
                 self.state = .ready(url: page.url)
             } catch is CancellationError {
                 return
             } catch {
-                guard let self, self.loadGeneration == generation, self.target == target else { return }
+                guard let self, self.isCurrentLoad(generation, repoRoot: repoRoot) else { return }
                 self.loadTask = nil
                 self.page = nil
                 self.state = .failed(message: error.localizedDescription)
             }
         }
     }
+
+    /// Makes `page` current and remembers it for `repoRoot`, dropping the
+    /// session of the page it replaces and of the least recently shown page
+    /// past the limit. Neither is on screen: the replaced page's repository
+    /// now displays `page`, and the evicted one is four repositories back.
+    private func installPage(_ page: RightSidebarChangesPage, for repoRoot: String) {
+        self.page = page
+        if let index = recentPages.firstIndex(where: { $0.repoRoot == repoRoot }) {
+            let replaced = recentPages.remove(at: index).page
+            if replaced.token != page.token {
+                schemeHandler.unregister(token: replaced.token)
+            }
+        }
+        recentPages.append((repoRoot, page))
+        while recentPages.count > Self.recentPageLimit {
+            let evicted = recentPages.removeFirst().page
+            schemeHandler.unregister(token: evicted.token)
+        }
+    }
+
+    /// The kept page for `repoRoot`, made most recent, if its session is
+    /// still installed (the handler expires sessions after a day).
+    private func recentPage(for repoRoot: String) -> RightSidebarChangesPage? {
+        guard let index = recentPages.firstIndex(where: { $0.repoRoot == repoRoot }) else { return nil }
+        let entry = recentPages.remove(at: index)
+        guard schemeHandler.hasActiveSession(token: entry.page.token) else { return nil }
+        recentPages.append(entry)
+        return entry.page
+    }
+
+    /// Repository roots with a kept page, least recently shown first (tests).
+    var recentPageRepoRoots: [String] { recentPages.map(\.repoRoot) }
 
     // MARK: Refresh
 
@@ -350,9 +482,96 @@ final class RightSidebarChangesStore: ObservableObject {
     /// Runs the bundled CLI's hidden `__diff-viewer-page` verb the same way the
     /// Cmd+Shift+D diff viewer launches `cmux diff`, and decodes its JSON.
     static let defaultPageProducer: PageProducer = { target, launch in
-        try await Task.detached(priority: .userInitiated) {
-            try RightSidebarChangesProcessRunner.producePage(target: target, launch: launch)
-        }.value
+        try await RightSidebarChangesProcessRunner.producePage(target: target, launch: launch)
+    }
+}
+
+// MARK: - Production race
+
+/// Runs one page production against a deadline. Whichever finishes first
+/// settles the result; the loser is cancelled. A producer that ignores
+/// cancellation is abandoned rather than awaited, so the panel always leaves
+/// `.loading` once the deadline passes.
+enum RightSidebarChangesProductionRace {
+    struct Timeout: LocalizedError, Equatable {
+        var errorDescription: String? {
+            String(
+                localized: "rightSidebar.changes.error.timedOut",
+                defaultValue: "cmux diff did not finish in time."
+            )
+        }
+    }
+
+    static func run(
+        timeout: TimeInterval,
+        operation: @escaping @Sendable () async throws -> RightSidebarChangesPage
+    ) async throws -> RightSidebarChangesPage {
+        let race = Race()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                race.start(continuation: continuation, timeout: timeout, operation: operation)
+            }
+        } onCancel: {
+            race.cancel()
+        }
+    }
+
+    private final class Race: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<RightSidebarChangesPage, Error>?
+        private var producer: Task<Void, Never>?
+        private var deadline: Task<Void, Never>?
+        private var isCancelled = false
+
+        func start(
+            continuation: CheckedContinuation<RightSidebarChangesPage, Error>,
+            timeout: TimeInterval,
+            operation: @escaping @Sendable () async throws -> RightSidebarChangesPage
+        ) {
+            lock.lock()
+            if isCancelled {
+                lock.unlock()
+                continuation.resume(throwing: CancellationError())
+                return
+            }
+            self.continuation = continuation
+            producer = Task.detached(priority: .userInitiated) { [self] in
+                do {
+                    let page = try await operation()
+                    self.finish(.success(page))
+                } catch {
+                    self.finish(.failure(error))
+                }
+            }
+            deadline = Task.detached(priority: .utility) { [self] in
+                try? await Task.sleep(nanoseconds: UInt64(max(0, timeout) * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                self.finish(.failure(Timeout()))
+            }
+            lock.unlock()
+        }
+
+        func cancel() {
+            lock.lock()
+            isCancelled = true
+            lock.unlock()
+            finish(.failure(CancellationError()))
+        }
+
+        private func finish(_ result: Result<RightSidebarChangesPage, Error>) {
+            lock.lock()
+            let continuation = self.continuation
+            self.continuation = nil
+            let producer = self.producer
+            let deadline = self.deadline
+            self.producer = nil
+            self.deadline = nil
+            lock.unlock()
+            guard let continuation else { return }
+            producer?.cancel()
+            deadline?.cancel()
+            continuation.resume(with: result)
+        }
     }
 }
 
@@ -364,11 +583,13 @@ enum RightSidebarChangesProcessRunner {
         var errorDescription: String? { message }
     }
 
-    /// Blocking; call from a detached task.
+    /// Runs the CLI verb and decodes its page. Cancelling the calling task
+    /// (another repository, panel teardown, the store's deadline) terminates
+    /// the child instead of leaving it to finish on its own.
     static func producePage(
         target: RightSidebarChangesTarget,
         launch: DiffViewerCLILaunch?
-    ) throws -> RightSidebarChangesPage {
+    ) async throws -> RightSidebarChangesPage {
         guard let launch else {
             throw Failure(message: String(
                 localized: "rightSidebar.changes.error.cliMissing",
@@ -386,19 +607,26 @@ enum RightSidebarChangesProcessRunner {
         let stderrPipe = Pipe()
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
+        let stdout = PipeDrain(stdoutPipe)
         let stderr = PipeDrain(stderrPipe)
-        try process.run()
-        let stdout = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
+        let child = ChildProcess(process)
+        try child.run()
+        let status = await withTaskCancellationHandler {
+            await child.waitForExit()
+        } onCancel: {
+            child.terminate()
+        }
+        try Task.checkCancellation()
         let stderrOutput = String(decoding: stderr.finish(), as: UTF8.self)
-        guard process.terminationStatus == 0 else {
+        let stdoutData = stdout.finish()
+        guard status == 0 else {
             throw Failure(message: Self.failureMessage(
                 stderr: stderrOutput,
-                stdout: String(decoding: stdout, as: UTF8.self),
-                status: process.terminationStatus
+                stdout: String(decoding: stdoutData, as: UTF8.self),
+                status: status
             ))
         }
-        return try decodePage(from: stdout)
+        return try decodePage(from: stdoutData)
     }
 
     /// Strict decode of the verb's `{"url", "allowed_files", "reloadable"}`
@@ -428,20 +656,72 @@ enum RightSidebarChangesProcessRunner {
         )
     }
 
-    private static func failureMessage(stderr: String, stdout: String, status: Int32) -> String {
-        for output in [stderr, stdout] {
-            let lines = output
-                .split(whereSeparator: \.isNewline)
-                .map { $0.trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.isEmpty }
-            if let last = lines.last {
-                return last
-            }
+    /// The panel-facing failure text. Like the Cmd+Shift+D pane, this never
+    /// surfaces the child's output (paths, git remotes, whatever the verb
+    /// printed); the last output line only goes to the debug log.
+    static func failureMessage(stderr: String, stdout: String, status: Int32) -> String {
+        #if DEBUG
+        if let detail = lastNonEmptyLine(in: stderr) ?? lastNonEmptyLine(in: stdout) {
+            cmuxDebugLog("rightSidebar.changes.producer.failed status=\(status) detail=\(detail)")
         }
+        #endif
         return String(
             localized: "rightSidebar.changes.error.cliFailed",
             defaultValue: "cmux diff exited with status \(status)."
         )
+    }
+
+    private static func lastNonEmptyLine(in output: String) -> String? {
+        output
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .last { !$0.isEmpty }
+    }
+
+    /// Owns one launched `Process` across the cancellation boundary: exit is
+    /// awaited through its termination handler and `terminate()` is safe from
+    /// any thread, including a cancellation handler that runs after exit.
+    private final class ChildProcess: @unchecked Sendable {
+        private let process: Process
+        private let lock = NSLock()
+        private var didExit = false
+        private var continuation: CheckedContinuation<Int32, Never>?
+
+        init(_ process: Process) {
+            self.process = process
+        }
+
+        func run() throws {
+            process.terminationHandler = { [self] process in
+                self.lock.lock()
+                self.didExit = true
+                let continuation = self.continuation
+                self.continuation = nil
+                self.lock.unlock()
+                continuation?.resume(returning: process.terminationStatus)
+            }
+            try process.run()
+        }
+
+        func waitForExit() async -> Int32 {
+            await withCheckedContinuation { continuation in
+                lock.lock()
+                if didExit {
+                    lock.unlock()
+                    continuation.resume(returning: process.terminationStatus)
+                    return
+                }
+                self.continuation = continuation
+                lock.unlock()
+            }
+        }
+
+        func terminate() {
+            lock.lock()
+            let running = !didExit && process.isRunning
+            lock.unlock()
+            if running { process.terminate() }
+        }
     }
 
     /// Reads one pipe to end-of-file on a background queue so the child never
