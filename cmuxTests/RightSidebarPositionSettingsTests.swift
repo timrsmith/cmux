@@ -192,118 +192,29 @@ final class RightSidebarPositionSettingsTests: XCTestCase {
         XCTAssertEqual(insets, .init(leading: 300, trailing: 0))
     }
 
-    // MARK: - Effective panel width
+    // MARK: - Mode bar row
 
-    func testPanelKeepsItsConfiguredWidthWithoutAModeBarInset() {
-        XCTAssertEqual(
-            RightSidebarPlacementLayout.effectivePanelWidth(configuredWidth: 300, minimumWidth: 276, headerLeadingInset: 0),
-            300,
-            accuracy: 0.001
-        )
-        XCTAssertEqual(
-            RightSidebarPlacementLayout.effectivePanelWidth(configuredWidth: 276, minimumWidth: 276, headerLeadingInset: 0),
-            276,
-            accuracy: 0.001
-        )
-    }
-
-    func testPanelGrowsByTheModeBarInsetSoTheBarNeverOverflowsTheTree() {
-        // Regression: with the workspace sidebar hidden and the panel leading, a
-        // 150pt inset on a 276pt panel pushed the mode bar past the panel and
-        // SwiftUI centered the overflow, clipping the file tree's leading edge.
-        XCTAssertEqual(
-            RightSidebarPlacementLayout.effectivePanelWidth(configuredWidth: 276, minimumWidth: 276, headerLeadingInset: 150),
-            426,
-            accuracy: 0.001
-        )
-        XCTAssertEqual(
-            RightSidebarPlacementLayout.effectivePanelWidth(configuredWidth: 500, minimumWidth: 276, headerLeadingInset: 150),
-            500,
-            accuracy: 0.001,
-            "a panel already wider than minimum plus inset keeps its width"
-        )
-    }
-
-    // MARK: - Mode bar inset
-
-    func testModeBarNeedsNoInsetOnTheTrailingEdge() {
+    func testModeBarStaysInTheTitlebarStripOnTheTrailingEdge() {
         for sidebarVisible in [true, false] {
-            for fullScreen in [true, false] {
-                XCTAssertEqual(
-                    RightSidebarPlacementLayout.modeBarLeadingInset(
-                        position: .trailing,
-                        isLeadingSidebarVisible: sidebarVisible,
-                        isFullScreen: fullScreen,
-                        titlebarLeadingInset: 80,
-                        fullscreenControlsWidth: 120,
-                        fullscreenControlsLeadingPadding: 10,
-                        headerLeadingPadding: 8
-                    ),
-                    0
-                )
-            }
+            XCTAssertFalse(
+                RightSidebarPlacementLayout.modeBarNeedsOwnRow(position: .trailing, isLeadingSidebarVisible: sidebarVisible),
+                "trailing placement never sits under the window controls (sidebar visible: \(sidebarVisible))"
+            )
         }
     }
 
-    func testModeBarNeedsNoInsetWhenTheWorkspaceSidebarCoversTheTrafficLights() {
-        XCTAssertEqual(
-            RightSidebarPlacementLayout.modeBarLeadingInset(
-                position: .leading,
-                isLeadingSidebarVisible: true,
-                isFullScreen: false,
-                titlebarLeadingInset: 80,
-                fullscreenControlsWidth: 120,
-                fullscreenControlsLeadingPadding: 10,
-                headerLeadingPadding: 8
-            ),
-            0
+    func testModeBarStaysInTheTitlebarStripWhenTheWorkspaceSidebarCoversTheWindowControls() {
+        XCTAssertFalse(
+            RightSidebarPlacementLayout.modeBarNeedsOwnRow(position: .leading, isLeadingSidebarVisible: true)
         )
     }
 
-    func testModeBarClearsTheTrafficLightsWhenThePanelTouchesTheLeadingEdge() {
-        XCTAssertEqual(
-            RightSidebarPlacementLayout.modeBarLeadingInset(
-                position: .leading,
-                isLeadingSidebarVisible: false,
-                isFullScreen: false,
-                titlebarLeadingInset: 80,
-                fullscreenControlsWidth: 120,
-                fullscreenControlsLeadingPadding: 10,
-                headerLeadingPadding: 8
-            ),
-            72,
-            accuracy: 0.001
-        )
-    }
-
-    func testModeBarClearsTheFullscreenControlsWhenThePanelTouchesTheLeadingEdge() {
-        XCTAssertEqual(
-            RightSidebarPlacementLayout.modeBarLeadingInset(
-                position: .leading,
-                isLeadingSidebarVisible: false,
-                isFullScreen: true,
-                titlebarLeadingInset: 80,
-                fullscreenControlsWidth: 120,
-                fullscreenControlsLeadingPadding: 10,
-                headerLeadingPadding: 8
-            ),
-            130,
-            accuracy: 0.001
-        )
-    }
-
-    func testModeBarInsetNeverGoesNegative() {
-        XCTAssertEqual(
-            RightSidebarPlacementLayout.modeBarLeadingInset(
-                position: .leading,
-                isLeadingSidebarVisible: false,
-                isFullScreen: false,
-                titlebarLeadingInset: 4,
-                fullscreenControlsWidth: 0,
-                fullscreenControlsLeadingPadding: 0,
-                headerLeadingPadding: 8
-            ),
-            0
+    func testModeBarMovesToItsOwnRowWhenThePanelTouchesTheLeadingEdge() {
+        // Regression: padding the bar past the window controls forced the panel
+        // to minimum-plus-inset (about 430pt) and made the divider drag a no-op.
+        // The bar now takes its own row and the panel keeps the configured width.
+        XCTAssertTrue(
+            RightSidebarPlacementLayout.modeBarNeedsOwnRow(position: .leading, isLeadingSidebarVisible: false)
         )
     }
 

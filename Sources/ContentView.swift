@@ -1303,10 +1303,8 @@ struct ContentView: View {
         case .explorerDivider:
             return (
                 currentWidth: rightSidebarWidth,
-                // Start from the rendered width, not the configured one: the
-                // leading placement may widen the panel past `fileExplorerWidth`
-                // (`effectivePanelWidth`), and a drag that starts from the
-                // narrower value would make the handle jump on the first tick.
+                // Start from the rendered width so the handle never jumps on
+                // the first tick if the two ever diverge again.
                 captureStart: { fileExplorerDragStartWidth = rightSidebarWidth },
                 updateWidth: { translation in
                     let startWidth = fileExplorerDragStartWidth ?? rightSidebarWidth
@@ -2072,28 +2070,17 @@ struct ContentView: View {
         sidebarState.isVisible ? width : 0
     }
 
-    private var rightSidebarHeaderLeadingInset: CGFloat {
-        RightSidebarPlacementLayout.modeBarLeadingInset(
+    /// The panel's mode bar moves under the titlebar strip when the panel sits
+    /// beneath the window controls, so the panel never has to grow for them.
+    private var rightSidebarModeBarNeedsOwnRow: Bool {
+        RightSidebarPlacementLayout.modeBarNeedsOwnRow(
             position: rightSidebarPosition,
-            isLeadingSidebarVisible: sidebarState.isVisible,
-            isFullScreen: isFullScreen,
-            titlebarLeadingInset: titlebarLeadingInset,
-            fullscreenControlsWidth: fullscreenControlsWidth,
-            fullscreenControlsLeadingPadding: Self.fullscreenControlsPlacement(
-                isFullScreen: isFullScreen,
-                isSidebarVisible: sidebarState.isVisible
-            )?.leadingPadding ?? 0,
-            headerLeadingPadding: RightSidebarChromeMetrics.headerLeadingPadding
+            isLeadingSidebarVisible: sidebarState.isVisible
         )
     }
 
     private var rightSidebarWidth: CGFloat {
-        guard rightSidebarVisible else { return 0 }
-        return RightSidebarPlacementLayout.effectivePanelWidth(
-            configuredWidth: fileExplorerWidth,
-            minimumWidth: Self.minimumRightSidebarWidth,
-            headerLeadingInset: rightSidebarHeaderLeadingInset
-        )
+        rightSidebarVisible ? fileExplorerWidth : 0
     }
 
     private func sidebarBackdropLayer(
@@ -2169,7 +2156,7 @@ struct ContentView: View {
             sessionIndexStore: sessionIndexStore,
             changesStore: rightSidebarChangesStore,
             titlebarHeight: RightSidebarChromeMetrics.titlebarHeight,
-            headerLeadingInset: rightSidebarHeaderLeadingInset,
+            modeBarBelowTitlebarStrip: rightSidebarModeBarNeedsOwnRow,
             windowAppearance: appearance,
             workspaceId: tabManager.selectedTabId,
             onResumeSession: { entry in
