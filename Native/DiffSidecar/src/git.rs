@@ -9,6 +9,7 @@
 
 use std::path::Path;
 use std::process::{ExitStatus, Stdio};
+use std::time::Duration;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::{ChildStdout, Command};
@@ -48,11 +49,23 @@ pub(crate) fn command(repo: &Path, arguments: &[&str], access: Access) -> Comman
         .arg("-C")
         .arg(repo)
         .args(arguments)
-        .env("GIT_TERMINAL_PROMPT", "0")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .kill_on_drop(true);
+    scrub_repository_environment(&mut command);
+    if access == Access::ReadOnly {
+        command.env("GIT_OPTIONAL_LOCKS", "0");
+    }
+    command
+}
+
+/// Removes the repository-location variables from a child's environment and
+/// forbids terminal prompts. Applied to every Git command and to the forge
+/// CLIs, which run Git themselves; the rest of the host environment (SSH
+/// agent, credential helpers, `PATH`) passes through untouched.
+pub(crate) fn scrub_repository_environment(command: &mut Command) {
+    command.env("GIT_TERMINAL_PROMPT", "0");
     for name in REPOSITORY_ENVIRONMENT {
         command.env_remove(name);
     }
@@ -63,10 +76,6 @@ pub(crate) fn command(repo: &Path, arguments: &[&str], access: Access) -> Comman
             command.env_remove(name);
         }
     }
-    if access == Access::ReadOnly {
-        command.env("GIT_OPTIONAL_LOCKS", "0");
-    }
-    command
 }
 
 /// Spawns `command`, hands its stdout to `consume`, and waits for exit, all
@@ -93,10 +102,27 @@ where
 /// group (see [`own_process_group`]) has that whole group killed whenever the
 /// child is.
 pub(crate) async fn run_with_stderr<T, C, F>(
+    command: Command,
+    stdin: Option<&[u8]>,
+    consume: C,
+    stderr_limit: Option<usize>,
+) -> Result<(T, Vec<u8>, ExitStatus), ()>
+where
+    C: FnOnce(ChildStdout) -> F,
+    F: Future<Output = Result<T, ()>>,
+{
+    run_with_stderr_until(command, stdin, consume, stderr_limit, SESSION_GIT_TIMEOUT).await
+}
+
+/// [`run_with_stderr`] with an explicit deadline for the whole exchange
+/// (network commands such as `git push` and the forge CLIs get longer or
+/// shorter budgets than a local Git query).
+pub(crate) async fn run_with_stderr_until<T, C, F>(
     mut command: Command,
     stdin: Option<&[u8]>,
     consume: C,
     stderr_limit: Option<usize>,
+    timeout: Duration,
 ) -> Result<(T, Vec<u8>, ExitStatus), ()>
 where
     C: FnOnce(ChildStdout) -> F,
@@ -138,7 +164,7 @@ where
         }
         (None, _) => None,
     };
-    let deadline = Instant::now() + SESSION_GIT_TIMEOUT;
+    let deadline = Instant::now() + timeout;
     let outcome = async {
         let value = tokio::time::timeout_at(deadline, consume(stdout))
             .await
@@ -213,7 +239,59 @@ pub(crate) async fn capture_with_hooks(
     .await
 }
 
-async fn read_limited(stdout: ChildStdout, limit: usize) -> Result<Vec<u8>, ()> {
+/// [`capture_with_hooks`] for a command that talks to a remote (`git push`):
+/// its own process group (so a hung SSH or credential helper dies with the
+/// deadline), piped stderr, and a caller-chosen `timeout`. The host
+/// environment passes through so agents and credential helpers work;
+/// `GIT_TERMINAL_PROMPT=0` still forbids interactive prompts.
+pub(crate) async fn capture_network(
+    repo: &Path,
+    arguments: &[&str],
+    limit: usize,
+    stderr_limit: usize,
+    timeout: Duration,
+) -> Result<(Vec<u8>, Vec<u8>, ExitStatus), ()> {
+    let mut command = command(repo, arguments, Access::Mutating);
+    command.stderr(Stdio::piped());
+    own_process_group(&mut command);
+    run_with_stderr_until(
+        command,
+        None,
+        |stdout| async move { read_limited(stdout, limit).await },
+        Some(stderr_limit),
+        timeout,
+    )
+    .await
+}
+
+/// Runs an arbitrary already-built command (a forge CLI) the way
+/// [`capture_network`] runs Git: own process group, bounded stdout and
+/// stderr, explicit deadline. The caller has already set the working
+/// directory, arguments, and environment.
+pub(crate) async fn capture_command(
+    mut command: Command,
+    stdin: Option<&[u8]>,
+    limit: usize,
+    stderr_limit: usize,
+    timeout: Duration,
+) -> Result<(Vec<u8>, Vec<u8>, ExitStatus), ()> {
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    own_process_group(&mut command);
+    run_with_stderr_until(
+        command,
+        stdin,
+        |stdout| async move { read_limited(stdout, limit).await },
+        Some(stderr_limit),
+        timeout,
+    )
+    .await
+}
+
+pub(crate) async fn read_limited(stdout: ChildStdout, limit: usize) -> Result<Vec<u8>, ()> {
     let mut output = Vec::new();
     stdout
         .take(limit as u64 + 1)

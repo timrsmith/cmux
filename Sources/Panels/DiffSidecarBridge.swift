@@ -88,6 +88,16 @@ final class DiffSidecarBridge: NSObject, WKScriptMessageHandlerWithReply {
 
         let invocationID = UUID()
         let method = body["method"] as? String
+        // Host actions (`hostOpenFile`) are answered here, never forwarded:
+        // the sidecar knows nothing about workspaces. The policy has already
+        // bound the token to the frame and required a workspace association.
+        if let method, DiffViewerHostActions.methods.contains(method) {
+            let webView = message.webView
+            Task { @MainActor in
+                replyHandler(await DiffViewerHostActions.handle(body: body, webView: webView), nil)
+            }
+            return
+        }
         var sidecarBody = body
         var discardedSessionCloseRequest: Data?
         if method == "sessionOpen",

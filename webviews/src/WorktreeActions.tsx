@@ -1,18 +1,34 @@
 import { useCallback, useEffect, useState } from "react";
+import type {
+  PullRequestSummary,
+  RepositoryHostKind,
+} from "./diff/generated/protocol";
 import { Icon, type IconName } from "./icons";
-import type { DiffViewerLabelResolver } from "./labels";
 import {
+  formatLabel,
+  type DiffViewerLabelKey,
+  type DiffViewerLabelResolver,
+} from "./labels";
+import {
+  externalPullRequestURL,
+  pullRequestLabelKeys,
+  pullRequestStateLabelKey,
+  reviewDecisionLabelKey,
   validateCommitMessage,
+  validatePullRequestDraft,
   type CommitAvailability,
   type CommitMessageValidation,
   type FileWriteAction,
+  type PullRequestDraft,
+  type PullRequestValidation,
 } from "./worktree-actions";
 
 /**
  * Write-action controls for the diff viewer: per-file header buttons, the
- * per-hunk action row, and the toolbar Commit button with its popover. Every
- * destructive action (revert) asks for an inline confirmation first; nothing
- * here talks to the transport, the App owns the request and the reload.
+ * per-hunk action row, the commit and pull request popovers, and the pull
+ * request card. Every destructive action asks for an inline confirmation
+ * first; nothing here talks to the transport, the App owns the request and
+ * the reload.
  */
 
 const FILE_ACTION_ICON: Record<FileWriteAction, IconName> = {
@@ -40,15 +56,21 @@ export function FileWriteActions({
   actions,
   label,
   onAction,
+  onCopyPath,
+  onOpenInCmux,
   pending,
 }: {
   actions: readonly FileWriteAction[];
   label: DiffViewerLabelResolver;
   onAction: (action: FileWriteAction) => void;
+  /** Copies the repository-relative path; always offered when present. */
+  onCopyPath?: () => void;
+  /** Opens the file in the hosting workspace; offered only on a host transport. */
+  onOpenInCmux?: () => void;
   pending: boolean;
 }) {
   const [confirming, setConfirming] = useState(false);
-  if (actions.length === 0) {
+  if (actions.length === 0 && onCopyPath == null && onOpenInCmux == null) {
     return null;
   }
   return (
@@ -61,34 +83,80 @@ export function FileWriteActions({
       onKeyDown={stopHeaderToggleKeys}
     >
       {confirming ? (
-        <RevertConfirmation
-          label={label}
+        <InlineConfirmation
+          confirmLabel={label("confirmRevert")}
           onCancel={() => setConfirming(false)}
           onConfirm={() => {
             setConfirming(false);
             onAction("revertFile");
           }}
           pending={pending}
+          prompt={label("revertPrompt")}
+          cancelLabel={label("cancel")}
         />
       ) : (
-        actions.map((action) => (
-          <button
-            key={action}
-            type="button"
-            className="worktree-action"
-            data-action={action}
-            disabled={pending}
-            title={label(action)}
-            aria-label={label(action)}
-            onClick={() =>
-              action === "revertFile" ? setConfirming(true) : onAction(action)
-            }
-          >
-            <Icon name={FILE_ACTION_ICON[action]} />
-          </button>
-        ))
+        <>
+          {onOpenInCmux ? (
+            <FileUtilityButton
+              action="openInCmux"
+              icon="open"
+              label={label("openInCmux")}
+              onClick={onOpenInCmux}
+            />
+          ) : null}
+          {onCopyPath ? (
+            <FileUtilityButton
+              action="copyPath"
+              icon="clipboard"
+              label={label("copyPath")}
+              onClick={onCopyPath}
+            />
+          ) : null}
+          {actions.map((action) => (
+            <button
+              key={action}
+              type="button"
+              className="worktree-action"
+              data-action={action}
+              disabled={pending}
+              title={label(action)}
+              aria-label={label(action)}
+              onClick={() =>
+                action === "revertFile" ? setConfirming(true) : onAction(action)
+              }
+            >
+              <Icon name={FILE_ACTION_ICON[action]} />
+            </button>
+          ))}
+        </>
       )}
     </span>
+  );
+}
+
+/** Per-file utilities (open, copy path) never mutate, so they ignore `pending`. */
+function FileUtilityButton({
+  action,
+  icon,
+  label,
+  onClick,
+}: {
+  action: string;
+  icon: IconName;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="worktree-action"
+      data-action={action}
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+    >
+      <Icon name={icon} />
+    </button>
   );
 }
 
@@ -108,14 +176,16 @@ export function HunkWriteActions({
       data-pending={pending ? "true" : "false"}
     >
       {confirming ? (
-        <RevertConfirmation
-          label={label}
+        <InlineConfirmation
+          confirmLabel={label("confirmRevert")}
           onCancel={() => setConfirming(false)}
           onConfirm={() => {
             setConfirming(false);
             onRevert();
           }}
           pending={pending}
+          prompt={label("revertPrompt")}
+          cancelLabel={label("cancel")}
         />
       ) : (
         <button
@@ -133,84 +203,61 @@ export function HunkWriteActions({
   );
 }
 
-function RevertConfirmation({
-  label,
+/**
+ * Inline confirm row for a destructive action: prompt, a danger-styled
+ * confirm button, and cancel. Native buttons only; it never traps focus.
+ */
+export function InlineConfirmation({
+  cancelLabel,
+  confirmLabel,
   onCancel,
   onConfirm,
   pending,
+  prompt,
 }: {
-  label: DiffViewerLabelResolver;
+  cancelLabel: string;
+  confirmLabel: string;
   onCancel: () => void;
   onConfirm: () => void;
   pending: boolean;
+  prompt: string;
 }) {
   return (
     <span className="worktree-confirm">
-      <span className="worktree-confirm-text">{label("revertPrompt")}</span>
+      <span className="worktree-confirm-text">{prompt}</span>
       <button
         type="button"
         className="worktree-confirm-button worktree-confirm-danger"
+        data-action="confirm"
         disabled={pending}
         onClick={onConfirm}
       >
-        {label("confirmRevert")}
+        {confirmLabel}
       </button>
       <button
         type="button"
         className="worktree-confirm-button"
+        data-action="cancel"
         onClick={onCancel}
       >
-        {label("cancel")}
+        {cancelLabel}
       </button>
     </span>
   );
 }
 
-export function CommitButton({
-  availability,
-  label,
-  onToggle,
-  open,
-  pending,
-}: {
-  availability: Exclude<CommitAvailability, "hidden">;
-  label: DiffViewerLabelResolver;
-  onToggle: () => void;
-  open: boolean;
-  pending: boolean;
-}) {
-  const enabled = availability === "enabled" && !pending;
-  const title =
-    availability === "requiresStaged"
-      ? label("commitRequiresStaged")
-      : label("commitChanges");
-  return (
-    <button
-      id="commit-button"
-      type="button"
-      disabled={!enabled}
-      title={title}
-      aria-label={title}
-      aria-expanded={open}
-      aria-controls="commit-popover"
-      data-availability={availability}
-      onClick={onToggle}
-    >
-      <Icon name="commit" />
-      <span className="commit-button-label">{label("commitSubmit")}</span>
-    </button>
-  );
-}
-
 export function CommitPopover({
+  availability,
   label,
   onCancel,
   onCommit,
   pending,
 }: {
+  availability: Exclude<CommitAvailability, "hidden">;
   label: DiffViewerLabelResolver;
   onCancel: () => void;
-  onCommit: (message: string) => void;
+  /** `stageAll` is true when the unstaged view asked to stage everything first. */
+  onCommit: (message: string, stageAll: boolean) => void;
   pending: boolean;
 }) {
   const [message, setMessage] = useState("");
@@ -221,6 +268,7 @@ export function CommitPopover({
   );
   const blank = message.trim() === "";
   const invalid = validation != null && !validation.ok;
+  const stageAll = availability === "stageAll";
   const validate = () => {
     const next = validateCommitMessage(message);
     setValidation(next);
@@ -229,7 +277,7 @@ export function CommitPopover({
   const submit = () => {
     const next = validate();
     if (next.ok && !pending) {
-      onCommit(next.message);
+      onCommit(next.message, stageAll);
     }
   };
   // Callback ref: the textarea mounts with the popover, so focusing here gives
@@ -273,15 +321,234 @@ export function CommitPopover({
           <button
             type="button"
             className="comment-button comment-button-primary"
+            data-stage-all={stageAll ? "true" : "false"}
             disabled={pending || blank || invalid}
             onClick={submit}
           >
-
-            {label("commitSubmit")}
+            {stageAll ? label("stageAllAndCommit") : label("commitSubmit")}
           </button>
         </span>
       </div>
     </div>
+  );
+}
+
+const PULL_REQUEST_VALIDATION_LABEL: Record<
+  Extract<PullRequestValidation, { ok: false }>["reason"],
+  DiffViewerLabelKey
+> = {
+  emptyTitle: "pullRequestTitleInvalid",
+  titleTooLong: "pullRequestTitleInvalid",
+  bodyTooLong: "pullRequestBodyInvalid",
+  invalidBase: "pullRequestBaseInvalid",
+};
+
+export function PullRequestPopover({
+  hostKind,
+  label,
+  onCancel,
+  onCreate,
+  pending,
+}: {
+  hostKind: RepositoryHostKind | null;
+  label: DiffViewerLabelResolver;
+  onCancel: () => void;
+  onCreate: (draft: PullRequestDraft) => void;
+  pending: boolean;
+}) {
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [base, setBase] = useState("");
+  const [draft, setDraft] = useState(false);
+  const [validation, setValidation] = useState<PullRequestValidation | null>(
+    null,
+  );
+  const keys = pullRequestLabelKeys(hostKind);
+  const invalid = validation != null && !validation.ok;
+  const validate = () => {
+    const next = validatePullRequestDraft({ title, body, draft, base });
+    setValidation(next);
+    return next;
+  };
+  const submit = () => {
+    const next = validate();
+    if (next.ok && !pending) {
+      onCreate(next.draft);
+    }
+  };
+  const focusInput = useCallback((node: HTMLInputElement | null) => {
+    node?.focus();
+  }, []);
+  return (
+    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
+    <div id="pull-request-popover" role="dialog" aria-label={label(keys.dialog)}>
+      <input
+        ref={focusInput}
+        className="pull-request-title-input"
+        type="text"
+        placeholder={label("pullRequestTitlePlaceholder")}
+        aria-label={label("pullRequestTitlePlaceholder")}
+        aria-invalid={
+          invalid &&
+          !validation.ok &&
+          validation.reason !== "bodyTooLong" &&
+          validation.reason !== "invalidBase"
+        }
+        value={title}
+        disabled={pending}
+        onChange={(event) => {
+          setTitle(event.currentTarget.value);
+          setValidation(null);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            submit();
+          }
+        }}
+      />
+      <textarea
+        className="commit-message-input pull-request-body-input"
+        placeholder={label("pullRequestBodyPlaceholder")}
+        aria-label={label("pullRequestBodyPlaceholder")}
+        value={body}
+        disabled={pending}
+        onChange={(event) => {
+          setBody(event.currentTarget.value);
+          setValidation(null);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            submit();
+          }
+        }}
+      />
+      <div className="pull-request-options">
+        <input
+          className="pull-request-base-input"
+          type="text"
+          placeholder={label("pullRequestBasePlaceholder")}
+          aria-label={label("pullRequestBasePlaceholder")}
+          aria-invalid={
+            invalid && !validation.ok && validation.reason === "invalidBase"
+          }
+          value={base}
+          disabled={pending}
+          onChange={(event) => {
+            setBase(event.currentTarget.value);
+            setValidation(null);
+          }}
+        />
+        <label className="pull-request-draft-toggle">
+          <input
+            type="checkbox"
+            aria-label={label("pullRequestDraft")}
+            checked={draft}
+            disabled={pending}
+            onChange={(event) => setDraft(event.currentTarget.checked)}
+          />
+          <span>{label("pullRequestDraft")}</span>
+        </label>
+      </div>
+      <div className="commit-popover-footer">
+        <span className="commit-popover-hint" aria-live="polite">
+          {invalid && !validation.ok
+            ? label(PULL_REQUEST_VALIDATION_LABEL[validation.reason])
+            : ""}
+        </span>
+        <span className="commit-popover-buttons">
+          <button type="button" className="comment-button" onClick={onCancel}>
+            {label("cancel")}
+          </button>
+          <button
+            type="button"
+            className="comment-button comment-button-primary"
+            data-action="createPullRequest"
+            disabled={pending || title.trim() === "" || invalid}
+            onClick={submit}
+          >
+            {label(keys.submit)}
+          </button>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Summary of the branch's pull (merge) request. The URL opens externally
+ * through the host's popup policy (`target="_blank"`), never inside the viewer.
+ */
+export function PullRequestCard({
+  hostKind,
+  label,
+  request,
+}: {
+  hostKind: RepositoryHostKind | null;
+  label: DiffViewerLabelResolver;
+  request: PullRequestSummary;
+}) {
+  const keys = pullRequestLabelKeys(hostKind);
+  const url = externalPullRequestURL(request.url);
+  const state = pullRequestStateLabelKey(request);
+  const review = reviewDecisionLabelKey(request.reviewDecision);
+  const checks = request.checks;
+  return (
+    <section
+      id="pull-request-card"
+      aria-label={label(keys.open)}
+      data-state={request.state}
+    >
+      <span className="pull-request-number">#{request.number}</span>
+      <span className="pull-request-state" data-state={state}>
+        {label(state)}
+      </span>
+      <span className="pull-request-title">{request.title}</span>
+      {request.baseBranch ? (
+        <span className="pull-request-base">
+          {formatLabel(label("pullRequestBase"), { base: request.baseBranch })}
+        </span>
+      ) : null}
+      {checks != null && checks.total > 0 ? (
+        <span
+          className="pull-request-checks"
+          data-failed={checks.failed > 0 ? "true" : "false"}
+          data-pending={checks.pending > 0 ? "true" : "false"}
+        >
+          {formatLabel(label("checksPassed"), {
+            passed: checks.passed,
+            total: checks.total,
+          })}
+          {checks.failed > 0
+            ? ` · ${formatLabel(label("checksFailed"), { count: checks.failed })}`
+            : ""}
+          {checks.pending > 0
+            ? ` · ${formatLabel(label("checksPending"), { count: checks.pending })}`
+            : ""}
+        </span>
+      ) : null}
+      {review ? (
+        <span
+          className="pull-request-review"
+          data-decision={request.reviewDecision ?? ""}
+        >
+          {label(review)}
+        </span>
+      ) : null}
+      {url ? (
+        <a
+          className="pull-request-link toolbar-icon"
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          title={label(keys.open)}
+          aria-label={label(keys.open)}
+        >
+          <Icon name="external" />
+        </a>
+      ) : null}
+    </section>
   );
 }
 
@@ -323,20 +590,22 @@ export function WorktreeNoticeView({
   );
 }
 
-/** Closes the popover on an outside click or Escape while it is open. */
-export function useCommitPopoverDismiss(
+/**
+ * Closes an open popover or menu on an outside click or Escape. `within`
+ * is the selector of the element cluster (trigger plus popover) that counts
+ * as inside.
+ */
+export function useDismissOnOutsideInteraction(
   open: boolean,
   onClose: () => void,
+  within: string,
 ): void {
   useEffect(() => {
     if (!open) {
       return;
     }
     const closeOnOutsideClick = (event: MouseEvent) => {
-      if (
-        event.target instanceof Element &&
-        event.target.closest("#commit-popover, #commit-button")
-      ) {
+      if (event.target instanceof Element && event.target.closest(within)) {
         return;
       }
       onClose();
@@ -352,5 +621,17 @@ export function useCommitPopoverDismiss(
       document.removeEventListener("mousedown", closeOnOutsideClick);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [onClose, open]);
+  }, [onClose, open, within]);
+}
+
+/** Closes the commit popover on an outside click or Escape while it is open. */
+export function useCommitPopoverDismiss(
+  open: boolean,
+  onClose: () => void,
+): void {
+  useDismissOnOutsideInteraction(
+    open,
+    onClose,
+    "#commit-popover, #commit-button",
+  );
 }

@@ -56,33 +56,47 @@ import { createDiffTransport, DiffTransportError, type DiffTransport } from "./d
 import { FindBar } from "./find/FindBar";
 import { useDiffFind, type DiffFindController } from "./find/useDiffFind";
 import { useFindKeyboard } from "./find/useFindKeyboard";
-import type { DiffSource, DiffTransportConfig, HunkRef } from "./diff/generated/protocol";
+import type {
+  DiffSource,
+  DiffTransportConfig,
+  HunkRef,
+  PullRequestSummary,
+  RepositoryStatus,
+} from "./diff/generated/protocol";
 import type { DiffCommand } from "./diff/transport";
 import { createDiffWorkerPoolOptions } from "./worker-pool";
 import {
+  buildBulkRequest,
   buildCommitRequest,
+  buildCreatePullRequestRequest,
   buildFileRequest,
   buildHunkRequest,
+  buildOpenFileRequest,
+  buildPushRequest,
+  buildRepositoryStatusRequest,
   commitAvailability,
   fileActionsForSource,
+  repositoryHeaderModel,
+  worktreeErrorDetail,
   worktreeErrorLabelKey,
   worktreeErrorReloads,
   worktreeFileTarget,
   worktreeWriteAvailable,
   writableDiffSource,
-  type CommitAvailability,
+  type BulkWriteAction,
   type FileWriteAction,
+  type PullRequestDraft,
   type WritableDiffSource,
 } from "./worktree-actions";
 import {
-  CommitButton,
-  CommitPopover,
   FileWriteActions,
   HunkWriteActions,
-  WorktreeNoticeView,
   useCommitPopoverDismiss,
   type WorktreeNotice,
 } from "./WorktreeActions";
+import { RepositoryHeader } from "./RepositoryHeader";
+import { copyText } from "./actions";
+import { formatLabel } from "./labels";
 
 type ConfigProps = {
   config: DiffViewerConfig;
@@ -419,9 +433,13 @@ export function App({ config, initialStatus }: ConfigProps) {
   // a second click can never race the reload or target the closed session.
   const [pendingWrite, setPendingWrite] = useState(false);
   const pendingWriteRef = useRef(false);
+  // Counts settled (opened) sessions so the repository status can load once
+  // the first typed session of a working-tree view exists.
+  const [sessionGeneration, setSessionGeneration] = useState(0);
   const settleWrite = useCallback(() => {
     pendingWriteRef.current = false;
     setPendingWrite(false);
+    setSessionGeneration((generation) => generation + 1);
   }, []);
   // Scroll offset to restore once the stream after a write action reload
   // completes; any other stream start clears it.
@@ -462,9 +480,11 @@ export function App({ config, initialStatus }: ConfigProps) {
     [state.items, writeAvailable],
   );
   const [commitOpen, setCommitOpen] = useState(false);
+  const [pullRequestOpen, setPullRequestOpen] = useState(false);
   const [worktreeNotice, setWorktreeNotice] = useState<WorktreeNotice | null>(null);
   const noticeTokenRef = useRef(0);
   const closeCommitPopover = useCallback(() => setCommitOpen(false), []);
+  const closePullRequestPopover = useCallback(() => setPullRequestOpen(false), []);
   useCommitPopoverDismiss(commitOpen, closeCommitPopover);
   const expireNotice = useCallback((token: number) => {
     setWorktreeNotice((current) => (current?.token === token ? null : current));
@@ -473,6 +493,49 @@ export function App({ config, initialStatus }: ConfigProps) {
     noticeTokenRef.current += 1;
     setWorktreeNotice({ error, message, token: noticeTokenRef.current });
   };
+  // Repository status (branch, upstream, forge, pull request) loads once per
+  // opened working-tree view, again after a commit, push, or pull request,
+  // and on an explicit refresh; never on a timer.
+  const [repositoryStatus, setRepositoryStatus] = useState<RepositoryStatus | null>(null);
+  const [createdPullRequest, setCreatedPullRequest] = useState<PullRequestSummary | null>(null);
+  const statusRequestRef = useRef(0);
+  const refreshRepositoryStatus = useCallback(() => {
+    const session = activeSessionRef.current;
+    if (!transport || !writeSource || !session) {
+      return;
+    }
+    statusRequestRef.current += 1;
+    const requestId = statusRequestRef.current;
+    transport
+      .request(buildRepositoryStatusRequest(session, writeSource))
+      .then((result) => {
+        if (requestId !== statusRequestRef.current || result.type !== "repositoryStatus") {
+          return;
+        }
+        setRepositoryStatus(result.value);
+        if (result.value.pullRequest) {
+          setCreatedPullRequest(null);
+        }
+      })
+      .catch((error) => console.warn("cmux diff repository status failed", error));
+  }, [transport, writeSource]);
+  const statusKey = writeAvailable && writeSource ? `${writeSource.kind}\n${writeSource.repoRoot}` : null;
+  const statusFetchedForRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (statusKey == null) {
+      statusFetchedForRef.current = null;
+      return;
+    }
+    // The first settled session of each working-tree view loads its status;
+    // a reload after a write keeps the one already shown.
+    if (sessionGeneration === 0 || statusFetchedForRef.current === statusKey || !activeSessionRef.current) {
+      return;
+    }
+    statusFetchedForRef.current = statusKey;
+    setRepositoryStatus(null);
+    setCreatedPullRequest(null);
+    refreshRepositoryStatus();
+  }, [refreshRepositoryStatus, sessionGeneration, statusKey]);
   // Only a write action reload asks to restore the scroll offset; any other
   // source change drops a pending restore so it cannot fire on the stream
   // of an unrelated diff.
@@ -514,8 +577,10 @@ export function App({ config, initialStatus }: ConfigProps) {
     try {
       const result = await transport.request(command);
       if (result.type === "committed") {
-        // Reload first: the commit exists whatever the response carries.
+        // Reload first: the commit exists whatever the response carries. The
+        // reopened session refetches the status (the branch moved ahead).
         reloading = true;
+        statusFetchedForRef.current = null;
         reloadAfterWrite(source);
         const commit: unknown = result.value?.commit;
         const shortCommit = typeof commit === "string" ? commit.slice(0, 10) : "";
@@ -524,13 +589,35 @@ export function App({ config, initialStatus }: ConfigProps) {
       } else if (result.type === "worktreeMutated") {
         reloading = true;
         reloadAfterWrite(source);
+      } else if (result.type === "pushed") {
+        const { branch, remote, upstreamCreated } = result.value;
+        showWorktreeNotice(
+          formatLabel(label(upstreamCreated ? "pushedUpstreamCreated" : "pushed"), { branch, remote }),
+          false,
+        );
+        refreshRepositoryStatus();
+      } else if (result.type === "pullRequestCreated") {
+        const created = result.value;
+        setCreatedPullRequest({
+          number: created.number,
+          url: created.url,
+          title: created.title,
+          state: "open",
+          isDraft: created.isDraft,
+          baseBranch: "",
+        });
+        setPullRequestOpen(false);
+        showWorktreeNotice(formatLabel(label("pullRequestCreated"), { number: created.number }), false);
+        refreshRepositoryStatus();
       } else {
         throw new DiffTransportError("invalidResponse", "Diff transport did not confirm the change");
       }
     } catch (error) {
       const code = error instanceof DiffTransportError ? error.code : undefined;
-      showWorktreeNotice(label(worktreeErrorLabelKey(code)), true);
-      if (worktreeErrorReloads(code)) {
+      const detail = worktreeErrorDetail(code, error instanceof Error ? error.message : undefined);
+      const summary = label(worktreeErrorLabelKey(code));
+      showWorktreeNotice(detail ? `${summary} ${detail}` : summary, true);
+      if (worktreeErrorReloads(code, command)) {
         reloading = true;
         reloadAfterWrite(source);
       }
@@ -567,24 +654,97 @@ export function App({ config, initialStatus }: ConfigProps) {
     }
     void runWorktreeWrite(buildHunkRequest(session, writeSource, target, hunk), writeSource);
   };
-  const onCommit = (message: string) => {
+  const onCommit = (message: string, stageAll: boolean) => {
     const session = writeSession();
     if (!writeSource || !session) {
       return;
     }
-    void runWorktreeWrite(buildCommitRequest(session, writeSource, message), writeSource);
+    void runWorktreeWrite(buildCommitRequest(session, writeSource, message, stageAll), writeSource);
+  };
+  const onBulkAction = (action: BulkWriteAction) => {
+    const session = writeSession();
+    if (!writeSource || !session) {
+      return;
+    }
+    void runWorktreeWrite(buildBulkRequest(action, session, writeSource), writeSource);
+  };
+  // A push from the header always creates a missing upstream: the button is
+  // the user's answer to "push where?", and the status line shows the result.
+  const onPush = () => {
+    const session = writeSession();
+    if (!writeSource || !session) {
+      return;
+    }
+    void runWorktreeWrite(buildPushRequest(session, writeSource, true), writeSource);
+  };
+  const onCreatePullRequest = (draft: PullRequestDraft) => {
+    const session = writeSession();
+    if (!writeSource || !session) {
+      return;
+    }
+    void runWorktreeWrite(buildCreatePullRequestRequest(session, writeSource, draft), writeSource);
+  };
+  // "Open in cmux" is a host action: only the WebKit transport can carry it,
+  // and the host re-validates the path against the token's repositories.
+  const requestHost = transport?.requestHost?.bind(transport);
+  const onOpenInCmux = requestHost && writeSource
+    ? (item: DiffItem) => {
+        const target = worktreeFileTarget(item.fileDiff);
+        const token = activeSessionRef.current?.capabilityToken;
+        if (!target || !token) {
+          return;
+        }
+        requestHost(buildOpenFileRequest(token, target)).catch(() => {
+          showWorktreeNotice(label("openInCmuxFailed"), true);
+        });
+      }
+    : undefined;
+  const onCopyPath = (item: DiffItem) => {
+    const target = worktreeFileTarget(item.fileDiff);
+    if (!target) {
+      return;
+    }
+    copyText(target.path, copyFallbackRef.current).then(
+      () => dispatch({ type: "set-copy-feedback", message: label("copiedPath") }),
+      () => dispatch({ type: "set-copy-feedback", message: label("copyPathFailed") }),
+    );
+  };
+  const copyGitApply = async () => {
+    try {
+      const message = await copyGitApplyCommand(activePatchURL, label, copyFallbackRef.current);
+      dispatch({ type: "set-copy-feedback", message });
+    } catch {
+      dispatch({ type: "set-copy-feedback", message: label("copyFailedGitApplyCommand") });
+    }
+  };
+  const reloadPage = async () => {
+    await closeActiveSession();
+    window.location.reload();
   };
   const availability = commitAvailability(writeSource);
-  const commitControl = writeAvailable && availability !== "hidden"
+  const headerSource = writeAvailable && availability !== "hidden" ? writeSource : null;
+  const commitControl = headerSource && availability !== "hidden"
     ? {
         availability,
         onClose: closeCommitPopover,
         onCommit,
-        onToggle: () => setCommitOpen((open) => !open),
+        onToggle: () => {
+          setPullRequestOpen(false);
+          setCommitOpen((open) => !open);
+        },
         open: commitOpen,
-        pending: pendingWrite,
       }
     : null;
+  const pullRequestControl = {
+    current: repositoryStatus?.pullRequest ?? createdPullRequest,
+    onClose: closePullRequestPopover,
+    onCreate: onCreatePullRequest,
+    onToggle: () => {
+      setCommitOpen(false);
+      setPullRequestOpen((open) => !open);
+    },
+    open: pullRequestOpen,
+  };
 
 
   const renderCommentAnnotation = (annotation: CommentAnnotation, item: DiffItem) => {
@@ -708,14 +868,7 @@ export function App({ config, initialStatus }: ConfigProps) {
         config={config}
         transport={transport}
         label={label}
-        onCopyGitApply={async () => {
-          try {
-            const message = await copyGitApplyCommand(activePatchURL, label, copyFallbackRef.current);
-            dispatch({ type: "set-copy-feedback", message });
-          } catch {
-            dispatch({ type: "set-copy-feedback", message: label("copyFailedGitApplyCommand") });
-          }
-        }}
+        onCopyGitApply={copyGitApply}
         onJump={scrollToItem}
         onNavigate={(url) => {
           setStatus(createDiffViewerStatus(label("loadingDiff"), { pending: true }));
@@ -726,18 +879,29 @@ export function App({ config, initialStatus }: ConfigProps) {
           window.location.href = resolveDiffNavigationURL(url);
         }}
         activeSessionSource={resolvedSessionSource ?? activeSessionSource}
-        commit={commitControl}
         onSelectSessionSource={(source) => selectSessionSource(source)}
-        worktreeNotice={worktreeNotice}
-        onWorktreeNoticeExpire={expireNotice}
-        onReload={async () => {
-          await closeActiveSession();
-          window.location.reload();
-        }}
+        onReload={reloadPage}
         onSetLayout={setLayout}
         dispatch={dispatch}
         state={state}
       />
+      {headerSource && commitControl ? (
+        <RepositoryHeader
+          commit={commitControl}
+          label={label}
+          model={repositoryHeaderModel(headerSource, repositoryStatus, state.treeSource?.diffStats)}
+          notice={worktreeNotice}
+          onBulkAction={onBulkAction}
+          onCopyGitApply={copyGitApply}
+          onNoticeExpire={expireNotice}
+          onPush={onPush}
+          onRefresh={reloadPage}
+          pending={pendingWrite}
+          pullRequest={pullRequestControl}
+          source={headerSource}
+          status={repositoryStatus}
+        />
+      ) : null}
       <section id="content" style={{ "--cmux-diff-files-width": `${state.filesWidth}px` } as React.CSSProperties}>
         <FilesSidebarBackdrop
           label={label}
@@ -784,8 +948,9 @@ export function App({ config, initialStatus }: ConfigProps) {
                         actions={fileActionsForSource(writeSource)}
                         label={label}
                         onAction={(action) => onFileWriteAction(item as DiffItem, action)}
+                        onCopyPath={() => onCopyPath(item as DiffItem)}
+                        onOpenInCmux={onOpenInCmux ? () => onOpenInCmux(item as DiffItem) : undefined}
                         pending={pendingWrite}
-
                       />
                     ) : null}
                     <DiffHeaderMetadata fileDiff={(item as DiffItem).fileDiff} label={label} />
@@ -984,18 +1149,8 @@ function WorkerRenderOptionsSync({
   return null;
 }
 
-type CommitControlProps = {
-  availability: Exclude<CommitAvailability, "hidden">;
-  onClose: () => void;
-  onCommit: (message: string) => void;
-  onToggle: () => void;
-  open: boolean;
-  pending: boolean;
-};
-
 function Toolbar({
   activeSessionSource,
-  commit,
   config,
   dispatch,
   label,
@@ -1005,13 +1160,10 @@ function Toolbar({
   onSelectSessionSource,
   onReload,
   onSetLayout,
-  onWorktreeNoticeExpire,
   state,
   transport,
-  worktreeNotice,
 }: {
   activeSessionSource: DiffSource | null;
-  commit: CommitControlProps | null;
   config: DiffViewerConfig;
   dispatch: React.Dispatch<AppAction>;
   label: DiffViewerLabelResolver;
@@ -1021,10 +1173,8 @@ function Toolbar({
   onSelectSessionSource: (source: DiffSource) => void;
   onReload: () => void;
   onSetLayout: (layout: DiffViewerLayout) => void;
-  onWorktreeNoticeExpire: (token: number) => void;
   state: AppState;
   transport: DiffTransport | null;
-  worktreeNotice: WorktreeNotice | null;
 }) {
   const payload = config.payload ?? {};
   const externalURL =
@@ -1040,7 +1190,6 @@ function Toolbar({
   // never be dropped — it shrinks/ellipsizes in place instead). Estimated widths
   // include each control's ~4px inter-item gap.
   const overflowItems = [
-    ...(commit ? [{ id: "commit-button" as const, width: TOOLBAR_COMMIT_SLOT }] : []),
     { id: "files-toggle" as const, width: TOOLBAR_ICON_SLOT },
     { id: "layout-toggle" as const, width: TOOLBAR_ICON_SLOT },
     ...(externalURL ? [{ id: "external-link" as const, width: TOOLBAR_ICON_SLOT }] : []),
@@ -1063,7 +1212,6 @@ function Toolbar({
   const showFilesToggle = !overflow.has("files-toggle");
   const showLayoutToggle = !overflow.has("layout-toggle");
   const showExternalLink = externalURL != null && !overflow.has("external-link");
-  const showCommitButton = commit != null && !overflow.has("commit-button");
   return (
     <header id="toolbar" ref={toolbarRef}>
       <SourceControls
@@ -1088,15 +1236,6 @@ function Toolbar({
         />
       </div>
       <div className="toolbar-actions flex items-center gap-1.5">
-        {showCommitButton && commit ? (
-          <CommitButton
-            availability={commit.availability}
-            label={label}
-            onToggle={commit.onToggle}
-            open={commit.open}
-            pending={commit.pending}
-          />
-        ) : null}
         {showExternalLink ? (
           <a
             id="external-link"
@@ -1153,7 +1292,6 @@ function Toolbar({
       </div>
       {state.optionsOpen ? (
         <OptionsMenu
-          commit={commit}
           dispatch={dispatch}
           externalURL={externalURL}
           label={label}
@@ -1163,15 +1301,6 @@ function Toolbar({
           state={state}
         />
       ) : null}
-      {commit?.open ? (
-        <CommitPopover
-          label={label}
-          onCancel={commit.onClose}
-          onCommit={commit.onCommit}
-          pending={commit.pending}
-        />
-      ) : null}
-      <WorktreeNoticeView notice={worktreeNotice} onExpire={onWorktreeNoticeExpire} />
     </header>
   );
 }
@@ -1181,9 +1310,6 @@ function Toolbar({
 // the toolbar cells is the hard no-overlap guarantee, so exactness is not load
 // bearing.
 const TOOLBAR_ICON_SLOT = 28;
-// Labeled Commit button (icon + "Commit" text + gap). It overflows into the
-// "..." menu last, where `commitChanges` is its canonical fallback.
-const TOOLBAR_COMMIT_SLOT = 92;
 // Width reserved for the always-present zone (source select + Base picker + the
 // "..." button + horizontal padding/gaps). Deliberately generous: the optional
 // controls shed early rather than allowing the always-present zone to overflow.
@@ -1511,7 +1637,6 @@ export function JumpSelect({
 }
 
 function OptionsMenu({
-  commit,
   dispatch,
   externalURL,
   label,
@@ -1520,7 +1645,6 @@ function OptionsMenu({
   onSetLayout,
   state,
 }: {
-  commit: CommitControlProps | null;
   dispatch: React.Dispatch<AppAction>;
   externalURL: string | null;
   label: DiffViewerLabelResolver;
@@ -1533,18 +1657,6 @@ function OptionsMenu({
   return (
     <div id="options-menu" aria-label={label("options")}>
       <MenuButton icon="refresh" label={label("refresh")} onClick={onReload} />
-      {commit ? (
-        <MenuButton
-          disabled={commit.availability !== "enabled" || commit.pending}
-          icon="commit"
-          label={label("commitChanges")}
-          title={commit.availability === "requiresStaged" ? label("commitRequiresStaged") : undefined}
-          onClick={() => {
-            dispatch({ type: "set-options-open", open: false });
-            commit.onToggle();
-          }}
-        />
-      ) : null}
       <MenuButton checked={state.options.wordWrap} icon="wrap" label={state.options.wordWrap ? label("disableWordWrap") : label("enableWordWrap")} onClick={() => toggle("wordWrap")} />
       <MenuButton checked={state.options.collapsed} icon={state.options.collapsed ? "expand" : "collapse"} label={state.options.collapsed ? label("expandAllDiffs") : label("collapseAllDiffs")} onClick={() => toggle("collapsed")} />
       <div className="menu-separator" />

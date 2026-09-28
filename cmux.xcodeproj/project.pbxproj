@@ -1712,6 +1712,7 @@
 		57F78345792A49D39873F934 /* DiffSidecarRequestPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44E848F0A4AD99A29B2E84E /* DiffSidecarRequestPolicy.swift */; };
 		7D154EAB0095DFA34D13D9C8 /* DiffViewerCLILaunch.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7B6AE88191F61FF0881A991 /* DiffViewerCLILaunch.swift */; };
 		A28B087F0000000000000001 /* DiffViewerEditableFocusMessageHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28B087F0000000000000002 /* DiffViewerEditableFocusMessageHandler.swift */; };
+		D112D4C86222D7A80D00CF75 /* DiffViewerHostActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66C48712A5B07D177CA7F4E9 /* DiffViewerHostActions.swift */; };
 		A28B087F0000000000000019 /* DiffViewerLiveHTTPSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28B087F0000000000000018 /* DiffViewerLiveHTTPSession.swift */; };
 		9648DEAE0000000000000002 /* DiffViewerPickerCommandRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9648DEAE0000000000000001 /* DiffViewerPickerCommandRunnerTests.swift */; };
 		A28B087F0000000000000009 /* DiffViewerSessionTrustRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28B087F000000000000000A /* DiffViewerSessionTrustRegistry.swift */; };
@@ -5848,6 +5849,7 @@
 		B44E848F0A4AD99A29B2E84E /* DiffSidecarRequestPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/DiffSidecarRequestPolicy.swift; sourceTree = "<group>"; };
 		F7B6AE88191F61FF0881A991 /* DiffViewerCLILaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffViewerCLILaunch.swift; sourceTree = "<group>"; };
 		A28B087F0000000000000002 /* DiffViewerEditableFocusMessageHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/DiffViewerEditableFocusMessageHandler.swift; sourceTree = "<group>"; };
+		66C48712A5B07D177CA7F4E9 /* DiffViewerHostActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/DiffViewerHostActions.swift; sourceTree = "<group>"; };
 		A28B087F0000000000000018 /* DiffViewerLiveHTTPSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/DiffViewerLiveHTTPSession.swift; sourceTree = "<group>"; };
 		9648DEAE0000000000000001 /* DiffViewerPickerCommandRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffViewerPickerCommandRunnerTests.swift; sourceTree = "<group>"; };
 		A28B087F000000000000000A /* DiffViewerSessionTrustRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/DiffViewerSessionTrustRegistry.swift; sourceTree = "<group>"; };
@@ -10575,6 +10577,7 @@
 				9648F1A10000000000000001 /* CmuxDiffViewerURLSchemeHandler.swift */,
 				D1FFC0DE000000000000B001 /* DiffCommentsBridge.swift */,
 				D1FFC0DE000000000000E001 /* DiffSidecarBridge.swift */,
+				66C48712A5B07D177CA7F4E9 /* DiffViewerHostActions.swift */,
 				B44E848F0A4AD99A29B2E84E /* DiffSidecarRequestPolicy.swift */,
 				A28B087F0000000000000002 /* DiffViewerEditableFocusMessageHandler.swift */,
 				A28B087F0000000000000004 /* MarkdownEditableFocusMessageHandler.swift */,
@@ -14149,6 +14152,7 @@
 				57F78345792A49D39873F934 /* DiffSidecarRequestPolicy.swift in Sources */,
 				7D154EAB0095DFA34D13D9C8 /* DiffViewerCLILaunch.swift in Sources */,
 				A28B087F0000000000000001 /* DiffViewerEditableFocusMessageHandler.swift in Sources */,
+				D112D4C86222D7A80D00CF75 /* DiffViewerHostActions.swift in Sources */,
 				A28B087F0000000000000019 /* DiffViewerLiveHTTPSession.swift in Sources */,
 				A28B087F0000000000000009 /* DiffViewerSessionTrustRegistry.swift in Sources */,
 				DCDC1000000000000000B003 /* DockConfigFile.swift in Sources */,

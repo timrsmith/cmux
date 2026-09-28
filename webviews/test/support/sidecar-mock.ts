@@ -1,7 +1,7 @@
 // A `webkit.messageHandlers.cmuxDiff` stand-in for the typed sidecar
 // transport: answers the handshake with the given capabilities, opens and
-// closes sessions, and confirms write commands. Per-method overrides shape
-// failure paths.
+// closes sessions, reports a repository status, and confirms write commands.
+// Per-method overrides shape failure paths.
 
 export const MOCK_CAPABILITY_TOKEN = "0123456789abcdef";
 export const MOCK_SESSION_ID = "01234567-89ab-cdef-0123-456789abcdef";
@@ -55,6 +55,50 @@ export function sessionOpenedResponse(
   };
 }
 
+/** A repository on a plain (non-forge) remote with its branch pushed. */
+export const MOCK_REPOSITORY_STATUS = {
+  branch: "main",
+  detached: false,
+  upstream: "origin/main",
+  ahead: 0,
+  behind: 0,
+  remoteUrl: "/tmp/origin.git",
+  hostKind: "other",
+  forgeCli: { kind: null, available: false, authenticated: false },
+};
+
+/** The same repository hosted on GitHub with a signed-in `gh`. */
+export const MOCK_GITHUB_STATUS = {
+  ...MOCK_REPOSITORY_STATUS,
+  ahead: 2,
+  remoteUrl: "https://github.com/acme/widgets.git",
+  hostKind: "github",
+  forgeCli: { kind: "gh", available: true, authenticated: true },
+};
+
+export const MOCK_PULL_REQUEST = {
+  number: 42,
+  url: "https://github.com/acme/widgets/pull/42",
+  title: "Add widgets",
+  state: "open",
+  isDraft: true,
+  baseBranch: "main",
+  reviewDecision: "review_required",
+  checks: { total: 3, passed: 2, failed: 0, pending: 1 },
+};
+
+export function repositoryStatusResponse(
+  request: SidecarRequest,
+  status: Record<string, unknown> = MOCK_REPOSITORY_STATUS,
+) {
+  return {
+    id: request.id,
+    version: 1,
+    result: { type: "repositoryStatus", value: status },
+    error: null,
+  };
+}
+
 export function failureResponse(
   request: SidecarRequest,
   code: string,
@@ -91,11 +135,49 @@ export function sidecarMock(
           };
         case "sessionOpen":
           return sessionOpenedResponse(request);
+        case "worktreeRepositoryStatus":
+          return repositoryStatusResponse(request);
         case "worktreeCommit":
           return {
             id: request.id,
             version: 1,
             result: { type: "committed", value: { commit: MOCK_COMMIT } },
+            error: null,
+          };
+        case "worktreePush":
+          return {
+            id: request.id,
+            version: 1,
+            result: {
+              type: "pushed",
+              value: {
+                remote: "origin",
+                branch: "main",
+                upstreamCreated: request.params.setUpstream === true,
+              },
+            },
+            error: null,
+          };
+        case "worktreeCreatePullRequest":
+          return {
+            id: request.id,
+            version: 1,
+            result: {
+              type: "pullRequestCreated",
+              value: {
+                number: MOCK_PULL_REQUEST.number,
+                url: MOCK_PULL_REQUEST.url,
+                title: request.params.title,
+                isDraft: request.params.draft === true,
+              },
+            },
+            error: null,
+          };
+        case "hostOpenFile":
+          return {
+            id: request.id,
+            version: 1,
+            result: { type: "fileOpened" },
             error: null,
           };
         default:

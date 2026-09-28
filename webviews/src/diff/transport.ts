@@ -11,6 +11,18 @@ type WithoutEnvelope<T> = T extends unknown ? Omit<T, "id" | "version"> : never;
 export type DiffCommand = WithoutEnvelope<DiffRequest>;
 type DiffEventListener = (event: DiffEvent) => void;
 
+/**
+ * Commands the native host answers itself instead of forwarding to the
+ * sidecar. They ride the same `cmuxDiff` message handler and envelope, so
+ * only the WebKit transport can carry them.
+ */
+export type HostCommand = {
+  method: "hostOpenFile";
+  params: { capabilityToken: string; path: string };
+};
+
+export type HostResult = { type: "fileOpened" };
+
 declare global {
   interface Window {
     cmuxDiffBridge?: {
@@ -21,6 +33,8 @@ declare global {
 
 export interface DiffTransport {
   request(command: DiffCommand): Promise<DiffResult>;
+  /** Present only on transports whose peer is the native host. */
+  requestHost?(command: HostCommand): Promise<HostResult>;
   subscribe(listener: DiffEventListener): () => void;
   openResource(ref: DiffResourceRef): Promise<Response>;
   close(): void;
@@ -53,7 +67,7 @@ abstract class BaseDiffTransport implements DiffTransport {
     }
   }
 
-  protected makeRequest(command: DiffCommand): DiffRequest {
+  protected makeRequest(command: DiffCommand | HostCommand): DiffRequest {
     return {
       id: makeRequestId(),
       version: this.version,
@@ -62,17 +76,21 @@ abstract class BaseDiffTransport implements DiffTransport {
   }
 
   protected unwrap(response: DiffResponse): DiffResult {
-    if (response.error) {
-      throw new DiffTransportError(response.error.code, response.error.message);
-    }
-    if (!response.result) {
-      throw new DiffTransportError(
-        "missingResult",
-        "Diff transport returned no result",
-      );
-    }
-    return response.result;
+    return unwrapResponse(response) as DiffResult;
   }
+}
+
+function unwrapResponse(response: DiffResponse): unknown {
+  if (response.error) {
+    throw new DiffTransportError(response.error.code, response.error.message);
+  }
+  if (!response.result) {
+    throw new DiffTransportError(
+      "missingResult",
+      "Diff transport returned no result",
+    );
+  }
+  return response.result;
 }
 
 export class FetchDiffTransport extends BaseDiffTransport {
@@ -120,6 +138,19 @@ export class WebKitDiffTransport extends BaseDiffTransport {
     return this.unwrap(
       await this.handler.postMessage(this.makeRequest(command)),
     );
+  }
+
+  async requestHost(command: HostCommand): Promise<HostResult> {
+    const result = unwrapResponse(
+      await this.handler.postMessage(this.makeRequest(command)),
+    ) as { type?: unknown };
+    if (result?.type !== "fileOpened") {
+      throw new DiffTransportError(
+        "invalidResponse",
+        "Host did not confirm the action",
+      );
+    }
+    return { type: "fileOpened" };
   }
 
   override close(): void {

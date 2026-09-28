@@ -2,6 +2,7 @@
 
 #[cfg(feature = "benchmark")]
 pub mod benchmark;
+pub(crate) mod forge;
 pub(crate) mod git;
 pub mod manifest;
 

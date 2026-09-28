@@ -13,12 +13,18 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
+use std::time::Duration;
 
+use tokio::time::Instant;
+
+use crate::forge::{self, FORGE_CLI_TIMEOUT, ForgeCli};
 use crate::git::{self, Access};
 use crate::manifest::valid_token;
 use crate::protocol::{
-    CommitResult, DiffResult, DiffSource, DiffSourceKind, HunkRef, WorktreeCommitRequest,
-    WorktreeFileRequest, WorktreeHunkRequest, WorktreeMutated,
+    CommitResult, DiffResult, DiffSource, DiffSourceKind, ForgeCliKind, ForgeCliStatus, HunkRef,
+    PullRequestCreated, PushResult, RepositoryStatus, WorktreeCommitRequest,
+    WorktreeCreatePullRequestRequest, WorktreeFileRequest, WorktreeHunkRequest, WorktreeMutated,
+    WorktreePushRequest, WorktreeSessionRequest,
 };
 use crate::server::{
     AppState, authorize_canonical_repo_for_token, manifest_files, read_session_owner,
@@ -26,6 +32,9 @@ use crate::server::{
 };
 
 pub(crate) const MAX_COMMIT_MESSAGE_BYTES: usize = 64 * 1024;
+pub(crate) const MAX_PULL_REQUEST_TITLE_BYTES: usize = 256;
+pub(crate) const MAX_PULL_REQUEST_BODY_BYTES: usize = 64 * 1024;
+const MAX_REF_NAME_BYTES: usize = 256;
 const MAX_REPO_RELATIVE_PATH_BYTES: usize = 4096;
 // One file's unified diff is re-read to select a hunk; anything larger is
 // not something a per-hunk action should be reverting.
@@ -33,9 +42,20 @@ const MAX_HUNK_DIFF_BYTES: usize = 32 * 1024 * 1024;
 // Path listings and status-style output (`ls-files`, `rev-parse`) for a
 // handful of paths; reaching this means Git is not answering the question.
 const MAX_STATUS_OUTPUT_BYTES: usize = 1024 * 1024;
+// A whole session's changed-path listing (`diff --name-status -z`), which a
+// bulk action walks; well past any repository a diff viewer renders.
+const MAX_PATH_LISTING_BYTES: usize = 64 * 1024 * 1024;
 // Hook output kept from a failed commit, and the slice of it surfaced.
 const MAX_HOOK_STDERR_BYTES: usize = 16 * 1024;
 const MAX_HOOK_DETAIL_CHARS: usize = 200;
+/// `git push` talks to the network; credential helpers and SSH agents need
+/// longer than a local query but must still give up eventually.
+pub(crate) const PUSH_TIMEOUT: Duration = Duration::from_secs(120);
+/// One deadline for the whole pull request flow (`auth status`, the implicit
+/// push, the request lookup, `pr create`): each step gets what is left of
+/// it, capped by its own maximum, so the chain stays under the server's
+/// `NETWORK_ACTION_TIMEOUT` instead of adding its steps' budgets together.
+pub(crate) const PULL_REQUEST_FLOW_BUDGET: Duration = Duration::from_secs(115);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WriteError {
@@ -52,6 +72,27 @@ pub(crate) enum WriteError {
     /// Git refused the commit and said why (typically a hook); the detail is
     /// the last line of its stderr, bounded.
     CommitRejected(String),
+    /// A push or pull request needs a branch, and HEAD is detached.
+    DetachedHead,
+    /// The branch has no upstream and the caller did not ask to create one.
+    NoUpstream,
+    /// Git or the forge CLI could not authenticate (no credentials, or a
+    /// prompt it was forbidden to show).
+    AuthRequired,
+    /// The remote refused the push (non-fast-forward, hook, missing remote);
+    /// the detail is the last stderr line when there was one.
+    PushRejected(Option<String>),
+    /// The remote is a forge but its CLI is not installed.
+    ForgeCliMissing,
+    /// The forge CLI is installed but not signed in.
+    ForgeNotAuthenticated,
+    /// A pull request already exists for the branch (its URL when known).
+    PullRequestExists(Option<String>),
+    /// The forge CLI refused to create the request; bounded last stderr line.
+    PullRequestCreateFailed(Option<String>),
+    InvalidTitle,
+    InvalidBody,
+    InvalidBase,
     Failed,
 }
 
@@ -66,6 +107,17 @@ impl WriteError {
             Self::PartialRevert => "partialRevert",
             Self::NothingToCommit => "nothingToCommit",
             Self::CommitFailed | Self::CommitRejected(_) => "commitFailed",
+            Self::DetachedHead => "detachedHead",
+            Self::NoUpstream => "noUpstream",
+            Self::AuthRequired => "authRequired",
+            Self::PushRejected(_) => "pushRejected",
+            Self::ForgeCliMissing => "forgeCliMissing",
+            Self::ForgeNotAuthenticated => "forgeNotAuthenticated",
+            Self::PullRequestExists(_) => "pullRequestExists",
+            Self::PullRequestCreateFailed(_) => "pullRequestCreateFailed",
+            Self::InvalidTitle => "invalidTitle",
+            Self::InvalidBody => "invalidBody",
+            Self::InvalidBase => "invalidBase",
             Self::Failed => "worktreeWriteFailed",
         }
     }
@@ -85,6 +137,26 @@ impl WriteError {
             Self::CommitRejected(detail) => {
                 format!("Git could not create the commit: {detail}").into()
             }
+            Self::DetachedHead => "HEAD is detached; check out a branch first".into(),
+            Self::NoUpstream => "The branch has no upstream".into(),
+            Self::AuthRequired => "Git could not authenticate with the remote".into(),
+            Self::PushRejected(None) => "The remote rejected the push".into(),
+            Self::PushRejected(Some(detail)) => {
+                format!("The remote rejected the push: {detail}").into()
+            }
+            Self::ForgeCliMissing => "The forge command-line tool is not installed".into(),
+            Self::ForgeNotAuthenticated => "The forge command-line tool is not signed in".into(),
+            Self::PullRequestExists(None) => "A pull request already exists for this branch".into(),
+            Self::PullRequestExists(Some(url)) => {
+                format!("A pull request already exists for this branch: {url}").into()
+            }
+            Self::PullRequestCreateFailed(None) => "Could not create the pull request".into(),
+            Self::PullRequestCreateFailed(Some(detail)) => {
+                format!("Could not create the pull request: {detail}").into()
+            }
+            Self::InvalidTitle => "Pull request title is empty or too long".into(),
+            Self::InvalidBody => "Pull request description is too long".into(),
+            Self::InvalidBase => "Base branch name is not valid".into(),
             Self::Failed => "Could not update the working tree".into(),
         }
     }
@@ -253,12 +325,18 @@ pub(crate) async fn commit(
         &request.source,
     )
     .await?;
-    if !target.staged {
+    // A commit only ever records the index. An unstaged session may ask for
+    // its tracked changes to be staged first (one authorization, one action);
+    // without that it has nothing of its own to commit.
+    if !target.staged && !request.stage_all {
         return Err(WriteError::NotAllowed);
     }
     let message = request.message.trim();
     if message.is_empty() || message.len() > MAX_COMMIT_MESSAGE_BYTES {
         return Err(WriteError::InvalidMessage);
+    }
+    if request.stage_all {
+        stage_tracked_changes(&target.repo).await?;
     }
     match git_status(
         &target.repo,
@@ -302,25 +380,728 @@ pub(crate) async fn commit(
 /// verdict, or Git's own reason), printable characters only and bounded, or
 /// the generic failure when it said nothing.
 fn commit_rejection(stderr: &[u8]) -> WriteError {
+    match last_stderr_line(stderr) {
+        Some(detail) => WriteError::CommitRejected(detail),
+        None => WriteError::CommitFailed,
+    }
+}
+
+/// The last non-empty line of a child's stderr (progress output separates
+/// lines with CR as well as LF), control characters stripped and bounded to
+/// [`MAX_HOOK_DETAIL_CHARS`]. `None` when nothing printable was said.
+fn last_stderr_line(stderr: &[u8]) -> Option<String> {
     let text = String::from_utf8_lossy(stderr);
-    let Some(line) = text
-        .lines()
+    let line = text
+        .split(['\n', '\r'])
         .map(str::trim)
         .filter(|line| !line.is_empty())
-        .next_back()
-    else {
-        return WriteError::CommitFailed;
-    };
+        .next_back()?;
     let detail: String = line
         .chars()
         .filter(|character| !character.is_control())
         .take(MAX_HOOK_DETAIL_CHARS)
         .collect();
-    if detail.trim().is_empty() {
-        WriteError::CommitFailed
-    } else {
-        WriteError::CommitRejected(detail)
+    (!detail.trim().is_empty()).then_some(detail)
+}
+
+// MARK: Bulk actions
+
+/// Discards every change the session shows. An unstaged session restores
+/// the index copy of each path `git diff` lists (tracked files only, so an
+/// untracked file is never touched and `git clean` never runs); a staged
+/// session restores HEAD's copy of the paths HEAD knows and removes the ones
+/// staged as new, a rename being one of each.
+pub(crate) async fn discard_all(
+    state: &AppState,
+    request: &WorktreeSessionRequest,
+) -> Result<DiffResult, WriteError> {
+    let _permit = permit(state)?;
+    let target = authorize(
+        state,
+        &request.session_id,
+        &request.capability_token,
+        &request.source,
+    )
+    .await?;
+    if !target.staged {
+        let changed = listing(
+            &target.repo,
+            &[
+                "diff",
+                "--name-only",
+                "-z",
+                "--no-renames",
+                "--diff-filter=ACDMRT",
+            ],
+        )
+        .await?;
+        let paths: Vec<String> = changed
+            .split(|byte| *byte == 0)
+            .filter(|name| !name.is_empty())
+            .map(|name| String::from_utf8_lossy(name).into_owned())
+            .collect();
+        run_over_pathspecs(&target.repo, &["restore", "--worktree"], &paths).await?;
+        return Ok(mutated(&request.source));
     }
+    let listed = listing(&target.repo, &["diff", "--cached", "--name-status", "-z"]).await?;
+    let (in_head, added) = partition_staged_entries(&parse_name_status_z(&listed));
+    run_over_pathspecs(
+        &target.repo,
+        &["restore", "--staged", "--worktree", "--source=HEAD"],
+        &in_head,
+    )
+    .await?;
+    run_over_pathspecs(
+        &target.repo,
+        &["rm", "-f", "-q", "--ignore-unmatch"],
+        &added,
+    )
+    .await
+    .map_err(|error| {
+        if in_head.is_empty() {
+            error
+        } else {
+            WriteError::PartialRevert
+        }
+    })?;
+    Ok(mutated(&request.source))
+}
+
+/// Stages every tracked change (`git add --update`); untracked files are
+/// never added.
+pub(crate) async fn stage_all(
+    state: &AppState,
+    request: &WorktreeSessionRequest,
+) -> Result<DiffResult, WriteError> {
+    let _permit = permit(state)?;
+    let target = authorize(
+        state,
+        &request.session_id,
+        &request.capability_token,
+        &request.source,
+    )
+    .await?;
+    stage_tracked_changes(&target.repo).await?;
+    Ok(mutated(&request.source))
+}
+
+/// Moves every staged change back to the working tree. On an unborn branch
+/// there is no HEAD to restore the index from, so the index is emptied
+/// instead; the files stay in the working tree either way.
+pub(crate) async fn unstage_all(
+    state: &AppState,
+    request: &WorktreeSessionRequest,
+) -> Result<DiffResult, WriteError> {
+    let _permit = permit(state)?;
+    let target = authorize(
+        state,
+        &request.session_id,
+        &request.capability_token,
+        &request.source,
+    )
+    .await?;
+    let arguments: &[&str] = if head_exists(&target.repo).await? {
+        &["restore", "--staged", "--", "."]
+    } else {
+        &["rm", "-r", "-q", "--cached", "--ignore-unmatch", "--", "."]
+    };
+    if git_status(&target.repo, arguments, Access::Mutating, None)
+        .await?
+        .success()
+    {
+        Ok(mutated(&request.source))
+    } else {
+        Err(WriteError::Failed)
+    }
+}
+
+async fn stage_tracked_changes(repo: &Path) -> Result<(), WriteError> {
+    if git_status(repo, &["add", "--update"], Access::Mutating, None)
+        .await?
+        .success()
+    {
+        Ok(())
+    } else {
+        Err(WriteError::Failed)
+    }
+}
+
+async fn head_exists(repo: &Path) -> Result<bool, WriteError> {
+    Ok(git_status(
+        repo,
+        &["rev-parse", "--verify", "--quiet", "HEAD"],
+        Access::ReadOnly,
+        None,
+    )
+    .await?
+    .success())
+}
+
+/// One entry of `git diff --name-status -z`: the status letter and its
+/// path(s) (two for a rename or copy: source, then destination).
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct NameStatusEntry {
+    pub(crate) status: u8,
+    pub(crate) paths: Vec<String>,
+}
+
+/// Parses `--name-status -z` output: `<status>[score]\0<path>\0`, with a
+/// second path for `R` and `C`. Anything malformed ends the parse.
+pub(crate) fn parse_name_status_z(output: &[u8]) -> Vec<NameStatusEntry> {
+    let mut fields = output
+        .split(|byte| *byte == 0)
+        .map(|field| String::from_utf8_lossy(field).into_owned());
+    let mut entries = Vec::new();
+    while let Some(status) = fields.next() {
+        let Some(&letter) = status.as_bytes().first() else {
+            break;
+        };
+        let Some(path) = fields.next().filter(|path| !path.is_empty()) else {
+            break;
+        };
+        let mut paths = vec![path];
+        if letter == b'R' || letter == b'C' {
+            let Some(destination) = fields.next().filter(|path| !path.is_empty()) else {
+                break;
+            };
+            paths.push(destination);
+        }
+        entries.push(NameStatusEntry {
+            status: letter,
+            paths,
+        });
+    }
+    entries
+}
+
+/// Splits staged entries into paths HEAD knows (restored from HEAD) and
+/// paths staged as new (removed). A rename or copy contributes its source
+/// to the first and its destination to the second. Unmerged and unknown
+/// entries are left alone.
+pub(crate) fn partition_staged_entries(entries: &[NameStatusEntry]) -> (Vec<String>, Vec<String>) {
+    let mut in_head = Vec::new();
+    let mut added = Vec::new();
+    for entry in entries {
+        match (entry.status, entry.paths.as_slice()) {
+            (b'A', [path]) => added.push(path.clone()),
+            (b'M' | b'D' | b'T', [path]) => in_head.push(path.clone()),
+            (b'R' | b'C', [source, destination]) => {
+                in_head.push(source.clone());
+                added.push(destination.clone());
+            }
+            _ => {}
+        }
+    }
+    (in_head, added)
+}
+
+/// A read-only listing with a generous bound (bulk actions walk the whole
+/// session).
+async fn listing(repo: &Path, arguments: &[&str]) -> Result<Vec<u8>, WriteError> {
+    let (stdout, status) = git::capture(
+        repo,
+        arguments,
+        Access::ReadOnly,
+        None,
+        MAX_PATH_LISTING_BYTES,
+    )
+    .await
+    .map_err(|()| WriteError::Failed)?;
+    if !status.success() {
+        return Err(WriteError::Failed);
+    }
+    Ok(stdout)
+}
+
+/// Runs a mutating command over `paths`, fed NUL-delimited on stdin as
+/// literal pathspecs so a session with thousands of files never hits the
+/// argument-length limit. Nothing runs for an empty list.
+async fn run_over_pathspecs(
+    repo: &Path,
+    arguments: &[&str],
+    paths: &[String],
+) -> Result<(), WriteError> {
+    if paths.is_empty() {
+        return Ok(());
+    }
+    let mut stdin = Vec::new();
+    for path in paths {
+        stdin.extend_from_slice(path.as_bytes());
+        stdin.push(0);
+    }
+    let mut full = vec!["--literal-pathspecs"];
+    full.extend_from_slice(arguments);
+    full.extend_from_slice(&["--pathspec-from-file=-", "--pathspec-file-nul"]);
+    if git_status(repo, &full, Access::Mutating, Some(&stdin))
+        .await?
+        .success()
+    {
+        Ok(())
+    } else {
+        Err(WriteError::Failed)
+    }
+}
+
+// MARK: Push and repository status
+
+pub(crate) async fn push(
+    state: &AppState,
+    request: &WorktreePushRequest,
+) -> Result<DiffResult, WriteError> {
+    let _permit = permit(state)?;
+    let target = authorize(
+        state,
+        &request.session_id,
+        &request.capability_token,
+        &request.source,
+    )
+    .await?;
+    let result = run_push(&target.repo, request.set_upstream, PUSH_TIMEOUT).await?;
+    Ok(DiffResult::Pushed(result))
+}
+
+/// Pushes the current branch the way a bare `git push` would, within
+/// `timeout`. The push remote is resolved like Git's own (`pushRemote`,
+/// `remote.pushDefault`, the branch's fetch remote, `origin`); when it is the
+/// upstream's remote the branch lands under its upstream name, and in a
+/// triangular workflow (a different push remote) it lands under its own name
+/// there while the upstream stays untouched. Without an upstream,
+/// `set_upstream` creates one on the push remote.
+async fn run_push(
+    repo: &Path,
+    set_upstream: bool,
+    timeout: Duration,
+) -> Result<PushResult, WriteError> {
+    let branch = current_branch(repo)
+        .await?
+        .ok_or(WriteError::DetachedHead)?;
+    let push_remote = push_remote_name(repo, &branch).await;
+    let (remote, refspec, upstream_created) = match upstream(repo, &branch).await {
+        Some(upstream) if upstream.remote == push_remote => (
+            upstream.remote,
+            format!("{branch}:{}", upstream.merge_ref),
+            false,
+        ),
+        Some(_) => (push_remote, format!("{branch}:refs/heads/{branch}"), false),
+        None if set_upstream => {
+            if git::single_line(repo, &["remote", "get-url", &push_remote])
+                .await
+                .is_err()
+            {
+                return Err(WriteError::PushRejected(Some(format!(
+                    "remote '{push_remote}' is not configured"
+                ))));
+            }
+            (push_remote, branch.clone(), true)
+        }
+        None => return Err(WriteError::NoUpstream),
+    };
+    let mut arguments = vec!["push"];
+    if upstream_created {
+        arguments.push("--set-upstream");
+    }
+    arguments.extend(["--", remote.as_str(), refspec.as_str()]);
+    let (_, stderr, status) = git::capture_network(
+        repo,
+        &arguments,
+        MAX_STATUS_OUTPUT_BYTES,
+        MAX_HOOK_STDERR_BYTES,
+        timeout,
+    )
+    .await
+    .map_err(|()| WriteError::PushRejected(Some("timed out".to_owned())))?;
+    if !status.success() {
+        return Err(push_rejection(&stderr));
+    }
+    Ok(PushResult {
+        remote,
+        branch,
+        upstream_created,
+    })
+}
+
+/// Classifies a failed push: an authentication problem (missing credentials,
+/// a forbidden prompt, a denied key) or a plain rejection with Git's last
+/// word. A 403 is the latter: the user is known to the remote and lacks
+/// write permission, which signing in again would not change.
+fn push_rejection(stderr: &[u8]) -> WriteError {
+    if mentions_authentication(&String::from_utf8_lossy(stderr)) {
+        return WriteError::AuthRequired;
+    }
+    WriteError::PushRejected(last_stderr_line(stderr))
+}
+
+fn mentions_authentication(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    [
+        "authentication failed",
+        "authentication required",
+        "could not read username",
+        "could not read password",
+        "terminal prompts disabled",
+        "permission denied (publickey",
+        "invalid username or password",
+        "invalid credentials",
+        "returned error: 401",
+        "http 401",
+        "not logged in",
+        "auth login",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
+}
+
+/// The checked-out branch, or `None` when HEAD is detached. An unborn branch
+/// still has a name.
+async fn current_branch(repo: &Path) -> Result<Option<String>, WriteError> {
+    if let Ok(branch) =
+        git::single_line(repo, &["symbolic-ref", "--quiet", "--short", "HEAD"]).await
+    {
+        return Ok(Some(branch));
+    }
+    if head_exists(repo).await? {
+        Ok(None)
+    } else {
+        Err(WriteError::Failed)
+    }
+}
+
+struct Upstream {
+    remote: String,
+    /// `refs/heads/<name>` on the remote.
+    merge_ref: String,
+    /// `<remote>/<name>`, as `rev-parse --abbrev-ref` prints it.
+    short: String,
+}
+
+/// The branch's configured, fetched upstream. Configuration alone is not
+/// enough: an upstream whose remote-tracking ref is missing locally cannot
+/// be pushed to by name, so it counts as absent and `-u` recreates it.
+async fn upstream(repo: &Path, branch: &str) -> Option<Upstream> {
+    let remote = config_value(repo, &format!("branch.{branch}.remote")).await?;
+    let merge_ref = config_value(repo, &format!("branch.{branch}.merge")).await?;
+    if remote == "." || !merge_ref.starts_with("refs/heads/") {
+        return None;
+    }
+    let short = git::single_line(
+        repo,
+        &[
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            "@{upstream}",
+        ],
+    )
+    .await
+    .ok()?;
+    Some(Upstream {
+        remote,
+        merge_ref,
+        short,
+    })
+}
+
+async fn config_value(repo: &Path, key: &str) -> Option<String> {
+    git::single_line(repo, &["config", "--get", key]).await.ok()
+}
+
+/// The remote a new upstream goes to: the branch's push remote, the
+/// repository's push default, the branch's fetch remote, then `origin`.
+async fn push_remote_name(repo: &Path, branch: &str) -> String {
+    for key in [
+        format!("branch.{branch}.pushRemote"),
+        "remote.pushDefault".to_owned(),
+        format!("branch.{branch}.remote"),
+    ] {
+        if let Some(remote) = config_value(repo, &key).await
+            && remote != "."
+        {
+            return remote;
+        }
+    }
+    "origin".to_owned()
+}
+
+/// `(behind, ahead)` of HEAD relative to its upstream.
+async fn ahead_behind(repo: &Path) -> Option<(u32, u32)> {
+    let counts = git::single_line(
+        repo,
+        &["rev-list", "--left-right", "--count", "@{upstream}...HEAD"],
+    )
+    .await
+    .ok()?;
+    let (behind, ahead) = counts.split_once(char::is_whitespace)?;
+    Some((behind.trim().parse().ok()?, ahead.trim().parse().ok()?))
+}
+
+pub(crate) async fn repository_status(
+    state: &AppState,
+    request: &WorktreeSessionRequest,
+) -> Result<DiffResult, WriteError> {
+    let _permit = permit(state)?;
+    let target = authorize(
+        state,
+        &request.session_id,
+        &request.capability_token,
+        &request.source,
+    )
+    .await?;
+    Ok(DiffResult::RepositoryStatus(
+        collect_status(&target.repo).await?,
+    ))
+}
+
+/// Gathers branch, upstream, remote host, forge CLI state, and the current
+/// pull request. Every forge call is optional: no CLI, or one that is not
+/// signed in, still yields a status.
+async fn collect_status(repo: &Path) -> Result<RepositoryStatus, WriteError> {
+    let (branch, detached) = match current_branch(repo).await? {
+        Some(branch) => (branch, false),
+        None => (
+            git::single_line(repo, &["rev-parse", "--short", "HEAD"])
+                .await
+                .unwrap_or_else(|()| "HEAD".to_owned()),
+            true,
+        ),
+    };
+    let upstream = if detached {
+        None
+    } else {
+        upstream(repo, &branch).await
+    };
+    let (behind, ahead) = if upstream.is_some() {
+        ahead_behind(repo).await.unwrap_or((0, 0))
+    } else {
+        (0, 0)
+    };
+    let remote = match &upstream {
+        Some(upstream) => upstream.remote.clone(),
+        None if detached => "origin".to_owned(),
+        None => push_remote_name(repo, &branch).await,
+    };
+    let remote_url = git::single_line(repo, &["remote", "get-url", &remote])
+        .await
+        .ok();
+    let host_kind = forge::host_kind(remote_url.as_deref());
+    let cli_kind = ForgeCliKind::for_host(host_kind);
+    let cli = cli_kind.and_then(|kind| ForgeCli::locate(kind, repo));
+    let authenticated = match &cli {
+        Some(cli) => cli.is_authenticated(FORGE_CLI_TIMEOUT).await,
+        None => false,
+    };
+    let pull_request = match &cli {
+        Some(cli) if authenticated && !detached => {
+            cli.pull_request(&branch, FORGE_CLI_TIMEOUT).await
+        }
+        _ => None,
+    };
+    Ok(RepositoryStatus {
+        branch,
+        detached,
+        upstream: upstream.map(|upstream| upstream.short),
+        ahead,
+        behind,
+        remote_url,
+        host_kind,
+        forge_cli: ForgeCliStatus {
+            kind: cli_kind,
+            available: cli.is_some(),
+            authenticated,
+        },
+        pull_request,
+    })
+}
+
+// MARK: Pull requests
+
+pub(crate) async fn create_pull_request(
+    state: &AppState,
+    request: &WorktreeCreatePullRequestRequest,
+) -> Result<DiffResult, WriteError> {
+    let _permit = permit(state)?;
+    let target = authorize(
+        state,
+        &request.session_id,
+        &request.capability_token,
+        &request.source,
+    )
+    .await?;
+    let title = validate_pull_request_title(&request.title)?;
+    let body = validate_pull_request_body(&request.body)?;
+    let base = request.base.as_deref().map(validate_ref_name).transpose()?;
+    let deadline = Instant::now() + PULL_REQUEST_FLOW_BUDGET;
+    let repo = &target.repo;
+    let branch = current_branch(repo)
+        .await?
+        .ok_or(WriteError::DetachedHead)?;
+    let remote = match upstream(repo, &branch).await {
+        Some(upstream) => upstream.remote,
+        None => push_remote_name(repo, &branch).await,
+    };
+    let remote_url = git::single_line(repo, &["remote", "get-url", &remote])
+        .await
+        .ok();
+    let host_kind = forge::host_kind(remote_url.as_deref());
+    let cli_kind = ForgeCliKind::for_host(host_kind).ok_or(WriteError::ForgeCliMissing)?;
+    let cli = ForgeCli::locate(cli_kind, repo).ok_or(WriteError::ForgeCliMissing)?;
+    if !cli
+        .is_authenticated(remaining_budget(deadline, FORGE_CLI_TIMEOUT))
+        .await
+    {
+        return Err(WriteError::ForgeNotAuthenticated);
+    }
+    // The forge only sees the branch once it has been pushed.
+    if upstream(repo, &branch).await.is_none() {
+        run_push(repo, true, remaining_budget(deadline, PUSH_TIMEOUT)).await?;
+    }
+    if let Some(existing) = cli
+        .pull_request(&branch, remaining_budget(deadline, FORGE_CLI_TIMEOUT))
+        .await
+        && existing.state == "open"
+    {
+        return Err(WriteError::PullRequestExists(Some(existing.url)));
+    }
+    let (arguments, stdin) =
+        pull_request_create_command(cli.kind, title, body, &branch, request.draft, base);
+    let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
+    let output = cli
+        .run(
+            &borrowed,
+            stdin.as_deref(),
+            remaining_budget(deadline, FORGE_CLI_TIMEOUT),
+        )
+        .await
+        .map_err(|()| WriteError::PullRequestCreateFailed(Some("timed out".to_owned())))?;
+    let stdout = output.stdout_text();
+    let stderr = output.stderr_text();
+    if !output.status.success() {
+        return Err(pull_request_create_failure(&stderr));
+    }
+    let url = forge::first_url(&stdout)
+        .or_else(|| forge::first_url(&stderr))
+        .ok_or(WriteError::PullRequestCreateFailed(None))?
+        .to_owned();
+    let number = match forge::number_from_url(&url) {
+        Some(number) => number,
+        None => cli
+            .pull_request(&branch, remaining_budget(deadline, FORGE_CLI_TIMEOUT))
+            .await
+            .map_or(0, |summary| summary.number),
+    };
+    Ok(DiffResult::PullRequestCreated(PullRequestCreated {
+        number,
+        url,
+        title: title.to_owned(),
+        is_draft: request.draft,
+    }))
+}
+
+/// What is left of `deadline`, capped at `step_maximum`: the budget for the
+/// next step of a chained flow. Zero once the deadline has passed, so the
+/// step fails at once instead of starting a child it cannot wait for.
+fn remaining_budget(deadline: Instant, step_maximum: Duration) -> Duration {
+    deadline
+        .saturating_duration_since(Instant::now())
+        .min(step_maximum)
+}
+
+/// The forge CLI invocation that creates the request. Every user value rides
+/// in `--flag=value` form (never as a bare argument a parser could read as an
+/// option), and `gh` takes the body on stdin so its size never touches the
+/// argument list.
+pub(crate) fn pull_request_create_command(
+    kind: ForgeCliKind,
+    title: &str,
+    body: &str,
+    branch: &str,
+    draft: bool,
+    base: Option<&str>,
+) -> (Vec<String>, Option<Vec<u8>>) {
+    let mut arguments: Vec<String> = match kind {
+        ForgeCliKind::Gh => vec![
+            "pr".to_owned(),
+            "create".to_owned(),
+            format!("--title={title}"),
+            "--body-file=-".to_owned(),
+            format!("--head={branch}"),
+        ],
+        ForgeCliKind::Glab => vec![
+            "mr".to_owned(),
+            "create".to_owned(),
+            format!("--title={title}"),
+            format!("--description={body}"),
+            format!("--source-branch={branch}"),
+            "--yes".to_owned(),
+        ],
+    };
+    if draft {
+        arguments.push("--draft".to_owned());
+    }
+    if let Some(base) = base {
+        arguments.push(match kind {
+            ForgeCliKind::Gh => format!("--base={base}"),
+            ForgeCliKind::Glab => format!("--target-branch={base}"),
+        });
+    }
+    let stdin = match kind {
+        ForgeCliKind::Gh => Some(body.as_bytes().to_vec()),
+        ForgeCliKind::Glab => None,
+    };
+    (arguments, stdin)
+}
+
+/// Classifies a failed `pr create`/`mr create`: the request already exists
+/// (with its URL when the CLI printed one), the CLI lost its login, or a
+/// plain failure carrying the CLI's last word.
+fn pull_request_create_failure(stderr: &str) -> WriteError {
+    if stderr.to_ascii_lowercase().contains("already exists") {
+        return WriteError::PullRequestExists(forge::first_url(stderr).map(str::to_owned));
+    }
+    if mentions_authentication(stderr) {
+        return WriteError::ForgeNotAuthenticated;
+    }
+    WriteError::PullRequestCreateFailed(last_stderr_line(stderr.as_bytes()))
+}
+
+/// A title is one non-empty line of at most 256 bytes.
+pub(crate) fn validate_pull_request_title(raw: &str) -> Result<&str, WriteError> {
+    let title = raw.trim();
+    if title.is_empty()
+        || title.len() > MAX_PULL_REQUEST_TITLE_BYTES
+        || title.chars().any(char::is_control)
+    {
+        return Err(WriteError::InvalidTitle);
+    }
+    Ok(title)
+}
+
+/// A body is free text of at most 64 KiB without NUL bytes.
+pub(crate) fn validate_pull_request_body(raw: &str) -> Result<&str, WriteError> {
+    if raw.len() > MAX_PULL_REQUEST_BODY_BYTES || raw.contains('\0') {
+        return Err(WriteError::InvalidBody);
+    }
+    Ok(raw)
+}
+
+/// A base branch is a short ref name: no whitespace or control characters,
+/// no leading dash (never an option), no `..`, bounded.
+pub(crate) fn validate_ref_name(raw: &str) -> Result<&str, WriteError> {
+    let name = raw.trim();
+    if name.is_empty()
+        || name.len() > MAX_REF_NAME_BYTES
+        || name.starts_with('-')
+        || name.starts_with('/')
+        || name.ends_with('/')
+        || name.contains("..")
+        || name.contains("@{")
+        || name
+            .chars()
+            .any(|character| character.is_whitespace() || character.is_control())
+        || name.contains(['~', '^', ':', '?', '*', '[', '\\'])
+    {
+        return Err(WriteError::InvalidBase);
+    }
+    Ok(name)
 }
 
 fn mutated(source: &DiffSource) -> DiffResult {
@@ -779,9 +1560,183 @@ async fn git_status(
 #[cfg(test)]
 mod tests {
     use super::{
-        HunkRef, WriteError, commit_rejection, header_names_path, parse_hunk_header,
-        select_hunk_patch, unquote_c_style, validate_repo_relative_path,
+        ForgeCliKind, HunkRef, NameStatusEntry, WriteError, commit_rejection, header_names_path,
+        mentions_authentication, parse_hunk_header, parse_name_status_z, partition_staged_entries,
+        pull_request_create_command, pull_request_create_failure, push_rejection,
+        select_hunk_patch, unquote_c_style, validate_pull_request_body,
+        validate_pull_request_title, validate_ref_name, validate_repo_relative_path,
     };
+
+    #[test]
+    fn name_status_listings_parse_renames_and_partition_by_head_membership() {
+        let output = b"M\0story.txt\0A\0new.txt\0R087\0old.txt\0renamed.txt\0D\0gone.txt\0U\0conflict.txt\0T\0link\0";
+        let entries = parse_name_status_z(output);
+        assert_eq!(
+            entries[2],
+            NameStatusEntry {
+                status: b'R',
+                paths: vec!["old.txt".to_owned(), "renamed.txt".to_owned()],
+            }
+        );
+        assert_eq!(entries.len(), 6);
+        let (in_head, added) = partition_staged_entries(&entries);
+        assert_eq!(in_head, ["story.txt", "old.txt", "gone.txt", "link"]);
+        assert_eq!(added, ["new.txt", "renamed.txt"]);
+        // A truncated record ends the parse instead of inventing a path.
+        assert_eq!(
+            parse_name_status_z(b"M\0story.txt\0R100\0old.txt\0").len(),
+            1
+        );
+        assert!(parse_name_status_z(b"").is_empty());
+    }
+
+    #[test]
+    fn push_failures_split_authentication_from_rejection() {
+        assert_eq!(
+            push_rejection(b"fatal: could not read Username for 'https://github.com': terminal prompts disabled\n"),
+            WriteError::AuthRequired
+        );
+        assert_eq!(
+            push_rejection(b"git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.\n"),
+            WriteError::AuthRequired
+        );
+        let rejected = push_rejection(
+            b"To /tmp/origin.git\n ! [rejected]        main -> main (fetch first)\nerror: failed to push some refs to '/tmp/origin.git'\nhint: Updates were rejected\x1b[0m\n",
+        );
+        assert_eq!(
+            rejected,
+            WriteError::PushRejected(Some("hint: Updates were rejected[0m".to_owned()))
+        );
+        assert_eq!(rejected.code(), "pushRejected");
+        assert_eq!(push_rejection(b""), WriteError::PushRejected(None));
+        // Progress output ends lines with CR; the last real line still wins.
+        assert_eq!(
+            push_rejection(b"Writing objects:  50%\rWriting objects: 100%\rerror: hook declined\n"),
+            WriteError::PushRejected(Some("error: hook declined".to_owned()))
+        );
+        assert!(mentions_authentication("HTTP 401: Bad credentials"));
+        assert!(!mentions_authentication("non-fast-forward"));
+        // A 403 is a permission problem for a known user, not a missing login.
+        let forbidden = push_rejection(
+            b"remote: Permission to acme/widgets.git denied to dev.\nfatal: unable to access 'https://github.com/acme/widgets.git/': The requested URL returned error: 403\n",
+        );
+        assert_eq!(
+            forbidden,
+            WriteError::PushRejected(Some(
+                "fatal: unable to access 'https://github.com/acme/widgets.git/': The requested URL returned error: 403".to_owned()
+            ))
+        );
+        assert!(!mentions_authentication("HTTP 403: Forbidden"));
+    }
+
+    #[test]
+    fn pull_request_create_commands_keep_values_in_flag_form() {
+        let (gh, gh_stdin) = pull_request_create_command(
+            ForgeCliKind::Gh,
+            "-Title",
+            "body\n--evil",
+            "feat/x",
+            true,
+            Some("main"),
+        );
+        assert_eq!(
+            gh,
+            [
+                "pr",
+                "create",
+                "--title=-Title",
+                "--body-file=-",
+                "--head=feat/x",
+                "--draft",
+                "--base=main"
+            ]
+        );
+        assert_eq!(gh_stdin.as_deref(), Some(b"body\n--evil".as_slice()));
+        let (glab, glab_stdin) =
+            pull_request_create_command(ForgeCliKind::Glab, "T", "desc", "feat", false, None);
+        assert_eq!(
+            glab,
+            [
+                "mr",
+                "create",
+                "--title=T",
+                "--description=desc",
+                "--source-branch=feat",
+                "--yes"
+            ]
+        );
+        assert_eq!(glab_stdin, None);
+        assert_eq!(
+            pull_request_create_failure(
+                "a pull request for branch \"feat\" into branch \"main\" already exists:\nhttps://github.com/acme/widgets/pull/7\n"
+            ),
+            WriteError::PullRequestExists(Some(
+                "https://github.com/acme/widgets/pull/7".to_owned()
+            ))
+        );
+        assert_eq!(
+            pull_request_create_failure(
+                "To get started with GitHub CLI, please run:  gh auth login\n"
+            ),
+            WriteError::ForgeNotAuthenticated
+        );
+        assert_eq!(
+            pull_request_create_failure("GraphQL: Head sha can't be blank (createPullRequest)\n"),
+            WriteError::PullRequestCreateFailed(Some(
+                "GraphQL: Head sha can't be blank (createPullRequest)".to_owned()
+            ))
+        );
+    }
+
+    #[test]
+    fn pull_request_inputs_are_bounded_and_option_safe() {
+        assert_eq!(
+            validate_pull_request_title("  Add widgets  "),
+            Ok("Add widgets")
+        );
+        assert_eq!(
+            validate_pull_request_title(""),
+            Err(WriteError::InvalidTitle)
+        );
+        assert_eq!(
+            validate_pull_request_title("a\nb"),
+            Err(WriteError::InvalidTitle)
+        );
+        assert_eq!(
+            validate_pull_request_title(&"x".repeat(257)),
+            Err(WriteError::InvalidTitle)
+        );
+        let accented = "é".repeat(128);
+        assert_eq!(
+            validate_pull_request_title(&accented),
+            Ok(accented.as_str())
+        );
+        assert!(validate_pull_request_body(&"b".repeat(64 * 1024)).is_ok());
+        assert_eq!(
+            validate_pull_request_body(&"b".repeat(64 * 1024 + 1)),
+            Err(WriteError::InvalidBody)
+        );
+        assert_eq!(
+            validate_pull_request_body("nul\0"),
+            Err(WriteError::InvalidBody)
+        );
+        assert_eq!(validate_ref_name("main"), Ok("main"));
+        assert_eq!(validate_ref_name("release/1.2"), Ok("release/1.2"));
+        for rejected in [
+            "", "-x", "--force", "a b", "a..b", "a@{1}", "a:b", "/x", "x/", "a?b",
+        ] {
+            assert_eq!(
+                validate_ref_name(rejected),
+                Err(WriteError::InvalidBase),
+                "{rejected:?}"
+            );
+        }
+        assert_eq!(
+            WriteError::PullRequestExists(Some("https://x/pull/1".to_owned())).message(),
+            "A pull request already exists for this branch: https://x/pull/1"
+        );
+        assert_eq!(WriteError::ForgeCliMissing.code(), "forgeCliMissing");
+    }
 
     #[test]
     fn repo_relative_paths_reject_traversal_and_absolute_forms() {
