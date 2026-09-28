@@ -1594,6 +1594,54 @@ final class MainWindowFocusControllerRightSidebarHideTests: XCTestCase {
         XCTAssertTrue(controller.allowsTerminalFocus(workspaceId: workspaceId, panelId: panelId))
     }
 
+    /// With the file tree docked leading, `focusRightSidebar(mode: .files)`
+    /// reveals the leading panel and leaves the right sidebar alone; the mode
+    /// endpoint (the registered `.files` host) is what gets focus. Without a
+    /// window there is no host, so only the reveal and intent are asserted.
+    @MainActor
+    func testFocusingFilesWithALeadingPanelRevealsThePanelNotTheRightSidebar() {
+        let placementKey = SidebarCatalogSection().filesPanelPlacement.userDefaultsKey
+        let visibleKey = FileExplorerState.filesPanelVisibleKey
+        let defaults = UserDefaults.standard
+        let previousPlacement = defaults.object(forKey: placementKey)
+        let previousVisible = defaults.object(forKey: visibleKey)
+        defaults.set(FilesPanelPlacement.leading.rawValue, forKey: placementKey)
+        defaults.set(false, forKey: visibleKey)
+        defer {
+            if let previousPlacement { defaults.set(previousPlacement, forKey: placementKey) }
+            else { defaults.removeObject(forKey: placementKey) }
+            if let previousVisible { defaults.set(previousVisible, forKey: visibleKey) }
+            else { defaults.removeObject(forKey: visibleKey) }
+        }
+
+        let fileExplorerState = FileExplorerState()
+        fileExplorerState.setVisible(false)
+        fileExplorerState.mode = .changes
+        fileExplorerState.setFilesPanelVisible(false)
+        let controller = MainWindowFocusController(
+            windowId: UUID(),
+            window: nil,
+            tabManager: TabManager(),
+            fileExplorerState: fileExplorerState
+        )
+
+        XCTAssertTrue(controller.canFocusRightSidebar(mode: .files), "Files stays a focusable target")
+        _ = controller.focusRightSidebar(mode: .files, focusFirstItem: true)
+
+        XCTAssertTrue(fileExplorerState.filesPanelVisible, "the docked panel is revealed")
+        XCTAssertFalse(fileExplorerState.isVisible, "the right sidebar is not opened")
+        XCTAssertEqual(fileExplorerState.mode, .changes, "the right sidebar keeps its tab")
+        XCTAssertEqual(controller.activeRightSidebarMode, .files, "the tree owns the sidebar focus intent")
+
+        // Focusing "the right sidebar" with no mode after a Files interaction
+        // must go to the panel on the right, not back to the file tree.
+        fileExplorerState.setVisible(false)
+        _ = controller.focusRightSidebar(mode: nil, focusFirstItem: true)
+        XCTAssertTrue(fileExplorerState.isVisible)
+        XCTAssertEqual(fileExplorerState.mode, .changes)
+        XCTAssertEqual(controller.activeRightSidebarMode, .changes)
+    }
+
     @MainActor
     func testHiddenRightSidebarDoesNotRestoreWhenTerminalAlreadyOwnsFocus() {
         let controller = MainWindowFocusController(

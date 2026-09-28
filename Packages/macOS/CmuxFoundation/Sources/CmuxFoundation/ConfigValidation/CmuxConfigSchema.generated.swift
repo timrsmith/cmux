@@ -1555,11 +1555,11 @@ enum CmuxEmbeddedConfigSchema {
           "descriptionKey": "schemaDescriptions.sidebar.rightMaxWidth",
           "description": "Maximum width in points for the right sidebar. When omitted, the built-in dynamic cap applies."
         },
-        "rightPosition": {
+        "filesPanelPlacement": {
           "type": "string",
-          "enum": ["leading", "trailing"],
-          "default": "trailing",
-          "description": "Which window edge the right sidebar (Files, Find, Dock, and the other tool panels) is docked to: trailing (the right edge, after the panes) or leading (between the workspace sidebar and the panes, so the file tree sits next to the workspace list)."
+          "enum": ["rightSidebar", "leading"],
+          "default": "rightSidebar",
+          "description": "Where the file tree lives: rightSidebar (the Files tab of the right sidebar, the default) or leading (its own panel between the workspace sidebar and the panes, IDE style; the right sidebar with Find, Changes, and the other tools stays on the right edge and drops its Files tab)."
         }
       }
     },

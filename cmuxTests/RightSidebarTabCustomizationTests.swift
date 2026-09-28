@@ -1,3 +1,4 @@
+import CmuxSettings
 import Foundation
 import XCTest
 
@@ -40,6 +41,13 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
 
     private func enableMachinesGate() {
         defaults.set(true, forKey: RightSidebarBetaFeatureSettings.cloudMachinesEnabledKey)
+    }
+
+    private func dockFilesPanelLeading() {
+        defaults.set(
+            FilesPanelPlacement.leading.rawValue,
+            forKey: SidebarCatalogSection().filesPanelPlacement.userDefaultsKey
+        )
     }
 
     // MARK: - Ordering and visibility
@@ -259,6 +267,67 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
                 index < 9 ? index + 1 : nil
             )
         }
+    }
+
+    // MARK: - Leading files panel
+
+    func testLeadingFilesPanelRemovesTheFilesTabFromTheBar() {
+        CmuxFeatureFlags.shared.setOverride(true, for: CmuxFeatureFlags.cloudMachinesFlag)
+        enableAllModeGates()
+        dockFilesPanelLeading()
+        XCTAssertEqual(
+            RightSidebarMode.visibleModes(defaults: defaults),
+            [.find, .sessions, .feed, .dock, .machines, .changes]
+        )
+        XCTAssertEqual(
+            RightSidebarMode.visibleModes(defaults: defaults, filesPanelPlacement: .rightSidebar),
+            [.files, .find, .sessions, .feed, .dock, .machines, .changes],
+            "the explicit placement overload is what the mode bar reads"
+        )
+    }
+
+    func testLeadingFilesPanelKeepsControlOneAndShiftsTheTabsToTwo() {
+        CmuxFeatureFlags.shared.setOverride(true, for: CmuxFeatureFlags.cloudMachinesFlag)
+        enableAllModeGates()
+        dockFilesPanelLeading()
+        XCTAssertEqual(
+            RightSidebarMode.positionalShortcutModes(defaults: defaults),
+            [.files, .find, .sessions, .feed, .dock, .machines, .changes]
+        )
+        XCTAssertEqual(
+            KeyboardShortcutSettings.rightSidebarPositionalDefaultShortcut(for: .files, defaults: defaults),
+            StoredShortcut(key: "1", command: false, shift: false, option: false, control: true),
+            "the docked file tree is still the first tool: Ctrl+1 shows it"
+        )
+        XCTAssertEqual(
+            KeyboardShortcutSettings.rightSidebarPositionalDefaultShortcut(for: .find, defaults: defaults),
+            StoredShortcut(key: "2", command: false, shift: false, option: false, control: true)
+        )
+    }
+
+    func testLeadingFilesPanelIgnoresAHiddenFilesTabPreference() {
+        enableAllModeGates()
+        RightSidebarTabPreferences.setHidden(true, mode: .files, defaults: defaults)
+        dockFilesPanelLeading()
+        XCTAssertEqual(
+            RightSidebarMode.positionalShortcutModes(defaults: defaults).first,
+            .files,
+            "hiding the Files tab is a mode-bar preference; the docked panel is not a tab"
+        )
+        XCTAssertFalse(RightSidebarMode.visibleModes(defaults: defaults).contains(.files))
+    }
+
+    func testHidingEveryOtherTabStillLeavesTheBarATabWhenFilesIsDocked() {
+        // With Files docked leading the fallback for an over-hidden set must
+        // not resurrect Files as a tab.
+        dockFilesPanelLeading()
+        defaults.set(
+            [RightSidebarMode.find, .sessions, .machines, .changes, .feed, .dock].map(\.rawValue),
+            forKey: RightSidebarTabPreferences.hiddenKey
+        )
+        let visible = RightSidebarMode.visibleModes(defaults: defaults)
+        XCTAssertFalse(visible.isEmpty)
+        XCTAssertFalse(visible.contains(.files))
     }
 
     func testMutationsPostShortcutSettingsDidChange() {

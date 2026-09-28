@@ -61,22 +61,27 @@ struct SidebarWidthLeadingPaddingModifier: ViewModifier {
     }
 }
 
-/// Leading and trailing padding derived from the sidebar width, for the
-/// titlebar band that must stop short of the right sidebar's mode bar on
-/// whichever edge it is docked. Like `SidebarWidthLeadingPaddingModifier`,
-/// only the padding tracks the width; the content value is built once. The
-/// remaining inputs are plain values so SwiftUI can skip the body when
-/// neither they nor the width changed.
+/// Leading and trailing padding for the titlebar band, which must stop short
+/// of the right sidebar's mode bar on the right and, while the file tree is
+/// docked leading, of the files panel's header on the left. Like
+/// `SidebarWidthLeadingPaddingModifier`, only the padding tracks the workspace
+/// sidebar width; the content value is built once. The remaining inputs are
+/// plain values so SwiftUI can skip the body when neither they nor the width
+/// changed.
 struct TitlebarBandInsetsModifier: ViewModifier {
     @ObservedObject var layout: SidebarLayoutModel
-    let position: RightSidebarPosition
+    let placement: FilesPanelPlacement
     let isLeadingSidebarVisible: Bool
+    let isFilesPanelVisible: Bool
+    let filesPanelWidth: CGFloat
     let rightSidebarWidth: CGFloat
 
     func body(content: Content) -> some View {
-        let resolved = RightSidebarPlacementLayout.titlebarBandInsets(
-            position: position,
+        let resolved = FilesPanelPlacementLayout.titlebarBandInsets(
+            placement: placement,
+            isFilesPanelVisible: isFilesPanelVisible,
             leadingSidebarWidth: isLeadingSidebarVisible ? layout.width : 0,
+            filesPanelWidth: filesPanelWidth,
             rightSidebarWidth: rightSidebarWidth
         )
         content

@@ -501,7 +501,13 @@ final class MainWindowFocusController {
 
     private func resolvedRightSidebarMode(requestedMode: RightSidebarMode?) -> RightSidebarMode? {
         guard let state = fileExplorerState else { return nil }
-        let desiredMode = requestedMode ?? rememberedRightSidebarMode ?? state.mode
+        var desiredMode = requestedMode ?? rememberedRightSidebarMode ?? state.mode
+        // "Focus the right sidebar" with no mode means the panel on the right:
+        // a remembered Files interaction that happened in the leading files
+        // panel must not pull focus back to the left of the panes.
+        if requestedMode == nil, desiredMode == .files, FileExplorerState.filesPanelIsLeading() {
+            desiredMode = state.mode
+        }
         if desiredMode.isAvailable() {
             return desiredMode
         }
@@ -527,9 +533,17 @@ final class MainWindowFocusController {
         }
         publishFeedFocusSnapshot()
         yieldCurrentTerminalSurfaceFocus(reason: terminalYieldReason)
-        state.setVisible(true)
-        if state.mode != mode {
-            state.mode = mode
+        if mode == .files {
+            // Shared reveal path: the leading files panel when docked, else the
+            // right sidebar on its Files tab. Either way the registered `.files`
+            // host (`FileExplorerContainerView`) is what `focusRightSidebarEndpoint`
+            // focuses next, so the docked panel receives focus like the tab did.
+            state.showFiles()
+        } else {
+            state.setVisible(true)
+            if state.mode != mode {
+                state.mode = mode
+            }
         }
 
         let modeResult = focusRightSidebarEndpoint(mode: mode, target: target)

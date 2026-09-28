@@ -1,3 +1,4 @@
+import CmuxSettings
 import Foundation
 import Testing
 
@@ -78,6 +79,69 @@ extension TerminalControllerSocketSecurityTests {
         #expect(modePayload["mode"] as? String == "sessions")
 
         #expect(TerminalController.shared.handleSocketLine("right_sidebar set unknown").hasPrefix("ERROR:"))
+    }
+
+    @Test func filesCommandsRevealTheLeadingFilesPanelWhenDockedLeft() throws {
+        let placementKey = SidebarCatalogSection().filesPanelPlacement.userDefaultsKey
+        let visibleKey = FileExplorerState.filesPanelVisibleKey
+        let defaults = UserDefaults.standard
+        let previousPlacement = defaults.object(forKey: placementKey)
+        let previousVisible = defaults.object(forKey: visibleKey)
+        defaults.set(FilesPanelPlacement.leading.rawValue, forKey: placementKey)
+        defaults.set(false, forKey: visibleKey)
+        defer {
+            if let previousPlacement { defaults.set(previousPlacement, forKey: placementKey) }
+            else { defaults.removeObject(forKey: placementKey) }
+            if let previousVisible { defaults.set(previousVisible, forKey: visibleKey) }
+            else { defaults.removeObject(forKey: visibleKey) }
+        }
+
+        let previousAppDelegate = AppDelegate.shared
+        let appDelegate = AppDelegate()
+        defer { AppDelegate.shared = previousAppDelegate }
+
+        let windowId = UUID()
+        let tabManager = TabManager()
+        let fileExplorerState = FileExplorerState()
+        appDelegate.fileExplorerState = fileExplorerState
+        appDelegate.registerMainWindowContextForTesting(
+            windowId: windowId,
+            tabManager: tabManager,
+            fileExplorerState: fileExplorerState
+        )
+        defer { appDelegate.unregisterMainWindowContextForTesting(windowId: windowId) }
+
+        fileExplorerState.setVisible(false)
+        fileExplorerState.mode = .changes
+        fileExplorerState.setFilesPanelVisible(false)
+        #expect(fileExplorerState.mode == .changes)
+
+        // `right_sidebar set files --no-focus`: reveal without focus.
+        #expect(TerminalController.shared.handleSocketLine("right_sidebar set files --no-focus") == "OK")
+        #expect(fileExplorerState.filesPanelVisible, "the docked panel is what Files means now")
+        #expect(!fileExplorerState.isVisible, "the right sidebar is left alone")
+        #expect(fileExplorerState.mode == .changes, "the right sidebar keeps its tab")
+
+        // `right_sidebar files` (focus path through MainWindowFocusController):
+        // no window is attached in tests, so focus itself cannot land, but the
+        // shared reveal path must still target the panel, not the sidebar.
+        fileExplorerState.setFilesPanelVisible(false)
+        _ = appDelegate.applyRightSidebarRemoteCommand(.setMode(.files, focus: true))
+        #expect(fileExplorerState.filesPanelVisible)
+        #expect(!fileExplorerState.isVisible)
+        #expect(fileExplorerState.mode == .changes)
+
+        // Other modes still drive the right sidebar as before.
+        #expect(TerminalController.shared.handleSocketLine("right_sidebar set find --no-focus") == "OK")
+        #expect(fileExplorerState.isVisible)
+        #expect(fileExplorerState.mode == .find)
+        #expect(fileExplorerState.filesPanelVisible, "showing Find does not close the files panel")
+
+        // The reported state is the right sidebar's, which never lands on Files.
+        let modeResponse = TerminalController.shared.handleSocketLine("right_sidebar mode")
+        let modeData = try #require(modeResponse.data(using: .utf8))
+        let modePayload = try #require(JSONSerialization.jsonObject(with: modeData) as? [String: Any])
+        #expect(modePayload["mode"] as? String == "find")
     }
 
     @Test func v1CommandsRejectCustomSidebarNames() throws {
