@@ -179,6 +179,8 @@ final class RightSidebarCommandPaletteTests: XCTestCase {
         workspaceContext.setBool(CommandPaletteContextKeys.hasWorkspace, true)
         var splitsContext = CommandPaletteContextSnapshot()
         splitsContext.setBool(CommandPaletteContextKeys.workspaceHasSplits, true)
+        var fileEditorContext = CommandPaletteContextSnapshot()
+        fileEditorContext.setBool(CommandPaletteContextKeys.panelIsFilePreviewTextEditor, true)
         let emptyContext = CommandPaletteContextSnapshot()
 
         for command in ShortcutParityPaletteCommand.allCases {
@@ -194,6 +196,7 @@ final class RightSidebarCommandPaletteTests: XCTestCase {
             case .browser: browserContext
             case .workspace: workspaceContext
             case .splits: splitsContext
+            case .fileEditor: fileEditorContext
             }
             XCTAssertTrue(contribution.when(visibleContext), command.rawValue)
         }

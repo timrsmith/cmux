@@ -1891,12 +1891,16 @@
 		C01E00010000000000000001 /* FilePreviewEditorSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C01E00010000000000000002 /* FilePreviewEditorSettings.swift */; };
 		C0DE8652000000000000000F /* FilePreviewFileState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE86520000000000000010 /* FilePreviewFileState.swift */; };
 		A5001432A5001432A5001432 /* FilePreviewFocusCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5001431A5001431A5001431 /* FilePreviewFocusCoordinator.swift */; };
+		04FE6D1CA088F8189A767FDE /* FilePreviewGoToLinePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB5AA34D9EB1EDDDD15DD0B7 /* FilePreviewGoToLinePopover.swift */; };
 		C0DE86520000000000000101 /* FilePreviewImageLoadResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE86520000000000000102 /* FilePreviewImageLoadResult.swift */; };
 		01EE5DC99896BA30240EF1B5 /* FilePreviewImageSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1450569A797AA7937677D9 /* FilePreviewImageSession.swift */; };
 		C0DE86520000000000000009 /* FilePreviewImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE8652000000000000000A /* FilePreviewImageView.swift */; };
+		E9DD48536465C5064E50528F /* FilePreviewIndentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C00E8D6241DB57898A968F5 /* FilePreviewIndentation.swift */; };
 		C0DE49950000000000000001 /* FilePreviewKindResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE49950000000000000002 /* FilePreviewKindResolverTests.swift */; };
 		C0DE8652000000000000000B /* FilePreviewLatestLoadCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE8652000000000000000C /* FilePreviewLatestLoadCoordinator.swift */; };
 		C0DE8652000000000000000D /* FilePreviewLatestRequestState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE8652000000000000000E /* FilePreviewLatestRequestState.swift */; };
+		F721F75DF95095A035F38F19 /* FilePreviewLineCommentToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF100FFD795F938BD7E03D68 /* FilePreviewLineCommentToken.swift */; };
+		CE6A93412D27ED2B131D83A1 /* FilePreviewLineLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2587FBE3C9F115C3EBACF525 /* FilePreviewLineLocator.swift */; };
 		C01E00050000000000000001 /* FilePreviewLineNumberGutterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C01E00050000000000000002 /* FilePreviewLineNumberGutterView.swift */; };
 		A5001447A5001447A5001447 /* FilePreviewMagnifyingPDFView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5001446A5001446A5001446 /* FilePreviewMagnifyingPDFView.swift */; };
 		287C15EFC945CE9D560600E3 /* FilePreviewMediaSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64D7B3C5A409C0B3EDD002CE /* FilePreviewMediaSession.swift */; };
@@ -1938,11 +1942,14 @@
 		C01E00090000000000000001 /* FilePreviewSyntaxTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C01E00090000000000000002 /* FilePreviewSyntaxTestSupport.swift */; };
 		C0DE97470000000000000001 /* FilePreviewTabMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE97470000000000000002 /* FilePreviewTabMetadata.swift */; };
 		C0DE97470000000000000003 /* FilePreviewTabMetadataHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE97470000000000000004 /* FilePreviewTabMetadataHost.swift */; };
+		36F362F317993E77D8C82BCE /* FilePreviewTextEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F99C8E9B94439B18A712A1AC /* FilePreviewTextEditing.swift */; };
+		27887B945659872F4695464A /* FilePreviewTextEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E22E0813E94ECAB5DB3EE907 /* FilePreviewTextEditingTests.swift */; };
 		D0B10016A1B2C3D4E5F60001 /* FilePreviewTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B10017A1B2C3D4E5F60001 /* FilePreviewTextEditor.swift */; };
 		C0DEFC100000000000000001 /* FilePreviewTextEditorTextKitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEFC100000000000000002 /* FilePreviewTextEditorTextKitTests.swift */; };
 		0EA7EC478B6600AD4BDDB053 /* FilePreviewTextSaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC7E1431CCC54BD49EA9BBBF /* FilePreviewTextSaver.swift */; };
 		DDB55536A403FB051DA28DFC /* FilePreviewTextSaveResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEE3A9C376EE11475D83C4D5 /* FilePreviewTextSaveResult.swift */; };
 		C0DE86520000000000000113 /* FilePreviewViewport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE86520000000000000114 /* FilePreviewViewport.swift */; };
+		1D6EF98A52BEB27CC9077DD5 /* FilePreviewWordCompletion.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6075BDFF3CF4F3FF9127414 /* FilePreviewWordCompletion.swift */; };
 		F12748000000000000000007 /* FilePreviewWordWrapMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = F12748000000000000000008 /* FilePreviewWordWrapMenu.swift */; };
 		F11E52270000000000005227 /* FilePreviewWordWrapSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11E52270000000000005228 /* FilePreviewWordWrapSettings.swift */; };
 		A5001445A5001445A5001445 /* FilePreviewWorkspaceOpenSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5001444A5001444A5001444 /* FilePreviewWorkspaceOpenSupport.swift */; };
@@ -2854,6 +2861,7 @@
 		C0DE1A080000000000000001 /* SavedLayoutDefinitionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE1A080000000000000002 /* SavedLayoutDefinitionTests.swift */; };
 		C0DE1A020000000000000001 /* SavedLayoutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE1A020000000000000002 /* SavedLayoutStore.swift */; };
 		C0DE1A070000000000000001 /* SavedLayoutStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE1A070000000000000002 /* SavedLayoutStoreTests.swift */; };
+		FBE7D3D265F472D638C9BFE4 /* SavingTextView+EditingActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36396D7DEED1A805BD51923C /* SavingTextView+EditingActions.swift */; };
 		F12748000000000000000003 /* SavingTextView+WordWrapShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = F12748000000000000000004 /* SavingTextView+WordWrapShortcut.swift */; };
 		E8BA79E246754A8B99A0B823 /* ScreenIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47D5AA7D29C94F5CA865B2BF /* ScreenIdentity.swift */; };
 		D1F0A00600000000000000F1 /* ScreenLockObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1F0A00600000000000000F2 /* ScreenLockObserver.swift */; };
@@ -6039,12 +6047,16 @@
 		C01E00010000000000000002 /* FilePreviewEditorSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewEditorSettings.swift; sourceTree = "<group>"; };
 		C0DE86520000000000000010 /* FilePreviewFileState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewFileState.swift; sourceTree = "<group>"; };
 		A5001431A5001431A5001431 /* FilePreviewFocusCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewFocusCoordinator.swift; sourceTree = "<group>"; };
+		EB5AA34D9EB1EDDDD15DD0B7 /* FilePreviewGoToLinePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewGoToLinePopover.swift; sourceTree = "<group>"; };
 		C0DE86520000000000000102 /* FilePreviewImageLoadResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewImageLoadResult.swift; sourceTree = "<group>"; };
 		7D1450569A797AA7937677D9 /* FilePreviewImageSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewImageSession.swift; sourceTree = "<group>"; };
 		C0DE8652000000000000000A /* FilePreviewImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewImageView.swift; sourceTree = "<group>"; };
+		4C00E8D6241DB57898A968F5 /* FilePreviewIndentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewIndentation.swift; sourceTree = "<group>"; };
 		C0DE49950000000000000002 /* FilePreviewKindResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePreviewKindResolverTests.swift; sourceTree = "<group>"; };
 		C0DE8652000000000000000C /* FilePreviewLatestLoadCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewLatestLoadCoordinator.swift; sourceTree = "<group>"; };
 		C0DE8652000000000000000E /* FilePreviewLatestRequestState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewLatestRequestState.swift; sourceTree = "<group>"; };
+		FF100FFD795F938BD7E03D68 /* FilePreviewLineCommentToken.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewLineCommentToken.swift; sourceTree = "<group>"; };
+		2587FBE3C9F115C3EBACF525 /* FilePreviewLineLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewLineLocator.swift; sourceTree = "<group>"; };
 		C01E00050000000000000002 /* FilePreviewLineNumberGutterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewLineNumberGutterView.swift; sourceTree = "<group>"; };
 		A5001446A5001446A5001446 /* FilePreviewMagnifyingPDFView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewMagnifyingPDFView.swift; sourceTree = "<group>"; };
 		64D7B3C5A409C0B3EDD002CE /* FilePreviewMediaSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewMediaSession.swift; sourceTree = "<group>"; };
@@ -6086,11 +6098,14 @@
 		C01E00090000000000000002 /* FilePreviewSyntaxTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePreviewSyntaxTestSupport.swift; sourceTree = "<group>"; };
 		C0DE97470000000000000002 /* FilePreviewTabMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewTabMetadata.swift; sourceTree = "<group>"; };
 		C0DE97470000000000000004 /* FilePreviewTabMetadataHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewTabMetadataHost.swift; sourceTree = "<group>"; };
+		F99C8E9B94439B18A712A1AC /* FilePreviewTextEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewTextEditing.swift; sourceTree = "<group>"; };
+		E22E0813E94ECAB5DB3EE907 /* FilePreviewTextEditingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FilePreviewTextEditingTests.swift"; sourceTree = "<group>"; };
 		D0B10017A1B2C3D4E5F60001 /* FilePreviewTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewTextEditor.swift; sourceTree = "<group>"; };
 		C0DEFC100000000000000002 /* FilePreviewTextEditorTextKitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePreviewTextEditorTextKitTests.swift; sourceTree = "<group>"; };
 		BC7E1431CCC54BD49EA9BBBF /* FilePreviewTextSaver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Panels/FilePreviewTextSaver.swift"; sourceTree = "<group>"; };
 		AEE3A9C376EE11475D83C4D5 /* FilePreviewTextSaveResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Panels/FilePreviewTextSaveResult.swift"; sourceTree = "<group>"; };
 		C0DE86520000000000000114 /* FilePreviewViewport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewViewport.swift; sourceTree = "<group>"; };
+		A6075BDFF3CF4F3FF9127414 /* FilePreviewWordCompletion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewWordCompletion.swift; sourceTree = "<group>"; };
 		F12748000000000000000008 /* FilePreviewWordWrapMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Panels/FilePreviewWordWrapMenu.swift"; sourceTree = "<group>"; };
 		F11E52270000000000005228 /* FilePreviewWordWrapSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewWordWrapSettings.swift; sourceTree = "<group>"; };
 		A5001444A5001444A5001444 /* FilePreviewWorkspaceOpenSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewWorkspaceOpenSupport.swift; sourceTree = "<group>"; };
@@ -6986,6 +7001,7 @@
 		C0DE1A080000000000000002 /* SavedLayoutDefinitionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedLayoutDefinitionTests.swift; sourceTree = "<group>"; };
 		C0DE1A020000000000000002 /* SavedLayoutStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedLayoutStore.swift; sourceTree = "<group>"; };
 		C0DE1A070000000000000002 /* SavedLayoutStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedLayoutStoreTests.swift; sourceTree = "<group>"; };
+		36396D7DEED1A805BD51923C /* SavingTextView+EditingActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Panels/SavingTextView+EditingActions.swift"; sourceTree = "<group>"; };
 		F12748000000000000000004 /* SavingTextView+WordWrapShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Panels/SavingTextView+WordWrapShortcut.swift"; sourceTree = "<group>"; };
 		47D5AA7D29C94F5CA865B2BF /* ScreenIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/ScreenIdentity.swift; sourceTree = "<group>"; };
 		D1F0A00600000000000000F2 /* ScreenLockObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenLockObserver.swift; sourceTree = "<group>"; };
@@ -10699,6 +10715,13 @@
 				C0DE64020000000000001001 /* FilePreviewQuickLookContainerView.swift */,
 				0A02623202562490B3E88372 /* FilePreviewQuickLookSession.swift */,
 				D0B10017A1B2C3D4E5F60001 /* FilePreviewTextEditor.swift */,
+				36396D7DEED1A805BD51923C /* SavingTextView+EditingActions.swift */,
+				EB5AA34D9EB1EDDDD15DD0B7 /* FilePreviewGoToLinePopover.swift */,
+				A6075BDFF3CF4F3FF9127414 /* FilePreviewWordCompletion.swift */,
+				2587FBE3C9F115C3EBACF525 /* FilePreviewLineLocator.swift */,
+				FF100FFD795F938BD7E03D68 /* FilePreviewLineCommentToken.swift */,
+				4C00E8D6241DB57898A968F5 /* FilePreviewIndentation.swift */,
+				F99C8E9B94439B18A712A1AC /* FilePreviewTextEditing.swift */,
 				F12748000000000000000006 /* NSTextView+FilePreviewLayout.swift */,
 				F12748000000000000000008 /* FilePreviewWordWrapMenu.swift */,
 				F12748000000000000000004 /* SavingTextView+WordWrapShortcut.swift */,
@@ -12621,6 +12644,7 @@
 				EF070650B6A1C26FFDC2679E /* FilesPanelPlacementTests.swift */,
 				BD8C9BAF077878309DE0180B /* GitStatusWatchRelevanceTests.swift */,
 				83A005590F8EBB098EB61B91 /* TerminalEditorCommandResolverTests.swift */,
+				E22E0813E94ECAB5DB3EE907 /* FilePreviewTextEditingTests.swift */,
 			);
 			path = cmuxTests;
 			sourceTree = "<group>";
@@ -14312,11 +14336,15 @@
 					C01E00010000000000000001 /* FilePreviewEditorSettings.swift in Sources */,
 				C0DE8652000000000000000F /* FilePreviewFileState.swift in Sources */,
 				A5001432A5001432A5001432 /* FilePreviewFocusCoordinator.swift in Sources */,
+				04FE6D1CA088F8189A767FDE /* FilePreviewGoToLinePopover.swift in Sources */,
 				C0DE86520000000000000101 /* FilePreviewImageLoadResult.swift in Sources */,
 				01EE5DC99896BA30240EF1B5 /* FilePreviewImageSession.swift in Sources */,
 				C0DE86520000000000000009 /* FilePreviewImageView.swift in Sources */,
+				E9DD48536465C5064E50528F /* FilePreviewIndentation.swift in Sources */,
 				C0DE8652000000000000000B /* FilePreviewLatestLoadCoordinator.swift in Sources */,
 				C0DE8652000000000000000D /* FilePreviewLatestRequestState.swift in Sources */,
+				F721F75DF95095A035F38F19 /* FilePreviewLineCommentToken.swift in Sources */,
+				CE6A93412D27ED2B131D83A1 /* FilePreviewLineLocator.swift in Sources */,
 					C01E00050000000000000001 /* FilePreviewLineNumberGutterView.swift in Sources */,
 				A5001447A5001447A5001447 /* FilePreviewMagnifyingPDFView.swift in Sources */,
 				287C15EFC945CE9D560600E3 /* FilePreviewMediaSession.swift in Sources */,
@@ -14351,10 +14379,12 @@
 					C01E00040000000000000001 /* FilePreviewSyntaxStyler.swift in Sources */,
 				C0DE97470000000000000001 /* FilePreviewTabMetadata.swift in Sources */,
 				C0DE97470000000000000003 /* FilePreviewTabMetadataHost.swift in Sources */,
+				36F362F317993E77D8C82BCE /* FilePreviewTextEditing.swift in Sources */,
 				D0B10016A1B2C3D4E5F60001 /* FilePreviewTextEditor.swift in Sources */,
 				0EA7EC478B6600AD4BDDB053 /* FilePreviewTextSaver.swift in Sources */,
 				DDB55536A403FB051DA28DFC /* FilePreviewTextSaveResult.swift in Sources */,
 				C0DE86520000000000000113 /* FilePreviewViewport.swift in Sources */,
+				1D6EF98A52BEB27CC9077DD5 /* FilePreviewWordCompletion.swift in Sources */,
 				F12748000000000000000007 /* FilePreviewWordWrapMenu.swift in Sources */,
 					F11E52270000000000005227 /* FilePreviewWordWrapSettings.swift in Sources */,
 				A5001445A5001445A5001445 /* FilePreviewWorkspaceOpenSupport.swift in Sources */,
@@ -14913,6 +14943,7 @@
 				FE003105 /* RovoDevIndex.swift in Sources */,
 				FE003107 /* RovoDevTranscriptPreview.swift in Sources */,
 				C0DE1A020000000000000001 /* SavedLayoutStore.swift in Sources */,
+				FBE7D3D265F472D638C9BFE4 /* SavingTextView+EditingActions.swift in Sources */,
 				F12748000000000000000003 /* SavingTextView+WordWrapShortcut.swift in Sources */,
 				E8BA79E246754A8B99A0B823 /* ScreenIdentity.swift in Sources */,
 				D1F0A00600000000000000F1 /* ScreenLockObserver.swift in Sources */,
@@ -16792,6 +16823,7 @@
 				C0DE86520000000000000001 /* FilePreviewReloadTests.swift in Sources */,
 				C0DE31390000000000000103 /* FilePreviewReviewFeedbackTests.swift in Sources */,
 				C01E00090000000000000001 /* FilePreviewSyntaxTestSupport.swift in Sources */,
+				27887B945659872F4695464A /* FilePreviewTextEditingTests.swift in Sources */,
 				C0DEFC100000000000000001 /* FilePreviewTextEditorTextKitTests.swift in Sources */,
 				FE002103 /* FileSearchRipgrepParserTests.swift in Sources */,
 				EABD4BDC792CECBB04751AD3 /* FilesPanelPlacementTests.swift in Sources */,

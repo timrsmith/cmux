@@ -8213,8 +8213,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         return result
     }
 
+    /// Find and Replace: the focused file editor's replace bar; any other
+    /// panel falls back to plain Find through the same routes as `.find`.
     @discardableResult
-    func performFindShortcutInActiveMainWindow(preferredWindow: NSWindow? = nil) -> Bool {
+    func performFindAndReplaceShortcut(event: NSEvent) -> Bool {
+        let shortcutWindow = resolvedShortcutEventWindow(event)
+        if let textView = shortcutFocusedSavingTextView(in: shortcutWindow ?? shortcutRoutingKeyWindow) {
+            return textView.showFilePreviewFindInterface(replace: true)
+        }
+        if performFocusedDockShortcut(.startFind, action: .findAndReplace, event: event) {
+            return true
+        }
+        cmuxRememberFindSelectionBeforePanelFocusMove(tabManager: tabManager, window: shortcutWindow ?? shortcutRoutingKeyWindow)
+        return performFindShortcutInActiveMainWindow(preferredWindow: shortcutWindow, replace: true)
+    }
+
+    @discardableResult
+    func performFindShortcutInActiveMainWindow(preferredWindow: NSWindow? = nil, replace: Bool = false) -> Bool {
         let context = preferredRegisteredMainWindowContext(preferredWindow: preferredWindow)
 
         guard let context else {
@@ -8257,7 +8272,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         case .rightSidebarFileSearch:
             result = context.keyboardFocusCoordinator.focusFileSearch()
         case .mainPanelFind:
-            result = context.tabManager.startSearch()
+            result = context.tabManager.startSearch(replace: replace)
         case .none:
             return false
         }
@@ -15163,6 +15178,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             }
             let shortcutWindow = resolvedShortcutEventWindow(event)
             cmuxRememberFindSelectionBeforePanelFocusMove(tabManager: tabManager, window: shortcutWindow ?? shortcutRoutingKeyWindow); return performFindShortcutInActiveMainWindow(preferredWindow: shortcutWindow)
+        }
+        if matchConfiguredShortcut(event: event, action: .findAndReplace) {
+            return performFindAndReplaceShortcut(event: event)
         }
 
         // Keep keyboard routing deterministic after split close/reparent transitions:

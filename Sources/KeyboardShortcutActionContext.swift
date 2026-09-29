@@ -266,7 +266,7 @@ extension KeyboardShortcutSettings.Action {
             return .browserPanel
         case .browserZoomIn, .browserZoomOut, .browserZoomReset:
             return .browserOrFilePreviewTextEditor
-        case .toggleFileEditorWordWrap:
+        case .toggleFileEditorWordWrap, .goToLine, .toggleLineComment, .moveLineUp, .moveLineDown, .duplicateLine, .deleteLine, .completeWord:
             return .filePreviewTextEditor
         case .markdownZoomIn, .markdownZoomOut, .markdownZoomReset:
             return .markdownPanel

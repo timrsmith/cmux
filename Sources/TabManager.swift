@@ -935,10 +935,13 @@ class TabManager: ObservableObject {
 
     var canUseSelectionForFind: Bool {
         selectedTerminalPanel?.hasSelection() == true
+            || (focusedTextEditingPanel?.textView?.selectedRange().length ?? 0) > 0
     }
 
+    /// `replace` asks a native text editor for its find-and-replace bar;
+    /// every other panel kind shows its plain find UI.
     @discardableResult
-    func startSearch() -> Bool {
+    func startSearch(replace: Bool = false) -> Bool {
         if let panel = selectedTerminalPanel {
             let hadExistingSearch = panel.searchState != nil
             panel.hostedView.preparePanelFocusIntentForActivation(.findField)
@@ -970,7 +973,7 @@ class TabManager: ObservableObject {
         // own find bar; the shortcut never reaches the text view's responder
         // chain because cmux owns Cmd+F.
         if let editingPanel = focusedTextEditingPanel {
-            return editingPanel.startTextFind()
+            return editingPanel.startTextFind(replace: replace)
         }
         guard let markdownPanel = focusedMarkdownPanel else { return false }
         markdownPanel.startFind()
@@ -978,7 +981,10 @@ class TabManager: ObservableObject {
     }
 
     func searchSelection() {
-        guard let panel = selectedTerminalPanel else { return }
+        guard let panel = selectedTerminalPanel else {
+            focusedTextEditingPanel?.performTextFinderAction(.setSearchString)
+            return
+        }
         if panel.searchState == nil {
             panel.searchState = TerminalSurface.SearchState()
         }
@@ -1002,6 +1008,10 @@ class TabManager: ObservableObject {
             browserPanel.findNext()
             return
         }
+        if let editingPanel = focusedTextEditingPanel {
+            editingPanel.performTextFinderAction(.nextMatch)
+            return
+        }
         focusedMarkdownPanel?.findNext()
     }
 
@@ -1015,7 +1025,20 @@ class TabManager: ObservableObject {
             browserPanel.findPrevious()
             return
         }
+        if let editingPanel = focusedTextEditingPanel {
+            editingPanel.performTextFinderAction(.previousMatch)
+            return
+        }
         focusedMarkdownPanel?.findPrevious()
+    }
+
+    /// Runs a file-editor command (Go to Line, Toggle Line Comment, Move,
+    /// Duplicate, Delete Line, Complete Word) on the focused text editor,
+    /// the same path its keyboard shortcut takes inside the editor.
+    @discardableResult
+    func performFocusedTextEditorAction(_ action: KeyboardShortcutSettings.Action) -> Bool {
+        guard let textView = focusedTextEditingPanel?.textView as? SavingTextView else { return false }
+        return textView.performFilePreviewEditorAction(action)
     }
 
     @discardableResult
@@ -1128,6 +1151,10 @@ class TabManager: ObservableObject {
 
         if let browserPanel = focusedBrowserPanel {
             browserPanel.hideFind()
+            return
+        }
+        if let editingPanel = focusedTextEditingPanel {
+            editingPanel.performTextFinderAction(.hideFindInterface)
             return
         }
         focusedMarkdownPanel?.hideFind()

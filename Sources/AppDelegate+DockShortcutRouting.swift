@@ -60,7 +60,7 @@ extension KeyboardShortcutSettings.Action {
              .equalizeSplits,
              .splitBrowserRight, .splitBrowserDown,
              .openBrowser, .focusBrowserAddressBar,
-             .find, .findNext, .findPrevious, .hideFind,
+             .find, .findAndReplace, .findNext, .findPrevious, .hideFind,
              .useSelectionForFind,
              .toggleReactGrab:
             .dockScoped
@@ -72,6 +72,7 @@ extension KeyboardShortcutSettings.Action {
              .fileExplorerOpenSelectionFinderAlias,
              .saveFilePreview,
              .toggleFileEditorWordWrap,
+             .goToLine, .toggleLineComment, .moveLineUp, .moveLineDown, .duplicateLine, .deleteLine, .completeWord,
              .browserBack, .browserForward,
              .browserReload, .browserHardReload,
              .browserZoomIn, .browserZoomOut, .browserZoomReset,

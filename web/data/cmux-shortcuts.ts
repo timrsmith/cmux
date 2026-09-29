@@ -378,6 +378,48 @@ export const shortcutCategories: ShortcutCategory[] = [
         description: {"en": "Toggle File Editor Word Wrap", "ja": "ファイルエディタの行折り返しを切り替え", "de": "Zeilenumbruch im Dateieditor umschalten", "fr": "Activer ou désactiver le retour à la ligne de l’éditeur de fichiers", "ar": "تبديل التفاف الكلمات في محرر الملفات", "es": "Alternar el ajuste de línea del editor de archivos", "zh-TW": "切換檔案編輯器自動換行", "zh-CN": "切换文件编辑器自动换行", "ko": "파일 편집기 자동 줄 바꿈 전환", "bs": "Uključi ili isključi prelamanje redova u uređivaču datoteka", "da": "Slå linjeombrydning i fileditoren til eller fra", "it": "Attiva o disattiva il ritorno a capo nell’editor di file", "km": "បិទឬបើកការរុំបន្ទាត់ក្នុងកម្មវិធីកែសម្រួលឯកសារ", "no": "Slå linjebryting i filredigereren av eller på", "pl": "Przełącz zawijanie wierszy w edytorze plików", "pt-BR": "Alternar quebra de linha no editor de arquivos", "ru": "Переключить перенос строк в редакторе файлов", "th": "สลับการตัดบรรทัดในตัวแก้ไขไฟล์", "tr": "Dosya düzenleyicisinde sözcük kaydırmayı değiştir", "uk": "Перемкнути перенесення рядків у редакторі файлів"},
         note: {"en": "focused file editor", "ja": "フォーカス中のファイルエディタ", "de": "fokussierter Dateieditor", "fr": "éditeur de fichiers actif", "ar": "محرر الملفات المركّز", "es": "editor de archivos enfocado", "zh-TW": "焦點所在的檔案編輯器", "zh-CN": "焦点所在的文件编辑器", "ko": "포커스된 파일 편집기", "bs": "fokusirani uređivač datoteka", "da": "fokuseret fileditor", "it": "editor di file attivo", "km": "កម្មវិធីកែសម្រួលឯកសារដែលកំពុងផ្តោត", "no": "fokusert filredigerer", "pl": "aktywny edytor plików", "pt-BR": "editor de arquivos em foco", "ru": "редактор файлов в фокусе", "th": "ตัวแก้ไขไฟล์ที่โฟกัสอยู่", "tr": "odaktaki dosya düzenleyicisi", "uk": "редактор файлів у фокусі"},
       },
+      {
+        id: "goToLine",
+        combos: [["⌃", "⌘", "L"]],
+        description: {"en": "Go to Line…", "ja": "行へ移動…", "de": "Gehe zu Zeile …", "fr": "Aller à la ligne…", "ar": "الانتقال إلى السطر…", "es": "Ir a la línea…", "zh-TW": "前往行…", "zh-CN": "转到行…", "ko": "줄로 이동…"},
+        note: {"en": "focused file editor", "ja": "フォーカス中のファイルエディタ", "de": "fokussierter Dateieditor", "fr": "éditeur de fichiers actif", "ar": "محرر الملفات المركّز", "es": "editor de archivos enfocado", "zh-TW": "焦點所在的檔案編輯器", "zh-CN": "焦点所在的文件编辑器", "ko": "포커스된 파일 편집기"},
+      },
+      {
+        id: "toggleLineComment",
+        combos: [["⌘", "/"]],
+        description: {"en": "Toggle Line Comment", "ja": "行コメントを切り替え", "de": "Zeilenkommentar umschalten", "fr": "Activer ou désactiver le commentaire de ligne", "ar": "تبديل تعليق السطر", "es": "Alternar comentario de línea", "zh-TW": "切換行註解", "zh-CN": "切换行注释", "ko": "줄 주석 전환"},
+        note: {"en": "focused file editor", "ja": "フォーカス中のファイルエディタ", "de": "fokussierter Dateieditor", "fr": "éditeur de fichiers actif", "ar": "محرر الملفات المركّز", "es": "editor de archivos enfocado", "zh-TW": "焦點所在的檔案編輯器", "zh-CN": "焦点所在的文件编辑器", "ko": "포커스된 파일 편집기"},
+      },
+      {
+        id: "moveLineUp",
+        combos: [["⌥", "↑"]],
+        description: {"en": "Move Line Up", "ja": "行を上へ移動", "de": "Zeile nach oben verschieben", "fr": "Déplacer la ligne vers le haut", "ar": "نقل السطر لأعلى", "es": "Mover línea hacia arriba", "zh-TW": "上移一行", "zh-CN": "上移一行", "ko": "줄 위로 이동"},
+        note: {"en": "focused file editor", "ja": "フォーカス中のファイルエディタ", "de": "fokussierter Dateieditor", "fr": "éditeur de fichiers actif", "ar": "محرر الملفات المركّز", "es": "editor de archivos enfocado", "zh-TW": "焦點所在的檔案編輯器", "zh-CN": "焦点所在的文件编辑器", "ko": "포커스된 파일 편집기"},
+      },
+      {
+        id: "moveLineDown",
+        combos: [["⌥", "↓"]],
+        description: {"en": "Move Line Down", "ja": "行を下へ移動", "de": "Zeile nach unten verschieben", "fr": "Déplacer la ligne vers le bas", "ar": "نقل السطر لأسفل", "es": "Mover línea hacia abajo", "zh-TW": "下移一行", "zh-CN": "下移一行", "ko": "줄 아래로 이동"},
+        note: {"en": "focused file editor", "ja": "フォーカス中のファイルエディタ", "de": "fokussierter Dateieditor", "fr": "éditeur de fichiers actif", "ar": "محرر الملفات المركّز", "es": "editor de archivos enfocado", "zh-TW": "焦點所在的檔案編輯器", "zh-CN": "焦点所在的文件编辑器", "ko": "포커스된 파일 편집기"},
+      },
+      {
+        id: "duplicateLine",
+        combos: [["⇧", "⌥", "↓"]],
+        description: {"en": "Duplicate Line", "ja": "行を複製", "de": "Zeile duplizieren", "fr": "Dupliquer la ligne", "ar": "تكرار السطر", "es": "Duplicar línea", "zh-TW": "複製行", "zh-CN": "复制行", "ko": "줄 복제"},
+        note: {"en": "focused file editor", "ja": "フォーカス中のファイルエディタ", "de": "fokussierter Dateieditor", "fr": "éditeur de fichiers actif", "ar": "محرر الملفات المركّز", "es": "editor de archivos enfocado", "zh-TW": "焦點所在的檔案編輯器", "zh-CN": "焦点所在的文件编辑器", "ko": "포커스된 파일 편집기"},
+      },
+      {
+        id: "deleteLine",
+        combos: [["⌃", "⌘", "K"]],
+        description: {"en": "Delete Line", "ja": "行を削除", "de": "Zeile löschen", "fr": "Supprimer la ligne", "ar": "حذف السطر", "es": "Eliminar línea", "zh-TW": "刪除行", "zh-CN": "删除行", "ko": "줄 삭제"},
+        note: {"en": "focused file editor", "ja": "フォーカス中のファイルエディタ", "de": "fokussierter Dateieditor", "fr": "éditeur de fichiers actif", "ar": "محرر الملفات المركّز", "es": "editor de archivos enfocado", "zh-TW": "焦點所在的檔案編輯器", "zh-CN": "焦点所在的文件编辑器", "ko": "포커스된 파일 편집기"},
+      },
+      {
+        id: "completeWord",
+        combos: [["⌃", "Space"]],
+        description: {"en": "Complete Word", "ja": "単語を補完", "de": "Wort vervollständigen", "fr": "Compléter le mot", "ar": "إكمال الكلمة", "es": "Completar palabra", "zh-TW": "自動完成單字", "zh-CN": "补全单词", "ko": "단어 완성"},
+        note: {"en": "focused file editor", "ja": "フォーカス中のファイルエディタ", "de": "fokussierter Dateieditor", "fr": "éditeur de fichiers actif", "ar": "محرر الملفات المركّز", "es": "editor de archivos enfocado", "zh-TW": "焦點所在的檔案編輯器", "zh-CN": "焦点所在的文件编辑器", "ko": "포커스된 파일 편집기"},
+      },
     ],
   },
   {
@@ -637,6 +679,7 @@ export const shortcutCategories: ShortcutCategory[] = [
     titleKey: "find",
     shortcuts: [
       { id: "find", combos: [["⌘", "F"]], description: { en: "Find", ja: "検索" } },
+      { id: "findAndReplace", combos: [["⌥", "⌘", "R"]], description: {"en": "Find and Replace…", "ja": "検索と置換…", "de": "Suchen und Ersetzen …", "fr": "Rechercher et remplacer…", "ar": "بحث واستبدال…", "es": "Buscar y reemplazar…", "zh-TW": "尋找並取代…", "zh-CN": "查找并替换…", "ko": "찾기 및 바꾸기…"}, note: {"en": "replace bar in the focused file editor; plain Find elsewhere", "ja": "フォーカス中のファイルエディタでは置換バー、それ以外では通常の検索", "de": "Ersetzen-Leiste im fokussierten Dateieditor; sonst normale Suche", "fr": "barre de remplacement dans l’éditeur de fichiers actif ; recherche simple ailleurs", "ar": "شريط الاستبدال في محرر الملفات المركّز؛ بحث عادي في غيره", "es": "barra de reemplazo en el editor de archivos enfocado; búsqueda normal en el resto", "zh-TW": "焦點所在的檔案編輯器顯示取代列，其他位置為一般尋找", "zh-CN": "焦点所在的文件编辑器显示替换栏，其他位置为普通查找", "ko": "포커스된 파일 편집기에서는 바꾸기 막대, 그 외에는 일반 찾기"} },
       { id: "findInDirectory", combos: [["⌘", "⇧", "F"]], description: { en: "Find in directory", ja: "ディレクトリ内を検索" } },
       { id: "findNext", combos: [["⌘", "G"]], description: { en: "Find next", ja: "次を検索" } },
       { id: "findPrevious", combos: [["⌥", "⌘", "G"]], description: { en: "Find previous", ja: "前を検索" } },
