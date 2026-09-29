@@ -173,6 +173,7 @@ extension CmuxSettingsFileStore {
         "fileEditor.indentGuides",
         "fileEditor.currentLineHighlight",
         "fileEditor.tabWidth",
+        "fileEditor.terminalEditorCommand",
         "fileExplorer.doubleClickAction",
         "shortcuts.bindings",
         "shortcuts.showModifierHoldHints",

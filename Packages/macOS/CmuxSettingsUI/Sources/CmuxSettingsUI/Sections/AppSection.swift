@@ -51,6 +51,8 @@ public struct AppSection: View {
     @State private var fileEditorIndentGuides: DefaultsValueModel<Bool>
     @State private var fileEditorCurrentLineHighlight: DefaultsValueModel<Bool>
     @State private var fileEditorTabWidth: DefaultsValueModel<Int>
+    @State private var fileEditorTerminalEditorCommand: DefaultsValueModel<String>
+    @State private var fileExplorerDoubleClickAction: DefaultsValueModel<FileExplorerDoubleClickAction>
     @State private var iMessage: DefaultsValueModel<Bool>
     @State private var reorder: DefaultsValueModel<WorkspaceAutoReorderMode>
     @State private var dockBadge: DefaultsValueModel<Bool>
@@ -137,6 +139,8 @@ public struct AppSection: View {
         _fileEditorIndentGuides = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.fileEditor.indentGuides))
         _fileEditorCurrentLineHighlight = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.fileEditor.currentLineHighlight))
         _fileEditorTabWidth = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.fileEditor.tabWidth))
+        _fileEditorTerminalEditorCommand = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.fileEditor.terminalEditorCommand))
+        _fileExplorerDoubleClickAction = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.fileExplorer.doubleClickAction))
         _iMessage = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.app.iMessageMode))
         _reorder = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.app.reorderOnNotification))
         _dockBadge = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.notifications.dockBadge))
@@ -187,7 +191,7 @@ public struct AppSection: View {
             AppChannelSwitchCard(hostActions: hostActions)
         }
         .task {
-            startSettingsObservation([language, appearance, accentColor, accentColorCustomHex, appIcon, placement, inheritDir, minimalMode, keepWorkspaceOpen, firstClick, focusHistoryIncludesPanesAndTabs, equalizeSplitsOnCreate, fileDrop, preferredEditor, openSupported, openMarkdown, globalFontMagnification, markdownFontSize, markdownFontFamily, markdownMaxWidth, canvasPaneGap, canvasSnapping, fileEditorWordWrap, fileEditorSyntaxHighlighting, fileEditorLineNumbers, fileEditorIndentGuides, fileEditorCurrentLineHighlight, fileEditorTabWidth, iMessage, reorder, dockBadge, menuBarOnly, showInMenuBar, paneRing, paneFlash, desktopNotifications, agentPermissionPrompt, agentTurnComplete, agentIdleReminder, soundName, soundWhenFocused, soundCommand, customSoundFile, soundOverrides, telemetry, confirmQuit, warnCloseTab, warnCloseX, warnCloseWorkspace, warnCloseWindow, hideCloseButton, renameSelects, paletteAllSurfaces])
+            startSettingsObservation([language, appearance, accentColor, accentColorCustomHex, appIcon, placement, inheritDir, minimalMode, keepWorkspaceOpen, firstClick, focusHistoryIncludesPanesAndTabs, equalizeSplitsOnCreate, fileDrop, preferredEditor, openSupported, openMarkdown, globalFontMagnification, markdownFontSize, markdownFontFamily, markdownMaxWidth, canvasPaneGap, canvasSnapping, fileEditorWordWrap, fileEditorSyntaxHighlighting, fileEditorLineNumbers, fileEditorIndentGuides, fileEditorCurrentLineHighlight, fileEditorTabWidth, fileExplorerDoubleClickAction, fileEditorTerminalEditorCommand, iMessage, reorder, dockBadge, menuBarOnly, showInMenuBar, paneRing, paneFlash, desktopNotifications, agentPermissionPrompt, agentTurnComplete, agentIdleReminder, soundName, soundWhenFocused, soundCommand, customSoundFile, soundOverrides, telemetry, confirmQuit, warnCloseTab, warnCloseX, warnCloseWorkspace, warnCloseWindow, hideCloseButton, renameSelects, paletteAllSurfaces])
             await soundAgentCache.loadIfNeeded { await hostActions.notificationSoundAgentOptions() }
             if languageAtAppear == nil { languageAtAppear = language.current }; if telemetryAtAppear == nil { telemetryAtAppear = telemetry.current }
         }
@@ -694,6 +698,40 @@ public struct AppSection: View {
                     String(localized: "settings.app.fileEditorTabWidth", defaultValue: "File Editor Tab Width")
                 )
                 .accessibilityIdentifier("SettingsFileEditorTabWidthStepper")
+            }
+            SettingsCardDivider()
+
+            // Open Files From Tree (fileExplorer.doubleClickAction). The same
+            // choice is on the Files header's Editor submenu; both write this key.
+            SettingsCardRow(
+                configurationReview: .json("fileExplorer.doubleClickAction"),
+                String(localized: "settings.fileExplorer.doubleClickAction", defaultValue: "Open Files From Tree In"),
+                subtitle: String(localized: "settings.fileExplorer.doubleClickAction.subtitle", defaultValue: "Where a file opens when activated in the file tree, the right sidebar, or a diff viewer. Terminal Editor runs the command below in a terminal in cmux.")
+            ) {
+                Picker("", selection: Binding(get: { fileExplorerDoubleClickAction.current }, set: { fileExplorerDoubleClickAction.set($0) })) {
+                    ForEach(FileExplorerDoubleClickAction.allCases, id: \.self) { option in
+                        Text(option.localizedTitle).tag(option)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("SettingsFileExplorerDoubleClickActionPicker")
+            }
+            SettingsCardDivider()
+
+            // Terminal Editor (fileEditor.terminalEditorCommand)
+            SettingsCardRow(
+                configurationReview: .json("fileEditor.terminalEditorCommand"),
+                String(localized: "settings.fileEditor.terminalEditorCommand", defaultValue: "Terminal Editor"),
+                subtitle: String(localized: "settings.fileEditor.terminalEditorCommand.subtitle", defaultValue: "Command run in a cmux terminal when Terminal Editor is chosen, followed by the file path. Leave empty to use $VISUAL, then $EDITOR, then vi.")
+            ) {
+                TextField(
+                    String(localized: "settings.fileEditor.terminalEditorCommand.placeholder", defaultValue: "$EDITOR"),
+                    text: Binding(get: { fileEditorTerminalEditorCommand.current }, set: { fileEditorTerminalEditorCommand.set($0) })
+                )
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 200)
+                .accessibilityIdentifier("SettingsFileEditorTerminalEditorCommandField")
             }
             SettingsCardDivider()
 

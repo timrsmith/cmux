@@ -51,6 +51,11 @@ extension CmuxSettingsFileStore {
         } else if section.keys.contains("tabWidth") {
             logInvalid("fileEditor.tabWidth", sourcePath: sourcePath)
         }
+        if let value = jsonString(section["terminalEditorCommand"]) {
+            snapshot.managedUserDefaults[fileEditorSettings.catalog.terminalEditorCommand.userDefaultsKey] = .string(value)
+        } else if section.keys.contains("terminalEditorCommand") {
+            logInvalid("fileEditor.terminalEditorCommand", sourcePath: sourcePath)
+        }
     }
 
     private func parseFileEditorBool(

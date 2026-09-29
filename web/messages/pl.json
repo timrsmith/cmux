@@ -1409,7 +1409,7 @@
         },
         "fileExplorer": {
           "description": "Ustawienia eksploratora plików (drzewa plików) w prawym pasku bocznym.",
-          "doubleClickAction": "Określa, co robi dwukrotne kliknięcie pliku w eksploratorze plików (albo naciśnięcie Return na wyniku wyszukiwania). `preview` otwiera wbudowany podgląd pliku cmux (domyślne i dotychczasowe zachowanie). `defaultEditor` otwiera plik w domyślnej aplikacji macOS dla tego typu pliku. `preferredEditor` otwiera za pomocą polecenia `app.preferredEditor`, a gdy nie jest ono ustawione, wraca do domyślnej aplikacji. Dotyczy tylko plików; katalogi zawsze się rozwijają/zwijają, a nielokalne (zdalne) eksploratory plików zawsze otwierają podgląd cmux."
+          "doubleClickAction": "Co otwiera aktywacja pliku: dwuklik lub Return w eksploratorze plików, podgląd pliku w prawym pasku bocznym oraz „Otwórz w cmux” w podglądzie różnic. `preview` otwiera wbudowany edytor cmux (domyślne i dotychczasowe zachowanie). `terminalEditor` otwiera w cmux terminal uruchamiający `fileEditor.terminalEditorCommand` (w przeciwnym razie `$VISUAL`, `$EDITOR`, `vi`) na pliku. `defaultEditor` otwiera domyślną aplikacją macOS dla typu pliku. `preferredEditor` otwiera poleceniem `app.preferredEditor`, a gdy nie jest ustawione, domyślną aplikacją. Dotyczy tylko plików; katalogi zawsze się rozwijają/zwijają, a nielokalne (zdalne) eksploratory zawsze otwierają podgląd cmux."
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."
@@ -1424,7 +1424,8 @@
           "lineNumbers": "Numeruje każdy wiersz w kolumnie obok tekstu we wbudowanym edytorze plików.",
           "indentGuides": "Oznacza każdy poziom wcięcia cienką pionową linią we wbudowanym edytorze plików.",
           "currentLineHighlight": "Podświetla kolorem wiersz z kursorem tekstowym, gdy nic nie jest zaznaczone.",
-          "tabWidth": "Liczba kolumn, jaką obejmuje jeden tabulator. Linie wcięć używają tego samego odstępu."
+          "tabWidth": "Liczba kolumn, jaką obejmuje jeden tabulator. Linie wcięć używają tego samego odstępu.",
+          "terminalEditorCommand": "Polecenie uruchamiane w terminalu cmux, gdy `fileExplorer.doubleClickAction` to `terminalEditor`, z dołączoną bezwzględną ścieżką pliku w cudzysłowie powłoki. Puste używa `$VISUAL`, potem `$EDITOR`, potem `vi`."
         }
       },
       "exampleMarkdownFontSize": "Default body font size (points) for newly opened markdown viewers.",

@@ -228,6 +228,7 @@ Built-in text editor settings used by text file previews.
 | `fileEditor.indentGuides` | boolean | `true` | Draw vertical indent guides in the built-in file editor. |
 | `fileEditor.currentLineHighlight` | boolean | `true` | Highlight the caret's line when the selection is empty. |
 | `fileEditor.tabWidth` | integer (1–8) | `4` | Columns per tab stop for indent guides. |
+| `fileEditor.terminalEditorCommand` | string | `""` | Command run in a cmux terminal when `fileExplorer.doubleClickAction` is `terminalEditor`, followed by the shell-quoted absolute file path. Empty uses `$VISUAL`, then `$EDITOR`, then `vi`. |
 
 ## fileExplorer
 
@@ -235,7 +236,7 @@ Right-sidebar file explorer routing for file previews.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `fileExplorer.doubleClickAction` | `"preview"` or `"defaultEditor"` or `"preferredEditor"` | `"preview"` | What double-clicking a file in the file explorer does. `preview` opens the built-in cmux file preview; the editor choices use the macOS default app or `app.preferredEditor`. |
+| `fileExplorer.doubleClickAction` | `"preview"` or `"terminalEditor"` or `"defaultEditor"` or `"preferredEditor"` | `"preview"` | What activating a file in the file tree, the right sidebar, or a diff viewer opens. `preview` is the built-in cmux editor; `terminalEditor` runs `fileEditor.terminalEditorCommand` (else `$VISUAL`, `$EDITOR`, `vi`) in a cmux terminal; the other choices use the macOS default app or `app.preferredEditor`. |
 
 ## diffViewer
 

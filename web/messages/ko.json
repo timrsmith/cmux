@@ -1408,7 +1408,7 @@
         },
         "fileExplorer": {
           "description": "오른쪽 사이드바 파일 탐색기(파일 트리) 설정입니다.",
-          "doubleClickAction": "파일 탐색기에서 파일을 더블클릭(또는 검색 결과에서 Return 키 입력)했을 때의 동작을 설정합니다. `preview`는 cmux 내장 파일 미리보기(기본값이자 기존 동작)를 엽니다. `defaultEditor`는 파일 형식의 macOS 기본 앱으로 엽니다. `preferredEditor`는 `app.preferredEditor` 명령으로 열고, 설정되지 않은 경우 기본 앱으로 대체합니다. 이 설정은 파일에만 적용되며, 디렉터리는 항상 펼치기/접기 동작을 하고, 로컬이 아닌(원격) 파일 탐색기는 항상 cmux 미리보기를 엽니다."
+          "doubleClickAction": "파일을 활성화할 때 여는 것: 파일 탐색기의 더블 클릭이나 Return, 오른쪽 사이드바의 파일 미리보기, diff 뷰어의 \"cmux에서 열기\"에 적용됩니다. `preview`는 내장 cmux 편집기로 엽니다(기본값이자 기존 동작). `terminalEditor`는 cmux 안에서 `fileEditor.terminalEditorCommand`(없으면 `$VISUAL`, `$EDITOR`, `vi`)로 파일을 여는 터미널을 엽니다. `defaultEditor`는 파일 형식의 macOS 기본 앱으로 엽니다. `preferredEditor`는 `app.preferredEditor` 명령으로 열고, 설정이 없으면 기본 앱으로 대체합니다. 파일에만 적용되며 디렉터리는 항상 펼치기/접기이고, 로컬이 아닌(원격) 파일 탐색기는 항상 cmux 미리보기를 엽니다."
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."
@@ -1423,7 +1423,8 @@
           "lineNumbers": "내장 파일 편집기에서 본문 옆 열에 각 줄의 번호를 표시합니다.",
           "indentGuides": "내장 파일 편집기에서 들여쓰기 수준마다 얇은 세로선을 표시합니다.",
           "currentLineHighlight": "아무것도 선택하지 않았을 때 캐럿이 있는 줄에 색을 입힙니다.",
-          "tabWidth": "탭 정지 하나가 차지하는 열 수입니다. 들여쓰기 가이드도 같은 간격을 사용합니다."
+          "tabWidth": "탭 정지 하나가 차지하는 열 수입니다. 들여쓰기 가이드도 같은 간격을 사용합니다.",
+          "terminalEditorCommand": "`fileExplorer.doubleClickAction`이 `terminalEditor`일 때 cmux 터미널에서 실행하는 명령으로, 뒤에 셸 인용된 파일의 절대 경로가 붙습니다. 비어 있으면 `$VISUAL`, 그다음 `$EDITOR`, 그다음 `vi`를 사용합니다."
         }
       },
       "exampleMarkdownFontSize": "Default body font size (points) for newly opened markdown viewers.",

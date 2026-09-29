@@ -258,6 +258,7 @@ extension CmuxSettingsFileStore {
                     "indentGuides": fileEditorSettings.catalog.indentGuides.defaultValue,
                     "currentLineHighlight": fileEditorSettings.catalog.currentLineHighlight.defaultValue,
                     "tabWidth": fileEditorSettings.catalog.tabWidth.defaultValue,
+                    "terminalEditorCommand": fileEditorSettings.catalog.terminalEditorCommand.defaultValue,
                 ],
             ],
             [

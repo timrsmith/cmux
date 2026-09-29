@@ -1975,6 +1975,12 @@ enum CmuxEmbeddedConfigSchema {
           "maximum": 8,
           "description": "Columns per tab stop for indent guides.",
           "descriptionKey": "schemaDescriptions.fileEditor.tabWidth"
+        },
+        "terminalEditorCommand": {
+          "type": "string",
+          "default": "",
+          "description": "Command run in a cmux terminal when `fileExplorer.doubleClickAction` is `terminalEditor`, followed by the shell-quoted absolute file path. Empty uses `$VISUAL`, then `$EDITOR`, then `vi`.",
+          "descriptionKey": "schemaDescriptions.fileEditor.terminalEditorCommand"
         }
       }
     },
@@ -1988,9 +1994,9 @@ enum CmuxEmbeddedConfigSchema {
       "properties": {
         "doubleClickAction": {
           "type": "string",
-          "enum": ["preview", "defaultEditor", "preferredEditor"],
+          "enum": ["preview", "terminalEditor", "defaultEditor", "preferredEditor"],
           "default": "preview",
-          "description": "What double-clicking (or pressing Return on a search result for) a file in the file explorer does. `preview` opens the built-in cmux file preview (the default and historical behavior). `defaultEditor` opens with the macOS default app for the file type. `preferredEditor` opens with the `app.preferredEditor` command, falling back to the default app when none is set. Only applies to files; directories always expand/collapse, and non-local (remote) file explorers always open the cmux preview.",
+          "description": "What activating a file opens: a double-click or Return in the file explorer, the right sidebar's file preview, and the diff viewer's Open in cmux. `preview` opens the built-in cmux editor (the default and historical behavior). `terminalEditor` opens a terminal in cmux running `fileEditor.terminalEditorCommand` (else `$VISUAL`, `$EDITOR`, `vi`) on the file. `defaultEditor` opens with the macOS default app for the file type. `preferredEditor` opens with the `app.preferredEditor` command, falling back to the default app when none is set. Only applies to files; directories always expand/collapse, and non-local (remote) file explorers always open the cmux preview.",
           "descriptionKey": "schemaDescriptions.fileExplorer.doubleClickAction"
         }
       }

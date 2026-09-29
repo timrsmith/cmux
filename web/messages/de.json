@@ -1408,7 +1408,7 @@
         },
         "fileExplorer": {
           "description": "Einstellungen für den Datei-Explorer (Dateibaum) in der rechten Seitenleiste.",
-          "doubleClickAction": "Legt fest, was ein Doppelklick auf eine Datei im Dateiexplorer bewirkt (oder Return bei einem Suchergebnis). `preview` öffnet die integrierte cmux-Dateivorschau (Standard und bisheriges Verhalten). `defaultEditor` öffnet die Datei mit der macOS-Standard-App für diesen Dateityp. `preferredEditor` öffnet mit dem Befehl `app.preferredEditor` und fällt auf die Standard-App zurück, wenn keiner gesetzt ist. Gilt nur für Dateien; Verzeichnisse werden immer ein-/ausgeklappt, und nicht-lokale (Remote-)Dateiexplorer öffnen immer die cmux-Vorschau."
+          "doubleClickAction": "Was das Aktivieren einer Datei öffnet: Doppelklick oder Return im Datei-Explorer, die Dateivorschau der rechten Seitenleiste und „In cmux öffnen“ im Diff-Viewer. `preview` öffnet den integrierten cmux-Editor (Standard und bisheriges Verhalten). `terminalEditor` öffnet ein Terminal in cmux, das `fileEditor.terminalEditorCommand` (sonst `$VISUAL`, `$EDITOR`, `vi`) mit der Datei ausführt. `defaultEditor` öffnet mit der macOS-Standard-App für den Dateityp. `preferredEditor` öffnet mit dem Befehl `app.preferredEditor` und fällt auf die Standard-App zurück, wenn keiner gesetzt ist. Gilt nur für Dateien; Ordner werden immer auf- und zugeklappt, und nicht lokale (entfernte) Datei-Explorer öffnen immer die cmux-Vorschau."
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."
@@ -1423,7 +1423,8 @@
           "lineNumbers": "Nummeriert jede Zeile in einer Spalte neben dem Text des integrierten Dateieditors.",
           "indentGuides": "Markiert jede Einrückungsebene im integrierten Dateieditor mit einer dünnen senkrechten Linie.",
           "currentLineHighlight": "Hebt die Zeile mit dem Textcursor farbig hervor, solange nichts ausgewählt ist.",
-          "tabWidth": "Wie viele Spalten ein Tabstopp umfasst. Die Einrückungshilfslinien verwenden denselben Abstand."
+          "tabWidth": "Wie viele Spalten ein Tabstopp umfasst. Die Einrückungshilfslinien verwenden denselben Abstand.",
+          "terminalEditorCommand": "Befehl, der in einem cmux-Terminal ausgeführt wird, wenn `fileExplorer.doubleClickAction` auf `terminalEditor` steht, gefolgt vom shell-gequoteten absoluten Dateipfad. Leer verwendet `$VISUAL`, dann `$EDITOR`, dann `vi`."
         }
       },
       "exampleMarkdownFontSize": "Default body font size (points) for newly opened markdown viewers.",

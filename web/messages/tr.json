@@ -1408,7 +1408,7 @@
         },
         "fileExplorer": {
           "description": "Sağ kenar çubuğundaki dosya gezgini (dosya ağacı) ayarları.",
-          "doubleClickAction": "Dosya gezgininde bir dosyaya çift tıklamanın (veya bir arama sonucunda Return tuşuna basmanın) ne yapacağını belirler. `preview`, yerleşik cmux dosya önizlemesini açar (varsayılan ve geçmiş davranış). `defaultEditor`, dosya türü için macOS varsayılan uygulamasıyla açar. `preferredEditor`, `app.preferredEditor` komutuyla açar; ayarlı değilse varsayılan uygulamaya geri döner. Yalnızca dosyalar için geçerlidir; dizinler her zaman genişletilir/daraltılır ve yerel olmayan (uzak) dosya gezginleri her zaman cmux önizlemesini açar."
+          "doubleClickAction": "Bir dosyayı etkinleştirmenin ne açtığı: dosya gezgininde çift tıklama veya Return, sağ kenar çubuğundaki dosya önizlemesi ve diff görüntüleyicideki “cmux'ta Aç”. `preview` yerleşik cmux düzenleyicisini açar (varsayılan ve önceki davranış). `terminalEditor` cmux içinde `fileEditor.terminalEditorCommand` (yoksa `$VISUAL`, `$EDITOR`, `vi`) komutunu dosyayla çalıştıran bir terminal açar. `defaultEditor` dosya türü için macOS varsayılan uygulamasıyla açar. `preferredEditor` `app.preferredEditor` komutuyla açar; ayarlanmamışsa varsayılan uygulamaya döner. Yalnızca dosyalar için geçerlidir; dizinler her zaman genişler/daralır ve yerel olmayan (uzak) dosya gezginleri her zaman cmux önizlemesini açar."
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."
@@ -1423,7 +1423,8 @@
           "lineNumbers": "Yerleşik dosya düzenleyicide metnin yanındaki bir sütunda her satırı numaralandırır.",
           "indentGuides": "Yerleşik dosya düzenleyicide her girinti düzeyini ince bir dikey çizgiyle işaretler.",
           "currentLineHighlight": "Hiçbir şey seçili değilken metin imlecinin bulunduğu satırı renklendirir.",
-          "tabWidth": "Bir sekme durağının kaç sütun kapladığı. Girinti kılavuzları da aynı aralığı kullanır."
+          "tabWidth": "Bir sekme durağının kaç sütun kapladığı. Girinti kılavuzları da aynı aralığı kullanır.",
+          "terminalEditorCommand": "`fileExplorer.doubleClickAction` `terminalEditor` olduğunda bir cmux terminalinde çalıştırılan komut; ardından kabuk için tırnaklanmış mutlak dosya yolu gelir. Boşsa `$VISUAL`, sonra `$EDITOR`, sonra `vi` kullanılır."
         }
       },
       "exampleMarkdownFontSize": "Default body font size (points) for newly opened markdown viewers.",

@@ -1408,7 +1408,7 @@
         },
         "fileExplorer": {
           "description": "Indstillinger for filoversigten (filtræet) i højre sidepanel.",
-          "doubleClickAction": "Bestemmer, hvad der sker, når du dobbeltklikker (eller trykker Return på et søgeresultat for) en fil i filoversigten. `preview` åbner den indbyggede cmux-filvisning (standard og historisk adfærd). `defaultEditor` åbner med macOS-standardappen for filtypen. `preferredEditor` åbner med kommandoen `app.preferredEditor` og falder tilbage til standardappen, når den ikke er sat. Gælder kun filer; mapper udvides/skjules altid, og ikke-lokale (eksterne) filoversigter åbner altid cmux-forhåndsvisningen."
+          "doubleClickAction": "Hvad aktivering af en fil åbner: dobbeltklik eller Retur i filbrowseren, filforhåndsvisningen i højre sidepanel og \"Åbn i cmux\" i diff-viseren. `preview` åbner den indbyggede cmux-editor (standard og hidtidig adfærd). `terminalEditor` åbner en terminal i cmux, der kører `fileEditor.terminalEditorCommand` (ellers `$VISUAL`, `$EDITOR`, `vi`) på filen. `defaultEditor` åbner med macOS' standardapp til filtypen. `preferredEditor` åbner med kommandoen `app.preferredEditor` og falder tilbage til standardappen, når ingen er sat. Gælder kun filer; mapper udvides/skjules altid, og ikke-lokale (fjerne) filbrowsere åbner altid cmux-forhåndsvisningen."
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."
@@ -1423,7 +1423,8 @@
           "lineNumbers": "Nummerér hver linje i en kolonne ved siden af teksten i den indbyggede fileditor.",
           "indentGuides": "Markér hvert indrykningsniveau med en tynd lodret linje i den indbyggede fileditor.",
           "currentLineHighlight": "Farv den linje, hvor markøren står, når intet er markeret.",
-          "tabWidth": "Hvor mange kolonner ét tabulatorstop fylder. Indrykningslinjerne bruger samme afstand."
+          "tabWidth": "Hvor mange kolonner ét tabulatorstop fylder. Indrykningslinjerne bruger samme afstand.",
+          "terminalEditorCommand": "Kommando, der køres i en cmux-terminal, når `fileExplorer.doubleClickAction` er `terminalEditor`, efterfulgt af den shell-citerede absolutte filsti. Tom bruger `$VISUAL`, derefter `$EDITOR`, derefter `vi`."
         }
       },
       "exampleMarkdownFontSize": "Default body font size (points) for newly opened markdown viewers.",

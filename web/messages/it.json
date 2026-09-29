@@ -1408,7 +1408,7 @@
         },
         "fileExplorer": {
           "description": "Impostazioni dell’esplora file (albero dei file) nella barra laterale destra.",
-          "doubleClickAction": "Definisce cosa succede quando fai doppio clic (o premi Return su un risultato di ricerca) su un file nell’esplora file. `preview` apre l’anteprima file integrata di cmux (comportamento predefinito e storico). `defaultEditor` apre il file con l’app macOS predefinita per quel tipo di file. `preferredEditor` apre con il comando `app.preferredEditor`, ricadendo sull’app predefinita quando non è impostato. Si applica solo ai file; le cartelle si espandono/chiudono sempre e gli esplora file non locali (remoti) aprono sempre l’anteprima di cmux."
+          "doubleClickAction": "Cosa apre l'attivazione di un file: doppio clic o Invio nell'esplora file, l'anteprima file della barra laterale destra e «Apri in cmux» del visualizzatore diff. `preview` apre l'editor integrato di cmux (comportamento predefinito e storico). `terminalEditor` apre un terminale in cmux che esegue `fileEditor.terminalEditorCommand` (altrimenti `$VISUAL`, `$EDITOR`, `vi`) sul file. `defaultEditor` apre con l'app predefinita di macOS per quel tipo di file. `preferredEditor` apre con il comando `app.preferredEditor`, ripiegando sull'app predefinita se non è impostato. Vale solo per i file; le cartelle si espandono/comprimono sempre e gli esplora file non locali (remoti) aprono sempre l'anteprima cmux."
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."
@@ -1423,7 +1423,8 @@
           "lineNumbers": "Numera ogni riga in una colonna accanto al testo dell’editor di file integrato.",
           "indentGuides": "Segna ogni livello di rientro con una sottile linea verticale nell’editor di file integrato.",
           "currentLineHighlight": "Colora la riga che contiene il cursore di testo quando non è selezionato nulla.",
-          "tabWidth": "Quante colonne occupa una tabulazione. Le guide di rientro usano la stessa spaziatura."
+          "tabWidth": "Quante colonne occupa una tabulazione. Le guide di rientro usano la stessa spaziatura.",
+          "terminalEditorCommand": "Comando eseguito in un terminale cmux quando `fileExplorer.doubleClickAction` è `terminalEditor`, seguito dal percorso assoluto del file quotato per la shell. Vuoto usa `$VISUAL`, poi `$EDITOR`, poi `vi`."
         }
       },
       "exampleMarkdownFontSize": "Default body font size (points) for newly opened markdown viewers.",

@@ -63,6 +63,18 @@ public struct FileEditorCatalogSection: SettingCatalogSection {
         userDefaultsKey: "fileEditor.tabWidth"
     )
 
+    /// The command that opens a file in a terminal surface when the file tree's
+    /// activation is ``FileExplorerDoubleClickAction/terminalEditor``.
+    ///
+    /// Empty (the default) defers to the process environment: `$VISUAL`, then
+    /// `$EDITOR`, then `vi`. The shell-quoted absolute file path is appended
+    /// as the command's last argument.
+    public let terminalEditorCommand = DefaultsKey<String>(
+        id: "fileEditor.terminalEditorCommand",
+        defaultValue: "",
+        userDefaultsKey: "fileEditor.terminalEditorCommand"
+    )
+
     /// Creates the file editor settings section with its default keys.
     public init() {}
 }
