@@ -2108,6 +2108,7 @@
 		A5001445A5001445A5001445 /* FilePreviewWorkspaceOpenSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5001444A5001444A5001444 /* FilePreviewWorkspaceOpenSupport.swift */; };
 		FE002103 /* FileSearchRipgrepParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE002003 /* FileSearchRipgrepParserTests.swift */; };
 		CFSF00000000000000000005 /* FileSearchScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFSR00000000000000000005 /* FileSearchScope.swift */; };
+		F52E500591EC8B2722047BF9 /* FilesPanelHeaderMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4CFF7A4EC355F4F840B51C8 /* FilesPanelHeaderMenu.swift */; };
 		6C7F1DE2D38146AFB7129D84 /* FilesPanelPlacementLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5345F62D0F6FB0CEE8963356 /* FilesPanelPlacementLayout.swift */; };
 		EABD4BDC792CECBB04751AD3 /* FilesPanelPlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF070650B6A1C26FFDC2679E /* FilesPanelPlacementTests.swift */; };
 		5673BF08AFA8FFEF7B71DFA6 /* FilesPanelStackedLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0614D9368EC8D7117FFF2A /* FilesPanelStackedLayout.swift */; };
@@ -6512,6 +6513,7 @@
 		A5001444A5001444A5001444 /* FilePreviewWorkspaceOpenSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewWorkspaceOpenSupport.swift; sourceTree = "<group>"; };
 		FE002003 /* FileSearchRipgrepParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSearchRipgrepParserTests.swift; sourceTree = "<group>"; };
 		CFSR00000000000000000005 /* FileSearchScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSearchScope.swift; sourceTree = "<group>"; };
+		E4CFF7A4EC355F4F840B51C8 /* FilesPanelHeaderMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesPanelHeaderMenu.swift; sourceTree = "<group>"; };
 		5345F62D0F6FB0CEE8963356 /* FilesPanelPlacementLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesPanelPlacementLayout.swift; sourceTree = "<group>"; };
 		EF070650B6A1C26FFDC2679E /* FilesPanelPlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FilesPanelPlacementTests.swift"; sourceTree = "<group>"; };
 		2F0614D9368EC8D7117FFF2A /* FilesPanelStackedLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesPanelStackedLayout.swift; sourceTree = "<group>"; };
@@ -11884,6 +11886,7 @@
 				FEBA15A523D9A9AEF6CAC773 /* StackedFilesPanelSplit.swift */,
 				DED4FEFAEE05022F3946451B /* GitStatusWatchRelevance.swift */,
 				5F149EFED0D496B230DCB8ED /* Workspace+FileOpen.swift */,
+				E4CFF7A4EC355F4F840B51C8 /* FilesPanelHeaderMenu.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -15233,6 +15236,7 @@
 					F11E52270000000000005227 /* FilePreviewWordWrapSettings.swift in Sources */,
 				A5001445A5001445A5001445 /* FilePreviewWorkspaceOpenSupport.swift in Sources */,
 				CFSF00000000000000000005 /* FileSearchScope.swift in Sources */,
+				F52E500591EC8B2722047BF9 /* FilesPanelHeaderMenu.swift in Sources */,
 				6C7F1DE2D38146AFB7129D84 /* FilesPanelPlacementLayout.swift in Sources */,
 				5673BF08AFA8FFEF7B71DFA6 /* FilesPanelStackedLayout.swift in Sources */,
 				1C7340CBAC3ECDCFECD11D6B /* FilesPanelView.swift in Sources */,

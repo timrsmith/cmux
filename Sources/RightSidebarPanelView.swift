@@ -285,6 +285,9 @@ struct RightSidebarPanelView: View {
                 .coordinateSpace(.named(RightSidebarModeBarDragController.coordinateSpace))
                 .layoutPriority(1)
                 Spacer(minLength: 0)
+                if fileExplorerState.mode == .files {
+                    FilesPanelHeaderMenu()
+                }
                 if fileExplorerState.mode.canOpenAsPane, fileExplorerState.mode.isAvailable() {
                     openAsPaneButton(mode: fileExplorerState.mode)
                 }

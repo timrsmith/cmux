@@ -87,6 +87,7 @@ struct FilesPanelView: View {
                 .allowsHitTesting(false)
                 .accessibilityIdentifier("FilesPanel.title")
                 Spacer(minLength: 0)
+                FilesPanelHeaderMenu()
                 openAsPaneButton
                 closeButton
             }
