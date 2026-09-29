@@ -1476,7 +1476,7 @@ final class CMUXOpenCommandTests: XCTestCase {
         XCTAssertTrue(branch.html.contains("other-repo"), branch.html)
         XCTAssertTrue(branch.html.contains("\"label\":\"Unstaged\""), branch.html)
         XCTAssertTrue(branch.html.contains("\"label\":\"Staged\""), branch.html)
-        XCTAssertTrue(branch.html.contains("\"label\":\"Branch\""), branch.html)
+        XCTAssertTrue(branch.html.contains("\"label\":\"Branch vs base\""), branch.html)
         XCTAssertTrue(branch.html.contains("\"label\":\"Last turn\""), branch.html)
         assertNoANSIEscape(branch.html)
 
