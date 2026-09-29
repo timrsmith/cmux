@@ -1138,6 +1138,10 @@ final class CMUXOpenCommandTests: XCTestCase {
         try runGit(["add", "story.txt"], in: repoURL)
         try runGit(["commit", "-m", "initial"], in: repoURL)
         try "one\ntwo\n".write(to: fileURL, atomically: true, encoding: .utf8)
+        // A sibling repository `cmux diff` would offer in its repo picker.
+        let siblingRepoURL = rootURL.appendingPathComponent("other-repo", isDirectory: true)
+        try FileManager.default.createDirectory(at: siblingRepoURL, withIntermediateDirectories: true)
+        try runGit(["init"], in: siblingRepoURL)
 
         // The right sidebar's Changes panel drives this verb; it must never
         // reach browser.open_split (the mock server fails any request).
@@ -1167,6 +1171,16 @@ final class CMUXOpenCommandTests: XCTestCase {
         let page = try XCTUnwrap(files.first { ($0["request_path"] as? String) == url.path }, result.stdout)
         let pagePath = try XCTUnwrap(page["file_path"] as? String)
         XCTAssertTrue(FileManager.default.fileExists(atPath: pagePath))
+        // The panel follows the workspace's directory, so the page offers no
+        // repository picker (a single candidate emits no options), unlike
+        // `cmux diff`, which would also list the sibling other-repo.
+        let pagePayload = try diffViewerPayload(from: try String(contentsOfFile: pagePath, encoding: .utf8))
+        let repoOptions = try XCTUnwrap(pagePayload["repoOptions"] as? [[String: Any]], result.stdout)
+        XCTAssertTrue(repoOptions.isEmpty, "\(repoOptions)")
+        XCTAssertEqual(
+            URL(fileURLWithPath: try XCTUnwrap(pagePayload["repoRoot"] as? String)).resolvingSymlinksInPath(),
+            repoURL.resolvingSymlinksInPath()
+        )
     }
 
     func testDiffCommandShowsFriendlyEmptyStateWhenEveryGitSourceIsEmpty() throws {

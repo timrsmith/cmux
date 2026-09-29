@@ -75,10 +75,10 @@ body {
      the implicit `auto` track sizes to content max-width, letting #content
      (and its files sidebar) overflow the window and clip on the right. */
   grid-template-columns: minmax(0, 1fr);
-  /* Optional repository header, toolbar, content: the repo and its actions
-     first, file navigation second, then the diffs. Each child pins its own
-     row so the header can be absent without pushing #content into an
-     implicit zero-height row; an empty `auto` row costs no height. */
+  /* Repository header (working-tree views) or toolbar (every other
+     session), then content. Each child pins its own row so whichever top row
+     is absent never pushes #content into an implicit zero-height row; an
+     empty `auto` row costs no height. */
   grid-template-rows: auto auto minmax(0, 1fr);
   overflow: hidden;
   overscroll-behavior: contain;
@@ -127,13 +127,6 @@ body {
   background: var(--cmux-diff-toolbar-bg);
   color: color-mix(in lab, var(--cmux-diff-fg) 76%, var(--cmux-diff-bg));
   z-index: 50;
-}
-/* On working-tree views the repository header hosts the source/repo/base
-   pickers (`data-hosts-source="false"`), leaving this bar the jump select and
-   the icon actions: a single row at every width, so the 760px stacking below
-   is scoped to the bar that still hosts the pickers. */
-#toolbar[data-hosts-source="false"] {
-  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
 }
 /* Sidebar visible (and wide enough that it is not media-auto-hidden at <=520px):
    the JumpSelect duplicates the sidebar, so collapse the centered middle track
@@ -568,20 +561,20 @@ body {
   background: color-mix(in lab, var(--cmux-diff-accent) 16%, transparent);
 }
 @media (max-width: 760px) {
-  #toolbar[data-hosts-source="true"] {
+  #toolbar {
     grid-template-columns: minmax(0, 1fr) minmax(0, auto);
     grid-template-areas:
       "source actions"
       "jump actions";
   }
-  #toolbar[data-hosts-source="true"] .toolbar-left {
+  .toolbar-left {
     grid-area: source;
   }
-  #toolbar[data-hosts-source="true"] .toolbar-middle {
+  .toolbar-middle {
     grid-area: jump;
     justify-content: stretch;
   }
-  #toolbar[data-hosts-source="true"] .toolbar-actions {
+  .toolbar-actions {
     grid-area: actions;
   }
 }
@@ -1630,11 +1623,11 @@ body[data-loading="true"] #status::before {
   color: color-mix(in lab, #ff5f56 70%, var(--cmux-diff-fg));
 }
 
-/* Repository header (working-tree views): the source/repo/base pickers, then
-   `branch · N files +A -D · position`, and the split button + "..." on the
-   right. It sits directly above the toolbar and shares its background; the
-   toolbar draws the block's single bottom border. Its menus and popovers drop
-   over the toolbar, so it stacks above the toolbar's z-index (50). */
+/* Repository header (working-tree views), the view's single top row in
+   place of the toolbar: the source/repo/base pickers, then
+   `branch · N files +A -D · position`, and on the right the split button,
+   the files-list toggle, and the one "..." menu (repo actions + view
+   options). */
 #repo-header {
   position: relative;
   flex: 0 0 auto;
@@ -1642,13 +1635,14 @@ body[data-loading="true"] #status::before {
   align-items: flex-start;
   justify-content: space-between;
   gap: 4px 10px;
-  min-height: 30px;
-  padding: 4px 8px 1px;
+  min-height: 32px;
+  padding: 4px 8px 3px;
+  border-bottom: 1px solid var(--cmux-diff-border);
   background: var(--cmux-diff-toolbar-bg);
   color: color-mix(in lab, var(--cmux-diff-fg) 76%, var(--cmux-diff-bg));
   font-family: var(--cmux-diff-ui-font-family);
   font-size: 12px;
-  z-index: 55;
+  z-index: 45;
 }
 /* The summary shrinks (min-width:0, no min-content floor) and wraps inside
    itself, so the pickers and the actions always share the first line while

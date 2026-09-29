@@ -34,40 +34,25 @@ describe("app shell grid", () => {
     expect(declaration("#app > #content", "grid-row")).toBe("3");
   });
 
-  test("the toolbar is a single row when the repository header hosts the pickers", () => {
-    // The two-row stacking at narrow widths applies only to a bar that still
-    // hosts the source controls; without them the bar keeps two columns.
-    expect(
-      declaration(
-        '#toolbar[data-hosts-source="false"]',
-        "grid-template-columns",
-      ),
-    ).toBe("minmax(0, 1fr) minmax(0, auto)");
-    // The 760px block (up to its closing brace at column 0) scopes every rule
-    // to the bar that hosts the pickers.
+  test("the toolbar keeps its two-row stacking at narrow widths for the sessions that render it", () => {
+    // Working-tree views render the header instead of the toolbar, so the
+    // toolbar never needs a header-mode variant: no host-dependent selector.
+    expect(css).not.toContain("data-hosts-source");
     const narrow = /@media \(max-width: 760px\) \{([\s\S]*?)\n\}/.exec(
       css,
     )?.[1];
     expect(narrow).toBeDefined();
-    expect(narrow).toMatch(
-      /#toolbar\[data-hosts-source="true"\]\s*\{[^}]*grid-template-areas:/s,
-    );
-    expect(narrow).not.toMatch(/\n\s*#toolbar\s*\{/);
-    expect(narrow).not.toMatch(/\n\s*\.toolbar-(left|middle|actions)\s*\{/);
+    expect(narrow).toMatch(/\n\s*#toolbar\s*\{[^}]*grid-template-areas:/s);
   });
 
-  test("the header and toolbar read as one block with one bottom border", () => {
-    expect(declaration("#repo-header", "border-bottom")).toBeUndefined();
-    expect(declaration("#repo-header", "background")).toBe(
-      "var(--cmux-diff-toolbar-bg)",
-    );
-    expect(declaration("#toolbar", "border-bottom")).toBe(
-      "1px solid var(--cmux-diff-border)",
-    );
-    // The header's menus and popovers drop over the toolbar, so the header
-    // stacks above it.
-    expect(Number(declaration("#repo-header", "z-index"))).toBeGreaterThan(
-      Number(declaration("#toolbar", "z-index")),
-    );
+  test("whichever top row renders draws the block's bottom border on the same background", () => {
+    for (const row of ["#repo-header", "#toolbar"]) {
+      expect(declaration(row, "border-bottom")).toBe(
+        "1px solid var(--cmux-diff-border)",
+      );
+      expect(declaration(row, "background")).toBe(
+        "var(--cmux-diff-toolbar-bg)",
+      );
+    }
   });
 });

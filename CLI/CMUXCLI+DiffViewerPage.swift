@@ -54,7 +54,8 @@ extension CMUXCLI {
             surfaceId: nil,
             sessionId: nil,
             repoRoot: repoRoot,
-            branchBaseRef: nil
+            branchBaseRef: nil,
+            restrictsRepositoryOptionsToSelected: true
         )
         let workspaceRaw = parsedArgs.workspace ?? ProcessInfo.processInfo.environment["CMUX_WORKSPACE_ID"]
         if let workspaceHandle = normalizedDiffSourceValue(workspaceRaw) {

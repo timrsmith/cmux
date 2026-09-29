@@ -194,6 +194,11 @@ extension CMUXCLI {
         var sessionId: String?
         var repoRoot: String?
         var branchBaseRef: String?
+        /// Offer only the selected repository in the viewer's repo picker and
+        /// its sidecar allow-list. The docked Changes panel follows the
+        /// workspace's working directory, so sibling and nested repositories
+        /// that `cmux diff` lists for convenience would only be noise there.
+        var restrictsRepositoryOptionsToSelected = false
     }
 
     struct DiffViewerWriteResult {
@@ -5542,6 +5547,14 @@ extension CMUXCLI {
         selectedRepoRoot: String,
         context: DiffSourceContext
     ) -> [DiffViewerRepoOption] {
+        if context.restrictsRepositoryOptionsToSelected {
+            return [
+                DiffViewerRepoOption(
+                    repoRoot: selectedRepoRoot,
+                    label: gitDiffViewerRepoLabel(selectedRepoRoot, selectedRepoRoot: selectedRepoRoot)
+                ),
+            ]
+        }
         let selectedURL = URL(fileURLWithPath: selectedRepoRoot, isDirectory: true).standardizedFileURL
         var candidateURLs: [URL] = [selectedURL]
         let parentURL = selectedURL.deletingLastPathComponent()

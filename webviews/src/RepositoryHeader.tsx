@@ -30,8 +30,11 @@ import {
  * Repository header for working-tree views: the source/repo/base pickers
  * (passed in by the App, which renders them from exactly one host), then
  * `<branch> · N files +A -D · position`, and the primary split button
- * (Commit, with Push and Create PR/MR in its menu) plus a "..." overflow for
- * whole-session actions. When the payload offers no repo select, the plain
+ * (Commit, with Push and Create PR/MR in its menu), the files-list toggle,
+ * and the view's one "..." menu: whole-session repo actions, then every view
+ * option the toolbar menu offers (shared `ViewOptionsMenuItems`), then copy
+ * and refresh. This header is the view's only top row; the toolbar does not
+ * render alongside it. When the payload offers no repo select, the plain
  * abbreviated repo label precedes the branch so the view still names its
  * repository. Menus and popovers are clusters of native buttons toggled with
  * `aria-expanded`/`aria-controls` and dismissed on outside click or Escape;
@@ -59,6 +62,7 @@ type OpenMenu = "commit" | "overflow" | null;
 
 export function RepositoryHeader({
   commit,
+  files,
   label,
   model,
   notice,
@@ -73,8 +77,11 @@ export function RepositoryHeader({
   source,
   sourceControls,
   status,
+  viewOptions,
 }: {
   commit: CommitControl;
+  /** The files-list toggle: the file column is how this view navigates files. */
+  files: { visible: boolean; onToggle: () => void };
   label: DiffViewerLabelResolver;
   model: RepositoryHeaderModel;
   notice: WorktreeNotice | null;
@@ -91,6 +98,8 @@ export function RepositoryHeader({
   /** The source/repo/base pickers, hosted here instead of in the toolbar. */
   sourceControls: React.ReactNode;
   status: RepositoryStatus | null;
+  /** The shared view options (`ViewOptionsMenuItems`) for the "..." menu. */
+  viewOptions: React.ReactNode;
 }) {
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
@@ -221,6 +230,17 @@ export function RepositoryHeader({
           </button>
         </span>
         <button
+          id="files-toggle"
+          className="toolbar-icon"
+          type="button"
+          title={files.visible ? label("hideFiles") : label("showFiles")}
+          aria-label={files.visible ? label("hideFiles") : label("showFiles")}
+          aria-pressed={files.visible}
+          onClick={files.onToggle}
+        >
+          <Icon name="files" />
+        </button>
+        <button
           id="repo-overflow-button"
           type="button"
           className="toolbar-icon"
@@ -291,6 +311,9 @@ export function RepositoryHeader({
               onClick={() => runFromMenu(() => onBulkAction(stageAction))}
             />
           ) : null}
+          <div className="menu-separator" />
+          {/* View options stay open on toggle, like the toolbar menu does. */}
+          {viewOptions}
           <div className="menu-separator" />
           <HeaderMenuButton
             icon="clipboard"
