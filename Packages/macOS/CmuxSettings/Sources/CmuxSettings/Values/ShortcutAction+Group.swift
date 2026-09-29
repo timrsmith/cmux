@@ -47,7 +47,9 @@ extension ShortcutAction {
              .simulatorHome, .simulatorRotateLeft, .simulatorRotateRight,
              .simulatorToggleAppearance, .simulatorToggleSoftwareKeyboard:
             return .panes
-        case .openDiffViewer, .saveFilePreview, .toggleFileEditorWordWrap, .openBrowser, .focusBrowserAddressBar,
+        case .openDiffViewer, .saveFilePreview, .toggleFileEditorWordWrap,
+             .findAndReplace, .goToLine, .toggleLineComment, .moveLineUp, .moveLineDown, .duplicateLine, .deleteLine, .completeWord,
+             .openBrowser, .focusBrowserAddressBar,
              .browserBack, .browserForward, .browserReload, .browserHardReload,
              .browserZoomIn, .browserZoomOut, .browserZoomReset,
              .markdownZoomIn, .markdownZoomOut, .markdownZoomReset,

@@ -202,6 +202,12 @@ enum KeyboardShortcutSettings {
 
         // Panels
         case saveFilePreview, toggleFileEditorWordWrap
+        case findAndReplace
+        case goToLine
+        case toggleLineComment
+        case moveLineUp, moveLineDown
+        case duplicateLine, deleteLine
+        case completeWord
         case openBrowser
         case focusBrowserAddressBar
         case browserBack, browserForward, browserReload
@@ -376,6 +382,14 @@ enum KeyboardShortcutSettings {
             case .fileExplorerOpenSelectionFinderAlias: return String(localized: "shortcut.fileExplorerOpenSelectionFinderAlias.label", defaultValue: "File Explorer: Open Selection (Finder Alias)")
             case .saveFilePreview: return String(localized: "shortcut.saveFilePreview.label", defaultValue: "Save File Preview")
             case .toggleFileEditorWordWrap: return String(localized: "shortcut.toggleFileEditorWordWrap.label", defaultValue: "Toggle File Editor Word Wrap")
+            case .findAndReplace: return String(localized: "shortcut.findAndReplace.label", defaultValue: "Find and Replace…")
+            case .goToLine: return String(localized: "shortcut.goToLine.label", defaultValue: "Go to Line…")
+            case .toggleLineComment: return String(localized: "shortcut.toggleLineComment.label", defaultValue: "Toggle Line Comment")
+            case .moveLineUp: return String(localized: "shortcut.moveLineUp.label", defaultValue: "Move Line Up")
+            case .moveLineDown: return String(localized: "shortcut.moveLineDown.label", defaultValue: "Move Line Down")
+            case .duplicateLine: return String(localized: "shortcut.duplicateLine.label", defaultValue: "Duplicate Line")
+            case .deleteLine: return String(localized: "shortcut.deleteLine.label", defaultValue: "Delete Line")
+            case .completeWord: return String(localized: "shortcut.completeWord.label", defaultValue: "Complete Word")
             case .openBrowser: return String(localized: "shortcut.openBrowser.label", defaultValue: "Open Browser")
             case .focusBrowserAddressBar: return String(localized: "command.browserFocusAddressBar.title", defaultValue: "Focus Address Bar")
             case .browserBack: return String(localized: "menu.view.back", defaultValue: "Back")
@@ -671,6 +685,27 @@ enum KeyboardShortcutSettings {
             case .saveFilePreview:
                 return StoredShortcut(key: "s", command: true, shift: false, option: false, control: false)
             case .toggleFileEditorWordWrap: return StoredShortcut(key: "z", command: false, shift: false, option: true, control: false)
+            case .findAndReplace:
+                // Option+Cmd+R: Option+Cmd+F (the Xcode chord) is Global Search, and
+                // Ctrl+Cmd+F is Toggle Full Screen. "R for Replace" stays free everywhere.
+                return StoredShortcut(key: "r", command: true, shift: false, option: true, control: false)
+            case .goToLine:
+                // Ctrl+Cmd+L: Cmd+L is the browser address bar and Cmd+Shift+L opens a browser.
+                return StoredShortcut(key: "l", command: true, shift: false, option: false, control: true)
+            case .toggleLineComment:
+                return StoredShortcut(key: "/", command: true, shift: false, option: false, control: false)
+            case .moveLineUp:
+                return StoredShortcut(key: "↑", command: false, shift: false, option: true, control: false)
+            case .moveLineDown:
+                return StoredShortcut(key: "↓", command: false, shift: false, option: true, control: false)
+            case .duplicateLine:
+                return StoredShortcut(key: "↓", command: false, shift: true, option: true, control: false)
+            case .deleteLine:
+                // Ctrl+Cmd+K: Cmd+Shift+K clears the terminal screen and Ctrl+Shift+K
+                // resizes panes, so the editor keeps the "K" mnemonic on the free tier.
+                return StoredShortcut(key: "k", command: true, shift: false, option: false, control: true)
+            case .completeWord:
+                return StoredShortcut(key: " ", command: false, shift: false, option: false, control: true)
             case .openBrowser:
                 return StoredShortcut(key: "l", command: true, shift: true, option: false, control: false)
             case .focusBrowserAddressBar:

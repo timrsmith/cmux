@@ -23,20 +23,31 @@ extension FilePreviewTextEditingPanel {
     var textContentRevision: Int { 0 }
 
     /// Shows the editor's find bar: the same "Find…" the terminal, browser,
-    /// and markdown panels answer through `TabManager.startSearch()`. The
-    /// text view takes first responder so typing goes to the search field.
-    /// Returns `false` when no editor is attached to a window (an image or
-    /// PDF preview, or a panel that is not on screen).
+    /// and markdown panels answer through `TabManager.startSearch()`, or its
+    /// replace variant for "Find and Replace…". The text view takes first
+    /// responder so typing goes to the search field. Returns `false` when no
+    /// editor is attached to a window (an image or PDF preview, or a panel
+    /// that is not on screen).
     @discardableResult
-    func startTextFind() -> Bool {
+    func startTextFind(replace: Bool = false) -> Bool {
         guard let textView, let window = textView.window else { return false }
         if window.firstResponder !== textView {
             window.makeFirstResponder(textView)
         }
-        let sender = NSMenuItem()
-        sender.tag = NSTextFinder.Action.showFindInterface.rawValue
-        textView.performTextFinderAction(sender)
+        textView.performFilePreviewTextFinderAction(
+            replace && textView.isEditable ? .showReplaceInterface : .showFindInterface
+        )
         return textView.enclosingScrollView?.isFindBarVisible ?? false
+    }
+
+    /// Find Next, Find Previous, Use Selection for Find, and Hide Find on the
+    /// attached editor. Returns `false` when no editor is in a window, so
+    /// `TabManager` can fall through to the other panel kinds.
+    @discardableResult
+    func performTextFinderAction(_ action: NSTextFinder.Action) -> Bool {
+        guard let textView, textView.window != nil else { return false }
+        textView.performFilePreviewTextFinderAction(action)
+        return true
     }
 }
 
@@ -87,6 +98,7 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         }
         textView.drawsBackground = drawsBackground
         textView.string = panel.textContent
+        textView.filePreviewLineCommentToken = Self.lineCommentToken(forFilePath: filePath)
         context.coordinator.lastAppliedContentRevision = panel.textContentRevision
         context.coordinator.isHighlightingVisible = isVisibleInUI
         panel.attachTextView(textView)
@@ -138,6 +150,7 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         context.coordinator.panel = panel
         context.coordinator.panelIdentity = panelIdentity
         textView.panel = panel
+        textView.filePreviewLineCommentToken = Self.lineCommentToken(forFilePath: filePath)
         textView.applyFilePreviewTextEditorInsets()
         textView.applyFilePreviewWordWrap(wordWrap, scrollView: scrollView)
         panel.attachTextView(textView)
@@ -186,6 +199,16 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
             context.coordinator.cancelHighlight()
         }
         Self.refreshChrome(on: scrollView, textView: textView)
+    }
+
+    /// The comment leader for `filePath`, from the same language table the
+    /// syntax highlighter resolves.
+    static func lineCommentToken(forFilePath filePath: String) -> FilePreviewLineCommentToken {
+        let url = URL(fileURLWithPath: filePath)
+        return FilePreviewLineCommentToken(
+            language: LanguageCatalog().language(for: url),
+            fileName: url.lastPathComponent
+        )
     }
 
     static func applyTheme(
@@ -432,6 +455,7 @@ extension SavingTextView {
         textView.usesFindBar = true
         textView.isIncrementalSearchingEnabled = true
         textView.usesFontPanel = false
+        textView.applyFilePreviewCodeInputPolicy()
         textView.applyCurrentPreviewFont()
         textView.minSize = NSSize(width: 0, height: 0)
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
@@ -443,6 +467,29 @@ extension SavingTextView {
     }
 }
 
+
+extension NSTextView {
+    /// Turns off the prose conveniences AppKit enables on a fresh
+    /// `NSTextView` that corrupt source code: smart quotes and dashes, text
+    /// replacement, spelling correction, data and link detection, and the
+    /// automatic completion popup. Spell checking stays off as well; word
+    /// completion is explicit (`completeWord`, or AppKit's Option-Escape).
+    func applyFilePreviewCodeInputPolicy() {
+        isAutomaticQuoteSubstitutionEnabled = false
+        isAutomaticDashSubstitutionEnabled = false
+        isAutomaticTextReplacementEnabled = false
+        isAutomaticSpellingCorrectionEnabled = false
+        isAutomaticDataDetectionEnabled = false
+        isAutomaticLinkDetectionEnabled = false
+        isAutomaticTextCompletionEnabled = false
+        isContinuousSpellCheckingEnabled = false
+        isGrammarCheckingEnabled = false
+        smartInsertDeleteEnabled = false
+        if #available(macOS 14.0, *) {
+            inlinePredictionType = .no
+        }
+    }
+}
 
 final class SavingTextView: NSTextView {
     private static let defaultPreviewFontSize: CGFloat = 13
@@ -463,6 +510,10 @@ final class SavingTextView: NSTextView {
     var onPreviewFontDidChange: (() -> Void)?
     var appliedFilePreviewTabWidth: Int?
     var appliedFilePreviewTabStopInterval: CGFloat?
+    /// Line-comment leader for the file being edited; the coordinator sets it
+    /// from the highlighter's language for the panel's path.
+    var filePreviewLineCommentToken = FilePreviewLineCommentToken(language: nil)
+    var filePreviewGoToLinePopover: FilePreviewGoToLinePopover?
     private var previewFontSize: CGFloat = 13
     private var pendingEditorShortcutChordPrefix: ShortcutStroke?
     private var fontMagnificationObserver: GlobalFontMagnificationChangeObserver?
@@ -521,6 +572,36 @@ final class SavingTextView: NSTextView {
             return true
         }
         return super.performKeyEquivalent(with: event)
+    }
+
+    override func insertNewline(_ sender: Any?) {
+        if !handleFilePreviewNewline() {
+            super.insertNewline(sender)
+        }
+    }
+
+    override func insertTab(_ sender: Any?) {
+        if !handleFilePreviewTab() {
+            super.insertTab(sender)
+        }
+    }
+
+    override func insertBacktab(_ sender: Any?) {
+        if !handleFilePreviewBacktab() {
+            super.insertBacktab(sender)
+        }
+    }
+
+    override var rangeForUserCompletion: NSRange {
+        filePreviewRangeForUserCompletion()
+    }
+
+    override func completions(
+        forPartialWordRange charRange: NSRange,
+        indexOfSelectedItem index: UnsafeMutablePointer<Int>
+    ) -> [String]? {
+        index.pointee = 0
+        return filePreviewCompletions(forPartialWordRange: charRange)
     }
 
     override func magnify(with event: NSEvent) {
@@ -650,7 +731,7 @@ final class SavingTextView: NSTextView {
                 { [weak self] in self?.performPreviewFontZoomShortcutAction(action) }
             ))
         }
-        return candidates + filePreviewWordWrapShortcutCandidates()
+        return candidates + filePreviewWordWrapShortcutCandidates() + filePreviewEditingShortcutCandidates()
     }
 
     private func previewFontZoomShortcutWhenClauseAllows(

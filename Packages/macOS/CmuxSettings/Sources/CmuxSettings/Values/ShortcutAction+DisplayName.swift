@@ -186,6 +186,14 @@ extension ShortcutAction {
         case .saveFilePreview: return "Save File Preview"
         case .toggleFileEditorWordWrap:
             return String(localized: "shortcut.toggleFileEditorWordWrap.label", defaultValue: "Toggle File Editor Word Wrap")
+        case .findAndReplace: return String(localized: "shortcut.findAndReplace.label", defaultValue: "Find and Replace…")
+        case .goToLine: return String(localized: "shortcut.goToLine.label", defaultValue: "Go to Line…")
+        case .toggleLineComment: return String(localized: "shortcut.toggleLineComment.label", defaultValue: "Toggle Line Comment")
+        case .moveLineUp: return String(localized: "shortcut.moveLineUp.label", defaultValue: "Move Line Up")
+        case .moveLineDown: return String(localized: "shortcut.moveLineDown.label", defaultValue: "Move Line Down")
+        case .duplicateLine: return String(localized: "shortcut.duplicateLine.label", defaultValue: "Duplicate Line")
+        case .deleteLine: return String(localized: "shortcut.deleteLine.label", defaultValue: "Delete Line")
+        case .completeWord: return String(localized: "shortcut.completeWord.label", defaultValue: "Complete Word")
         case .openBrowser: return "Open Browser"
         case .focusBrowserAddressBar: return "Focus Address Bar"
         case .browserBack: return "Back"

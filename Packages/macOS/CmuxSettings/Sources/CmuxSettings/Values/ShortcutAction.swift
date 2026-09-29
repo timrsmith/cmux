@@ -177,6 +177,22 @@ public enum ShortcutAction: String, CaseIterable, Sendable, Hashable, SettingCod
     case saveFilePreview
     /// Toggles soft wrapping while a file-editor text view owns focus.
     case toggleFileEditorWordWrap
+    /// Shows the file editor's find-and-replace bar; plain Find elsewhere.
+    case findAndReplace
+    /// Opens the file editor's Go to Line popover.
+    case goToLine
+    /// Comments or uncomments the selected lines in the file editor.
+    case toggleLineComment
+    /// Moves the selected lines up one line in the file editor.
+    case moveLineUp
+    /// Moves the selected lines down one line in the file editor.
+    case moveLineDown
+    /// Duplicates the selected lines below themselves in the file editor.
+    case duplicateLine
+    /// Deletes the selected lines in the file editor.
+    case deleteLine
+    /// Completes the word at the caret from the file editor's buffer.
+    case completeWord
     case openBrowser
     case focusBrowserAddressBar
     case browserBack
@@ -337,7 +353,7 @@ extension ShortcutAction {
             return .or(.atom(.browserFocus), .atom(.markdownFocus))
         case .browserZoomIn, .browserZoomOut, .browserZoomReset:
             return .or(.atom(.browserFocus), .atom(.filePreviewTextEditorFocus))
-        case .toggleFileEditorWordWrap:
+        case .toggleFileEditorWordWrap, .goToLine, .toggleLineComment, .moveLineUp, .moveLineDown, .duplicateLine, .deleteLine, .completeWord:
             return .atom(.filePreviewTextEditorFocus)
         case .markdownZoomIn, .markdownZoomOut, .markdownZoomReset:
             return .atom(.markdownFocus)

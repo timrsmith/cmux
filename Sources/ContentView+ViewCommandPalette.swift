@@ -175,12 +175,22 @@ enum ShortcutParityPaletteCommand: String, CaseIterable {
     case groupSelectedWorkspaces = "palette.groupSelectedWorkspaces"
     case toggleFocusedWorkspaceGroupCollapsed = "palette.toggleFocusedWorkspaceGroupCollapsed"
     case browserHardReload = "palette.browserHardReload"
+    case fileEditorFindAndReplace = "palette.fileEditorFindAndReplace"
+    case fileEditorGoToLine = "palette.fileEditorGoToLine"
+    case fileEditorToggleLineComment = "palette.fileEditorToggleLineComment"
+    case fileEditorMoveLineUp = "palette.fileEditorMoveLineUp"
+    case fileEditorMoveLineDown = "palette.fileEditorMoveLineDown"
+    case fileEditorDuplicateLine = "palette.fileEditorDuplicateLine"
+    case fileEditorDeleteLine = "palette.fileEditorDeleteLine"
+    case fileEditorCompleteWord = "palette.fileEditorCompleteWord"
 
     enum Scope {
         case terminal
         case workspace
         case splits
         case browser
+        /// The focused panel is a text file preview in its editor.
+        case fileEditor
     }
 
     var shortcutAction: KeyboardShortcutSettings.Action {
@@ -198,6 +208,14 @@ enum ShortcutParityPaletteCommand: String, CaseIterable {
         case .groupSelectedWorkspaces: return .groupSelectedWorkspaces
         case .toggleFocusedWorkspaceGroupCollapsed: return .toggleFocusedWorkspaceGroupCollapsed
         case .browserHardReload: return .browserHardReload
+        case .fileEditorFindAndReplace: return .findAndReplace
+        case .fileEditorGoToLine: return .goToLine
+        case .fileEditorToggleLineComment: return .toggleLineComment
+        case .fileEditorMoveLineUp: return .moveLineUp
+        case .fileEditorMoveLineDown: return .moveLineDown
+        case .fileEditorDuplicateLine: return .duplicateLine
+        case .fileEditorDeleteLine: return .deleteLine
+        case .fileEditorCompleteWord: return .completeWord
         }
     }
 
@@ -227,6 +245,10 @@ enum ShortcutParityPaletteCommand: String, CaseIterable {
             return .splits
         case .browserHardReload:
             return .browser
+        case .fileEditorFindAndReplace, .fileEditorGoToLine, .fileEditorToggleLineComment,
+             .fileEditorMoveLineUp, .fileEditorMoveLineDown, .fileEditorDuplicateLine,
+             .fileEditorDeleteLine, .fileEditorCompleteWord:
+            return .fileEditor
         }
     }
 
@@ -258,6 +280,22 @@ enum ShortcutParityPaletteCommand: String, CaseIterable {
             return ["workspace", "group", "collapse", "expand", "fold"]
         case .browserHardReload:
             return ["browser", "reload", "refresh", "hard", "cache"]
+        case .fileEditorFindAndReplace:
+            return ["file", "editor", "find", "replace", "search", "substitute"]
+        case .fileEditorGoToLine:
+            return ["file", "editor", "go", "goto", "line", "column", "jump"]
+        case .fileEditorToggleLineComment:
+            return ["file", "editor", "comment", "uncomment", "toggle", "line"]
+        case .fileEditorMoveLineUp:
+            return ["file", "editor", "move", "line", "up", "swap"]
+        case .fileEditorMoveLineDown:
+            return ["file", "editor", "move", "line", "down", "swap"]
+        case .fileEditorDuplicateLine:
+            return ["file", "editor", "duplicate", "copy", "line"]
+        case .fileEditorDeleteLine:
+            return ["file", "editor", "delete", "remove", "kill", "line"]
+        case .fileEditorCompleteWord:
+            return ["file", "editor", "complete", "completion", "word", "autocomplete"]
         }
     }
 }
@@ -306,6 +344,10 @@ extension ContentView {
             case .browser:
                 subtitle = browserSubtitle
                 when = { $0.bool(CommandPaletteContextKeys.panelIsBrowser) }
+            case .fileEditor:
+                let fileEditorSubtitle = String(localized: "command.fileEditor.subtitle", defaultValue: "File Editor")
+                subtitle = { _ in fileEditorSubtitle }
+                when = { $0.bool(CommandPaletteContextKeys.panelIsFilePreviewTextEditor) }
             }
             return CommandPaletteCommandContribution(
                 commandId: command.rawValue,
@@ -322,12 +364,14 @@ extension ContentView {
         performBrowserAction: @escaping (BrowserAction) -> Bool,
         preferredWindow: @escaping () -> NSWindow?
     ) {
+        let tabManager = self.tabManager
         for command in ShortcutParityPaletteCommand.allCases {
             registry.register(commandId: command.rawValue) {
                 if !Self.performShortcutParityCommand(
                     command,
                     performBrowserAction: performBrowserAction,
-                    preferredWindow: preferredWindow()
+                    preferredWindow: preferredWindow(),
+                    performFileEditorAction: { tabManager.performFocusedTextEditorAction($0) }
                 ) {
                     NSSound.beep()
                 }
@@ -340,7 +384,8 @@ extension ContentView {
     static func performShortcutParityCommand(
         _ command: ShortcutParityPaletteCommand,
         performBrowserAction: (BrowserAction) -> Bool,
-        preferredWindow: NSWindow?
+        preferredWindow: NSWindow?,
+        performFileEditorAction: (KeyboardShortcutSettings.Action) -> Bool = { _ in false }
     ) -> Bool {
         if let route = command.paneFocusRoute {
             return AppDelegate.shared?.performPaneFocusShortcut(
@@ -369,6 +414,15 @@ extension ContentView {
             ) ?? false
         case .browserHardReload:
             return performBrowserAction(.hardReload)
+        case .fileEditorFindAndReplace:
+            return AppDelegate.shared?.performFindShortcutInActiveMainWindow(
+                preferredWindow: preferredWindow,
+                replace: true
+            ) ?? false
+        case .fileEditorGoToLine, .fileEditorToggleLineComment, .fileEditorMoveLineUp,
+             .fileEditorMoveLineDown, .fileEditorDuplicateLine, .fileEditorDeleteLine,
+             .fileEditorCompleteWord:
+            return performFileEditorAction(command.shortcutAction)
         case .focusPaneLeft, .focusPaneRight, .focusPaneUp, .focusPaneDown,
              .focusPreviousPane, .focusNextPane:
             return false

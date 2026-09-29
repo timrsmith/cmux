@@ -171,6 +171,7 @@ Values for `shortcuts.bindings.<action>`:
 ## Find
 
 - `shortcuts.bindings.find`
+- `shortcuts.bindings.findAndReplace`
 - `shortcuts.bindings.findInDirectory`
 - `shortcuts.bindings.findNext`
 - `shortcuts.bindings.findPrevious`
@@ -182,10 +183,17 @@ Values for `shortcuts.bindings.<action>`:
 
 ## Files and React Grab
 
+- `shortcuts.bindings.completeWord`
+- `shortcuts.bindings.deleteLine`
+- `shortcuts.bindings.duplicateLine`
 - `shortcuts.bindings.fileExplorerOpenSelection`
 - `shortcuts.bindings.fileExplorerOpenSelectionFinderAlias`
+- `shortcuts.bindings.goToLine`
+- `shortcuts.bindings.moveLineDown`
+- `shortcuts.bindings.moveLineUp`
 - `shortcuts.bindings.saveFilePreview`
 - `shortcuts.bindings.toggleFileEditorWordWrap`
+- `shortcuts.bindings.toggleLineComment`
 - `shortcuts.bindings.toggleFileExplorer`
 - `shortcuts.bindings.toggleReactGrab`
 

@@ -410,6 +410,63 @@ struct FilePreviewTextEditorTextKitTests {
         #expect(scrollView.isFindBarVisible)
     }
 
+    /// AppKit turns prose conveniences on for a fresh NSTextView; every one
+    /// of them rewrites source code, so the editor turns them off.
+    @Test("makeFilePreviewTextView disables automatic substitutions, correction, and detection")
+    func editorUsesCodeSafeInputPolicy() {
+        let textView = SavingTextView.makeFilePreviewTextView()
+        #expect(!textView.isAutomaticQuoteSubstitutionEnabled)
+        #expect(!textView.isAutomaticDashSubstitutionEnabled)
+        #expect(!textView.isAutomaticTextReplacementEnabled)
+        #expect(!textView.isAutomaticSpellingCorrectionEnabled)
+        #expect(!textView.isAutomaticDataDetectionEnabled)
+        #expect(!textView.isAutomaticLinkDetectionEnabled)
+        #expect(!textView.isAutomaticTextCompletionEnabled)
+        #expect(!textView.isContinuousSpellCheckingEnabled)
+        #expect(!textView.isGrammarCheckingEnabled)
+        #expect(!textView.smartInsertDeleteEnabled)
+        if #available(macOS 14.0, *) {
+            #expect(textView.inlinePredictionType == .no)
+        }
+    }
+
+    /// "Find and Replace…" asks the same panel path for the replace bar, and
+    /// Find Next / Previous / Use Selection reach the attached editor only
+    /// once it is in a window.
+    @Test("Find and Replace shows the find bar and finder actions need a window")
+    func startTextFindWithReplaceAndFinderActions() {
+        let panel = TextEditingPanelSpy()
+        let textView = SavingTextView.makeFilePreviewTextView()
+        panel.attachTextView(textView)
+        textView.string = "alpha beta alpha"
+        #expect(panel.startTextFind(replace: true) == false, "attached, but not in a window")
+        #expect(panel.performTextFinderAction(.nextMatch) == false)
+
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
+        scrollView.documentView = textView
+        let window = NSWindow(
+            contentRect: scrollView.frame,
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        defer { window.close() }
+        window.contentView = scrollView
+
+        #expect(panel.startTextFind(replace: true))
+        #expect(scrollView.isFindBarVisible)
+        textView.setSelectedRange(NSRange(location: 0, length: 5))
+        #expect(panel.performTextFinderAction(.setSearchString))
+        #expect(panel.performTextFinderAction(.nextMatch))
+        #expect(panel.performTextFinderAction(.previousMatch))
+        #expect(panel.performTextFinderAction(.hideFindInterface))
+        #expect(!scrollView.isFindBarVisible)
+
+        textView.isEditable = false
+        #expect(textView.showFilePreviewFindInterface(replace: true), "a read-only editor still gets plain find")
+        #expect(scrollView.isFindBarVisible)
+    }
+
     private final class TextEditingPanelSpy: FilePreviewTextEditingPanel {
         var textContent = ""
         var saveCount = 0
