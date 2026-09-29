@@ -1,4 +1,5 @@
 import CryptoKit
+import CmuxFoundation
 import CmuxTerminalCore
 import Darwin
 import Foundation
@@ -5642,6 +5643,13 @@ extension CMUXCLI {
             .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
     }
 
+    /// The repository path as the page's header shows it: the host's real home
+    /// directory abbreviated to `~`, the same form the right sidebar's Changes
+    /// panel uses. The page never learns `$HOME`, so it cannot derive this.
+    private func diffViewerRepoLabel(forRepoRoot repoRoot: String) -> String {
+        (repoRoot as NSString).abbreviatingWithTildeInPath
+    }
+
     private func diffViewerDirectoryContainsGitMetadata(_ url: URL) -> Bool {
         FileManager.default.fileExists(atPath: url.appendingPathComponent(".git", isDirectory: false).path)
     }
@@ -6141,36 +6149,16 @@ extension CMUXCLI {
         }
     }
 
-    /// Whether `repoRoot` matches any persisted branch session's allow-list in
-    /// the secure dir. Both sides are standardized so symlinks do not bypass it.
-    /// Like `diffViewerRepoIsAllowed`, but additionally requires the matching
-    /// session to belong to `token`. Used to bind a request's custom-scheme token
-    /// to the session it is allowed to act on, so one active token cannot read
-    /// refs for an unrelated branch session's repo.
+    /// Whether `repoRoot` is allow-listed by the persisted branch session that
+    /// belongs to `token`, read through the same `DiffViewerBranchSessionStore`
+    /// the app's `hostOpenFile` bridge uses (canonical path comparison, so
+    /// symlinks do not bypass it). Like `diffViewerRepoIsAllowed`, but binds a
+    /// request's custom-scheme token to the session it is allowed to act on, so
+    /// one active token cannot read refs for an unrelated branch session's repo.
     func diffViewerTokenAllowsRepo(_ token: String, repoRoot: String, rootDirectory: URL) -> Bool {
         guard diffViewerHTTPIsValidToken(token) else { return false }
-        let normalized = URL(fileURLWithPath: repoRoot, isDirectory: true)
-            .standardizedFileURL.resolvingSymlinksInPath().path
-        guard let entries = try? FileManager.default.contentsOfDirectory(
-            atPath: rootDirectory.path
-        ) else {
-            return false
-        }
-        for entry in entries where entry.hasPrefix(".branch-session-") && entry.hasSuffix(".json") {
-            guard let data = try? Data(contentsOf: rootDirectory.appendingPathComponent(entry, isDirectory: false)),
-                  let session = try? JSONDecoder().decode(DiffViewerBranchSession.self, from: data),
-                  session.token == token else {
-                continue
-            }
-            for allowed in session.allowedRepoRoots {
-                let allowedNormalized = URL(fileURLWithPath: allowed, isDirectory: true)
-                    .standardizedFileURL.resolvingSymlinksInPath().path
-                if allowedNormalized == normalized {
-                    return true
-                }
-            }
-        }
-        return false
+        return DiffViewerBranchSessionStore(rootDirectory: rootDirectory)
+            .allows(repoRoot: repoRoot, forToken: token)
     }
 
     /// Whether `repoRoot` is in the allow-list of the SPECIFIC `session` (not any
@@ -7516,6 +7504,7 @@ extension CMUXCLI {
         }
         if let repoRoot {
             payload["repoRoot"] = repoRoot
+            payload["repoLabel"] = diffViewerRepoLabel(forRepoRoot: repoRoot)
         }
         if let branchBaseRef {
             payload["branchBaseRef"] = branchBaseRef

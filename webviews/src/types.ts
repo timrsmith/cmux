@@ -9,6 +9,9 @@ export type DiffViewerPayload = {
   layout?: "split" | "unified";
   layoutSource?: "default" | "explicit";
   pendingReplacement?: boolean;
+  /** The repository the page was written for, and its `~`-abbreviated label from the host. */
+  repoRoot?: string;
+  repoLabel?: string;
   statusMessage?: string;
   title?: string;
   [key: string]: any;

@@ -1177,10 +1177,23 @@ final class CMUXOpenCommandTests: XCTestCase {
         let pagePayload = try diffViewerPayload(from: try String(contentsOfFile: pagePath, encoding: .utf8))
         let repoOptions = try XCTUnwrap(pagePayload["repoOptions"] as? [[String: Any]], result.stdout)
         XCTAssertTrue(repoOptions.isEmpty, "\(repoOptions)")
+        let pageRepoRoot = try XCTUnwrap(pagePayload["repoRoot"] as? String)
         XCTAssertEqual(
-            URL(fileURLWithPath: try XCTUnwrap(pagePayload["repoRoot"] as? String)).resolvingSymlinksInPath(),
+            URL(fileURLWithPath: pageRepoRoot).resolvingSymlinksInPath(),
             repoURL.resolvingSymlinksInPath()
         )
+        // The host labels the repository with its real home directory
+        // abbreviated to `~` (the page cannot know `$HOME`). The expectation is
+        // computed independently of the CLI: the tilde form when the fixture
+        // sits under the home directory, otherwise the path itself. The
+        // temporary directory is outside home on macOS, so this normally
+        // checks the plain form; `NSHomeDirectory()` ignores a `HOME` override,
+        // so the tilde form is not forced through a fake home here.
+        let home = NSHomeDirectory()
+        let expectedLabel = pageRepoRoot.hasPrefix(home + "/")
+            ? "~" + pageRepoRoot.dropFirst(home.count)
+            : pageRepoRoot
+        XCTAssertEqual(pagePayload["repoLabel"] as? String, expectedLabel, result.stdout)
     }
 
     func testDiffCommandShowsFriendlyEmptyStateWhenEveryGitSourceIsEmpty() throws {
