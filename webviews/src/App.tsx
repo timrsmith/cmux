@@ -128,6 +128,7 @@ import {
 import { RepositoryHeader } from "./RepositoryHeader";
 import { copyText } from "./actions";
 import { formatLabel } from "./labels";
+import { MenuButton, ViewOptionsMenuItems, type DiffViewerLayout } from "./ViewOptionsMenu";
 
 const statusIconName: Record<DiffFileStatus, IconName> = {
   added: "diffAdded",
@@ -222,7 +223,6 @@ type AppAction =
 
 const fileSkeletonWidths = ["82%", "64%", "76%", "58%", "70%", "46%"];
 const diffSkeletonWidths = ["58%", "88%", "72%", "94%", "64%", "82%", "52%", "78%"];
-type DiffViewerLayout = DiffViewerOptions["layout"];
 
 function initialAppState(config: DiffViewerConfig, initialStatus: DiffViewerStatus): AppState {
   const payload = config.payload ?? {};
@@ -1182,12 +1182,14 @@ export function App({ config, initialStatus }: ConfigProps) {
     void closeActiveSession();
     window.location.href = resolveDiffNavigationURL(url);
   };
-  // The source, repo, and base pickers render from exactly one host. On
-  // working-tree views the repository header takes them (they replace its
-  // plain repo label, so repo -> file navigation -> diffs reads top-down);
-  // every other session keeps them in the toolbar. Their ids stay put for
-  // the tests and CSS that address them.
+  // Working-tree views render the repository header as their single top
+  // row: it hosts the source/repo/base pickers, the branch and totals, the
+  // split button, the files-list toggle, and the one "..." menu (repo actions
+  // plus every view option). The toolbar renders only for every other
+  // session, so the pickers and the view options each come from exactly one
+  // place. Picker ids stay put for the tests and CSS that address them.
   const showRepositoryHeader = headerSource != null && commitControl != null;
+  const externalURL = resolveExternalURL(payload);
   const sourceControls = (
     <SourceControls
       activeSessionSource={resolvedSessionSource ?? activeSessionSource}
@@ -1215,25 +1217,41 @@ export function App({ config, initialStatus }: ConfigProps) {
           onRefresh={reloadPage}
           pending={pendingWrite}
           pullRequest={pullRequestControl}
+          files={{
+            onToggle: () => dispatch({ type: "set-files-visible", visible: !state.filesVisible }),
+            visible: state.filesVisible,
+          }}
           showRepoLabel={!hasRepoSelect(payload)}
           source={headerSource}
           sourceControls={sourceControls}
           status={repositoryStatus}
+          viewOptions={
+            <ViewOptionsMenuItems
+              dispatch={dispatch}
+              externalURL={externalURL}
+              filesVisible={state.filesVisible}
+              label={label}
+              onSetLayout={setLayout}
+              onSetOption={setOption}
+              options={state.options}
+            />
+          }
         />
-      ) : null}
-      <Toolbar
-        config={config}
-        label={label}
-        onCopyGitApply={copyGitApply}
-        onJump={scrollToItem}
-        onReload={reloadPage}
-        onSetLayout={setLayout}
-        onSetOption={setOption}
-        sourceControls={showRepositoryHeader ? null : sourceControls}
-        dispatch={dispatch}
-        state={state}
-        visibleItems={visibleItems}
-      />
+      ) : (
+        <Toolbar
+          config={config}
+          label={label}
+          onCopyGitApply={copyGitApply}
+          onJump={scrollToItem}
+          onReload={reloadPage}
+          onSetLayout={setLayout}
+          onSetOption={setOption}
+          sourceControls={sourceControls}
+          dispatch={dispatch}
+          state={state}
+          visibleItems={visibleItems}
+        />
+      )}
       <section id="content" style={{ "--cmux-diff-files-width": `${state.filesWidth}px` } as React.CSSProperties}>
         <FilesSidebarBackdrop
           label={label}
@@ -1322,6 +1340,12 @@ export function App({ config, initialStatus }: ConfigProps) {
         tabIndex={-1}
         className="copy-fallback-textarea"
       />
+      {/* Copy results are announced from the page itself: the header's copy
+          path action and the menus' copy command both report here, whether
+          the toolbar renders or not. */}
+      <span id="copy-feedback" className="visually-hidden" aria-live="polite">
+        {state.copyFeedback}
+      </span>
     </div>
   );
 }
@@ -1682,26 +1706,23 @@ function Toolbar({
   onReload: () => void;
   onSetLayout: (layout: DiffViewerLayout) => void;
   onSetOption: (key: keyof DiffViewerOptions, value: any) => void;
-  /** The source/repo/base pickers when this bar hosts them; null when the repository header does. */
-  sourceControls: React.ReactNode | null;
+  /** The source/repo/base pickers; the App renders them from exactly one host. */
+  sourceControls: React.ReactNode;
   state: AppState;
   visibleItems: DiffItem[];
 }) {
   const payload = config.payload ?? {};
-  const hostsSource = sourceControls != null;
-  const externalURL =
-    typeof payload.externalURL === "string" && payload.externalURL.length > 0 ? payload.externalURL : null;
+  const externalURL = resolveExternalURL(payload);
   const toolbarRef = useRef<HTMLElement>(null);
   const toolbarWidth = useToolbarWidth(toolbarRef);
   // Optional ACCESSORY controls, HIGH priority first (last = first to overflow).
   // Drop order at narrowing: external link -> layout toggle -> files toggle. Each
   // has a canonical copy in the "..." menu, so overflowing one only hides its
   // duplicate bar icon and it stays reachable from the menu. The source select,
-  // repo select, and Base picker are NOT in this list: when this bar hosts them
-  // they are always rendered (a native <select> has no menu equivalent, so the
-  // repo select must never be dropped — it shrinks/ellipsizes in place instead),
-  // and when the repository header hosts them they cost this bar nothing.
-  // Estimated widths include each control's ~4px inter-item gap.
+  // repo select, and Base picker are NOT in this list: they are always rendered
+  // in the bar (a native <select> has no menu equivalent, so the repo select must
+  // never be dropped — it shrinks/ellipsizes in place instead). Estimated widths
+  // include each control's ~4px inter-item gap.
   const overflowItems = [
     { id: "files-toggle" as const, width: TOOLBAR_ICON_SLOT },
     { id: "layout-toggle" as const, width: TOOLBAR_ICON_SLOT },
@@ -1713,16 +1734,12 @@ function Toolbar({
       : new Set(
           resolveToolbarOverflow({
             available: toolbarWidth,
-            // Always-present zone. With the pickers in this bar: source select +
-            // repo select + Base picker + "..." button + horizontal padding,
-            // generous so we shed before, not after, overlap (the CSS clip covers
-            // any residual under-estimate); the repo select shrinks in place
-            // rather than overflowing, so its floor is reserved too. With the
-            // pickers in the repository header only the "..." button and padding
-            // remain, so the icons are not shed for controls that are not here.
-            reserved: hostsSource
-              ? TOOLBAR_ALWAYS_PRESENT_WIDTH + (hasRepoSelect(payload) ? TOOLBAR_REPO_SELECT_MIN : 0)
-              : TOOLBAR_ACTIONS_ONLY_WIDTH,
+            // Always-present zone: source select + repo select + Base picker +
+            // "..." button + horizontal padding. Generous so we shed before, not
+            // after, overlap; the CSS clip covers any residual under-estimate. The
+            // repo select is always in the bar now, so reserve its slot too (it
+            // shrinks in place rather than overflowing).
+            reserved: TOOLBAR_ALWAYS_PRESENT_WIDTH + (hasRepoSelect(payload) ? TOOLBAR_REPO_SELECT_MIN : 0),
             items: overflowItems,
           }).overflow,
         );
@@ -1730,9 +1747,7 @@ function Toolbar({
   const showLayoutToggle = !overflow.has("layout-toggle");
   const showExternalLink = externalURL != null && !overflow.has("external-link");
   return (
-    // `data-hosts-source` picks the CSS layout: with the pickers here the bar
-    // stacks into two rows at narrow widths; without them it stays one row.
-    <header id="toolbar" ref={toolbarRef} data-hosts-source={hostsSource ? "true" : "false"}>
+    <header id="toolbar" ref={toolbarRef}>
       {sourceControls}
       {/* Small diffs use a native jump select. Large diffs route this control to
           the virtualized file-tree search so the toolbar never creates one DOM
@@ -1798,9 +1813,6 @@ function Toolbar({
             <Icon name="files" />
           </button>
         ) : null}
-        <span id="copy-feedback" className="visually-hidden" aria-live="polite">
-          {state.copyFeedback}
-        </span>
       </div>
       {state.optionsOpen ? (
         <OptionsMenu
@@ -1831,9 +1843,10 @@ const TOOLBAR_ALWAYS_PRESENT_WIDTH = 248;
 // floor of 56px + ~4px gap). It ellipsizes in place down to this floor rather
 // than overflowing, so reserve only the floor, not its full natural width.
 const TOOLBAR_REPO_SELECT_MIN = 60;
-// Width reserved when the repository header hosts the pickers: only the "..."
-// button (20px), its gaps, and the bar's horizontal padding remain fixed.
-const TOOLBAR_ACTIONS_ONLY_WIDTH = 48;
+
+function resolveExternalURL(payload: any): string | null {
+  return typeof payload?.externalURL === "string" && payload.externalURL.length > 0 ? payload.externalURL : null;
+}
 
 function hasRepoSelect(payload: any): boolean {
   return Array.isArray(payload?.repoOptions) && payload.repoOptions.length >= 2;
@@ -2174,83 +2187,27 @@ function OptionsMenu({
   onSetOption: (key: keyof DiffViewerOptions, value: any) => void;
   state: AppState;
 }) {
-  const toggle = (key: keyof DiffViewerOptions) => onSetOption(key, !state.options[key]);
   return (
     <div id="options-menu" aria-label={label("options")}>
       <MenuButton icon="refresh" label={label("refresh")} onClick={onReload} />
-      <MenuButton checked={state.options.wordWrap} icon="wrap" label={state.options.wordWrap ? label("disableWordWrap") : label("enableWordWrap")} onClick={() => toggle("wordWrap")} />
-      <MenuButton checked={state.options.collapsed} icon={state.options.collapsed ? "expand" : "collapse"} label={state.options.collapsed ? label("expandAllDiffs") : label("collapseAllDiffs")} onClick={() => toggle("collapsed")} />
       <div className="menu-separator" />
-      {/* Secondary actions that can overflow from the bar at narrow widths are
-          always listed here so they stay reachable regardless of what the bar
-          decided to drop. The bar hides its duplicate icon button when it
-          overflows; the menu copy is the canonical fallback. */}
-      <MenuButton icon={state.options.layout} label={state.options.layout === "split" ? label("switchToUnifiedDiff") : label("switchToSplitDiff")} onClick={() => onSetLayout(state.options.layout === "split" ? "unified" : "split")} />
-      {externalURL ? (
-        <MenuButton icon="external" label={label("openSourceURL")} onClick={() => window.open(externalURL, "_blank", "noreferrer")} />
-      ) : null}
-      <MenuButton checked={state.filesVisible} icon="files" label={state.filesVisible ? label("hideFiles") : label("showFiles")} onClick={() => dispatch({ type: "set-files-visible", visible: !state.filesVisible })} />
-      <MenuButton checked={state.options.expandUnchanged} icon="document" label={state.options.expandUnchanged ? label("collapseUnchangedContext") : label("expandUnchangedContext")} onClick={() => toggle("expandUnchanged")} />
-      <MenuButton checked={state.options.showBackgrounds} icon="background" label={state.options.showBackgrounds ? label("hideBackgrounds") : label("showBackgrounds")} onClick={() => toggle("showBackgrounds")} />
-      <MenuButton checked={state.options.lineNumbers} icon="numbers" label={state.options.lineNumbers ? label("hideLineNumbers") : label("showLineNumbers")} onClick={() => toggle("lineNumbers")} />
-      <MenuButton checked={state.options.wordDiffs} icon="word" label={state.options.wordDiffs ? label("disableWordDiffs") : label("enableWordDiffs")} onClick={() => toggle("wordDiffs")} />
-      <div className="menu-item menu-segment">
-        <Icon name="bars" />
-        <span className="menu-label">{label("indicatorStyle")}</span>
-        <span className="menu-segment-controls">
-          {[
-            { value: "bars", icon: "bars", label: label("bars") },
-            { value: "classic", icon: "classic", label: label("classic") },
-            { value: "none", icon: "none", label: label("none") },
-          ].map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className="segment-button"
-              title={option.label}
-              aria-label={option.label}
-              aria-pressed={state.options.diffIndicators === option.value}
-              onClick={() => onSetOption("diffIndicators", option.value)}
-            >
-              <Icon name={option.icon as IconName} />
-            </button>
-          ))}
-        </span>
-      </div>
+      {/* The view options are shared with the repository header's menu (see
+          ViewOptionsMenu.tsx). Secondary actions that can overflow from the bar
+          at narrow widths are part of that list, so they stay reachable
+          regardless of what the bar decided to drop: the bar hides its
+          duplicate icon button when it overflows; the menu copy is canonical. */}
+      <ViewOptionsMenuItems
+        dispatch={dispatch}
+        externalURL={externalURL}
+        filesVisible={state.filesVisible}
+        label={label}
+        onSetLayout={onSetLayout}
+        onSetOption={onSetOption}
+        options={state.options}
+      />
       <div className="menu-separator" />
       <MenuButton icon="clipboard" label={label("copyGitApplyCommand")} onClick={onCopyGitApply} />
     </div>
-  );
-}
-
-function MenuButton({
-  checked,
-  disabled,
-  icon,
-  label,
-  onClick,
-  title,
-}: {
-  checked?: boolean;
-  disabled?: boolean;
-  icon: Parameters<typeof Icon>[0]["name"];
-  label: string;
-  onClick: () => void;
-  title?: string;
-}) {
-  return (
-    <button
-      type="button"
-      className="menu-item"
-      aria-pressed={checked == null ? undefined : checked}
-      disabled={disabled}
-      title={title}
-      onClick={onClick}
-    >
-      <Icon name={icon} />
-      <span className="menu-label">{label}</span>
-      <span className="menu-check">{checked ? <Icon name="check" /> : null}</span>
-    </button>
   );
 }
 

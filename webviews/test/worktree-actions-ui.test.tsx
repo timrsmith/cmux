@@ -326,12 +326,9 @@ test("the header commit button renders for both working-tree views and never for
         "the commit button",
       );
     }
-    // The options menu renders after the handshake settled either way.
-    document.getElementById("options-button")?.click();
-    await waitFor(
-      () => Boolean(document.getElementById("options-menu")),
-      "the options menu",
-    );
+    // The view's "..." menu (the header's in working-tree views, the
+    // toolbar's otherwise) renders after the handshake settled either way.
+    await openOptionsMenu(document);
     const button = document.getElementById(
       "commit-button",
     ) as HTMLButtonElement | null;
@@ -737,11 +734,7 @@ test("collapse all keeps files collapsed through a write action reload", async (
     ONE_FILE_PATCH,
   );
   await waitFor(() => renderedCodeBlocks(document) === 1, "the file's code");
-  document.getElementById("options-button")?.click();
-  await waitFor(
-    () => Boolean(findButton(document, "Collapse all diffs")),
-    "the collapse-all option",
-  );
+  await openOptionsMenu(document);
   click(findButton(document, "Collapse all diffs"));
   // A collapsed file keeps its header (and header actions) but renders no
   // code.
@@ -755,6 +748,7 @@ test("collapse all keeps files collapsed through a write action reload", async (
   expect(document.querySelectorAll(".worktree-action")).toHaveLength(4);
   expect(renderedCodeBlocks(document)).toBe(0);
   expect(document.body.dataset.streamFileCount).toBe("1");
+  await openOptionsMenu(document);
   expect(findButton(document, "Expand all diffs")).toBeTruthy();
 });
 
@@ -1250,18 +1244,22 @@ test("open in cmux failures surface as a notice", async () => {
 // MARK: Header hosts the pickers; per-file fold
 
 /**
- * Opens the toolbar's options menu unless it is already open. Header-action
+ * Opens the view's "..." menu unless it is already open: the repository
+ * header's in working-tree views, the toolbar's otherwise. Header-action
  * clicks stop propagation, so an open menu survives them; toggling blindly
  * would close it.
  */
 async function openOptionsMenu(document: Document): Promise<void> {
-  if (!document.getElementById("options-menu")) {
-    document.getElementById("options-button")?.click();
+  const menuOpen = () =>
+    document.getElementById("repo-overflow-menu") != null ||
+    document.getElementById("options-menu") != null;
+  if (!menuOpen()) {
+    (
+      document.getElementById("repo-overflow-button") ??
+      document.getElementById("options-button")
+    )?.click();
   }
-  await waitFor(
-    () => Boolean(document.getElementById("options-menu")),
-    "the options menu",
-  );
+  await waitFor(menuOpen, "the options menu");
 }
 
 function selectOption(select: HTMLSelectElement, value: string): void {
@@ -1285,24 +1283,28 @@ test("a working-tree view hosts the source and repo pickers in the repository he
     "the repository header",
   );
   const header = document.getElementById("repo-header")!;
-  const toolbar = document.getElementById("toolbar")!;
-  // Exactly one copy of the pickers, and it lives in the header.
+  // The header is the view's only top row: no toolbar, no jump select, and
+  // exactly one copy of the pickers, in the header.
+  expect(document.getElementById("toolbar")).toBeNull();
+  expect(document.getElementById("jump-select")).toBeNull();
+  expect(document.getElementById("jump-search-button")).toBeNull();
   expect(document.querySelectorAll("#source-select")).toHaveLength(1);
   expect(header.querySelector("#source-select")).toBeTruthy();
   expect(header.querySelector("#repo-select")).toBeTruthy();
-  expect(toolbar.querySelector("#source-select")).toBeNull();
-  expect(toolbar.querySelector("#repo-select")).toBeNull();
-  expect(toolbar.dataset.hostsSource).toBe("false");
   // The repo select replaces the plain repo label and carries its path.
   expect(header.querySelector(".repo-header-repo")).toBeNull();
   expect(header.querySelector<HTMLSelectElement>("#repo-select")?.title).toBe(
     "/tmp/repo",
   );
-  // Repo first, file navigation second, diffs last.
-  expect(header.nextElementSibling?.id).toBe("toolbar");
-  expect(toolbar.nextElementSibling?.id).toBe("content");
-  // The header's jump/actions bar still offers its icon actions.
-  expect(toolbar.querySelector("#options-button")).toBeTruthy();
+  // Header, then the diffs.
+  expect(header.nextElementSibling?.id).toBe("content");
+  // One "..." menu for the view, with the files-list toggle beside it.
+  expect(
+    document.querySelectorAll("#options-button, #repo-overflow-button"),
+  ).toHaveLength(1);
+  expect(header.querySelector("#files-toggle")?.getAttribute("aria-pressed")).toBe(
+    "true",
+  );
   // Switching the source from the header opens the new session.
   selectOption(header.querySelector<HTMLSelectElement>("#source-select")!, "staged");
   await waitFor(() => sessionOpens(requests) === 2, "the staged session");
@@ -1323,7 +1325,9 @@ test("a patch session keeps the pickers in the toolbar and renders no repository
   );
   expect(document.getElementById("repo-header")).toBeNull();
   const toolbar = document.getElementById("toolbar")!;
-  expect(toolbar.dataset.hostsSource).toBe("true");
+  // The toolbar keeps its own "..." menu; there is no header menu to share.
+  expect(toolbar.querySelector("#options-button")).toBeTruthy();
+  expect(document.getElementById("repo-overflow-button")).toBeNull();
   expect(toolbar.querySelector("#source-select")).toBeTruthy();
   expect(document.querySelectorAll("#source-select")).toHaveLength(1);
   // Patch sessions have no repository to pick.
@@ -1515,7 +1519,7 @@ test("the toolbar fallback also renders the repo picker only with two or more re
     SINGLE_REPO_OPTIONS,
   );
   expect(singleDocument.getElementById("repo-header")).toBeNull();
-  expect(singleDocument.getElementById("toolbar")?.dataset.hostsSource).toBe("true");
+  expect(singleDocument.getElementById("toolbar")).toBeTruthy();
   expect(singleDocument.querySelector("#toolbar #source-select")).toBeTruthy();
   expect(singleDocument.getElementById("repo-select")).toBeNull();
   await resetDom();
@@ -1591,4 +1595,120 @@ test("a patch session has no in-place refresh", async () => {
   expect(document.defaultView!.cmuxDiffViewer?.refresh() ?? false).toBe(false);
   await new Promise((resolve) => setTimeout(resolve, 20));
   expect(sessionOpens(requests)).toBe(1);
+});
+
+// MARK: One "..." menu per view, shared view options
+
+const VIEW_OPTION_LABELS = [
+  "Enable word wrap",
+  "Collapse all diffs",
+  "Switch to split diff",
+  "Hide files",
+  "Expand unchanged context",
+  "Hide backgrounds",
+  "Hide line numbers",
+  "Enable word diffs",
+];
+
+function segmentButton(document: Document, label: string) {
+  return document.querySelector<HTMLButtonElement>(
+    `.menu-segment-controls [aria-label="${label}"]`,
+  );
+}
+
+test("the header menu lists the repo actions and every view option, and each option dispatches the shared action", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(unstagedSource, MOCK_GITHUB_STATUS, requests);
+  await waitFor(() => renderedCodeBlocks(document) === 1, "the file's code");
+  await openOptionsMenu(document);
+  const menu = document.getElementById("repo-overflow-menu")!;
+  expect(menu).toBeTruthy();
+  expect(document.getElementById("options-menu")).toBeNull();
+  // Repo actions, a separator, the view options, a separator, copy/refresh.
+  for (const text of [
+    "Discard all changes…",
+    "Stage all",
+    ...VIEW_OPTION_LABELS,
+    "Copy git apply command",
+    "Refresh",
+  ]) {
+    expect(findButton(document, text, "#repo-overflow-menu")).toBeTruthy();
+  }
+  expect(menu.querySelectorAll(".menu-separator")).toHaveLength(2);
+  expect(menu.querySelectorAll(".menu-segment-controls .segment-button")).toHaveLength(3);
+  const order = Array.from(menu.children).map((child) =>
+    child.classList.contains("menu-separator")
+      ? "|"
+      : child.textContent?.trim() ?? "",
+  );
+  expect(order.indexOf("Stage all")).toBeLessThan(order.indexOf("|"));
+  expect(order.indexOf("|")).toBeLessThan(order.indexOf("Enable word wrap"));
+  expect(order.lastIndexOf("|")).toBeGreaterThan(order.indexOf("Enable word diffs"));
+  expect(order.lastIndexOf("|")).toBeLessThan(order.indexOf("Refresh"));
+  // Each option dispatches the same reducer action as the toolbar menu; the
+  // page attributes observe the resulting state.
+  click(findButton(document, "Switch to split diff", "#repo-overflow-menu"));
+  await waitFor(
+    () => document.documentElement.dataset.layout === "split",
+    "the split layout",
+  );
+  expect(findButton(document, "Switch to unified diff", "#repo-overflow-menu")).toBeTruthy();
+  click(findButton(document, "Collapse all diffs", "#repo-overflow-menu"));
+  await waitFor(() => renderedCodeBlocks(document) === 0, "every card to fold");
+  expect(findButton(document, "Expand all diffs", "#repo-overflow-menu")).toBeTruthy();
+  click(findButton(document, "Hide files", "#repo-overflow-menu"));
+  await waitFor(
+    () => document.body.dataset.filesHidden === "true",
+    "the files list to hide",
+  );
+  expect(document.getElementById("files-toggle")?.getAttribute("aria-pressed")).toBe(
+    "false",
+  );
+  expect(findButton(document, "Show files", "#repo-overflow-menu")).toBeTruthy();
+  click(segmentButton(document, "Classic"));
+  await waitFor(
+    () => document.documentElement.dataset.diffIndicators === "classic",
+    "the classic indicators",
+  );
+  expect(segmentButton(document, "Classic")?.getAttribute("aria-pressed")).toBe("true");
+  expect(segmentButton(document, "Bars")?.getAttribute("aria-pressed")).toBe("false");
+  // The header's files-list toggle drives the same state.
+  click(document.getElementById("files-toggle") as HTMLButtonElement);
+  await waitFor(
+    () => document.body.dataset.filesHidden === "false",
+    "the files list to show again",
+  );
+  expect(document.getElementById("files-toggle")?.getAttribute("aria-pressed")).toBe(
+    "true",
+  );
+  // None of this touched the session.
+  expect(sessionOpens(requests)).toBe(1);
+});
+
+test("a patch session keeps the toolbar's own options menu with the same view options", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderApp(
+    { kind: "patch", path: "/last-turn.patch" },
+    sidecarMock(requests, ["worktree.write"]),
+    "",
+    PICKER_OPTIONS,
+  );
+  await openOptionsMenu(document);
+  const menu = document.getElementById("options-menu")!;
+  expect(menu).toBeTruthy();
+  expect(document.getElementById("repo-overflow-menu")).toBeNull();
+  for (const text of ["Refresh", ...VIEW_OPTION_LABELS, "Copy git apply command"]) {
+    expect(findButton(document, text, "#options-menu")).toBeTruthy();
+  }
+  expect(menu.querySelectorAll(".menu-segment-controls .segment-button")).toHaveLength(3);
+  click(findButton(document, "Switch to split diff", "#options-menu"));
+  await waitFor(
+    () => document.documentElement.dataset.layout === "split",
+    "the split layout",
+  );
+  click(segmentButton(document, "None"));
+  await waitFor(
+    () => document.documentElement.dataset.diffIndicators === "none",
+    "no indicators",
+  );
 });
