@@ -22,7 +22,7 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
             defaults.set(RightSidebarMode.feed.rawValue, forKey: modeKey)
             defaults.set(false, forKey: feedEnabledKey)
 
-            let state = FileExplorerState()
+            let state = FileExplorerState(sidebar: nil)
 
             XCTAssertEqual(state.mode, .files)
             XCTAssertEqual(defaults.string(forKey: modeKey), RightSidebarMode.files.rawValue)
@@ -35,7 +35,7 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
             defaults.set(RightSidebarMode.feed.rawValue, forKey: modeKey)
             defaults.set(true, forKey: feedEnabledKey)
 
-            let state = FileExplorerState()
+            let state = FileExplorerState(sidebar: nil)
 
             XCTAssertEqual(state.mode, .feed)
             XCTAssertEqual(defaults.string(forKey: modeKey), RightSidebarMode.feed.rawValue)
@@ -46,7 +46,7 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
         withSavedRightSidebarModeDefaults {
             let defaults = UserDefaults.standard
             defaults.set(false, forKey: feedEnabledKey)
-            let state = FileExplorerState()
+            let state = FileExplorerState(sidebar: nil)
 
             state.mode = .feed
             XCTAssertEqual(state.mode, .files)
@@ -62,7 +62,7 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
         withSavedRightSidebarModeDefaults {
             let defaults = UserDefaults.standard
             defaults.set(false, forKey: legacyDockBetaKey)
-            let state = FileExplorerState()
+            let state = FileExplorerState(sidebar: nil)
 
             state.mode = .dock
             state.refreshModeAvailability()
@@ -87,7 +87,7 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
             defaults.set(RightSidebarMode.customSidebar.rawValue, forKey: modeKey)
             defaults.set("status-board", forKey: customSidebarNameKey)
 
-            let state = FileExplorerState()
+            let state = FileExplorerState(sidebar: nil)
 
             XCTAssertEqual(state.mode, .files)
             XCTAssertEqual(defaults.string(forKey: modeKey), RightSidebarMode.files.rawValue)
@@ -110,7 +110,7 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
             defaults.set(RightSidebarMode.customSidebar.rawValue, forKey: modeKey)
             defaults.set("status-board", forKey: customSidebarNameKey)
 
-            let state = FileExplorerState()
+            let state = FileExplorerState(sidebar: nil)
 
             XCTAssertEqual(state.mode, .customSidebar)
             XCTAssertEqual(defaults.string(forKey: modeKey), RightSidebarMode.customSidebar.rawValue)
@@ -127,7 +127,7 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
         defaults.set(RightSidebarMode.customSidebar.rawValue, forKey: modeKey)
         defaults.set("status-board", forKey: customSidebarNameKey)
 
-        let state = FileExplorerState(defaults: defaults)
+        let state = FileExplorerState(sidebar: nil, defaults: defaults)
 
         XCTAssertEqual(state.mode, .customSidebar)
         XCTAssertTrue(RightSidebarMode.availableModes(defaults: defaults).contains(.customSidebar))
@@ -160,7 +160,7 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
             defaults.set(FilesPanelPlacement.leading.rawValue, forKey: filesPanelPlacementKey)
             defaults.set(RightSidebarMode.files.rawValue, forKey: modeKey)
 
-            let state = FileExplorerState()
+            let state = FileExplorerState(sidebar: nil)
 
             let expected = RightSidebarMode.visibleModes(defaults: defaults).first
             XCTAssertNotEqual(state.mode, .files)
@@ -173,7 +173,7 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
         withSavedRightSidebarModeDefaults {
             let defaults = UserDefaults.standard
             defaults.set(FilesPanelPlacement.leading.rawValue, forKey: filesPanelPlacementKey)
-            let state = FileExplorerState()
+            let state = FileExplorerState(sidebar: nil)
             state.mode = .changes
             XCTAssertEqual(state.mode, .changes)
 
@@ -188,7 +188,7 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
             let defaults = UserDefaults.standard
             defaults.set(FilesPanelPlacement.leading.rawValue, forKey: filesPanelPlacementKey)
             defaults.set(false, forKey: filesPanelVisibleKey)
-            let state = FileExplorerState()
+            let state = FileExplorerState(sidebar: nil)
             state.setVisible(false)
             state.mode = .changes
             XCTAssertFalse(state.filesPanelVisible)
@@ -216,7 +216,7 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
             let defaults = UserDefaults.standard
             defaults.set(FilesPanelPlacement.rightSidebar.rawValue, forKey: filesPanelPlacementKey)
             defaults.set(false, forKey: filesPanelVisibleKey)
-            let state = FileExplorerState()
+            let state = FileExplorerState(sidebar: nil)
             state.setVisible(false)
             state.mode = .changes
 
@@ -272,7 +272,7 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
             defaults.set(FilesPanelPlacement.stacked.rawValue, forKey: filesPanelPlacementKey)
             defaults.set(RightSidebarMode.files.rawValue, forKey: modeKey)
 
-            let state = FileExplorerState()
+            let state = FileExplorerState(sidebar: nil)
             let expected = RightSidebarMode.visibleModes(defaults: defaults).first
             XCTAssertNotEqual(state.mode, .files, "a stored Files mode falls back to the first visible tab")
             XCTAssertEqual(state.mode, expected)
@@ -290,15 +290,14 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
             let defaults = UserDefaults.standard
             defaults.set(FilesPanelPlacement.stacked.rawValue, forKey: filesPanelPlacementKey)
             defaults.set(false, forKey: filesPanelVisibleKey)
-            let state = FileExplorerState()
-            state.setVisible(false)
-            state.mode = .changes
             let sidebar = SidebarState(isVisible: false)
             var revealCount = 0
             sidebar.installVisibilityWillChangeHandler(ownerId: UUID()) { isVisible in
                 if isVisible { revealCount += 1 }
             }
-            state.stackedSidebarState = sidebar
+            let state = FileExplorerState(sidebar: sidebar)
+            state.setVisible(false)
+            state.mode = .changes
             XCTAssertFalse(state.filesAreShown())
 
             state.showFiles()
@@ -333,12 +332,11 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
             XCTAssertTrue(state.filesAreShown())
             XCTAssertEqual(revealCount, 2)
 
-            // Another window's sidebar cannot detach this one; the host itself can.
-            state.detachStackedSidebarState(SidebarState(isVisible: true))
+            // A state with no hosting sidebar (a tool panel) assumes it visible.
             sidebar.setVisible(false)
             XCTAssertFalse(state.filesAreShown())
-            state.detachStackedSidebarState(sidebar)
-            XCTAssertTrue(state.filesAreShown(), "without a host the sidebar is assumed visible")
+            let hostless = FileExplorerState(sidebar: nil)
+            XCTAssertTrue(hostless.filesAreShown(), "without a host the sidebar is assumed visible")
         }
     }
 
@@ -347,10 +345,10 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
             let defaults = UserDefaults.standard
             defaults.set(FilesPanelPlacement.stacked.rawValue, forKey: filesPanelPlacementKey)
             defaults.set(true, forKey: filesPanelVisibleKey)
-            let state = FileExplorerState()
+            let state: FileExplorerState
             do {
                 let sidebar = SidebarState(isVisible: false)
-                state.stackedSidebarState = sidebar
+                state = FileExplorerState(sidebar: sidebar)
                 XCTAssertFalse(state.filesAreShown())
             }
             XCTAssertNil(state.stackedSidebarState, "the window owns its sidebar state; this reference must not keep it alive")
@@ -362,16 +360,16 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
         withSavedRightSidebarModeDefaults {
             let defaults = UserDefaults.standard
             defaults.removeObject(forKey: FileExplorerState.filesPanelStackedHeightKey)
-            let fresh = FileExplorerState()
+            let fresh = FileExplorerState(sidebar: nil)
             XCTAssertEqual(fresh.filesPanelStackedHeight, FilesPanelStackedLayout.defaultHeight)
 
             fresh.filesPanelStackedHeight = 244
             XCTAssertEqual(defaults.double(forKey: FileExplorerState.filesPanelStackedHeightKey), 244, accuracy: 0.001)
-            XCTAssertEqual(FileExplorerState().filesPanelStackedHeight, 244, accuracy: 0.001)
+            XCTAssertEqual(FileExplorerState(sidebar: nil).filesPanelStackedHeight, 244, accuracy: 0.001)
 
             defaults.set(-10.0, forKey: FileExplorerState.filesPanelStackedHeightKey)
             XCTAssertEqual(
-                FileExplorerState().filesPanelStackedHeight,
+                FileExplorerState(sidebar: nil).filesPanelStackedHeight,
                 FilesPanelStackedLayout.defaultHeight,
                 "a non-positive persisted height is discarded"
             )

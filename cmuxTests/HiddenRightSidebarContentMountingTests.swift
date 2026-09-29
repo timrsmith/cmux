@@ -50,7 +50,7 @@ struct HiddenRightSidebarContentMountingTests {
             }
         }
 
-        let fileExplorerState = FileExplorerState()
+        let fileExplorerState = FileExplorerState(sidebar: nil)
         fileExplorerState.mode = .find
         fileExplorerState.setVisible(false)
 

@@ -120,7 +120,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -241,7 +241,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -297,7 +297,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager1,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         app.registerMainWindow(
             window2,
@@ -305,7 +305,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager2,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager1)
 
@@ -349,7 +349,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -388,7 +388,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: firstManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         app.registerMainWindow(
             secondWindow,
@@ -396,7 +396,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: secondManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(firstManager)
 
@@ -456,7 +456,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: firstManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         app.registerMainWindow(
             secondWindow,
@@ -464,7 +464,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: secondManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(firstManager)
 
@@ -514,7 +514,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         window.makeKeyAndOrderFront(nil)
         TerminalController.shared.setActiveTabManager(manager)
@@ -561,7 +561,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: firstManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         app.registerMainWindow(
             secondWindow,
@@ -569,7 +569,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: secondManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(firstManager)
 
@@ -611,7 +611,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -665,7 +665,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -741,7 +741,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -829,7 +829,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -914,7 +914,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -997,7 +997,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -1182,7 +1182,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -1336,7 +1336,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -1384,7 +1384,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -1432,7 +1432,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -1486,7 +1486,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         window.makeKeyAndOrderFront(nil)
         TerminalController.shared.setActiveTabManager(manager)
@@ -1588,7 +1588,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: registeredManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         app.registerMainWindow(
             recoveredWindow,
@@ -1596,7 +1596,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: recoveredManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         registeredWindow.makeKeyAndOrderFront(nil)
@@ -1640,7 +1640,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         window.makeKeyAndOrderFront(nil)
         TerminalController.shared.setActiveTabManager(manager)
@@ -1687,7 +1687,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: terminalManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         app.registerMainWindow(
             browserOnlyWindow,
@@ -1695,7 +1695,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: browserOnlyManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         terminalWindow.makeKeyAndOrderFront(nil)
         browserOnlyWindow.makeKeyAndOrderFront(nil)
@@ -1752,7 +1752,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: liveManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         liveWindow.makeKeyAndOrderFront(nil)
         app.tabManager = staleManager
@@ -1792,7 +1792,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -1852,7 +1852,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -1915,7 +1915,7 @@ struct AppDelegateIssue2907RoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 

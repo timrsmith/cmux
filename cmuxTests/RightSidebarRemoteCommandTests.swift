@@ -16,7 +16,7 @@ extension TerminalControllerSocketSecurityTests {
 
         let windowId = UUID()
         let tabManager = TabManager()
-        let fileExplorerState = FileExplorerState()
+        let fileExplorerState = FileExplorerState(sidebar: nil)
         fileExplorerState.setVisible(false)
         fileExplorerState.mode = .files
 
@@ -102,7 +102,7 @@ extension TerminalControllerSocketSecurityTests {
 
         let windowId = UUID()
         let tabManager = TabManager()
-        let fileExplorerState = FileExplorerState()
+        let fileExplorerState = FileExplorerState(sidebar: nil)
         appDelegate.fileExplorerState = fileExplorerState
         appDelegate.registerMainWindowContextForTesting(
             windowId: windowId,
@@ -167,7 +167,7 @@ extension TerminalControllerSocketSecurityTests {
 
             let windowId = UUID()
             let tabManager = TabManager()
-            let fileExplorerState = FileExplorerState()
+            let fileExplorerState = FileExplorerState(sidebar: nil)
 
             appDelegate.fileExplorerState = fileExplorerState
             appDelegate.registerMainWindowContextForTesting(
@@ -303,9 +303,9 @@ extension TerminalControllerSocketSecurityTests {
         _ = managerA.addWorkspace(select: false, eagerLoadTerminal: false)
         let workspaceB = managerB.addWorkspace(select: false, eagerLoadTerminal: false)
         let workspaceC = managerC.addWorkspace(select: false, eagerLoadTerminal: false)
-        let stateA = FileExplorerState()
-        let stateB = FileExplorerState()
-        let fallbackState = FileExplorerState()
+        let stateA = FileExplorerState(sidebar: nil)
+        let stateB = FileExplorerState(sidebar: nil)
+        let fallbackState = FileExplorerState(sidebar: nil)
 
         stateA.setVisible(false)
         stateA.mode = .files

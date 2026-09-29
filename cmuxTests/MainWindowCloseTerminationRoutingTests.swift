@@ -435,7 +435,7 @@ struct MainWindowCloseTerminationRoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(isVisible: true, persistedWidth: 280),
             sidebarSelectionState: SidebarSelectionState(selection: .tabs),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         #expect(

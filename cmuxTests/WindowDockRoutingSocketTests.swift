@@ -133,7 +133,7 @@ struct WindowDockRoutingSocketTests {
     @MainActor
     func hiddenWorkspaceDockSurfaceFocusFailsClosed() throws {
         try withDockAvailable {
-            let fileExplorerState = FileExplorerState()
+            let fileExplorerState = FileExplorerState(sidebar: nil)
             fileExplorerState.setVisible(false)
             try withSocketAppContext(fileExplorerState: fileExplorerState) { _, workspace, _ in
                 let mainPanelID = try #require(workspace.focusedPanelId)
@@ -176,7 +176,7 @@ struct WindowDockRoutingSocketTests {
                 let appDelegate = AppDelegate()
                 let fallbackManager = TabManager(autoWelcomeIfNeeded: false)
                 let ownerManager = TabManager(autoWelcomeIfNeeded: false)
-                let fallbackSidebarState = FileExplorerState()
+                let fallbackSidebarState = FileExplorerState(sidebar: nil)
                 fallbackSidebarState.setVisible(false)
 
                 AppDelegate.shared = appDelegate
@@ -318,7 +318,7 @@ struct WindowDockRoutingSocketTests {
             let appDelegate = AppDelegate()
             let activeManager = TabManager(autoWelcomeIfNeeded: false)
             let dockManager = TabManager(autoWelcomeIfNeeded: false)
-            let fileExplorerState = FileExplorerState()
+            let fileExplorerState = FileExplorerState(sidebar: nil)
             let activeWindowId = UUID()
             let activeWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 480), styleMask: [.titled, .closable], backing: .buffered, defer: false)
             activeWindow.isReleasedWhenClosed = false
@@ -331,7 +331,7 @@ struct WindowDockRoutingSocketTests {
             AppDelegate.shared = appDelegate
             appDelegate.tabManager = activeManager
             TerminalController.shared.setActiveTabManager(activeManager)
-            appDelegate.registerMainWindow(activeWindow, windowId: activeWindowId, tabManager: activeManager, sidebarState: SidebarState(), sidebarSelectionState: SidebarSelectionState(), fileExplorerState: FileExplorerState())
+            appDelegate.registerMainWindow(activeWindow, windowId: activeWindowId, tabManager: activeManager, sidebarState: SidebarState(), sidebarSelectionState: SidebarSelectionState(), fileExplorerState: FileExplorerState(sidebar: nil))
             appDelegate.registerMainWindow(dockWindow, windowId: dockWindowId, tabManager: dockManager, sidebarState: SidebarState(), sidebarSelectionState: SidebarSelectionState(), fileExplorerState: fileExplorerState)
             dockWindow.orderFront(nil)
             defer {

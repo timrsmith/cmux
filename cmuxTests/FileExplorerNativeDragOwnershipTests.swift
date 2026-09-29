@@ -15,7 +15,7 @@ struct FileExplorerNativeDragOwnershipTests {
         let searchController = SearchResultsDragTestSearchController()
         let store = FileExplorerStore()
         store.setProviderForTesting(LocalFileExplorerProvider(), reloadIfAvailable: false)
-        let state = FileExplorerState()
+        let state = FileExplorerState(sidebar: nil)
         let coordinator = FileExplorerPanelView.Coordinator(
             store: store,
             state: state,
@@ -101,7 +101,7 @@ struct FileExplorerNativeDragOwnershipTests {
         let searchController = SearchResultsDragTestSearchController()
         let store = FileExplorerStore()
         store.setProviderForTesting(LocalFileExplorerProvider(), reloadIfAvailable: false)
-        let state = FileExplorerState()
+        let state = FileExplorerState(sidebar: nil)
         let coordinator = FileExplorerPanelView.Coordinator(
             store: store,
             state: state,
@@ -209,7 +209,7 @@ struct FileExplorerNativeDragOwnershipTests {
         store.setProviderForTesting(LocalFileExplorerProvider(), reloadIfAvailable: false)
         let coordinator = FileExplorerPanelView.Coordinator(
             store: store,
-            state: FileExplorerState(),
+            state: FileExplorerState(sidebar: nil),
             onOpenFilePreview: { _ in }
         )
         let container = FileExplorerContainerView(
@@ -285,7 +285,7 @@ struct FileExplorerNativeDragOwnershipTests {
         store.setProviderForTesting(LocalFileExplorerProvider(), reloadIfAvailable: false)
         let coordinator = FileExplorerPanelView.Coordinator(
             store: store,
-            state: FileExplorerState(),
+            state: FileExplorerState(sidebar: nil),
             onOpenFilePreview: { _ in }
         )
         var container: FileExplorerContainerView? = FileExplorerContainerView(
@@ -358,7 +358,7 @@ struct FileExplorerNativeDragOwnershipTests {
         store.provider = LocalFileExplorerProvider()
         let coordinator = FileExplorerPanelView.Coordinator(
             store: store,
-            state: FileExplorerState(),
+            state: FileExplorerState(sidebar: nil),
             onOpenFilePreview: { _ in }
         )
         let container = FileExplorerContainerView(

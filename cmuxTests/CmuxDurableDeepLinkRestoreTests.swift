@@ -508,7 +508,7 @@ struct CmuxDurableDeepLinkRestoreTests {
                 tabManager: recoverableManager,
                 sidebarState: SidebarState(),
                 sidebarSelectionState: SidebarSelectionState(),
-                fileExplorerState: FileExplorerState()
+                fileExplorerState: FileExplorerState(sidebar: nil)
             )
             recoverableWindow.makeKeyAndOrderFront(nil)
             TerminalController.shared.setActiveTabManager(recoverableManager)

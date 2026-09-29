@@ -51,7 +51,7 @@ final class CloudWorkspaceCreationSidebarFixture {
         TerminalController.shared.setActiveTabManager(manager)
         app.registerMainWindow(window, windowId: windowID, tabManager: manager,
                                sidebarState: SidebarState(), sidebarSelectionState: SidebarSelectionState(),
-                               fileExplorerState: FileExplorerState())
+                               fileExplorerState: FileExplorerState(sidebar: nil))
         catalog.register(provider)
     }
 

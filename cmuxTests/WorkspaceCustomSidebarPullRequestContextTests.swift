@@ -147,7 +147,7 @@ final class WorkspaceCustomSidebarPullRequestContextTests: XCTestCase {
             appDelegate.registerMainWindowContextForTesting(
                 windowId: windowId,
                 tabManager: tabManager,
-                fileExplorerState: FileExplorerState()
+                fileExplorerState: FileExplorerState(sidebar: nil)
             )
             defer { appDelegate.unregisterMainWindowContextForTesting(windowId: windowId) }
 

@@ -194,7 +194,7 @@ struct FileSearchWorkspaceScopeTests {
     @Test("Same-path local workspace switch resets Find search scope")
     func samePathLocalWorkspaceSwitchResetsFindSearchScope() async throws {
         let store = FileExplorerStore()
-        let state = FileExplorerState()
+        let state = FileExplorerState(sidebar: nil)
         let searchController = SpyFileSearchController()
         let coordinator = FileExplorerPanelView.Coordinator(store: store, state: state, onOpenFilePreview: { _ in })
         let container = FileExplorerContainerView(coordinator: coordinator, presentation: .find, searchController: searchController)

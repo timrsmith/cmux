@@ -41,7 +41,7 @@ struct PaneFocusFindResponderTests {
             try? fileManager.removeItem(at: directoryURL)
         }
 
-        panel.startFind()
+        panel.startPreviewFind()
         let searchState = try #require(panel.searchState)
         let container = NSView(frame: NSRect(x: 0, y: 0, width: 420, height: 240))
         let rendererCoordinator = panel.rendererSession.coordinator(
@@ -128,7 +128,7 @@ struct PaneFocusFindResponderTests {
             try? FileManager.default.removeItem(at: directoryURL)
         }
 
-        panel.startFind()
+        panel.startPreviewFind()
         let searchState = try #require(panel.searchState)
         let findField = FindSelectionTrackingTextField(
             frame: NSRect(x: 20, y: 120, width: 180, height: 24)
@@ -147,7 +147,7 @@ struct PaneFocusFindResponderTests {
         )
         let capturedResponder = try #require(window.firstResponder)
 
-        panel.hideFind()
+        panel.hidePreviewFind()
 
         #expect(panel.searchState == nil)
         #expect(
@@ -179,12 +179,12 @@ struct PaneFocusFindResponderTests {
             try? FileManager.default.removeItem(at: directoryURL)
         }
         let webView = attachPreview(to: panel, in: window)
-        if findVisible { panel.startFind() }
+        if findVisible { panel.startPreviewFind() }
         window.makeKeyAndOrderFront(nil)
         #expect(window.makeFirstResponder(webView))
         let capturedResponder = try #require(window.firstResponder)
 
-        panel.hideFind()
+        panel.hidePreviewFind()
 
         #expect(panel.searchState == nil)
         #expect(window.firstResponder === capturedResponder)
@@ -211,7 +211,7 @@ struct PaneFocusFindResponderTests {
         window.makeKeyAndOrderFront(nil)
         #expect(window.makeFirstResponder(editor))
 
-        panel.hideFind()
+        panel.hidePreviewFind()
 
         #expect(window.firstResponder === editor)
     }
@@ -231,7 +231,7 @@ struct PaneFocusFindResponderTests {
             try? FileManager.default.removeItem(at: directoryURL)
         }
         panel.focus()
-        panel.hideFind()
+        panel.hidePreviewFind()
         let webView = attachPreview(to: panel, in: window)
         window.makeKeyAndOrderFront(nil)
         #expect(window.makeFirstResponder(nil))
@@ -256,14 +256,14 @@ struct PaneFocusFindResponderTests {
             try? FileManager.default.removeItem(at: directoryURL)
         }
         _ = attachPreview(to: panel, in: window)
-        panel.startFind()
+        panel.startPreviewFind()
         panel.unfocus()
         let editor = NSTextView(frame: NSRect(x: 0, y: 0, width: 200, height: 200))
         window.contentView?.addSubview(editor)
         window.makeKeyAndOrderFront(nil)
         #expect(window.makeFirstResponder(editor))
 
-        panel.hideFind()
+        panel.hidePreviewFind()
         panel.replayPendingPreviewFocusAfterWindowAttach()
 
         #expect(panel.searchState == nil)
@@ -290,7 +290,7 @@ struct PaneFocusFindResponderTests {
         }
         let webView = attachPreview(to: panel, in: window)
         window.rejectedFirstResponder = webView
-        panel.startFind()
+        panel.startPreviewFind()
         let searchState = try #require(panel.searchState)
         let findField = FindSelectionTrackingTextField(
             frame: NSRect(x: 20, y: 120, width: 180, height: 24)
@@ -307,7 +307,7 @@ struct PaneFocusFindResponderTests {
         window.resignationDestination = foreignEditor
         window.resetRejectedFocusAttempts()
 
-        panel.hideFind()
+        panel.hidePreviewFind()
         #expect(window.rejectedFocusAttempts == 1)
         window.rejectedFirstResponder = nil
         #expect(window.makeFirstResponder(foreignEditor))

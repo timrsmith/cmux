@@ -261,7 +261,7 @@ struct SidebarHiddenPresentationTests {
             .environmentObject(notificationStore)
             .environmentObject(sidebarState)
             .environmentObject(SidebarSelectionState())
-            .environmentObject(FileExplorerState())
+            .environmentObject(FileExplorerState(sidebar: nil))
             .environmentObject(CmuxConfigStore())
             .environment(
                 \.sidebarLazyContractProbe,

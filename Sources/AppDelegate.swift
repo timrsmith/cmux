@@ -866,6 +866,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private var shortcutMatcher: ConfiguredShortcutMatcher {
         ConfiguredShortcutMatcher(layoutCharacterProvider: shortcutLayoutCharacterProvider)
     }
+    /// Per-action bindings for the key-event handler, resolved once per
+    /// shortcut-settings generation instead of on every keystroke.
+    let configuredShortcutTable = ConfiguredShortcutTable()
     private var workspaceObserver: NSObjectProtocol?
     private var lifecycleSnapshotObservers: [NSObjectProtocol] = []
     private var windowKeyObservers: [NSObjectProtocol] = []
@@ -10468,7 +10471,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         cmuxConfigStore.wireDirectoryTracking(tabManager: tabManager)
         cmuxConfigStore.loadAll()
 
-        let fileExplorerState = FileExplorerState()
+        // With `sidebar.filesPanelPlacement` = `stacked` the tree lives inside
+        // the workspace sidebar, so "show Files" must also show the sidebar
+        // when it is hidden (`FileExplorerState.showFiles`).
+        let fileExplorerState = FileExplorerState(sidebar: sidebarState)
 #if DEBUG
         if ProcessInfo.processInfo.environment["CMUX_UI_TEST_BONSPLIT_SHOW_RIGHT_SIDEBAR"] == "1" {
             fileExplorerState.mode = .files
@@ -14496,7 +14502,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 return false
             }
             guard !action.isBrowserContentShortcut else { return false }
-            return KeyboardShortcutSettings.shortcut(for: action).hasChord
+            return configuredShortcutTable.shortcut(for: action).hasChord
         }
     }
 
@@ -15005,7 +15011,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         if shouldRouteConfiguredPaletteSelection, let paletteWindow = commandPaletteShortcutWindow {
             for (action, delta) in [(KeyboardShortcutSettings.Action.commandPaletteNext, 1), (.commandPalettePrevious, -1)] {
-                guard KeyboardShortcutSettings.shortcut(for: action).hasChord, matchConfiguredShortcut(event: event, action: action) else { continue }
+                guard configuredShortcutTable.shortcut(for: action).hasChord, matchConfiguredShortcut(event: event, action: action) else { continue }
                 NotificationCenter.default.post(name: .commandPaletteMoveSelection, object: paletteWindow, userInfo: ["delta": delta])
                 return true
             }
@@ -17620,7 +17626,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func matchConfiguredShortcut(event: NSEvent, action: KeyboardShortcutSettings.Action) -> Bool {
         if !shortcutWhenClauseAllows(action: action, event: event) { return false }
-        return matchConfiguredShortcut(event: event, shortcut: KeyboardShortcutSettings.shortcut(for: action))
+        return matchConfiguredShortcut(event: event, shortcut: configuredShortcutTable.shortcut(for: action))
     }
 
     /// `shortcuts.when` gates opening Search; visible Search owns its toggle so
@@ -17656,7 +17662,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         return KeyboardShortcutSettings.Action.allCases.contains {
             $0.shortcutContext.forwardsMenuEquivalentToFocusedTerminal &&
                 !$0.isBrowserContentShortcut &&
-                matchConfiguredShortcut(event: event, shortcut: KeyboardShortcutSettings.shortcut(for: $0))
+                matchConfiguredShortcut(event: event, shortcut: configuredShortcutTable.shortcut(for: $0))
         }
     }
 
@@ -17664,7 +17670,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         event: NSEvent,
         action: KeyboardShortcutSettings.Action
     ) -> Int? {
-        let shortcut = KeyboardShortcutSettings.shortcut(for: action)
+        let shortcut = configuredShortcutTable.shortcut(for: action)
         if let prefix = activeConfiguredShortcutChordPrefixForCurrentEvent {
             guard let secondStroke = shortcut.secondStroke,
                   shortcut.firstStroke == prefix else {
@@ -17696,7 +17702,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         guard shortcutWhenClauseAllows(action: action, event: event) else {
             return false
         }
-        let shortcut = KeyboardShortcutSettings.shortcut(for: action)
+        let shortcut = configuredShortcutTable.shortcut(for: action)
         guard !shortcut.isUnbound else { return false }
         if let prefix = activeConfiguredShortcutChordPrefixForCurrentEvent {
             guard let secondStroke = shortcut.secondStroke,
@@ -17735,7 +17741,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     ) -> Bool {
         var seen = Set<StoredShortcut>()
         let configuredShortcuts = actions.map {
-            KeyboardShortcutSettings.shortcut(for: $0)
+            configuredShortcutTable.shortcut(for: $0)
         } + shortcuts
         for shortcut in configuredShortcuts {
             guard seen.insert(shortcut).inserted else { continue }
@@ -18139,7 +18145,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         _ event: NSEvent,
         action: KeyboardShortcutSettings.Action
     ) -> Bool {
-        let currentShortcut = KeyboardShortcutSettings.shortcut(for: action)
+        let currentShortcut = configuredShortcutTable.shortcut(for: action)
         if action.usesNumberedDigitMatching {
             return numberedShortcutDigit(event: event, shortcut: currentShortcut) != nil
         }

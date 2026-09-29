@@ -228,7 +228,7 @@ final class WorkspaceContentViewVisibilityTests {
         // The right-side file explorer is outside this test's minimal-mode
         // scope. Keep it hidden so delayed workspace-root discovery cannot
         // invalidate the chrome bodies during the toggle measurement.
-        let fileExplorerState = FileExplorerState(defaults: defaults)
+        let fileExplorerState = FileExplorerState(sidebar: nil, defaults: defaults)
         fileExplorerState.setVisible(false)
         let notificationStore = TerminalNotificationStore.shared
         let counts = MinimalModeBodyProbeCounts()
@@ -344,7 +344,7 @@ final class WorkspaceContentViewVisibilityTests {
             .environmentObject(TerminalNotificationStore.shared)
             .environmentObject(SidebarState())
             .environmentObject(SidebarSelectionState())
-            .environmentObject(FileExplorerState())
+            .environmentObject(FileExplorerState(sidebar: nil))
             .environmentObject(CmuxConfigStore())
             .environment(
                 \.minimalModeInvalidationProbe,

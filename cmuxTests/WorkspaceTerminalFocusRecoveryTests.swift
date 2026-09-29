@@ -29,7 +29,7 @@ struct WorkspaceTerminalFocusRecoverySwiftTests {
                 tabManager: manager,
                 sidebarState: SidebarState(),
                 sidebarSelectionState: SidebarSelectionState(),
-                fileExplorerState: FileExplorerState()
+                fileExplorerState: FileExplorerState(sidebar: nil)
             )
             appDelegate.tabManager = manager
             defer {
@@ -117,7 +117,7 @@ struct WorkspaceTerminalFocusRecoverySwiftTests {
                 tabManager: manager,
                 sidebarState: SidebarState(),
                 sidebarSelectionState: SidebarSelectionState(),
-                fileExplorerState: FileExplorerState()
+                fileExplorerState: FileExplorerState(sidebar: nil)
             )
             appDelegate.tabManager = manager
             defer {
@@ -201,7 +201,7 @@ struct WorkspaceTerminalFocusRecoverySwiftTests {
                 tabManager: manager,
                 sidebarState: SidebarState(),
                 sidebarSelectionState: SidebarSelectionState(),
-                fileExplorerState: FileExplorerState()
+                fileExplorerState: FileExplorerState(sidebar: nil)
             )
             appDelegate.tabManager = manager
             defer {
@@ -280,7 +280,7 @@ struct WorkspaceTerminalFocusRecoverySwiftTests {
                 tabManager: manager,
                 sidebarState: SidebarState(),
                 sidebarSelectionState: SidebarSelectionState(),
-                fileExplorerState: FileExplorerState()
+                fileExplorerState: FileExplorerState(sidebar: nil)
             )
             appDelegate.tabManager = manager
             defer {
@@ -381,7 +381,7 @@ struct WorkspaceTerminalFocusRecoverySwiftTests {
                 tabManager: manager,
                 sidebarState: SidebarState(),
                 sidebarSelectionState: SidebarSelectionState(),
-                fileExplorerState: FileExplorerState()
+                fileExplorerState: FileExplorerState(sidebar: nil)
             )
             appDelegate.tabManager = manager
             defer {

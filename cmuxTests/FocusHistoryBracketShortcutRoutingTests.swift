@@ -115,7 +115,7 @@ struct FocusHistoryBracketShortcutRoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         window.makeKeyAndOrderFront(nil)
 

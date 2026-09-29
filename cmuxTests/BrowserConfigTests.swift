@@ -1211,7 +1211,7 @@ final class CmuxWebViewKeyEquivalentTests: XCTestCase {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         defer {
             appDelegate.unregisterMainWindowContextForTesting(windowId: windowId)
@@ -1305,7 +1305,7 @@ final class CmuxWebViewKeyEquivalentTests: XCTestCase {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         defer {
             appDelegate.unregisterMainWindowContextForTesting(windowId: windowId)

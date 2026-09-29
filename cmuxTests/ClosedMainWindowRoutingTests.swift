@@ -101,7 +101,7 @@ struct ClosedMainWindowRoutingTests {
             tabManager: managerA,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         app.registerMainWindow(
             windowB,
@@ -109,7 +109,7 @@ struct ClosedMainWindowRoutingTests {
             tabManager: managerB,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         windowB.makeKeyAndOrderFront(nil)
         windowA.makeKeyAndOrderFront(nil)
@@ -186,7 +186,7 @@ struct ClosedMainWindowRoutingTests {
             tabManager: managerA,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         app.registerMainWindow(
             windowC,
@@ -194,7 +194,7 @@ struct ClosedMainWindowRoutingTests {
             tabManager: managerC,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         windowA.makeKeyAndOrderFront(nil)
         windowC.makeKeyAndOrderFront(nil)
@@ -248,7 +248,7 @@ struct ClosedMainWindowRoutingTests {
             tabManager: recoverableManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         app.registerMainWindow(
             fallbackWindow,
@@ -256,7 +256,7 @@ struct ClosedMainWindowRoutingTests {
             tabManager: fallbackManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         let recoverableContext = try #require(
             app.mainWindowContexts.values.first { $0.windowId == recoverableWindowId }
@@ -306,7 +306,7 @@ struct ClosedMainWindowRoutingTests {
             tabManager: survivorManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         app.registerMainWindow(
             closingWindow,
@@ -314,7 +314,7 @@ struct ClosedMainWindowRoutingTests {
             tabManager: closingManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         survivorWindow.makeKeyAndOrderFront(nil)
         closingWindow.makeKeyAndOrderFront(nil)
@@ -370,7 +370,7 @@ struct ClosedMainWindowRoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         window.makeKeyAndOrderFront(nil)
         let workspace = try #require(manager.selectedWorkspace)
@@ -423,7 +423,7 @@ struct ClosedMainWindowRoutingTests {
             tabManager: registeredManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         let recoveredSidebarState = SidebarState(isVisible: false, persistedWidth: 287)
         let recoveredSidebarSelectionState = SidebarSelectionState(selection: .notifications)
@@ -433,7 +433,7 @@ struct ClosedMainWindowRoutingTests {
             tabManager: recoveredManager,
             sidebarState: recoveredSidebarState,
             sidebarSelectionState: recoveredSidebarSelectionState,
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         registeredWindow.makeKeyAndOrderFront(nil)
         recoveredWindow.makeKeyAndOrderFront(nil)
@@ -525,7 +525,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         #expect(!app.mainWindowContexts.values.contains { $0.windowId == windowId })
@@ -572,7 +572,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: owner,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         window.makeKeyAndOrderFront(nil)
         #expect(app.tabManagerFor(windowId: windowId) === owner)
@@ -585,7 +585,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: finalizedIntruder,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         #expect(app.tabManagerFor(windowId: windowId) === owner)
@@ -641,7 +641,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: originalManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         #expect(app.commitMainWindowClose(window))
         #expect(app.hasCommittedMainWindowClose(window))
@@ -653,7 +653,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: freshManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         #expect(freshManager.isFinalizedForWindowClose)
@@ -872,7 +872,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         window.makeKeyAndOrderFront(nil)
         let context = try #require(
@@ -990,7 +990,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: duplicateManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         #expect(!app.mainWindowContexts.values.contains { $0.tabManager === duplicateManager })
@@ -1007,7 +1007,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: owner,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         #expect(app.recoverableMainWindowRoute(windowId: windowId) == nil)
@@ -1082,7 +1082,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: foreignManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         #expect(app.recoverableMainWindowRoute(windowId: windowId)?.tabManager === owner)
@@ -1151,7 +1151,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: managerB,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         windowB.makeKeyAndOrderFront(nil)
 
@@ -1164,7 +1164,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: managerB,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         #expect(windowB.closeCallCount == 0)
@@ -1226,7 +1226,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: foreign,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         #expect(foreignWindow.closeCallCount == 1)
@@ -1292,7 +1292,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: owner,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         ownerWindow.makeKeyAndOrderFront(nil)
 
@@ -1302,7 +1302,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: duplicateManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         #expect(app.tabManagerFor(windowId: windowId) === owner)
@@ -1372,7 +1372,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: reservedOwner,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         reservedWindow.makeKeyAndOrderFront(nil)
         app.registerMainWindow(
@@ -1381,7 +1381,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: sharedManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         existingWindow.makeKeyAndOrderFront(nil)
 
@@ -1391,7 +1391,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: sharedManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         #expect(!sharedManager.isFinalizedForWindowClose)
@@ -1453,7 +1453,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         ownerWindow.makeKeyAndOrderFront(nil)
         aliasWindow.makeKeyAndOrderFront(nil)
@@ -1464,7 +1464,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         #expect(aliasWindow.closeCallCount == 1)
@@ -1533,7 +1533,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         ownerWindow.makeKeyAndOrderFront(nil)
         let ownerContext = try #require(
@@ -1552,7 +1552,7 @@ struct RecoverableWindowlessMainWindowRoutingTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         #expect(aliasWindow.closeCallCount == 1)
@@ -1671,7 +1671,7 @@ struct GhostMainWindowContextLifecycleTests {
             tabManager: windowManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         app.setActiveMainWindow(window)
 
@@ -1981,7 +1981,7 @@ struct GhostMainWindowContextLifecycleTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         window.makeKeyAndOrderFront(nil)
 
@@ -2045,7 +2045,7 @@ struct GhostMainWindowContextLifecycleTests {
             tabManager: ownerManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         let ownerContext = try #require(
             app.mainWindowContexts.values.first { $0.windowId == ownerWindowId }
@@ -2062,7 +2062,7 @@ struct GhostMainWindowContextLifecycleTests {
             tabManager: candidateManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         let candidateContext = try #require(
@@ -2114,7 +2114,7 @@ struct GhostMainWindowContextLifecycleTests {
             tabManager: ownerManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         let ownerContext = try #require(
             app.mainWindowContexts.values.first { $0.windowId == ownerWindowId }
@@ -2159,7 +2159,7 @@ struct GhostMainWindowContextLifecycleTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         window.makeKeyAndOrderFront(nil)
         let context = try #require(
@@ -2191,7 +2191,7 @@ struct GhostMainWindowContextLifecycleTests {
         let manager = TabManager()
         let sidebarState = SidebarState()
         let sidebarSelectionState = SidebarSelectionState()
-        let fileExplorerState = FileExplorerState()
+        let fileExplorerState = FileExplorerState(sidebar: nil)
         let workspace = try #require(manager.selectedWorkspace)
         let terminalPanel = try #require(workspace.focusedTerminalPanel)
         manager.requestBackgroundWorkspaceLoad(for: workspace.id)
@@ -2264,7 +2264,7 @@ struct GhostMainWindowContextLifecycleTests {
         let manager = TabManager()
         let sidebarState = SidebarState()
         let sidebarSelectionState = SidebarSelectionState()
-        let fileExplorerState = FileExplorerState()
+        let fileExplorerState = FileExplorerState(sidebar: nil)
         let workspace = try #require(manager.selectedWorkspace)
         let terminalPanel = try #require(workspace.focusedTerminalPanel)
         defer {
@@ -2328,7 +2328,7 @@ struct FinalCloseRoutingRegressionTests {
                 tabManager: manager,
                 sidebarState: SidebarState(),
                 sidebarSelectionState: SidebarSelectionState(),
-                fileExplorerState: FileExplorerState()
+                fileExplorerState: FileExplorerState(sidebar: nil)
             )
             window.delegate = closeDelegate
             window.makeKeyAndOrderFront(nil)
@@ -2432,7 +2432,7 @@ struct FinalCloseRoutingRegressionTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         let context = try #require(
             app.mainWindowContexts.values.first { $0.windowId == windowId }
@@ -2487,7 +2487,7 @@ struct FinalCloseRoutingRegressionTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         let context = try #require(
             app.mainWindowContexts.values.first { $0.windowId == windowId }
@@ -2552,7 +2552,7 @@ struct FinalCloseRoutingRegressionTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         ownerWindow.makeKeyAndOrderFront(nil)
         let context = try #require(
@@ -2610,7 +2610,7 @@ struct FinalCloseRoutingRegressionTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         ownerWindow.makeKeyAndOrderFront(nil)
         let context = try #require(
@@ -2666,7 +2666,7 @@ struct FinalCloseRoutingRegressionTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         window.makeKeyAndOrderFront(nil)
         let context = try #require(
@@ -2759,7 +2759,7 @@ struct MainWindowKeyObservationOwnershipTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         // Posting through NotificationCenter exercises the same observer
@@ -2820,7 +2820,7 @@ struct MainWindowKeyObservationOwnershipTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         NotificationCenter.default.post(name: NSWindow.didBecomeKeyNotification, object: originalWindow)
         #expect(app.tabManager === manager)
@@ -2853,7 +2853,7 @@ struct MainWindowKeyObservationOwnershipTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         #expect(app.mainWindowContexts[ObjectIdentifier(replacementWindow)] === context)
@@ -2903,7 +2903,7 @@ struct MainWindowKeyObservationOwnershipTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         NotificationCenter.default.post(name: NSWindow.didBecomeKeyNotification, object: ownerWindow)
         #expect(app.tabManager === manager)
@@ -2958,7 +2958,7 @@ struct MainWindowKeyObservationOwnershipTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         let context = try #require(
             app.mainWindowContexts.values.first { $0.windowId == ownerWindowId }
@@ -2976,7 +2976,7 @@ struct MainWindowKeyObservationOwnershipTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
 
         #expect(app.mainWindowContexts.isEmpty)

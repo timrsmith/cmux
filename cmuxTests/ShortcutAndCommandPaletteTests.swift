@@ -1581,7 +1581,7 @@ final class MainWindowFocusControllerRightSidebarHideTests: XCTestCase {
             windowId: UUID(),
             window: nil,
             tabManager: TabManager(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         let workspaceId = UUID()
         let panelId = UUID()
@@ -1614,7 +1614,7 @@ final class MainWindowFocusControllerRightSidebarHideTests: XCTestCase {
             else { defaults.removeObject(forKey: visibleKey) }
         }
 
-        let fileExplorerState = FileExplorerState()
+        let fileExplorerState = FileExplorerState(sidebar: nil)
         fileExplorerState.setVisible(false)
         fileExplorerState.mode = .changes
         fileExplorerState.setFilesPanelVisible(false)
@@ -1648,7 +1648,7 @@ final class MainWindowFocusControllerRightSidebarHideTests: XCTestCase {
             windowId: UUID(),
             window: nil,
             tabManager: TabManager(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         let workspaceId = UUID()
         let panelId = UUID()
@@ -1665,7 +1665,7 @@ final class MainWindowFocusControllerRightSidebarHideTests: XCTestCase {
             windowId: UUID(),
             window: nil,
             tabManager: TabManager(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         let itemId = UUID()
         let workspaceId = UUID()
@@ -1689,7 +1689,7 @@ final class MainWindowFocusControllerRightSidebarHideTests: XCTestCase {
             windowId: UUID(),
             window: nil,
             tabManager: TabManager(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         let responder = TestRightSidebarResponder(frame: NSRect(x: 0, y: 0, width: 24, height: 24))
 
@@ -1703,7 +1703,7 @@ final class MainWindowFocusControllerRightSidebarHideTests: XCTestCase {
 
     @MainActor
     func testPendingSessionsFocusSurvivesStaleFeedResponderDuringModeSwitch() {
-        let fileExplorerState = FileExplorerState()
+        let fileExplorerState = FileExplorerState(sidebar: nil)
         let controller = MainWindowFocusController(
             windowId: UUID(),
             window: nil,
@@ -1726,7 +1726,7 @@ final class MainWindowFocusControllerRightSidebarHideTests: XCTestCase {
 
     @MainActor
     func testPendingSessionsFocusCompletesWhenRightSidebarHostRegisters() {
-        let fileExplorerState = FileExplorerState()
+        let fileExplorerState = FileExplorerState(sidebar: nil)
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 240, height: 180),
             styleMask: [.titled],
@@ -1765,7 +1765,7 @@ final class MainWindowFocusControllerRightSidebarHideTests: XCTestCase {
             windowId: UUID(),
             window: nil,
             tabManager: TabManager(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         let workspaceId = UUID()
         let panelId = UUID()
@@ -1794,7 +1794,7 @@ final class MainWindowFocusControllerRightSidebarHideTests: XCTestCase {
             windowId: UUID(),
             window: nil,
             tabManager: TabManager(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         let panelId = surface.id
 

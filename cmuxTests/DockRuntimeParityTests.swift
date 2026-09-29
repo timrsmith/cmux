@@ -273,7 +273,7 @@ struct DockRuntimeParityTests {
     }
 
     private func withAppContext(
-        fileExplorerState: FileExplorerState? = FileExplorerState(),
+        fileExplorerState: FileExplorerState? = FileExplorerState(sidebar: nil),
         _ body: @MainActor (AppDelegate, TabManager, Workspace, UUID) async throws -> Void
     ) async throws {
         try await AppContextSerialGate.withExclusiveAppContext {
@@ -491,7 +491,7 @@ struct DockRuntimeParityTests {
 
     @Test("Mark Oldest skips only the focused Dock surface when jumping")
     func markOldestSkipsOnlyFocusedDockSurfaceWhenJumping() async throws {
-        try await withAppContext(fileExplorerState: FileExplorerState()) {
+        try await withAppContext(fileExplorerState: FileExplorerState(sidebar: nil)) {
             appDelegate, _, workspace, windowID in
             let notificationStore = TerminalNotificationStore.shared
             let previousNotificationStore = appDelegate.notificationStore
@@ -678,7 +678,7 @@ struct DockRuntimeParityTests {
 
     @Test("Notification opens fail closed for hidden workspace Docks")
     func notificationOpensOnlyRenderedWindowDockPanels() async throws {
-        let sidebarState = FileExplorerState()
+        let sidebarState = FileExplorerState(sidebar: nil)
         let previousSidebarVisibility = sidebarState.isVisible
         let previousSidebarMode = sidebarState.mode
         sidebarState.setVisible(false)

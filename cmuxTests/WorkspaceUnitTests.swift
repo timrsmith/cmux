@@ -5216,7 +5216,7 @@ final class WorkspaceTerminalFocusRecoveryTests: XCTestCase {
             appDelegate.registerMainWindow(
                 window, windowId: windowId, tabManager: manager,
                 sidebarState: SidebarState(), sidebarSelectionState: SidebarSelectionState(),
-                fileExplorerState: FileExplorerState()
+                fileExplorerState: FileExplorerState(sidebar: nil)
             )
             AppDelegate.shared = appDelegate
             appDelegate.tabManager = manager

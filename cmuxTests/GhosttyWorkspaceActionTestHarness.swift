@@ -42,7 +42,7 @@ final class GhosttyWorkspaceActionTestHarness {
         app.registerMainWindow(
             window, windowId: windowID, tabManager: manager,
             sidebarState: SidebarState(), sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         app.tabManager = manager
     }

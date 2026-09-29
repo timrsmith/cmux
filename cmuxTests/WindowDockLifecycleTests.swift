@@ -474,7 +474,7 @@ struct WindowDockLifecycleTests {
                 tabManager: manager,
                 sidebarState: SidebarState(),
                 sidebarSelectionState: SidebarSelectionState(),
-                fileExplorerState: FileExplorerState()
+                fileExplorerState: FileExplorerState(sidebar: nil)
             )
 
             #expect(appDelegate.existingWindowDock(forWindowId: windowId) === dock)

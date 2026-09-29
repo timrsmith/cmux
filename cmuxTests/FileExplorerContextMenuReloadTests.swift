@@ -18,7 +18,7 @@ struct FileExplorerContextMenuReloadTests {
         store.setProviderForTesting(LocalFileExplorerProvider(), reloadIfAvailable: false)
         let coordinator = FileExplorerPanelView.Coordinator(
             store: store,
-            state: FileExplorerState(),
+            state: FileExplorerState(sidebar: nil),
             onOpenFilePreview: { _ in }
         )
         let container = FileExplorerContainerView(coordinator: coordinator, presentation: .files)
