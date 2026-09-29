@@ -51,7 +51,7 @@ struct RecoverableMainWindowLifecycleTests {
                 tabManager: liveManager,
                 sidebarState: SidebarState(),
                 sidebarSelectionState: SidebarSelectionState(),
-                fileExplorerState: FileExplorerState()
+                fileExplorerState: FileExplorerState(sidebar: nil)
             )
             let workspace = try #require(liveManager.selectedWorkspace)
             workspaceId = workspace.id
@@ -209,7 +209,7 @@ struct RecoverableMainWindowLifecycleTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         let workspace = try #require(manager.selectedWorkspace)
         let panelId = try #require(workspace.focusedPanelId)
@@ -285,7 +285,7 @@ struct RecoverableMainWindowLifecycleTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         window.makeKeyAndOrderFront(nil)
 
@@ -341,7 +341,7 @@ struct RecoverableMainWindowLifecycleTests {
             tabManager: survivorManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         app.registerMainWindow(
             closingWindow,
@@ -349,7 +349,7 @@ struct RecoverableMainWindowLifecycleTests {
             tabManager: closingManager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         survivorWindow.makeKeyAndOrderFront(nil)
         closingWindow.makeKeyAndOrderFront(nil)
@@ -522,7 +522,7 @@ struct RecoverableMainWindowLifecycleTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         let workspace = try #require(manager.selectedWorkspace)
         let terminal = try #require(workspace.focusedTerminalPanel)

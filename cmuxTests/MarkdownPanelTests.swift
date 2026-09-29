@@ -234,24 +234,24 @@ final class MarkdownPanelTests: XCTestCase {
 
         XCTAssertNil(panel.searchState)
 
-        panel.startFind()
+        panel.startPreviewFind()
         let firstState = try XCTUnwrap(panel.searchState)
         firstState.needle = "needle"
         let generationAfterStart = panel.searchFocusRequestGeneration
         XCTAssertTrue(panel.canApplySearchFocusRequest(generationAfterStart))
 
         // A second Cmd+F refocuses the existing bar instead of replacing it.
-        panel.startFind()
+        panel.startPreviewFind()
         XCTAssertTrue(panel.searchState === firstState)
         XCTAssertFalse(panel.canApplySearchFocusRequest(generationAfterStart))
 
         // Hiding clears the bar and invalidates pending focus requests.
-        panel.hideFind()
+        panel.hidePreviewFind()
         XCTAssertNil(panel.searchState)
         XCTAssertFalse(panel.canApplySearchFocusRequest(panel.searchFocusRequestGeneration))
 
         // Reopening recovers the last needle so Cmd+F resumes the search.
-        panel.startFind()
+        panel.startPreviewFind()
         XCTAssertEqual(panel.searchState?.needle, "needle")
 
         // The find bar belongs to the preview surface: switching to text
@@ -259,11 +259,11 @@ final class MarkdownPanelTests: XCTestCase {
         // native find panel.
         panel.setDisplayMode(.text)
         XCTAssertNil(panel.searchState)
-        panel.startFind()
+        panel.startPreviewFind()
         XCTAssertNil(panel.searchState)
 
         panel.setDisplayMode(.preview)
-        panel.startFind()
+        panel.startPreviewFind()
         XCTAssertNotNil(panel.searchState)
     }
 

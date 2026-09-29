@@ -108,7 +108,7 @@ struct SurfaceResumeSocketApprovalTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 

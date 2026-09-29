@@ -78,7 +78,7 @@ struct DockTerminalPointerFocusTests {
         let previousAppDelegate = AppDelegate.shared
         let appDelegate = AppDelegate()
         let manager = TabManager(autoWelcomeIfNeeded: false)
-        let fileExplorerState = FileExplorerState()
+        let fileExplorerState = FileExplorerState(sidebar: nil)
         let notificationStore = TerminalNotificationStore.shared
         let previousNotificationStore = appDelegate.notificationStore
         let windowId = UUID()
@@ -226,7 +226,7 @@ struct DockTerminalPointerFocusTests {
         let previousAppDelegate = AppDelegate.shared
         let appDelegate = AppDelegate()
         let manager = TabManager(autoWelcomeIfNeeded: false)
-        let fileExplorerState = FileExplorerState()
+        let fileExplorerState = FileExplorerState(sidebar: nil)
         let windowId = UUID()
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),

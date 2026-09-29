@@ -38,7 +38,7 @@ struct CodexWriterAdmissionRecoveryTests {
             AppDelegate.shared = app
             app.registerMainWindow(
                 window, windowId: windowID, tabManager: manager, sidebarState: SidebarState(),
-                sidebarSelectionState: SidebarSelectionState(), fileExplorerState: FileExplorerState()
+                sidebarSelectionState: SidebarSelectionState(), fileExplorerState: FileExplorerState(sidebar: nil)
             )
             TerminalController.shared.setActiveTabManager(manager)
             defer {

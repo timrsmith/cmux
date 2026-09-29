@@ -25,6 +25,12 @@ dependencies and is fully testable through injected seams and temp directories.
   to know when that metadata goes stale (including submodule gitlinks).
 - `repositorySlugs(forDirectory:)` — the GitHub `owner/name` remotes, ordered
   `upstream`, `origin`, then the rest.
+- `watchDescriptor(for:)` — a `GitWorkspaceMetadataWatchDescriptor` whose
+  `containsRelevantChange(paths:requiresFullRescan:)` filters a watcher batch
+  for the sidebar's branch and dirty display, and whose
+  `containsStatusRelevantChange(paths:requiresFullRescan:)` narrows that to
+  paths that can change `git status` (dropping `refs/`, `packed-refs`,
+  `reftable`, `logs/`, `objects/`, `FETCH_HEAD` and `ORIG_HEAD`).
 
 Dirty detection mirrors git's stat-based check (size/mode/mtime per tracked
 entry, plus submodule-commit comparison for gitlinks), and excludes

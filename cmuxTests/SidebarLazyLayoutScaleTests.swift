@@ -163,7 +163,7 @@ final class SidebarLazyLayoutScaleTests {
 
         let root = VerticalTabsSidebar(
             updateViewModel: UpdateStateModel(),
-            fileExplorerState: FileExplorerState(),
+            fileExplorerState: FileExplorerState(sidebar: nil),
             featureFlags: featureFlags,
             sidebarUnread: unread,
             titlebarControlsLayoutModel: TitlebarControlsLayoutModel(),

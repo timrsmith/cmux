@@ -46,7 +46,9 @@ final class RightSidebarToolPanel: Panel, ObservableObject {
 
     var fileExplorerState: FileExplorerState {
         if let state = fileExplorerStateStorage { return state }
-        let state = FileExplorerState()
+        // A tool panel lives inside a workspace, not beside a workspace
+        // sidebar, so there is no stacked host to reveal.
+        let state = FileExplorerState(sidebar: nil)
         fileExplorerStateStorage = state
         return state
     }

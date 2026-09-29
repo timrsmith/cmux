@@ -8,7 +8,8 @@ import Foundation
 /// `packed-refs`, `reftable` and `config` paths and for tracked entries (in a
 /// large repository, for any write under the working tree). Ref, packed-ref
 /// and reflog churn from other worktrees is dropped before it reaches the
-/// store (``GitStatusWatchRelevance``), but the index is still rewritten
+/// store (the descriptor's `containsStatusRelevantChange`), but the index is
+/// still rewritten
 /// without the diff changing: another tool's `git status` refreshing the stat
 /// cache, `git add` of an already-staged path, an editor saving a file with
 /// identical contents. The panel used to reload its whole document on each

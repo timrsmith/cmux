@@ -27,7 +27,7 @@ struct CloudFileRootOwnershipTests {
         let store = FileExplorerStore()
         let coordinator = FileExplorerPanelView.Coordinator(
             store: store,
-            state: FileExplorerState(),
+            state: FileExplorerState(sidebar: nil),
             onOpenFilePreview: { _ in }
         )
         let container = FileExplorerContainerView(coordinator: coordinator, presentation: .files)

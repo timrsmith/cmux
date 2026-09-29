@@ -117,9 +117,9 @@ struct MarkdownPanelView: View {
                     canApplyFocusRequest: { generation in
                         panel.canApplySearchFocusRequest(generation)
                     },
-                    onNext: { panel.findNext() },
-                    onPrevious: { panel.findPrevious() },
-                    onClose: { panel.hideFind() },
+                    onNext: { panel.findNextInPreview() },
+                    onPrevious: { panel.findPreviousInPreview() },
+                    onClose: { panel.hidePreviewFind() },
                     onFieldDidFocus: {}
                 )
             }

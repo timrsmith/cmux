@@ -71,7 +71,7 @@ struct SidebarSnapshotOwnerTests {
         defer { WindowTerminalPortal.usesCoalescedAnchorFailsafe = initialCoalescing }
         let root = VerticalTabsSidebar(
             updateViewModel: UpdateStateModel(),
-            fileExplorerState: FileExplorerState(),
+            fileExplorerState: FileExplorerState(sidebar: nil),
             featureFlags: flags,
             sidebarUnread: SidebarUnreadModel(),
             titlebarControlsLayoutModel: TitlebarControlsLayoutModel(),

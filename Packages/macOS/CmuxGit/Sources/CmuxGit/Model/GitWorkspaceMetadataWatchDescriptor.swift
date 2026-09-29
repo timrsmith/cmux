@@ -187,15 +187,13 @@ public struct GitWorkspaceMetadataWatchDescriptor: Equatable, Sendable {
     }
 
     /// Identifies metadata-like paths under a forced root without promoting
-    /// ordinary source/build events to descriptor rebuilds.
+    /// ordinary source/build events to descriptor rebuilds. A path with no
+    /// `.git` component is not metadata; `.git` itself is.
     private func isLikelyForcedMetadataPath(_ path: String) -> Bool {
-        let components = path.split(separator: "/").map(String.init)
-        guard let gitIndex = components.lastIndex(of: ".git") else { return false }
-        let relative = components.dropFirst(gitIndex + 1)
-        guard !relative.isEmpty else { return true }
+        guard let relative = GitDirectoryRelativePath(path: path) else { return false }
         // Linked worktrees and submodules can nest object/log stores below
         // `.git/modules` or `.git/worktrees`; exclude those at any depth so a
         // conservative sentinel never turns pack churn into plan rebuilds.
-        return !relative.contains("objects") && !relative.contains("logs")
+        return !relative.contains { $0 == "objects" || $0 == "logs" }
     }
 }

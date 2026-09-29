@@ -48,14 +48,17 @@ final class FileExplorerState: ObservableObject {
         didSet { UserDefaults.standard.set(Double(filesPanelStackedHeight), forKey: Self.filesPanelStackedHeightKey) }
     }
 
-    /// The workspace sidebar that hosts the stacked Files region, set by the
-    /// window's `ContentView` (which owns both states) and cleared through
-    /// `detachStackedSidebarState`. `showFiles` needs it with the `stacked`
+    /// The workspace sidebar that hosts the stacked Files region, supplied by
+    /// the window's composition site (`AppDelegate.createMainWindow`), which
+    /// constructs both states. `showFiles` needs it with the `stacked`
     /// placement because the tree lives inside the sidebar, so revealing Files
-    /// while the sidebar is hidden must show the sidebar too. Runtime-only and
-    /// weak (the window owns the sidebar state); without one (tests, tool
-    /// windows) the sidebar is assumed visible.
-    weak var stackedSidebarState: SidebarState?
+    /// while the sidebar is hidden must show the sidebar too. Held weakly: the
+    /// window owns the sidebar state, and the sidebar's visibility handler
+    /// (installed by `ContentView`) captures the view that holds this object,
+    /// so a strong reference would close a cycle whenever a window is torn
+    /// down without `onDisappear`. `nil` for a host with no workspace sidebar
+    /// (`RightSidebarToolPanel`), which is then assumed visible.
+    private(set) weak var stackedSidebarState: SidebarState?
 
     /// Proportion of sidebar height allocated to the tab list (0.0-1.0).
     /// The file explorer gets the remaining space below.
@@ -92,7 +95,10 @@ final class FileExplorerState: ObservableObject {
         storedCustomSidebarName
     }
 
-    init() {
+    /// - Parameter sidebar: The workspace sidebar hosting the stacked Files
+    ///   region, or `nil` for a host without one (see `stackedSidebarState`).
+    init(sidebar: SidebarState?) {
+        self.stackedSidebarState = sidebar
         let defaults = UserDefaults.standard
         self.isVisible = defaults.bool(forKey: "fileExplorer.isVisible")
         let storedWidth = defaults.double(forKey: "fileExplorer.width")
@@ -155,14 +161,6 @@ final class FileExplorerState: ObservableObject {
     /// tab, and "show Files" targets the detached panel.
     nonisolated static func filesPanelIsDetached(defaults: UserDefaults = .standard) -> Bool {
         filesPanelPlacement(defaults: defaults).isDetachedFromRightSidebar
-    }
-
-    /// Clears `stackedSidebarState` when it is `sidebar`. Like the owner id of
-    /// `SidebarState.installVisibilityWillChangeHandler`, the identity check
-    /// keeps a stale view's teardown from detaching a newer window's sidebar.
-    func detachStackedSidebarState(_ sidebar: SidebarState) {
-        guard stackedSidebarState === sidebar else { return }
-        stackedSidebarState = nil
     }
 
     /// The one action path behind every "show Files" entry point (CLI

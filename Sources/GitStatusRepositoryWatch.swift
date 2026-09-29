@@ -26,26 +26,21 @@ enum GitStatusRepositoryWatching {
 
     /// The production factory: resolves the repository's Git-aware watch
     /// descriptor and installs a recursive watcher filtered to the paths that
-    /// can change `git status` output. The descriptor's plan and relevance
-    /// filter are the sidebar's (`SidebarGitMetadataService`), which also
-    /// follow ref, packed-ref and reflog churn for the branch display;
-    /// ``GitStatusWatchRelevance`` drops those first so a commit or fetch in
-    /// another worktree does not refetch this one's status.
+    /// can change `git status` output. The descriptor's plan is the sidebar's
+    /// (`SidebarGitMetadataService`), which also follows ref, packed-ref and
+    /// reflog churn for the branch display; the status-scoped filter
+    /// (`GitWorkspaceMetadataWatchDescriptor.containsStatusRelevantChange`)
+    /// drops those first so a commit or fetch in another worktree does not
+    /// refetch this one's status.
     static let defaultFactory: GitStatusRepositoryWatchFactory = { repoRoot in
         guard let descriptor = await GitStatusRepositoryWatching.gitMetadataService.watchDescriptor(for: repoRoot) else { return nil }
         guard let watcher = await RecursivePathWatcher(
             paths: descriptor.watchedPaths,
             throttleInterval: descriptor.eventCoalescingInterval,
             eventFilter: { change in
-                // Lost path history keeps the descriptor's conservative answer.
-                if change.requiresFullRescan {
-                    return descriptor.containsRelevantChange(paths: change.paths, requiresFullRescan: true)
-                }
-                // Stops at the first path both filters accept; a batch made
-                // only of ignored paths is not a change.
-                return GitStatusWatchRelevance.batchCanAffectStatus(
-                    change.paths,
-                    isRelevant: descriptor.containsRelevantChange(path:)
+                descriptor.containsStatusRelevantChange(
+                    paths: change.paths,
+                    requiresFullRescan: change.requiresFullRescan
                 )
             }
         ) else { return nil }

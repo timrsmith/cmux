@@ -926,110 +926,40 @@ class TabManager: ObservableObject {
         selectedWorkspace?.panels.values.compactMap { $0 as? TerminalPanel } ?? []
     }
 
+    // MARK: - Find
+    //
+    // Every Edit > Find command forwards to the one focused `FindablePanel`
+    // (`focusedFindablePanel`); each panel kind owns its find UI.
+
     var isFindVisible: Bool {
-        selectedTerminalPanel?.searchState != nil ||
-            focusedBrowserPanel?.searchState != nil ||
-            focusedMarkdownPanel?.searchState != nil ||
-            focusedTextEditingPanel?.textView?.enclosingScrollView?.isFindBarVisible == true
+        focusedFindablePanel?.isFindVisible == true
     }
 
     var canUseSelectionForFind: Bool {
-        selectedTerminalPanel?.hasSelection() == true
-            || (focusedTextEditingPanel?.textView?.selectedRange().length ?? 0) > 0
+        focusedFindablePanel?.canUseSelectionForFind == true
     }
 
     /// `replace` asks a native text editor for its find-and-replace bar;
     /// every other panel kind shows its plain find UI.
     @discardableResult
     func startSearch(replace: Bool = false) -> Bool {
-        if let panel = selectedTerminalPanel {
-            let hadExistingSearch = panel.searchState != nil
-            panel.hostedView.preparePanelFocusIntentForActivation(.findField)
-            let recoveredNeedle = hadExistingSearch ? "" : panel.surface.lastSearchNeedle
-            let handled = startOrFocusTerminalSearch(panel.surface, initialNeedle: recoveredNeedle) { surface in
-                NotificationCenter.default.post(
-                    name: .ghosttySearchFocus,
-                    object: surface,
-                    userInfo: [FindFocusNotificationKey.selectAll: !hadExistingSearch && !recoveredNeedle.isEmpty]
-                )
-            }
-#if DEBUG
-            cmuxDebugLog(
-                "find.startSearch workspace=\(panel.workspaceId.uuidString.prefix(5)) " +
-                "panel=\(panel.id.uuidString.prefix(5)) existing=\(hadExistingSearch ? "yes" : "no") " +
-                "handled=\(handled ? 1 : 0) " +
-                "firstResponder=\(String(describing: panel.surface.uiWindow?.firstResponder))"
-            )
-#endif
-            return handled
-        }
-        if let browserPanel = focusedBrowserPanel {
-            browserPanel.startFind()
-            // A diff viewer page owns find in-page; the native bar stays
-            // hidden but the shortcut was handled.
-            return browserPanel.searchState != nil || browserPanel.isDiffViewerFindOwner
-        }
-        // A native text editor (file preview, markdown source mode) shows its
-        // own find bar; the shortcut never reaches the text view's responder
-        // chain because cmux owns Cmd+F.
-        if let editingPanel = focusedTextEditingPanel {
-            return editingPanel.startTextFind(replace: replace)
-        }
-        guard let markdownPanel = focusedMarkdownPanel else { return false }
-        markdownPanel.startFind()
-        return markdownPanel.searchState != nil
+        focusedFindablePanel?.startFind(replace: replace) ?? false
     }
 
     func searchSelection() {
-        guard let panel = selectedTerminalPanel else {
-            focusedTextEditingPanel?.performTextFinderAction(.setSearchString)
-            return
-        }
-        if panel.searchState == nil {
-            panel.searchState = TerminalSurface.SearchState()
-        }
-#if DEBUG
-        cmuxDebugLog(
-            "find.searchSelection workspace=\(panel.workspaceId.uuidString.prefix(5)) " +
-            "panel=\(panel.id.uuidString.prefix(5))"
-        )
-#endif
-        NotificationCenter.default.post(name: .ghosttySearchFocus, object: panel.surface)
-        _ = panel.performBindingAction("search_selection")
+        focusedFindablePanel?.useSelectionForFind()
     }
 
     func findNext() {
-        if let panel = selectedTerminalPanel {
-            _ = TerminalSearchNavigation.next.perform { panel.performBindingAction($0) }
-            return
-        }
-
-        if let browserPanel = focusedBrowserPanel {
-            browserPanel.findNext()
-            return
-        }
-        if let editingPanel = focusedTextEditingPanel {
-            editingPanel.performTextFinderAction(.nextMatch)
-            return
-        }
-        focusedMarkdownPanel?.findNext()
+        focusedFindablePanel?.findNext()
     }
 
     func findPrevious() {
-        if let panel = selectedTerminalPanel {
-            _ = TerminalSearchNavigation.previous.perform { panel.performBindingAction($0) }
-            return
-        }
+        focusedFindablePanel?.findPrevious()
+    }
 
-        if let browserPanel = focusedBrowserPanel {
-            browserPanel.findPrevious()
-            return
-        }
-        if let editingPanel = focusedTextEditingPanel {
-            editingPanel.performTextFinderAction(.previousMatch)
-            return
-        }
-        focusedMarkdownPanel?.findPrevious()
+    func hideFind() {
+        focusedFindablePanel?.hideFind()
     }
 
     /// Runs a file-editor command (Find and Replace, Go to Line, Toggle Line
@@ -1141,23 +1071,6 @@ class TabManager: ObservableObject {
         for panel in selectedWorkspaceTerminalPanels {
             panel.clearTextBoxHideEscapeArm()
         }
-    }
-
-    func hideFind() {
-        if let panel = selectedTerminalPanel {
-            panel.surface.closeSearchFromExplicitInput()
-            return
-        }
-
-        if let browserPanel = focusedBrowserPanel {
-            browserPanel.hideFind()
-            return
-        }
-        if let editingPanel = focusedTextEditingPanel {
-            editingPanel.performTextFinderAction(.hideFindInterface)
-            return
-        }
-        focusedMarkdownPanel?.hideFind()
     }
 
     func makeWorkspaceForCreation(

@@ -23,7 +23,7 @@ struct FileDropOverlayViewTests {
             .environmentObject(TerminalNotificationStore.shared)
             .environmentObject(SidebarState())
             .environmentObject(SidebarSelectionState())
-            .environmentObject(FileExplorerState())
+            .environmentObject(FileExplorerState(sidebar: nil))
             .environmentObject(CmuxConfigStore())
 
         let window = NSWindow(

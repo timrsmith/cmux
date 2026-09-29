@@ -1126,7 +1126,7 @@ struct FileExplorerStoreTests {
 
         let coordinator = FileExplorerPanelView.Coordinator(
             store: store,
-            state: FileExplorerState(),
+            state: FileExplorerState(sidebar: nil),
             onOpenFilePreview: { _ in }
         )
         let container = FileExplorerContainerView(coordinator: coordinator, presentation: .files)
@@ -1184,7 +1184,7 @@ struct FileExplorerStoreTests {
 
         let coordinator = FileExplorerPanelView.Coordinator(
             store: store,
-            state: FileExplorerState(),
+            state: FileExplorerState(sidebar: nil),
             onOpenFilePreview: { _ in }
         )
         let container = FileExplorerContainerView(coordinator: coordinator, presentation: .files)
@@ -1413,7 +1413,7 @@ struct FileSearchControllerTests {
     @Test
     func testTypingBurstDebouncesFindSearches() async throws {
         let store = FileExplorerStore()
-        let state = FileExplorerState()
+        let state = FileExplorerState(sidebar: nil)
         let searchController = SpyFileSearchController()
         let coordinator = FileExplorerPanelView.Coordinator(
             store: store,
@@ -1455,7 +1455,7 @@ struct FileSearchControllerTests {
     func testSearchFieldReturnCommitsWhenOpenSelectionShortcutsAreUnbound() throws {
         try withIsolatedShortcutSettings {
             let store = FileExplorerStore()
-            let state = FileExplorerState()
+            let state = FileExplorerState(sidebar: nil)
             let searchController = SpyFileSearchController()
             var openedPaths: [String] = []
             let coordinator = FileExplorerPanelView.Coordinator(
@@ -1501,7 +1501,7 @@ struct FileSearchControllerTests {
     @Test
     func testContentRevisionChangeDoesNotRestartActiveFindSearch() async throws {
         let store = FileExplorerStore()
-        let state = FileExplorerState()
+        let state = FileExplorerState(sidebar: nil)
         let searchController = SpyFileSearchController()
         let coordinator = FileExplorerPanelView.Coordinator(
             store: store,
@@ -1558,7 +1558,7 @@ struct FileSearchControllerTests {
         // Regression for #4931: redundant updateNSView passes must not invalidate layout,
         // or the unconditional KVO/isHidden writes re-enter the SwiftUI graph and hang.
         let store = FileExplorerStore()
-        let state = FileExplorerState()
+        let state = FileExplorerState(sidebar: nil)
         let searchController = SpyFileSearchController()
         let coordinator = FileExplorerPanelView.Coordinator(
             store: store,

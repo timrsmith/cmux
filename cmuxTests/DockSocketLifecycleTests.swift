@@ -342,7 +342,7 @@ struct DockSocketLifecycleTests {
     @MainActor
     func dockSurfaceCreateWithFocusRevealsDock() throws {
         try withDockAvailable {
-            let fileExplorerState = FileExplorerState()
+            let fileExplorerState = FileExplorerState(sidebar: nil)
             fileExplorerState.setVisible(false)
             fileExplorerState.mode = .files
 
@@ -369,7 +369,7 @@ struct DockSocketLifecycleTests {
     @MainActor
     func dockPaneCreateWithFocusRevealsDock() throws {
         try withDockAvailable {
-            let fileExplorerState = FileExplorerState()
+            let fileExplorerState = FileExplorerState(sidebar: nil)
             fileExplorerState.setVisible(false)
             fileExplorerState.mode = .files
 
@@ -994,7 +994,7 @@ struct DockSocketLifecycleTests {
         let previousManager = TerminalController.shared.activeTabManagerForCallerNotification()
         let appDelegate = AppDelegate()
         let manager = TabManager(autoWelcomeIfNeeded: false)
-        let fileExplorerState = FileExplorerState()
+        let fileExplorerState = FileExplorerState(sidebar: nil)
         let windowId = UUID()
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 480), styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false

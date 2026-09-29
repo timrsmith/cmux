@@ -54,10 +54,30 @@ extension TabManager {
         return panel
     }
 
+    /// The panel that answers the Edit > Find family, in the precedence the
+    /// find shortcuts have always used: the selected terminal, then the
+    /// focused browser (main area or Dock), then the focused file preview
+    /// showing its text editor, then the focused markdown panel (which picks
+    /// its preview or text editor itself from its display mode).
+    var focusedFindablePanel: (any FindablePanel)? {
+        if let terminalPanel = selectedTerminalPanel {
+            return terminalPanel
+        }
+        if let browserPanel = focusedBrowserPanel {
+            return browserPanel
+        }
+        if let filePreview = focusedTextFilePreviewPanel {
+            return filePreview
+        }
+        guard let tab = selectedWorkspace,
+              let panelId = tab.focusedPanelId else { return nil }
+        return tab.panels[panelId] as? MarkdownPanel
+    }
+
     /// The focused panel when it edits text natively: a file preview showing
-    /// its text editor, or a markdown panel in its text (source) mode. The
-    /// markdown preview mode finds in the rendered page instead
-    /// (`focusedMarkdownPanel`).
+    /// its text editor, or a markdown panel in its text (source) mode. Used
+    /// by the file-editor commands (`performFocusedTextEditorAction`); find
+    /// routes through `focusedFindablePanel` instead.
     var focusedTextEditingPanel: (any FilePreviewTextEditingPanel)? {
         if let filePreview = focusedTextFilePreviewPanel {
             return filePreview

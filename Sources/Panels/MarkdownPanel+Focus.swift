@@ -6,8 +6,8 @@ extension MarkdownPanel {
     // MARK: - Find in preview focus
 
     /// Shows (or refocuses) the preview find bar. Preview-only: text mode uses
-    /// the NSTextView's native find panel via the responder chain.
-    func startFind() {
+    /// the NSTextView's find bar through `MarkdownPanel+FindablePanel`.
+    func startPreviewFind() {
         guard displayMode == .preview else { return }
         let created = searchState == nil
         let recoveredNeedle = created ? lastSearchNeedle : ""
@@ -25,7 +25,7 @@ extension MarkdownPanel {
     }
 
     /// Hides the preview find bar without changing focus owned by its document.
-    func hideFind() {
+    func hidePreviewFind() {
         guard let searchState else { return }
         let window = windowOwningPreviewFocus()
         let findResponder = window?.firstResponder.flatMap { cmuxFindTextFieldOwner(for: $0) }

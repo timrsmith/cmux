@@ -187,14 +187,17 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
         }
     }
 
-    func findNext() {
+    /// Next match of the preview's in-page find. Text mode finds through the
+    /// editor instead; see `MarkdownPanel+FindablePanel`.
+    func findNextInPreview() {
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.applyFindMatchCount(await self.findService.next())
         }
     }
 
-    func findPrevious() {
+    /// Previous match of the preview's in-page find.
+    func findPreviousInPreview() {
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.applyFindMatchCount(await self.findService.previous())
@@ -452,7 +455,7 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
         if mode == .text {
             // The find bar and its highlights belong to the preview surface;
             // text mode has the NSTextView's native find panel instead.
-            hideFind()
+            hidePreviewFind()
             focus()
         }
     }

@@ -22,6 +22,23 @@ protocol FilePreviewTextEditingPanel: AnyObject {
 extension FilePreviewTextEditingPanel {
     var textContentRevision: Int { 0 }
 
+    // MARK: - Find in the text editor
+    //
+    // The shared text-editor implementation behind `FindablePanel` for
+    // `FilePreviewPanel` and `MarkdownPanel` (text mode); their conformances
+    // forward here.
+
+    /// Whether the attached editor's find bar is showing.
+    var isTextFindVisible: Bool {
+        textView?.enclosingScrollView?.isFindBarVisible == true
+    }
+
+    /// Whether the attached editor has a non-empty selection that Use
+    /// Selection for Find can adopt.
+    var textEditorHasSelectionForFind: Bool {
+        (textView?.selectedRange().length ?? 0) > 0
+    }
+
     /// Shows the editor's find bar: the same "Find…" the terminal, browser,
     /// and markdown panels answer through `TabManager.startSearch()`, or its
     /// replace variant for "Find and Replace…". The text view takes first
@@ -34,8 +51,7 @@ extension FilePreviewTextEditingPanel {
     }
 
     /// Find Next, Find Previous, Use Selection for Find, and Hide Find on the
-    /// attached editor. Returns `false` when no editor is in a window, so
-    /// `TabManager` can fall through to the other panel kinds.
+    /// attached editor. Returns `false` when no editor is in a window.
     @discardableResult
     func performTextFinderAction(_ action: NSTextFinder.Action) -> Bool {
         guard let textView, textView.window != nil else { return false }

@@ -1222,7 +1222,7 @@ final class AppDelegateShortcutRoutingTests: XCTestCase {
         let tabManager = TabManager()
         let sidebarState = SidebarState(isVisible: true)
         let sidebarSelectionState = SidebarSelectionState()
-        let fileExplorerState = FileExplorerState()
+        let fileExplorerState = FileExplorerState(sidebar: nil)
         fileExplorerState.setVisible(false)
 
         appDelegate.registerMainWindow(
@@ -1710,7 +1710,7 @@ final class AppDelegateShortcutRoutingTests: XCTestCase {
         let orphanManager = TabManager()
         let orphanSidebarState = SidebarState()
         let orphanSidebarSelectionState = SidebarSelectionState()
-        let orphanFileExplorerState = FileExplorerState()
+        let orphanFileExplorerState = FileExplorerState(sidebar: nil)
 
         autoreleasepool {
             var orphanWindow: NSWindow? = NSWindow(
@@ -1755,7 +1755,7 @@ final class AppDelegateShortcutRoutingTests: XCTestCase {
         let orphanManager = TabManager()
         let orphanSidebarState = SidebarState()
         let orphanSidebarSelectionState = SidebarSelectionState()
-        let orphanFileExplorerState = FileExplorerState()
+        let orphanFileExplorerState = FileExplorerState(sidebar: nil)
 
         autoreleasepool {
             var orphanWindow: NSWindow? = NSWindow(
@@ -5895,6 +5895,10 @@ final class AppDelegateShortcutRoutingTests: XCTestCase {
         ]
 
         for testCase in cases {
+            // `AppDelegate.configuredShortcutTable` resolves an action once per
+            // settings generation; a fresh generation per case keeps the
+            // lookup observable (setUp does the same reset once).
+            KeyboardShortcutSettings.resetAll()
             var observedActions: [KeyboardShortcutSettings.Action] = []
             #if DEBUG
             KeyboardShortcutSettings.shortcutLookupObserver = { action in

@@ -3017,10 +3017,6 @@ struct ContentView: View {
                     restoreMainPanelFocusAfterAppKitSidebarHiddenIfNeeded()
                 }
             }
-            // With `sidebar.filesPanelPlacement` = `stacked` the tree lives
-            // inside the workspace sidebar, so "show Files" must also show
-            // the sidebar when it is hidden (`FileExplorerState.showFiles`).
-            fileExplorerState.stackedSidebarState = sidebarState
             selectedWorkspaceDirectoryObserver.wire(tabManager: tabManager)
             tabManager.applyWindowBackgroundForSelectedTab()
             reconcileMountedWorkspaceIds()
@@ -3861,7 +3857,6 @@ struct ContentView: View {
 
         view = AnyView(view.onDisappear {
             sidebarState.removeVisibilityWillChangeHandler(ownerId: windowId)
-            fileExplorerState.detachStackedSidebarState(sidebarState)
             workspaceSwitchPortalSignalRouter.clearSources()
             // The Changes store is only ever driven by `sync(...)`; a window
             // closed in Changes mode would otherwise keep its repository

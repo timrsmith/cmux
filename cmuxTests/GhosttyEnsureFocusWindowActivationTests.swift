@@ -473,7 +473,7 @@ struct GhosttyEnsureFocusWindowActivationTests {
             let previousManager = TerminalController.shared.activeTabManagerForCallerNotification()
             let appDelegate = AppDelegate()
             let tabManager = TabManager(autoWelcomeIfNeeded: false)
-            let fileExplorerState = FileExplorerState()
+            let fileExplorerState = FileExplorerState(sidebar: nil)
             let windowID = UUID()
             let ownerWindow = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),

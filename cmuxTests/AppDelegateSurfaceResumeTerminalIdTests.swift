@@ -32,7 +32,7 @@ final class AppDelegateSurfaceResumeTerminalIdTests: XCTestCase {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -93,7 +93,7 @@ final class AppDelegateSurfaceResumeTerminalIdTests: XCTestCase {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -171,7 +171,7 @@ final class AppDelegateSurfaceResumeTerminalIdTests: XCTestCase {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
@@ -230,7 +230,7 @@ final class AppDelegateSurfaceResumeTerminalIdTests: XCTestCase {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         TerminalController.shared.setActiveTabManager(manager)
 
