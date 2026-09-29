@@ -11,10 +11,7 @@ import Testing
 #endif
 
 @Suite(.serialized)
-struct WindowTitleTemplateTests {
-    private let backupsDefaultsKey = "cmux.settingsFile.backups.v1"
-    private let importedManagedDefaultsKey = "cmux.settingsFile.importedManagedDefaults.v1"
-
+struct WindowTitleTemplateTests: ManagedDefaultsTestSupport {
     @Test func resolvesWindowPlaceholdersAndPreservesUnknownPlaceholders() throws {
         let windowId = try #require(UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF"))
         let template = WindowTitleTemplate(
@@ -54,83 +51,41 @@ struct WindowTitleTemplateTests {
         #expect(resolved == "{windowId} cmux")
     }
 
+    // The store applies managed defaults on the main queue and defers them
+    // when loaded elsewhere, so these two tests run on the main actor.
+    @MainActor
     @Test func settingsFileStoreAppliesAppWindowTitleTemplate() throws {
-        let defaults = UserDefaults.standard
-        let keys = [
-            WindowTitleTemplate.userDefaultsKey,
-            backupsDefaultsKey,
-            importedManagedDefaultsKey,
-        ]
-        let previousValues: [String: Any?] = Dictionary(
-            uniqueKeysWithValues: keys.map { ($0, defaults.object(forKey: $0)) }
-        )
-        defer {
-            restore(previousValues, defaults: defaults)
+        try withCleanManagedDefaults(clearing: [WindowTitleTemplate.userDefaultsKey]) { defaults in
+            try loadSettingsFile(
+                """
+                {
+                  "app": {
+                    "windowTitleTemplate": "[cmux:{windowToken}] {activeWorkspace}"
+                  }
+                }
+                """
+            )
+
+            #expect(defaults.string(forKey: WindowTitleTemplate.userDefaultsKey) == "[cmux:{windowToken}] {activeWorkspace}")
         }
-        keys.forEach { defaults.removeObject(forKey: $0) }
-
-        let directoryURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cmux-window-title-template-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directoryURL) }
-
-        let settingsFileURL = directoryURL.appendingPathComponent("cmux.json", isDirectory: false)
-        try """
-        {
-          "app": {
-            "windowTitleTemplate": "[cmux:{windowToken}] {activeWorkspace}"
-          }
-        }
-        """.write(to: settingsFileURL, atomically: true, encoding: .utf8)
-
-        _ = KeyboardShortcutSettingsFileStore(
-            primaryPath: settingsFileURL.path,
-            fallbackPath: nil,
-            additionalFallbackPaths: [],
-            startWatching: false
-        )
-
-        #expect(defaults.string(forKey: WindowTitleTemplate.userDefaultsKey) == "[cmux:{windowToken}] {activeWorkspace}")
     }
 
+    @MainActor
     @Test func settingsFileStoreAppliesWorkspaceAutoNamingAutomationSetting() throws {
-        let defaults = UserDefaults.standard
         let workspaceAutoNamingKey = AutomationCatalogSection().workspaceAutoNaming.userDefaultsKey
-        let keys = [
-            workspaceAutoNamingKey,
-            backupsDefaultsKey,
-            importedManagedDefaultsKey,
-        ]
-        let previousValues: [String: Any?] = Dictionary(
-            uniqueKeysWithValues: keys.map { ($0, defaults.object(forKey: $0)) }
-        )
-        defer {
-            restore(previousValues, defaults: defaults)
+        try withCleanManagedDefaults(clearing: [workspaceAutoNamingKey]) { defaults in
+            try loadSettingsFile(
+                """
+                {
+                  "automation": {
+                    "workspaceAutoNaming": true
+                  }
+                }
+                """
+            )
+
+            #expect(defaults.bool(forKey: workspaceAutoNamingKey))
         }
-        keys.forEach { defaults.removeObject(forKey: $0) }
-
-        let directoryURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cmux-workspace-auto-naming-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directoryURL) }
-
-        let settingsFileURL = directoryURL.appendingPathComponent("cmux.json", isDirectory: false)
-        try """
-        {
-          "automation": {
-            "workspaceAutoNaming": true
-          }
-        }
-        """.write(to: settingsFileURL, atomically: true, encoding: .utf8)
-
-        _ = KeyboardShortcutSettingsFileStore(
-            primaryPath: settingsFileURL.path,
-            fallbackPath: nil,
-            additionalFallbackPaths: [],
-            startWatching: false
-        )
-
-        #expect(defaults.bool(forKey: workspaceAutoNamingKey))
     }
 
     @Test func settingsFileStoreAppliesAutoNamingAgentAutomationSetting() throws {

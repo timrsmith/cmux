@@ -53,18 +53,76 @@ final class GitStatusWatchRelevanceTests: XCTestCase {
         XCTAssertTrue(GitStatusWatchRelevance.canAffectStatus(path: repo))
     }
 
-    func testBatchFilterKeepsOrderAndDropsOnlyIgnoredPaths() {
+    func testBatchFilterAsksTheDescriptorOnlyAboutStatusRelevantPaths() {
         let batch = [
             "\(repo)/.git/refs/heads/main",
             "\(repo)/.git/index",
             "\(repo)/.git/logs/HEAD",
             "\(repo)/README.md"
         ]
+        var asked: [String] = []
+        XCTAssertTrue(GitStatusWatchRelevance.batchCanAffectStatus(batch) { path in
+            asked.append(path)
+            return path.hasSuffix("README.md")
+        })
         XCTAssertEqual(
-            GitStatusWatchRelevance.statusRelevantPaths(batch),
-            ["\(repo)/.git/index", "\(repo)/README.md"]
+            asked,
+            ["\(repo)/.git/index", "\(repo)/README.md"],
+            "ignored paths never reach the descriptor; order is kept"
         )
-        XCTAssertEqual(GitStatusWatchRelevance.statusRelevantPaths(["\(repo)/.git/packed-refs"]), [])
-        XCTAssertEqual(GitStatusWatchRelevance.statusRelevantPaths([]), [])
+    }
+
+    func testBatchFilterStopsAtTheFirstRelevantPath() {
+        let batch = ["\(repo)/.git/packed-refs", "\(repo)/.git/index", "\(repo)/README.md"]
+        var asked: [String] = []
+        XCTAssertTrue(GitStatusWatchRelevance.batchCanAffectStatus(batch) { path in
+            asked.append(path)
+            return true
+        })
+        XCTAssertEqual(asked, ["\(repo)/.git/index"], "the rest of the batch is not scanned once one path counts")
+    }
+
+    func testBatchOfOnlyIgnoredPathsIsNotAChangeAndSkipsTheDescriptor() {
+        var askCount = 0
+        XCTAssertFalse(
+            GitStatusWatchRelevance.batchCanAffectStatus(["\(repo)/.git/packed-refs", "\(repo)/.git/logs/HEAD"]) { _ in
+                askCount += 1
+                return true
+            }
+        )
+        XCTAssertEqual(askCount, 0)
+        XCTAssertFalse(
+            GitStatusWatchRelevance.batchCanAffectStatus(["\(repo)/.git/index"]) { _ in false },
+            "a status-relevant path the descriptor rejects is still not a change"
+        )
+    }
+
+    func testEmptyBatchKeepsTheDescriptorsConservativeAnswer() {
+        var askCount = 0
+        XCTAssertTrue(GitStatusWatchRelevance.batchCanAffectStatus([]) { _ in
+            askCount += 1
+            return false
+        })
+        XCTAssertEqual(askCount, 0)
+    }
+
+    func testPathSpellingsWithRepeatedOrTrailingSeparatorsAgree() {
+        XCTAssertFalse(GitStatusWatchRelevance.canAffectStatus(path: "\(repo)//.git//refs//heads/main"))
+        XCTAssertFalse(GitStatusWatchRelevance.canAffectStatus(path: "\(repo)/.git/refs/"))
+        XCTAssertTrue(GitStatusWatchRelevance.canAffectStatus(path: "\(repo)/.git/"))
+        XCTAssertTrue(GitStatusWatchRelevance.canAffectStatus(path: "\(repo)/.git/index/"))
+        XCTAssertTrue(GitStatusWatchRelevance.canAffectStatus(path: ".git/index"), "a relative path with no leading separator")
+        XCTAssertFalse(GitStatusWatchRelevance.canAffectStatus(path: ".git/objects/ab"))
+        XCTAssertTrue(GitStatusWatchRelevance.canAffectStatus(path: ""))
+    }
+
+    func testOnlyTheLastGitComponentDecides() {
+        // The innermost `.git` decides, and a `.git` that is only part of a
+        // component (`.github`, `my.git`, `.git-old`) is not one.
+        XCTAssertTrue(GitStatusWatchRelevance.canAffectStatus(path: "\(repo)/.git/refs/inner/.git/index"))
+        XCTAssertFalse(GitStatusWatchRelevance.canAffectStatus(path: "\(repo)/.git/index/.git/objects/ab"))
+        XCTAssertTrue(GitStatusWatchRelevance.canAffectStatus(path: "\(repo)/my.git/refs/heads/main"))
+        XCTAssertTrue(GitStatusWatchRelevance.canAffectStatus(path: "\(repo)/.gitmodules"))
+        XCTAssertTrue(GitStatusWatchRelevance.canAffectStatus(path: "\(repo)/.git-old/refs/x"))
     }
 }

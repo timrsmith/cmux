@@ -26,24 +26,81 @@ enum GitStatusWatchRelevance {
     /// updates and fetches rewrite without affecting the working tree.
     private static let ignoredFilePrefixes = ["packed-refs", "reftable", "FETCH_HEAD", "ORIG_HEAD"]
 
-    /// The paths of one batch that can change `git status`; order is kept.
-    static func statusRelevantPaths(_ paths: [String]) -> [String] {
-        paths.filter(canAffectStatus(path:))
+    private static let gitDirectoryName = ".git"
+    private static let linkedWorktreesDirectoryName = "worktrees"
+    private static let separator = UInt8(ascii: "/")
+
+    /// Whether one coalesced batch holds a change the watch must act on: a
+    /// path that can change `git status` and that `isRelevant` (the watch
+    /// descriptor's per-path rule) accepts. The scan stops at the first such
+    /// path, and `isRelevant` is never asked about a path this filter drops.
+    ///
+    /// An empty batch keeps the descriptor's conservative answer for lost
+    /// path detail; a batch made only of ignored paths is not a change.
+    static func batchCanAffectStatus(_ paths: [String], isRelevant: (String) -> Bool) -> Bool {
+        guard !paths.isEmpty else { return true }
+        return paths.contains { canAffectStatus(path: $0) && isRelevant($0) }
     }
 
     /// Whether a change at `path` can alter `git status` output. Pure: the
     /// decision rests on the path's components after its last `.git`
-    /// component, so both `/var` and `/private/var` spellings agree.
+    /// component, so both `/var` and `/private/var` spellings agree. The path
+    /// is read in place, without splitting it into components: one backward
+    /// scan finds the `.git` component, then only the component (or, inside
+    /// `.git/worktrees/<name>/`, the worktree's own first component) after
+    /// it is inspected.
     static func canAffectStatus(path: String) -> Bool {
-        let components = path.split(separator: "/", omittingEmptySubsequences: true)
-        guard let gitIndex = components.lastIndex(of: ".git") else { return true }
-        var inside = components[(gitIndex + 1)...]
-        if inside.first == "worktrees", inside.count >= 3 {
+        guard let gitDirectoryEnd = endOfLastGitComponent(in: path) else { return true }
+        var cursor = gitDirectoryEnd
+        guard var judged = nextComponent(in: path, from: &cursor) else { return true }
+        if judged == linkedWorktreesDirectoryName {
             // `.git/worktrees/<name>/...`: judge the worktree's own contents.
-            inside = inside.dropFirst(2)
+            // `.git/worktrees` and `.git/worktrees/<name>` stay conservative.
+            var lookahead = cursor
+            if nextComponent(in: path, from: &lookahead) != nil,
+               let contents = nextComponent(in: path, from: &lookahead) {
+                judged = contents
+            }
         }
-        guard let first = inside.first else { return true }
-        if ignoredDirectories.contains(first) { return false }
-        return !ignoredFilePrefixes.contains { first.hasPrefix($0) }
+        if ignoredDirectories.contains(judged) { return false }
+        return !ignoredFilePrefixes.contains { judged.hasPrefix($0) }
+    }
+
+    /// The index just past the last `.git` component of `path` (the
+    /// separator after it, or the end), or `nil` when no component is `.git`.
+    /// Walks the components backwards, so `/a/.git/index` and `/a//.git/`
+    /// agree and `.github` is never mistaken for `.git`.
+    private static func endOfLastGitComponent(in path: String) -> String.Index? {
+        let utf8 = path.utf8
+        var end = utf8.endIndex
+        while true {
+            var start = end
+            while start > utf8.startIndex, utf8[utf8.index(before: start)] != separator {
+                start = utf8.index(before: start)
+            }
+            if utf8[start..<end].elementsEqual(gitDirectoryName.utf8) { return end }
+            guard start > utf8.startIndex else { return nil }
+            end = utf8.index(before: start)
+        }
+    }
+
+    /// The next non-empty path component at or after `cursor`, leaving
+    /// `cursor` just past it; `nil` once only separators remain.
+    private static func nextComponent(in path: String, from cursor: inout String.Index) -> Substring? {
+        let utf8 = path.utf8
+        var start = cursor
+        while start < utf8.endIndex, utf8[start] == separator {
+            start = utf8.index(after: start)
+        }
+        guard start < utf8.endIndex else {
+            cursor = start
+            return nil
+        }
+        var end = start
+        while end < utf8.endIndex, utf8[end] != separator {
+            end = utf8.index(after: end)
+        }
+        cursor = end
+        return path[start..<end]
     }
 }

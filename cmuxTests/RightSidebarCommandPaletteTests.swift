@@ -232,13 +232,42 @@ final class RightSidebarCommandPaletteTests: XCTestCase {
                 dispatched.append(action)
                 return true
             },
-            preferredWindow: nil
+            preferredWindow: nil,
+            performFileEditorAction: { _ in false }
         )
         XCTAssertTrue(handled)
         XCTAssertEqual(dispatched.count, 1)
         guard case .hardReload = dispatched.first else {
             return XCTFail("expected .hardReload, got \(String(describing: dispatched.first))")
         }
+    }
+
+    /// Every file-editor palette command, Find and Replace included, runs
+    /// the focused editor's shared action path with its own shortcut action.
+    @MainActor
+    func testFileEditorPaletteCommandsDispatchThroughTheEditorActionPath() {
+        let fileEditorCommands = ShortcutParityPaletteCommand.allCases.filter { $0.scope == .fileEditor }
+        XCTAssertTrue(fileEditorCommands.contains(.fileEditorFindAndReplace))
+        var dispatched: [KeyboardShortcutSettings.Action] = []
+        for command in fileEditorCommands {
+            XCTAssertTrue(
+                ContentView.performShortcutParityCommand(
+                    command,
+                    performBrowserAction: { _ in
+                        XCTFail("\(command.rawValue) is not a browser action")
+                        return false
+                    },
+                    preferredWindow: nil,
+                    performFileEditorAction: { action in
+                        dispatched.append(action)
+                        return true
+                    }
+                ),
+                command.rawValue
+            )
+        }
+        XCTAssertEqual(dispatched, fileEditorCommands.map(\.shortcutAction))
+        XCTAssertTrue(dispatched.contains(.findAndReplace))
     }
 
     @MainActor

@@ -57,18 +57,56 @@ public struct DiffViewerBranchSessionStore {
     ///   - token: The capability token the request presented.
     /// - Returns: `true` when a session bound to `token` allow-lists `repoRoot`.
     public func allows(repoRoot: String, forToken token: String) -> Bool {
-        let roots = allowedRepoRoots(forToken: token)
-        guard !roots.isEmpty else { return false }
-        let requested = Self.canonicalPath(repoRoot)
-        return roots.contains { Self.canonicalPath($0.path) == requested }
+        guard let session = session(forToken: token) else { return false }
+        return Self.contains(repoRoot: repoRoot, in: session.allowedRepoRoots)
+    }
+
+    /// Whether any valid session in the directory allow-lists `repoRoot`.
+    ///
+    /// This is the token-less check for requests that carry no capability
+    /// token (a plain `--repo` refs lookup, for example). It applies the same
+    /// file-name, regular-file, size, and `groupID` validation as the
+    /// token-bound readers, and compares paths through
+    /// ``contains(repoRoot:in:)``.
+    ///
+    /// - Parameter repoRoot: The repository root a request names.
+    /// - Returns: `true` when at least one valid session allow-lists `repoRoot`.
+    public func allows(repoRoot: String) -> Bool {
+        validSessions().contains { Self.contains(repoRoot: repoRoot, in: $0.allowedRepoRoots) }
+    }
+
+    /// Whether `repoRoot` names one of `allowedRepoRoots` after canonicalization.
+    ///
+    /// Every path is standardized and symlink-resolved before comparison, so a
+    /// trailing slash, a `..` hop, or a link to an allow-listed repository all
+    /// match while a sibling directory does not. Use this to authorize a
+    /// request against one already-decoded session record; the instance
+    /// methods use it for every session they read.
+    ///
+    /// - Parameters:
+    ///   - repoRoot: The repository root a request names.
+    ///   - allowedRepoRoots: Absolute repository roots a session may act on.
+    /// - Returns: `true` when a root in `allowedRepoRoots` canonicalizes to the same path as `repoRoot`.
+    public static func contains(repoRoot: String, in allowedRepoRoots: [String]) -> Bool {
+        let requested = canonicalPath(repoRoot)
+        return allowedRepoRoots.contains { canonicalPath($0) == requested }
     }
 
     /// The first valid session record in the directory whose token is `token`.
     private func session(forToken token: String) -> DiffViewerBranchSessionAllowList? {
-        guard Self.isValidToken(token),
-              let names = try? fileManager.contentsOfDirectory(atPath: rootDirectory.path) else {
-            return nil
+        guard Self.isValidToken(token) else { return nil }
+        return validSessions().first { $0.token == token }
+    }
+
+    /// Every decodable, plausibly named session record in the directory, in
+    /// file-name order. Unreadable directories, irregular or oversized files,
+    /// malformed JSON, and records whose `groupID` disagrees with their file
+    /// name contribute nothing.
+    private func validSessions() -> [DiffViewerBranchSessionAllowList] {
+        guard let names = try? fileManager.contentsOfDirectory(atPath: rootDirectory.path) else {
+            return []
         }
+        var sessions: [DiffViewerBranchSessionAllowList] = []
         for name in names.sorted() where name.hasPrefix(Self.fileNamePrefix) && name.hasSuffix(Self.fileNameSuffix) {
             let group = String(name.dropFirst(Self.fileNamePrefix.count).dropLast(Self.fileNameSuffix.count))
             guard Self.isValidGroupID(group) else { continue }
@@ -78,13 +116,12 @@ public struct DiffViewerBranchSessionStore {
                   let size = attributes[.size] as? Int, size <= Self.maximumSessionFileBytes,
                   let data = fileManager.contents(atPath: fileURL.path),
                   let session = try? JSONDecoder().decode(DiffViewerBranchSessionAllowList.self, from: data),
-                  session.token == token,
                   session.groupID == group else {
                 continue
             }
-            return session
+            sessions.append(session)
         }
-        return nil
+        return sessions
     }
 
     /// Tokens are 16 to 80 ASCII letters, digits, or hyphens, as the URL scheme handler and sidecar require.

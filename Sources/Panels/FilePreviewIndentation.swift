@@ -10,26 +10,38 @@ struct FilePreviewIndentation: Equatable {
     /// large file with no indentation never rescans the whole buffer.
     static let detectionLineLimit = 5000
 
+    /// Scalars scanned before detection falls back to spaces, so a few very
+    /// long lines (minified sources, data dumps) stay within the same budget
+    /// as `detectionLineLimit` ordinary lines.
+    static let detectionScalarLimit = 400_000
+
     var unit: String {
         usesTabs ? "\t" : String(repeating: " ", count: width)
     }
 
     /// Tabs when the first indented non-blank line (within
-    /// `detectionLineLimit` lines) starts with a tab; otherwise `tabWidth`
-    /// spaces, the editor's `fileEditor.tabWidth` setting.
+    /// `detectionLineLimit` lines and `detectionScalarLimit` scalars) starts
+    /// with a tab; otherwise `tabWidth` spaces, the editor's
+    /// `fileEditor.tabWidth` setting.
     static func detect(in text: String, tabWidth: Int) -> FilePreviewIndentation {
         let width = max(1, tabWidth)
+        let fallback = FilePreviewIndentation(usesTabs: false, width: width)
         var atLineStart = true
         var leading: Unicode.Scalar?
         var lineCount = 0
+        var scalarCount = 0
         for scalar in text.unicodeScalars {
+            scalarCount += 1
+            if scalarCount > detectionScalarLimit {
+                return fallback
+            }
             switch scalar {
             case "\n", "\r", "\u{85}", "\u{2028}", "\u{2029}":
                 atLineStart = true
                 leading = nil
                 lineCount += 1
                 if lineCount >= detectionLineLimit {
-                    return FilePreviewIndentation(usesTabs: false, width: width)
+                    return fallback
                 }
             case " ", "\t":
                 if atLineStart, leading == nil {
@@ -43,6 +55,6 @@ struct FilePreviewIndentation: Equatable {
                 leading = nil
             }
         }
-        return FilePreviewIndentation(usesTabs: false, width: width)
+        return fallback
     }
 }

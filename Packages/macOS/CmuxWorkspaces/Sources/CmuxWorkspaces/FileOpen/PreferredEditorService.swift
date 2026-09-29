@@ -131,9 +131,21 @@ public struct PreferredEditorService: FileOpening {
             }
     }
 
-    /// Tokenizes the command syntax needed to identify its executable without
-    /// invoking a shell.
-    private nonisolated static func shellWords(_ command: String) -> [String] {
+    /// Splits `command` into shell words without invoking a shell.
+    ///
+    /// Understands the syntax needed to identify a command's executable:
+    /// whitespace separates words, single and double quotes group them (the
+    /// quotes are removed), and a backslash escapes the next character. Shell
+    /// expansion is not performed, so `$EDITOR` stays literal.
+    ///
+    /// ```swift
+    /// PreferredEditorService.shellWords("'/Applications/My Editor.app/edit' --wait")
+    /// // ["/Applications/My Editor.app/edit", "--wait"]
+    /// ```
+    ///
+    /// - Parameter command: The command line to split.
+    /// - Returns: The words in order; empty when `command` is blank.
+    public nonisolated static func shellWords(_ command: String) -> [String] {
         var words: [String] = [], current = "", quote: Character?, escaped = false
         for character in command {
             if escaped { current.append(character); escaped = false; continue }

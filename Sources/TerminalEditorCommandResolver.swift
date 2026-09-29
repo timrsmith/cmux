@@ -10,97 +10,63 @@ struct TerminalEditorOpenRequest: Equatable, Sendable {
     let workingDirectory: String
 }
 
-/// Resolves which terminal editor the `terminalEditor` file activation runs,
-/// and builds the terminal command for a file. Pure: the configured command
-/// and the environment snapshot are injected, so the Files header menu, the
+/// Builds the terminal command the `terminalEditor` file activation runs.
+/// Pure: the configured command is injected, so the Files header menu, the
 /// open path, and tests share one resolution.
 ///
-/// Resolution order: `fileEditor.terminalEditorCommand` when non-blank, else
-/// `$VISUAL`, else `$EDITOR` (blank values are skipped), else `vi`.
+/// A non-blank `fileEditor.terminalEditorCommand` is used verbatim. Otherwise
+/// the command is ``shellFallbackCommand``, which lets `/bin/sh` expand
+/// ``shellFallbackExpression`` to `$VISUAL`, else `$EDITOR`, else `vi` inside
+/// the user's login shell (the open path wraps the command in one). Resolving
+/// in the shell rather than from the app's own environment matters because a
+/// Dock-launched app rarely inherits the editor variables a user exports in a
+/// shell profile.
 struct TerminalEditorCommandResolver: Equatable, Sendable {
-    /// Where the resolved command came from.
-    enum Source: Equatable, Sendable {
-        /// `fileEditor.terminalEditorCommand`.
-        case setting
-        /// `$VISUAL` in the injected environment.
-        case visual
-        /// `$EDITOR` in the injected environment.
-        case editor
-        /// Nothing configured anywhere; ``builtInFallbackCommand``.
-        case builtInFallback
-    }
+    /// The POSIX expression that picks the editor when no command is
+    /// configured: `$VISUAL`, else `$EDITOR`, else `vi`. It is expanded
+    /// unquoted so a multi-word value such as `code --wait` splits into
+    /// arguments as it would at an interactive prompt.
+    static let shellFallbackExpression = "${VISUAL:-${EDITOR:-vi}}"
 
-    /// One resolved editor command with its provenance.
-    struct Resolution: Equatable, Sendable {
-        let command: String
-        let source: Source
-
-        /// The editor's short name for menu titles: the basename of the
-        /// command's first word (`/opt/homebrew/bin/nvim -u none` is `nvim`).
-        var displayName: String {
-            let executable: String
-            if let quote = command.first, quote == "'" || quote == "\"",
-               let closing = command.dropFirst().firstIndex(of: quote) {
-                executable = String(command[command.index(after: command.startIndex)..<closing])
-            } else if let firstWord = command.split(whereSeparator: \.isWhitespace).first {
-                executable = String(firstWord)
-            } else {
-                executable = command
-            }
-            return (executable as NSString).lastPathComponent
-        }
-    }
-
-    /// The editor every POSIX system ships.
-    static let builtInFallbackCommand = "vi"
+    /// The command run when no editor is configured. The expansion happens
+    /// inside `/bin/sh` with the file path passed as `$1`, so the user's login
+    /// shell, which wraps every command and may be fish (where `${…:-…}` is
+    /// not syntax), only ever sees plain arguments. `exec` leaves the editor as
+    /// the terminal's foreground process, as a directly configured one would be.
+    static let shellFallbackCommand = "/bin/sh -c 'exec \(shellFallbackExpression) \"$1\"' cmux-editor"
 
     let configuredCommand: String
-    let environment: [String: String]
 
-    /// Creates a resolver over explicit inputs.
-    init(configuredCommand: String, environment: [String: String]) {
+    /// Creates a resolver over an explicit configured command.
+    init(configuredCommand: String) {
         self.configuredCommand = configuredCommand
-        self.environment = environment
     }
 
-    /// Creates the production resolver: the command from `defaults` and the
-    /// app process environment (cmux has no login-shell environment capture;
-    /// an app launched from the Dock sees only the values launchd gives it).
-    init(defaults: UserDefaults, environment: [String: String] = ProcessInfo.processInfo.environment) {
-        self.init(
-            configuredCommand: FileEditorCatalogSection().terminalEditorCommand.value(in: defaults),
-            environment: environment
-        )
+    /// Creates the production resolver over the command stored in `defaults`.
+    init(defaults: UserDefaults) {
+        self.init(configuredCommand: FileEditorCatalogSection().terminalEditorCommand.value(in: defaults))
     }
 
-    /// The resolved editor command.
-    var resolution: Resolution {
-        if let command = Self.nonBlank(configuredCommand) {
-            return Resolution(command: command, source: .setting)
-        }
-        if let command = Self.nonBlank(environment["VISUAL"]) {
-            return Resolution(command: command, source: .visual)
-        }
-        if let command = Self.nonBlank(environment["EDITOR"]) {
-            return Resolution(command: command, source: .editor)
-        }
-        return Resolution(command: Self.builtInFallbackCommand, source: .builtInFallback)
+    /// The trimmed configured command, or `nil` when it is blank and the shell
+    /// fallback applies.
+    var explicitCommand: String? {
+        let trimmed = configuredCommand.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
-    /// The terminal request that opens `path` (made absolute) in the resolved editor.
+    /// The command text that precedes the quoted file path: the explicit
+    /// command, or ``shellFallbackCommand``.
+    var command: String {
+        explicitCommand ?? Self.shellFallbackCommand
+    }
+
+    /// The terminal request that opens `path` (made absolute) in the editor.
     func openRequest(forFilePath path: String) -> TerminalEditorOpenRequest {
         let absolutePath = URL(fileURLWithPath: path).standardizedFileURL.path
         let directory = (absolutePath as NSString).deletingLastPathComponent
         return TerminalEditorOpenRequest(
-            command: "\(resolution.command) \(TerminalStartupShellQuoting.singleQuoted(absolutePath))",
+            command: "\(command) \(TerminalStartupShellQuoting.singleQuoted(absolutePath))",
             workingDirectory: directory.isEmpty ? "/" : directory
         )
-    }
-
-    private static func nonBlank(_ value: String?) -> String? {
-        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
-            return nil
-        }
-        return trimmed
     }
 }

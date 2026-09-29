@@ -1,17 +1,25 @@
 import Foundation
 
 /// Resolves "Go to Line" input against a buffer: `line` or `line:column`,
-/// 1-based, clamped to the text.
+/// 1-based, clamped to the text. Line geometry comes from
+/// `FilePreviewTextEditing.lineBounds(at:)`, walked from the top and stopped
+/// at the requested line or the end of the buffer, whichever comes first.
 struct FilePreviewLineLocator {
     struct Target: Equatable {
         let line: Int
         let column: Int?
     }
 
-    let text: NSString
+    private let editing: FilePreviewTextEditing
 
     init(text: String) {
-        self.text = text as NSString
+        editing = FilePreviewTextEditing(text: text, indentation: Self.unusedIndentation())
+    }
+
+    /// Only line geometry is read here; no command that needs indentation
+    /// runs on the locator's `editing`, so its lazy provider never fires.
+    private static func unusedIndentation() -> FilePreviewIndentation {
+        preconditionFailure("the line locator never reads indentation")
     }
 
     /// Parses `"12"`, `"12:5"`, or `"12,5"` (surrounding whitespace and a
@@ -30,31 +38,20 @@ struct FilePreviewLineLocator {
         return Target(line: line, column: column)
     }
 
-    /// Number of lines; an empty buffer has one.
+    /// Number of lines; an empty buffer has one, and a trailing terminator
+    /// starts an empty last line.
     var lineCount: Int {
-        var count = 1
-        var location = 0
-        while location < text.length {
-            let line = text.lineRange(for: NSRange(location: location, length: 0))
-            guard line.length > 0 else { break }
-            if NSMaxRange(line) < text.length || Self.endsWithLineBreak(text, line) {
-                count += 1
-            }
-            location = NSMaxRange(line)
-        }
-        return count
+        walk(toLine: .max).number
     }
 
     /// The 1-based line containing `location`.
     func lineNumber(at location: Int) -> Int {
-        let target = max(0, min(location, text.length))
+        let target = max(0, min(location, editing.text.length))
         var number = 1
-        var cursor = 0
-        while cursor < target {
-            let line = text.lineRange(for: NSRange(location: cursor, length: 0))
-            guard line.length > 0, NSMaxRange(line) <= target, Self.endsWithLineBreak(text, line) else { break }
+        var line = editing.lineBounds(at: 0)
+        while line.end <= target, Self.hasTerminator(line) {
+            line = editing.lineBounds(at: line.end)
             number += 1
-            cursor = NSMaxRange(line)
         }
         return number
     }
@@ -63,27 +60,27 @@ struct FilePreviewLineLocator {
     /// without its terminator, or a caret at `column` (clamped to the line's
     /// content plus one) when a column is given.
     func range(line: Int, column: Int?) -> NSRange {
-        let targetLine = max(1, min(line, lineCount))
-        var start = 0
-        var number = 1
-        while number < targetLine {
-            let current = text.lineRange(for: NSRange(location: start, length: 0))
-            guard current.length > 0 else { break }
-            start = NSMaxRange(current)
-            number += 1
-        }
-        var lineStart = 0
-        var lineEnd = 0
-        var contentsEnd = 0
-        text.getLineStart(&lineStart, end: &lineEnd, contentsEnd: &contentsEnd, for: NSRange(location: start, length: 0))
+        let bounds = walk(toLine: max(1, line)).line
         guard let column else {
-            return NSRange(location: lineStart, length: contentsEnd - lineStart)
+            return NSRange(location: bounds.start, length: bounds.contentsEnd - bounds.start)
         }
-        let offset = max(0, min(column - 1, contentsEnd - lineStart))
-        return NSRange(location: lineStart + offset, length: 0)
+        let offset = max(0, min(column - 1, bounds.contentsEnd - bounds.start))
+        return NSRange(location: bounds.start + offset, length: 0)
     }
 
-    private static func endsWithLineBreak(_ text: NSString, _ range: NSRange) -> Bool {
-        range.length > 0 && FilePreviewTextEditing.isLineBreak(text.character(at: NSMaxRange(range) - 1))
+    /// Walks from the first line to `target` (1-based) or the last line.
+    private func walk(toLine target: Int) -> (number: Int, line: FilePreviewTextEditing.LineBounds) {
+        var number = 1
+        var line = editing.lineBounds(at: 0)
+        while number < target, Self.hasTerminator(line) {
+            line = editing.lineBounds(at: line.end)
+            number += 1
+        }
+        return (number, line)
+    }
+
+    /// A line with a terminator is followed by another line, possibly empty.
+    private static func hasTerminator(_ line: FilePreviewTextEditing.LineBounds) -> Bool {
+        line.end > line.contentsEnd
     }
 }

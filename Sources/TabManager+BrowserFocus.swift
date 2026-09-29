@@ -59,16 +59,14 @@ extension TabManager {
     /// markdown preview mode finds in the rendered page instead
     /// (`focusedMarkdownPanel`).
     var focusedTextEditingPanel: (any FilePreviewTextEditingPanel)? {
-        guard let tab = selectedWorkspace,
-              let panelId = tab.focusedPanelId,
-              let panel = tab.panels[panelId] else { return nil }
-        if let filePreview = panel as? FilePreviewPanel {
+        if let filePreview = focusedTextFilePreviewPanel {
             return filePreview
         }
-        if let markdown = panel as? MarkdownPanel, markdown.displayMode == .text {
-            return markdown
-        }
-        return nil
+        guard let tab = selectedWorkspace,
+              let panelId = tab.focusedPanelId,
+              let markdown = tab.panels[panelId] as? MarkdownPanel,
+              markdown.displayMode == .text else { return nil }
+        return markdown
     }
 
     @discardableResult

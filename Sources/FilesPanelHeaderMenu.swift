@@ -14,30 +14,22 @@ struct FilesPanelHeaderMenu: View {
     @LiveSetting(\.fileEditor.terminalEditorCommand) private var terminalEditorCommand
 
     var body: some View {
+        // Captured as a plain value so the row closure holds no setting wrapper.
+        let configuredCommand = terminalEditorCommand
         Menu {
-            Menu(String(localized: "filesPanel.header.placement", defaultValue: "Placement")) {
-                Picker(
-                    String(localized: "filesPanel.header.placement", defaultValue: "Placement"),
-                    selection: $placement
-                ) {
-                    ForEach(FilesPanelPlacement.allCases, id: \.self) { option in
-                        Text(option.localizedTitle).tag(option)
-                    }
-                }
-                .pickerStyle(.inline)
-                .labelsHidden()
+            settingSubmenu(
+                String(localized: "filesPanel.header.placement", defaultValue: "Placement"),
+                selection: $placement,
+                options: FilesPanelPlacement.allCases
+            ) { option in
+                option.localizedTitle
             }
-            Menu(String(localized: "filesPanel.header.editor", defaultValue: "Editor")) {
-                Picker(
-                    String(localized: "filesPanel.header.editor", defaultValue: "Editor"),
-                    selection: $doubleClickAction
-                ) {
-                    ForEach(editorMenuItems, id: \.action) { item in
-                        Text(item.title).tag(item.action)
-                    }
-                }
-                .pickerStyle(.inline)
-                .labelsHidden()
+            settingSubmenu(
+                String(localized: "filesPanel.header.editor", defaultValue: "Editor"),
+                selection: $doubleClickAction,
+                options: FileExplorerDoubleClickAction.allCases
+            ) { option in
+                FilesPanelEditorMenuItems.title(for: option, configuredCommand: configuredCommand)
             }
         } label: {
             Image(systemName: "ellipsis")
@@ -61,14 +53,21 @@ struct FilesPanelHeaderMenu: View {
         .accessibilityIdentifier("FilesPanel.optionsMenu")
     }
 
-    /// The Editor rows, with the Terminal Editor row naming the editor the
-    /// same resolver would run for the current setting and environment.
-    private var editorMenuItems: [FilesPanelEditorMenuItem] {
-        FilesPanelEditorMenuItems(
-            terminalEditor: TerminalEditorCommandResolver(
-                configuredCommand: terminalEditorCommand,
-                environment: ProcessInfo.processInfo.environment
-            ).resolution
-        ).items
+    /// A submenu holding one inline picker over `options`, bound to a setting.
+    private func settingSubmenu<Option: Hashable>(
+        _ title: String,
+        selection: Binding<Option>,
+        options: [Option],
+        optionTitle: @escaping (Option) -> String
+    ) -> some View {
+        Menu(title) {
+            Picker(title, selection: selection) {
+                ForEach(options, id: \.self) { option in
+                    Text(optionTitle(option)).tag(option)
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        }
     }
 }

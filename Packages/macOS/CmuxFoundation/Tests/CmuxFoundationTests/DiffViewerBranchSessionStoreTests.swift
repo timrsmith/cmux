@@ -126,5 +126,51 @@ import Testing
         )
         #expect(store.allowedRepoRoots(forToken: token).isEmpty)
         #expect(!store.allows(repoRoot: "/tmp", forToken: token))
+        #expect(!store.allows(repoRoot: "/tmp"))
+    }
+
+    @Test func tokenlessAllowsAcceptsAnyValidSessionAndAppliesTheSameFileChecks() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let trusted = fixture.trusted
+        let store = DiffViewerBranchSessionStore(rootDirectory: trusted)
+        #expect(!store.allows(repoRoot: fixture.repo.path))
+
+        // Two sessions for different tokens: either repository is allowed
+        // without a token, and a sibling directory never is.
+        try writeSession("group-a", token: token, roots: [fixture.repo], in: trusted)
+        try writeSession("group-b", token: otherToken, roots: [fixture.other], in: trusted)
+        #expect(store.allows(repoRoot: fixture.repo.path))
+        #expect(store.allows(repoRoot: fixture.other.path))
+        #expect(store.allows(repoRoot: fixture.repo.path + "/"))
+        #expect(!store.allows(repoRoot: fixture.root.appendingPathComponent("elsewhere").path))
+        #expect(!store.allows(repoRoot: fixture.root.path))
+
+        // Files the token-bound readers reject contribute nothing here either.
+        let unlisted = fixture.root.appendingPathComponent("unlisted", isDirectory: true)
+        try FileManager.default.createDirectory(at: unlisted, withIntermediateDirectories: true)
+        try writeSession("renamed", token: token, roots: [unlisted], groupID: "original", in: trusted)
+        try writeSession("bad group", token: token, roots: [unlisted], in: trusted)
+        var oversized = try JSONSerialization.data(withJSONObject: [
+            "token": token, "groupID": "huge", "allowedRepoRoots": [unlisted.path]
+        ])
+        oversized.append(Data(repeating: 0x20, count: DiffViewerBranchSessionStore.maximumSessionFileBytes))
+        try oversized.write(to: trusted.appendingPathComponent(".branch-session-huge.json"))
+        #expect(!store.allows(repoRoot: unlisted.path))
+    }
+
+    @Test func containsCanonicalizesBothSides() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let link = fixture.root.appendingPathComponent("repo-link", isDirectory: true)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: fixture.repo)
+        let roots = [link.path, fixture.other.path + "/"]
+
+        #expect(DiffViewerBranchSessionStore.contains(repoRoot: fixture.repo.path, in: roots))
+        #expect(DiffViewerBranchSessionStore.contains(repoRoot: link.path, in: roots))
+        #expect(DiffViewerBranchSessionStore.contains(repoRoot: fixture.other.path, in: roots))
+        #expect(DiffViewerBranchSessionStore.contains(repoRoot: fixture.repo.path + "/../other", in: roots))
+        #expect(!DiffViewerBranchSessionStore.contains(repoRoot: fixture.root.path, in: roots))
+        #expect(!DiffViewerBranchSessionStore.contains(repoRoot: fixture.repo.path, in: []))
     }
 }

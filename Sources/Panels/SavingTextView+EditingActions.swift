@@ -2,11 +2,13 @@ import AppKit
 import CmuxSettings
 
 extension SavingTextView {
-    /// Editor commands that are rebindable cmux shortcuts. Each one runs
-    /// through `performFilePreviewEditorAction(_:)`, the path the palette and
-    /// the app-level shortcut router share.
+    /// Editor commands that are rebindable cmux shortcuts and dispatched by
+    /// the editor itself. Each one runs through
+    /// `performFilePreviewEditorAction(_:)`, the path the palette and the
+    /// app-level shortcut router share. `.findAndReplace` is an application
+    /// shortcut: `AppDelegate.performFindAndReplaceShortcut` routes it to the
+    /// focused editor before any key equivalent reaches this view.
     static let filePreviewEditingShortcutActions: [KeyboardShortcutSettings.Action] = [
-        .findAndReplace,
         .goToLine,
         .toggleLineComment,
         .moveLineUp,
@@ -71,20 +73,6 @@ extension SavingTextView {
         }
     }
 
-    // MARK: Find
-
-    /// Shows the find bar, or its replace variant, and makes this editor
-    /// first responder so typing lands in the search field.
-    @discardableResult
-    func showFilePreviewFindInterface(replace: Bool) -> Bool {
-        guard let window else { return false }
-        if window.firstResponder !== self {
-            window.makeFirstResponder(self)
-        }
-        performFilePreviewTextFinderAction(replace && isEditable ? .showReplaceInterface : .showFindInterface)
-        return enclosingScrollView?.isFindBarVisible ?? false
-    }
-
     // MARK: Go to Line
 
     /// Opens the Go to Line popover under the caret.
@@ -120,16 +108,8 @@ extension SavingTextView {
     }
 
     func scrollFilePreviewRangeToCenter(_ range: NSRange) {
-        guard let layoutManager, let textContainer else {
-            scrollRangeToVisible(range)
-            return
-        }
-        let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
-        var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
-        rect.origin.x += textContainerOrigin.x
-        rect.origin.y += textContainerOrigin.y
         let visible = visibleRect
-        guard visible.height > rect.height else {
+        guard let rect = filePreviewRect(for: range), visible.height > rect.height else {
             scrollRangeToVisible(range)
             return
         }
@@ -142,39 +122,55 @@ extension SavingTextView {
     }
 
     private func filePreviewCaretAnchorRect() -> NSRect {
-        guard let layoutManager, let textContainer else { return visibleRect }
-        let caret = NSRange(location: selectedRange().location, length: 0)
-        let glyphRange = layoutManager.glyphRange(forCharacterRange: caret, actualCharacterRange: nil)
-        var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
-        rect.origin.x += textContainerOrigin.x
-        rect.origin.y += textContainerOrigin.y
+        guard var rect = filePreviewRect(for: NSRange(location: selectedRange().location, length: 0)) else {
+            return visibleRect
+        }
         if rect.width < 1 { rect.size.width = 1 }
         if rect.height < 1 { rect.size.height = font?.pointSize ?? 13 }
         return visibleRect.intersects(rect) ? rect : visibleRect
     }
 
-    // MARK: Editing model
-
-    /// Indentation detected from the buffer with the editor's tab width.
-    var filePreviewIndentation: FilePreviewIndentation {
-        FilePreviewIndentation.detect(
-            in: string,
-            tabWidth: appliedFilePreviewTabWidth ?? FileEditorCatalogSection().tabWidth.defaultValue
-        )
+    /// The bounding rect of `range` in view coordinates, or `nil` without a
+    /// TextKit 1 layout stack.
+    private func filePreviewRect(for range: NSRange) -> NSRect? {
+        guard let layoutManager, let textContainer else { return nil }
+        let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+        var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        rect.origin.x += textContainerOrigin.x
+        rect.origin.y += textContainerOrigin.y
+        return rect
     }
 
+    // MARK: Editing model
+
+    /// Indentation detected from the buffer with the editor's tab width,
+    /// cached until the text storage's characters or the tab width change.
+    var filePreviewIndentation: FilePreviewIndentation {
+        let tabWidth = appliedFilePreviewTabWidth ?? Self.fallbackEditorSettings.tabWidth
+        let editCount = filePreviewTextEditCount
+        if let cached = cachedFilePreviewIndentation,
+           cached.editCount == editCount, cached.tabWidth == tabWidth {
+            return cached.indentation
+        }
+        let detected = FilePreviewIndentation.detect(in: string, tabWidth: tabWidth)
+        cachedFilePreviewIndentation = (editCount, tabWidth, detected)
+        return detected
+    }
+
+    /// The buffer with its indentation resolved lazily, so only Return, Tab,
+    /// and Shift-Tab pay for detection (and only on a cache miss).
     var filePreviewTextEditing: FilePreviewTextEditing {
-        FilePreviewTextEditing(text: string, indentation: filePreviewIndentation)
+        FilePreviewTextEditing(text: string, indentation: self.filePreviewIndentation)
     }
 
     /// Computes an edit against the current text and single selection, then
-    /// applies it. False when the editor is read-only, has several
-    /// selections, or the command returns nothing.
+    /// applies it. False when the editor is read-only, is composing marked
+    /// text, has several selections, or the command returns nothing.
     @discardableResult
     func applyFilePreviewEdit(
         _ command: (FilePreviewTextEditing, NSRange) -> FilePreviewTextEditResult?
     ) -> Bool {
-        guard isEditable, selectedRanges.count == 1 else { return false }
+        guard isEditable, !hasMarkedText(), selectedRanges.count == 1 else { return false }
         return applyFilePreviewEdit(command(filePreviewTextEditing, selectedRange()))
     }
 
@@ -213,25 +209,7 @@ extension SavingTextView {
         return true
     }
 
-    // MARK: Responder hooks
-
-    /// Return with auto-indent; false hands the key back to AppKit.
-    func handleFilePreviewNewline() -> Bool {
-        guard !hasMarkedText() else { return false }
-        return applyFilePreviewEdit { $0.newlineInsertion(at: $1) }
-    }
-
-    /// Tab: indent the selected lines, or insert one indentation unit.
-    func handleFilePreviewTab() -> Bool {
-        guard !hasMarkedText() else { return false }
-        return applyFilePreviewEdit { $0.tabInsertion(at: $1) }
-    }
-
-    /// Shift-Tab: outdent the selected lines.
-    func handleFilePreviewBacktab() -> Bool {
-        guard !hasMarkedText() else { return false }
-        return applyFilePreviewEdit { $0.outdentLines(in: $1) }
-    }
+    // MARK: Completion
 
     /// Words from the buffer that extend the identifier in `charRange`.
     func filePreviewCompletions(forPartialWordRange charRange: NSRange) -> [String] {
@@ -249,10 +227,88 @@ extension SavingTextView {
 }
 
 extension NSTextView {
+    /// Shows the find bar, or its replace variant for an editable view, and
+    /// makes this view first responder so typing lands in the search field.
+    /// Returns `false` when the view is not in a window. Shared by the
+    /// editor's own command, the app-level Find and Replace shortcut, and
+    /// `FilePreviewTextEditingPanel.startTextFind(replace:)`.
+    @discardableResult
+    func showFilePreviewFindInterface(replace: Bool) -> Bool {
+        guard let window else { return false }
+        if window.firstResponder !== self {
+            window.makeFirstResponder(self)
+        }
+        performFilePreviewTextFinderAction(replace && isEditable ? .showReplaceInterface : .showFindInterface)
+        return enclosingScrollView?.isFindBarVisible ?? false
+    }
+
     /// Sends one `NSTextFinder.Action` the way the Edit > Find menu does.
     func performFilePreviewTextFinderAction(_ action: NSTextFinder.Action) {
         let sender = NSMenuItem()
         sender.tag = action.rawValue
         performTextFinderAction(sender)
+    }
+}
+
+/// Counts character edits on an `NSTextStorage` so caches keyed on the
+/// buffer's contents (indentation detection) can tell when it changed,
+/// whatever path edited it: typing, undo, the find bar, or a panel reload
+/// assigning `string`. Attribute-only passes (fonts, highlighting) do not
+/// count. Removes its observer when the owning view releases it.
+final class FilePreviewTextStorageEditCounter {
+    private(set) var count = 0
+    private let notificationCenter: NotificationCenter
+    private var observer: (any NSObjectProtocol)?
+
+    init(storage: NSTextStorage, notificationCenter: NotificationCenter = .default) {
+        self.notificationCenter = notificationCenter
+        observer = notificationCenter.addObserver(
+            forName: NSTextStorage.didProcessEditingNotification,
+            object: storage,
+            queue: nil
+        ) { [weak self] notification in
+            guard let storage = notification.object as? NSTextStorage,
+                  storage.editedMask.contains(.editedCharacters) else { return }
+            self?.count += 1
+        }
+    }
+
+    deinit {
+        if let observer {
+            notificationCenter.removeObserver(observer)
+        }
+    }
+}
+
+/// Counts shortcut-settings changes so each editor rebuilds its cached
+/// shortcut candidates only after one, instead of on every key equivalent.
+/// Both the cmux shortcut change notification (Settings, `cmux.json`
+/// reloads, `resetAll`) and `UserDefaults` writes bump it; posts arrive on
+/// whichever thread wrote, so the counter is locked.
+final class SavingTextViewShortcutGeneration: @unchecked Sendable {
+    static let shared = SavingTextViewShortcutGeneration()
+
+    private let lock = NSLock()
+    private var value = 0
+    private var observers: [any NSObjectProtocol] = []
+
+    init(notificationCenter: NotificationCenter = .default) {
+        for name in [KeyboardShortcutSettings.didChangeNotification, UserDefaults.didChangeNotification] {
+            observers.append(notificationCenter.addObserver(forName: name, object: nil, queue: nil) { [weak self] _ in
+                self?.bump()
+            })
+        }
+    }
+
+    var current: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+
+    private func bump() {
+        lock.lock()
+        value += 1
+        lock.unlock()
     }
 }

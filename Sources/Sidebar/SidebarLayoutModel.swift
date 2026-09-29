@@ -89,3 +89,52 @@ struct TitlebarBandInsetsModifier: ViewModifier {
             .padding(.trailing, resolved.trailing)
     }
 }
+
+/// Keeps a live panel dimension the user drags (the leading files panel's
+/// width, the stacked Files region's height) in step with its persisted value
+/// in `FileExplorerState`, one rule for both:
+///
+/// - On appear the persisted value is clamped and applied to the live layout;
+///   when clamping changed it, the clamped value is written back on the next
+///   turn so the stored value matches what is shown.
+/// - A later persisted change (another window, a reset) is clamped the same
+///   way and applied, or written back when it needed clamping, except while a
+///   divider drag is in flight: the drag owns the live value and commits it
+///   when it ends.
+/// - An apply that would not change the live value is skipped, so a drag's
+///   own commit does not re-evaluate the layout a second time.
+///
+/// The closures run only from `onAppear`/`onChange`, never from a body.
+struct PersistedPanelDimensionReconciler: ViewModifier {
+    let persistedValue: CGFloat
+    let clamp: (CGFloat) -> CGFloat
+    let isDragging: () -> Bool
+    let liveValue: () -> CGFloat
+    let apply: (CGFloat) -> Void
+    let persist: (CGFloat) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                let sanitized = clamp(persistedValue)
+                applyIfChanged(sanitized)
+                if abs(persistedValue - sanitized) > 0.5 {
+                    DispatchQueue.main.async { persist(sanitized) }
+                }
+            }
+            .onChange(of: persistedValue) { _, newValue in
+                guard !isDragging() else { return }
+                let sanitized = clamp(newValue)
+                if abs(newValue - sanitized) > 0.5 {
+                    DispatchQueue.main.async { persist(sanitized) }
+                    return
+                }
+                applyIfChanged(sanitized)
+            }
+    }
+
+    private func applyIfChanged(_ value: CGFloat) {
+        guard liveValue() != value else { return }
+        apply(value)
+    }
+}

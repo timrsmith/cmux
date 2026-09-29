@@ -30,14 +30,7 @@ extension FilePreviewTextEditingPanel {
     /// that is not on screen).
     @discardableResult
     func startTextFind(replace: Bool = false) -> Bool {
-        guard let textView, let window = textView.window else { return false }
-        if window.firstResponder !== textView {
-            window.makeFirstResponder(textView)
-        }
-        textView.performFilePreviewTextFinderAction(
-            replace && textView.isEditable ? .showReplaceInterface : .showFindInterface
-        )
-        return textView.enclosingScrollView?.isFindBarVisible ?? false
+        textView?.showFilePreviewFindInterface(replace: replace) ?? false
     }
 
     /// Find Next, Find Previous, Use Selection for Find, and Hide Find on the
@@ -135,6 +128,7 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         let panelIdentity = ObjectIdentifier(panel)
         let panelChanged = context.coordinator.panelIdentity != panelIdentity
+        let filePathChanged = context.coordinator.filePath != filePath
         context.coordinator.filePath = filePath
         let becameVisible = isVisibleInUI && !context.coordinator.isHighlightingVisible
         context.coordinator.isHighlightingVisible = isVisibleInUI
@@ -150,7 +144,9 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         context.coordinator.panel = panel
         context.coordinator.panelIdentity = panelIdentity
         textView.panel = panel
-        textView.filePreviewLineCommentToken = Self.lineCommentToken(forFilePath: filePath)
+        if filePathChanged {
+            textView.filePreviewLineCommentToken = Self.lineCommentToken(forFilePath: filePath)
+        }
         textView.applyFilePreviewTextEditorInsets()
         textView.applyFilePreviewWordWrap(wordWrap, scrollView: scrollView)
         panel.attachTextView(textView)
@@ -202,12 +198,12 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
     }
 
     /// The comment leader for `filePath`, from the same language table the
-    /// syntax highlighter resolves.
+    /// syntax highlighter resolves. Pure string work: no `URL`, so no stat.
     static func lineCommentToken(forFilePath filePath: String) -> FilePreviewLineCommentToken {
-        let url = URL(fileURLWithPath: filePath)
+        let path = filePath as NSString
         return FilePreviewLineCommentToken(
-            language: LanguageCatalog().language(for: url),
-            fileName: url.lastPathComponent
+            language: LanguageCatalog().language(forExtension: path.pathExtension),
+            fileName: path.lastPathComponent
         )
     }
 
@@ -514,9 +510,24 @@ final class SavingTextView: NSTextView {
     /// from the highlighter's language for the panel's path.
     var filePreviewLineCommentToken = FilePreviewLineCommentToken(language: nil)
     var filePreviewGoToLinePopover: FilePreviewGoToLinePopover?
+    /// Detected indentation for one buffer revision and tab width; read
+    /// through `filePreviewIndentation`, which refreshes it on a miss.
+    var cachedFilePreviewIndentation: (editCount: Int, tabWidth: Int, indentation: FilePreviewIndentation)?
+    /// Tab width when the chrome has not applied one yet (an editor outside
+    /// the panel): the user's `fileEditor.tabWidth` setting.
+    static let fallbackEditorSettings = FilePreviewEditorSettings(defaults: .standard)
     private var previewFontSize: CGFloat = 13
     private var pendingEditorShortcutChordPrefix: ShortcutStroke?
     private var fontMagnificationObserver: GlobalFontMagnificationChangeObserver?
+    private var textStorageEditCounter: FilePreviewTextStorageEditCounter?
+    /// Shortcut candidates built for one `SavingTextViewShortcutGeneration`,
+    /// plus whether any first stroke can match a key without Command,
+    /// Control, or Option (the early exit on the typing path depends on it).
+    private var cachedEditorShortcutCandidates: (
+        generation: Int,
+        candidates: [(shortcut: StoredShortcut, isAllowed: (NSEvent) -> Bool, perform: () -> Void)],
+        hasUnmodifiedFirstStroke: Bool
+    )?
     /// Creates a default editor backed by the app’s preference domain.
     convenience init() {
         self.init(frame: .zero, textContainer: nil)
@@ -531,21 +542,29 @@ final class SavingTextView: NSTextView {
     init(frame frameRect: NSRect, textContainer container: NSTextContainer?, wordWrapSettings: FilePreviewWordWrapSettings) {
         self.wordWrapSettings = wordWrapSettings
         super.init(frame: frameRect, textContainer: container)
-        installFontMagnificationObserver()
+        installObservers()
     }
 
     /// Restores an archived editor using the app’s preference domain.
     required init?(coder: NSCoder) {
         wordWrapSettings = FilePreviewWordWrapSettings(defaults: .standard)
         super.init(coder: coder)
-        installFontMagnificationObserver()
+        installObservers()
     }
 
     deinit {}
 
-    private func installFontMagnificationObserver() {
+    /// Character edits to the text storage since the view was created.
+    var filePreviewTextEditCount: Int {
+        textStorageEditCounter?.count ?? 0
+    }
+
+    private func installObservers() {
         fontMagnificationObserver = GlobalFontMagnificationChangeObserver { [weak self] in
             self?.applyCurrentPreviewFont()
+        }
+        if let textStorage {
+            textStorageEditCounter = FilePreviewTextStorageEditCounter(storage: textStorage)
         }
     }
 
@@ -574,20 +593,23 @@ final class SavingTextView: NSTextView {
         return super.performKeyEquivalent(with: event)
     }
 
+    // Return, Tab, and Shift-Tab use the file's indentation; a `false` (read
+    // only, marked text, several selections) hands the key back to AppKit.
+
     override func insertNewline(_ sender: Any?) {
-        if !handleFilePreviewNewline() {
+        if !applyFilePreviewEdit({ $0.newlineInsertion(at: $1) }) {
             super.insertNewline(sender)
         }
     }
 
     override func insertTab(_ sender: Any?) {
-        if !handleFilePreviewTab() {
+        if !applyFilePreviewEdit({ $0.tabInsertion(at: $1) }) {
             super.insertTab(sender)
         }
     }
 
     override func insertBacktab(_ sender: Any?) {
-        if !handleFilePreviewBacktab() {
+        if !applyFilePreviewEdit({ $0.outdentLines(in: $1) }) {
             super.insertBacktab(sender)
         }
     }
@@ -678,7 +700,17 @@ final class SavingTextView: NSTextView {
             return false
         }
 
-        let candidates = editorShortcutCandidates()
+        // Typing path: a key without Command, Control, or Option can only
+        // match a chord's second stroke or a first stroke bound without those
+        // modifiers, so skip the candidate walk entirely when neither applies.
+        let cache = editorShortcutCandidateCache()
+        if pendingEditorShortcutChordPrefix == nil,
+           !cache.hasUnmodifiedFirstStroke,
+           event.modifierFlags.intersection([.command, .control, .option]).isEmpty {
+            return false
+        }
+
+        let candidates = cache.candidates
         if let pendingPrefix = pendingEditorShortcutChordPrefix {
             pendingEditorShortcutChordPrefix = nil
             for candidate in candidates {
@@ -711,7 +743,28 @@ final class SavingTextView: NSTextView {
         return false
     }
 
-    /// Combines save, zoom, and wrap actions for single-stroke and chord routing.
+    /// The candidate list for the current shortcut settings, rebuilt only
+    /// after `SavingTextViewShortcutGeneration` records a change.
+    private func editorShortcutCandidateCache() -> (
+        generation: Int,
+        candidates: [(shortcut: StoredShortcut, isAllowed: (NSEvent) -> Bool, perform: () -> Void)],
+        hasUnmodifiedFirstStroke: Bool
+    ) {
+        let generation = SavingTextViewShortcutGeneration.shared.current
+        if let cached = cachedEditorShortcutCandidates, cached.generation == generation {
+            return cached
+        }
+        let candidates = editorShortcutCandidates()
+        let cache = (
+            generation: generation,
+            candidates: candidates,
+            hasUnmodifiedFirstStroke: candidates.contains { !$0.shortcut.firstStroke.hasPrimaryModifier }
+        )
+        cachedEditorShortcutCandidates = cache
+        return cache
+    }
+
+    /// Combines save, zoom, wrap, and editing actions for single-stroke and chord routing.
     private func editorShortcutCandidates() -> [
         (shortcut: StoredShortcut, isAllowed: (NSEvent) -> Bool, perform: () -> Void)
     ] {

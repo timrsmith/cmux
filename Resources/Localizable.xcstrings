@@ -1,6 +1,124 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "filesPanel.header.editor.terminalEditorWithCommand": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ (%2$@)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ (%2$@)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ (%2$@)"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ (%2$@)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ (%2$@)"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@（%2$@）"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@（%2$@）"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ (%2$@)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@（%2$@）"
+          }
+        }
+      }
+    },
+    "filesPanel.header.editor.terminalEditorShellFallback": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ($VISUAL, $EDITOR or vi)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ($VISUAL, $EDITOR oder vi)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ($VISUAL, $EDITOR ou vi)"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ($VISUAL أو $EDITOR أو vi)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ($VISUAL, $EDITOR o vi)"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@（$VISUAL、$EDITOR 或 vi）"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@（$VISUAL、$EDITOR 或 vi）"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ($VISUAL, $EDITOR 또는 vi)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@（$VISUAL、$EDITOR または vi）"
+          }
+        }
+      }
+    },
     "shortcut.findAndReplace.label": {
       "extractionState": "manual",
       "localizations": {
@@ -1010,55 +1128,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Command run in a cmux terminal when Terminal Editor is chosen, followed by the file path. Leave empty to use $VISUAL, then $EDITOR, then vi."
+            "value": "Command run in a cmux terminal when Terminal Editor is chosen, followed by the file path. Leave empty to let your login shell use $VISUAL, then $EDITOR, then vi."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Befehl, der in einem cmux-Terminal ausgeführt wird, wenn Terminal-Editor gewählt ist, gefolgt vom Dateipfad. Leer lassen, um $VISUAL, dann $EDITOR, dann vi zu verwenden."
+            "value": "Befehl, der in einem cmux-Terminal ausgeführt wird, wenn Terminal-Editor gewählt ist, gefolgt vom Dateipfad. Leer lassen, damit Ihre Login-Shell $VISUAL, dann $EDITOR, dann vi verwendet."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Commande exécutée dans un terminal cmux lorsque Éditeur de terminal est choisi, suivie du chemin du fichier. Laissez vide pour utiliser $VISUAL, puis $EDITOR, puis vi."
+            "value": "Commande exécutée dans un terminal cmux lorsque Éditeur de terminal est choisi, suivie du chemin du fichier. Laissez vide pour que votre shell de connexion utilise $VISUAL, puis $EDITOR, puis vi."
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "الأمر الذي يُشغَّل في طرفية cmux عند اختيار محرر الطرفية، متبوعًا بمسار الملف. اتركه فارغًا لاستخدام $VISUAL ثم $EDITOR ثم vi."
+            "value": "الأمر الذي يُشغَّل في طرفية cmux عند اختيار محرر الطرفية، متبوعًا بمسار الملف. اتركه فارغًا ليستخدم صدفة تسجيل الدخول لديك $VISUAL ثم $EDITOR ثم vi."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Comando que se ejecuta en un terminal de cmux al elegir Editor de terminal, seguido de la ruta del archivo. Déjalo vacío para usar $VISUAL, luego $EDITOR y luego vi."
+            "value": "Comando que se ejecuta en un terminal de cmux al elegir Editor de terminal, seguido de la ruta del archivo. Déjalo vacío para que tu shell de inicio de sesión use $VISUAL, luego $EDITOR y luego vi."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "選擇終端機編輯器時在 cmux 終端機中執行的指令，後面接檔案路徑。留空則依序使用 $VISUAL、$EDITOR、vi。"
+            "value": "選擇終端機編輯器時在 cmux 終端機中執行的指令，後面接檔案路徑。留空則由您的登入 Shell 依序使用 $VISUAL、$EDITOR、vi。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "选择终端编辑器时在 cmux 终端中运行的命令，后跟文件路径。留空则依次使用 $VISUAL、$EDITOR、vi。"
+            "value": "选择终端编辑器时在 cmux 终端中运行的命令，后跟文件路径。留空则由您的登录 Shell 依次使用 $VISUAL、$EDITOR、vi。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "터미널 편집기를 선택했을 때 cmux 터미널에서 실행되는 명령이며 뒤에 파일 경로가 붙습니다. 비워 두면 $VISUAL, $EDITOR, vi 순으로 사용합니다."
+            "value": "터미널 편집기를 선택했을 때 cmux 터미널에서 실행되는 명령이며 뒤에 파일 경로가 붙습니다. 비워 두면 로그인 셸이 $VISUAL, $EDITOR, vi 순으로 사용합니다."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ターミナルエディタを選んだときにcmuxのターミナルで実行するコマンド。後ろにファイルパスが付きます。空にすると$VISUAL、$EDITOR、viの順に使います。"
+            "value": "ターミナルエディタを選択したときに cmux ターミナルで実行されるコマンドで、後ろにファイルパスが付きます。空のままにすると、ログインシェルが $VISUAL、$EDITOR、vi の順に使用します。"
           }
         }
       }
@@ -1413,65 +1531,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "エディタ"
-          }
-        }
-      }
-    },
-    "filesPanel.header.editor.terminalEditorWithFallback": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ (%2$@)"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ (%2$@)"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ (%2$@)"
-          }
-        },
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ (%2$@)"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ (%2$@)"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@（%2$@）"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@（%2$@）"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ (%2$@)"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@（%2$@）"
           }
         }
       }

@@ -19,17 +19,14 @@
       "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
-  "filesPanel.header.editor.terminalEditorWithFallback": {
+  "filesPanel.header.editor.terminalEditorWithCommand": {
     "source": "%1$@ (%2$@)",
     "identityLocales": {
       "de": "Format-only string: two placeholders and parentheses, no translatable words; the translated entry is still required.",
       "fr": "Format-only string: two placeholders and parentheses, no translatable words; the translated entry is still required.",
       "ar": "Format-only string: two placeholders and parentheses, no translatable words; the translated entry is still required.",
       "es": "Format-only string: two placeholders and parentheses, no translatable words; the translated entry is still required.",
-      "zh-Hant": "Format-only string: two placeholders and parentheses, no translatable words; the translated entry is still required.",
-      "zh-Hans": "Format-only string: two placeholders and parentheses, no translatable words; the translated entry is still required.",
-      "ko": "Format-only string: two placeholders and parentheses, no translatable words; the translated entry is still required.",
-      "ja": "Format-only string: two placeholders and parentheses, no translatable words; the translated entry is still required."
+      "ko": "Format-only string: two placeholders and parentheses, no translatable words; the translated entry is still required."
     }
   },
   "mobile.ios106PairingUpdate.releaseLabel": {
