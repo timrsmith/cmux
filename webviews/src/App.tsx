@@ -119,6 +119,7 @@ import {
   type WritableDiffSource,
 } from "./worktree-actions";
 import {
+  FileCollapseToggle,
   FileWriteActions,
   HunkWriteActions,
   useCommitPopoverDismiss,
@@ -156,6 +157,12 @@ type AppState = {
   draft: CommentDraft | null;
   /** Path, status, and hide-viewed filter; hides diff sections and tree rows. */
   fileFilter: DiffFileFilter;
+  /**
+   * Per-file fold state chosen from a card's chevron, keyed by file path so it
+   * survives the in-place reload after a write (item ids can change between
+   * streams). Files without an entry follow the collapse-all option.
+   */
+  fileCollapseOverrides: ReadonlyMap<string, boolean>;
   fileSearchOpen: boolean;
   fileSearchRequest: number;
   filesWidth: number;
@@ -210,6 +217,7 @@ type AppAction =
   | { type: "set-options-open"; open: boolean }
   | { type: "set-status"; status: DiffViewerStatus }
   | { type: "set-tree-source"; source: FileTreeSource }
+  | { type: "toggle-item-collapsed"; itemId: string }
   | { type: "upsert-comment"; comment: DiffCommentRecord };
 
 const fileSkeletonWidths = ["82%", "64%", "76%", "58%", "70%", "46%"];
@@ -229,6 +237,7 @@ function initialAppState(config: DiffViewerConfig, initialStatus: DiffViewerStat
     copyFeedback: "",
     draft: null,
     fileFilter: defaultDiffFileFilter(),
+    fileCollapseOverrides: new Map(),
     fileSearchOpen: false,
     fileSearchRequest: 0,
     filesWidth: 252,
@@ -351,9 +360,13 @@ function reducer(state: AppState, action: AppAction): AppState {
     const nextItems = action.items.map((item) => {
       resolveDiffItemLanguage(item);
       const annotated = withCommentAnnotations(item, state.comments, state.draft);
-      // The collapse-all option survives a reset, so files streaming back in
-      // after a write action reload come back collapsed the same way.
-      return prepareAppendedItem(annotated, state, generatedPaths);
+      // The collapse-all option and the per-file overrides survive a reset, so
+      // files streaming back in after a write action reload come back folded
+      // the same way; generated, large, and viewed files start collapsed too.
+      const prepared = prepareAppendedItem(annotated, state, generatedPaths);
+      return state.fileCollapseOverrides.has(fileCollapseKey(annotated))
+        ? { ...prepared, collapsed: itemCollapsed(annotated, state) }
+        : prepared;
     });
     const languages = mergeLanguages(state.languages, nextItems.flatMap(diffItemPreloadLanguages));
     return {
@@ -438,8 +451,11 @@ function reducer(state: AppState, action: AppAction): AppState {
     return { ...state, metrics: action.metrics };
   case "set-option":
     if (action.key === "collapsed") {
+      // Collapse all / expand all is the new baseline: per-file choices made
+      // before it are dropped so every card follows it.
       return {
         ...state,
+        fileCollapseOverrides: new Map(),
         options: { ...state.options, collapsed: Boolean(action.value) },
         items: state.items.map((item) => ({
           ...item,
@@ -462,6 +478,24 @@ function reducer(state: AppState, action: AppAction): AppState {
       treeSource: source,
     };
   }
+  case "toggle-item-collapsed": {
+    const target = state.items.find((item) => item.id === action.itemId);
+    if (!target) {
+      return state;
+    }
+    const collapsed = target.collapsed !== true;
+    const fileCollapseOverrides = new Map(state.fileCollapseOverrides);
+    fileCollapseOverrides.set(fileCollapseKey(target), collapsed);
+    return {
+      ...state,
+      fileCollapseOverrides,
+      items: state.items.map((item) => (
+        item.id === action.itemId
+          ? { ...item, collapsed, version: (item.version ?? 0) + 1 }
+          : item
+      )),
+    };
+  }
   case "upsert-comment": {
     const exists = state.comments.some((comment) => comment.id === action.comment.id);
     const comments = exists
@@ -474,6 +508,19 @@ function reducer(state: AppState, action: AppAction): AppState {
     };
   }
   }
+}
+
+/** The key a card's fold override is stored under: its file path. */
+function fileCollapseKey(item: DiffItem): string {
+  return item.fileDiff ? fileName(item.fileDiff, item.id) : item.id;
+}
+
+/** Effective fold state of an item: its per-file override, else the collapse-all option. */
+function itemCollapsed(
+  item: DiffItem,
+  state: Pick<AppState, "fileCollapseOverrides" | "options">,
+): boolean {
+  return state.fileCollapseOverrides.get(fileCollapseKey(item)) ?? state.options.collapsed;
 }
 
 export function App({ config, initialStatus }: ConfigProps) {
@@ -743,13 +790,30 @@ export function App({ config, initialStatus }: ConfigProps) {
     setActiveSessionSource(selectedSource);
   };
   // After a mutation the session is reopened in place (no page reload). The
-  // scroll offset is carried across the reload; the collapse-all option
-  // survives the reset on its own. Per-file collapse toggled inside Pierre's
-  // header is not observable from here, so it is not carried over.
+  // scroll offset is carried across the reload; the collapse-all option and
+  // the per-file fold overrides survive the reset on their own.
   const reloadAfterWrite = (source: WritableDiffSource) => {
     restoreScrollRef.current = codeViewScrollTopRef.current;
     selectSessionSource({ ...source }, true);
   };
+  // The host's in-place refresh (`window.cmuxDiffViewer.refresh()`, called
+  // through evaluateJavaScript): the same session reopen a write action uses,
+  // so the scroll offset, the per-file folds, and the repository status
+  // already shown all stay put and nothing is refetched. Only an open
+  // working-tree session can take it, and never while a write is in flight;
+  // on `false` the host falls back to a full document reload. The reload
+  // holds the write actions until the reopened session exists, exactly as a
+  // write does, so a click cannot target the closing session.
+  const refreshInPlace = (): boolean => {
+    if (!writeSource || pendingWriteRef.current || !activeSessionRef.current) {
+      return false;
+    }
+    pendingWriteRef.current = true;
+    setPendingWrite(true);
+    reloadAfterWrite(writeSource);
+    return true;
+  };
+  useHostRefresh(useSyncedRef(refreshInPlace));
   const runWorktreeWrite = async (command: DiffCommand, source: WritableDiffSource) => {
     if (!transport || pendingWriteRef.current) {
       return;
@@ -1110,31 +1174,34 @@ export function App({ config, initialStatus }: ConfigProps) {
     void closeActiveSession();
   };
 
+  const navigateTo = (url: string) => {
+    setStatus(createDiffViewerStatus(label("loadingDiff"), { pending: true }));
+    // Session cleanup is best-effort and can wait on WebKit's reply path.
+    // Do not make source/repository/base selection wait for it: navigation
+    // starts a new typed session and must stay responsive.
+    void closeActiveSession();
+    window.location.href = resolveDiffNavigationURL(url);
+  };
+  // The source, repo, and base pickers render from exactly one host. On
+  // working-tree views the repository header takes them (they replace its
+  // plain repo label, so repo -> file navigation -> diffs reads top-down);
+  // every other session keeps them in the toolbar. Their ids stay put for
+  // the tests and CSS that address them.
+  const showRepositoryHeader = headerSource != null && commitControl != null;
+  const sourceControls = (
+    <SourceControls
+      activeSessionSource={resolvedSessionSource ?? activeSessionSource}
+      className={showRepositoryHeader ? "repo-header-source" : "toolbar-left"}
+      label={label}
+      onNavigate={navigateTo}
+      onSelectSessionSource={(source) => selectSessionSource(source)}
+      payload={payload}
+      transport={transport}
+    />
+  );
+
   return (
     <div id="app" data-file-search-open={state.fileSearchOpen} data-file-filter-active={isDiffFileFilterActive(state.fileFilter)}>
-      <Toolbar
-        config={config}
-        transport={transport}
-        label={label}
-        onCopyGitApply={copyGitApply}
-        onJump={scrollToItem}
-        onNavigate={(url) => {
-          setStatus(createDiffViewerStatus(label("loadingDiff"), { pending: true }));
-          // Session cleanup is best-effort and can wait on WebKit's reply path.
-          // Do not make source/repository/base selection wait for it: navigation
-          // starts a new typed session and must stay responsive.
-          void closeActiveSession();
-          window.location.href = resolveDiffNavigationURL(url);
-        }}
-        activeSessionSource={resolvedSessionSource ?? activeSessionSource}
-        onSelectSessionSource={(source) => selectSessionSource(source)}
-        onReload={reloadPage}
-        onSetLayout={setLayout}
-        onSetOption={setOption}
-        dispatch={dispatch}
-        state={state}
-        visibleItems={visibleItems}
-      />
       {headerSource && commitControl ? (
         <RepositoryHeader
           commit={commitControl}
@@ -1148,10 +1215,25 @@ export function App({ config, initialStatus }: ConfigProps) {
           onRefresh={reloadPage}
           pending={pendingWrite}
           pullRequest={pullRequestControl}
+          showRepoLabel={!hasRepoSelect(payload)}
           source={headerSource}
+          sourceControls={sourceControls}
           status={repositoryStatus}
         />
       ) : null}
+      <Toolbar
+        config={config}
+        label={label}
+        onCopyGitApply={copyGitApply}
+        onJump={scrollToItem}
+        onReload={reloadPage}
+        onSetLayout={setLayout}
+        onSetOption={setOption}
+        sourceControls={showRepositoryHeader ? null : sourceControls}
+        dispatch={dispatch}
+        state={state}
+        visibleItems={visibleItems}
+      />
       <section id="content" style={{ "--cmux-diff-files-width": `${state.filesWidth}px` } as React.CSSProperties}>
         <FilesSidebarBackdrop
           label={label}
@@ -1196,6 +1278,13 @@ export function App({ config, initialStatus }: ConfigProps) {
                 items={renderedItems}
                 onScroll={handleCodeViewScroll}
                 options={renderedCodeViewOptions}
+                renderHeaderPrefix={(item) => (
+                  <FileCollapseToggle
+                    collapsed={(item as DiffItem).collapsed === true}
+                    label={label}
+                    onToggle={() => dispatch({ type: "toggle-item-collapsed", itemId: item.id })}
+                  />
+                )}
                 renderHeaderMetadata={(item) => (
                   <>
                     {writeAvailable ? (
@@ -1573,37 +1662,33 @@ function WorkerRenderOptionsSync({
 }
 
 function Toolbar({
-  activeSessionSource,
   config,
   dispatch,
   label,
   onCopyGitApply,
   onJump,
-  onNavigate,
-  onSelectSessionSource,
   onReload,
   onSetLayout,
   onSetOption,
+  sourceControls,
   state,
-  transport,
   visibleItems,
 }: {
-  activeSessionSource: DiffSource | null;
   config: DiffViewerConfig;
   dispatch: React.Dispatch<AppAction>;
   label: DiffViewerLabelResolver;
   onCopyGitApply: () => void;
   onJump: (itemId: string) => void;
-  onNavigate: (url: string) => void;
-  onSelectSessionSource: (source: DiffSource) => void;
   onReload: () => void;
   onSetLayout: (layout: DiffViewerLayout) => void;
   onSetOption: (key: keyof DiffViewerOptions, value: any) => void;
+  /** The source/repo/base pickers when this bar hosts them; null when the repository header does. */
+  sourceControls: React.ReactNode | null;
   state: AppState;
-  transport: DiffTransport | null;
   visibleItems: DiffItem[];
 }) {
   const payload = config.payload ?? {};
+  const hostsSource = sourceControls != null;
   const externalURL =
     typeof payload.externalURL === "string" && payload.externalURL.length > 0 ? payload.externalURL : null;
   const toolbarRef = useRef<HTMLElement>(null);
@@ -1612,10 +1697,11 @@ function Toolbar({
   // Drop order at narrowing: external link -> layout toggle -> files toggle. Each
   // has a canonical copy in the "..." menu, so overflowing one only hides its
   // duplicate bar icon and it stays reachable from the menu. The source select,
-  // repo select, and Base picker are NOT in this list: they are always rendered
-  // in the bar (a native <select> has no menu equivalent, so the repo select must
-  // never be dropped — it shrinks/ellipsizes in place instead). Estimated widths
-  // include each control's ~4px inter-item gap.
+  // repo select, and Base picker are NOT in this list: when this bar hosts them
+  // they are always rendered (a native <select> has no menu equivalent, so the
+  // repo select must never be dropped — it shrinks/ellipsizes in place instead),
+  // and when the repository header hosts them they cost this bar nothing.
+  // Estimated widths include each control's ~4px inter-item gap.
   const overflowItems = [
     { id: "files-toggle" as const, width: TOOLBAR_ICON_SLOT },
     { id: "layout-toggle" as const, width: TOOLBAR_ICON_SLOT },
@@ -1627,12 +1713,16 @@ function Toolbar({
       : new Set(
           resolveToolbarOverflow({
             available: toolbarWidth,
-            // Always-present zone: source select + repo select + Base picker +
-            // "..." button + horizontal padding. Generous so we shed before, not
-            // after, overlap; the CSS clip covers any residual under-estimate. The
-            // repo select is always in the bar now, so reserve its slot too (it
-            // shrinks in place rather than overflowing).
-            reserved: TOOLBAR_ALWAYS_PRESENT_WIDTH + (hasRepoSelect(payload) ? TOOLBAR_REPO_SELECT_MIN : 0),
+            // Always-present zone. With the pickers in this bar: source select +
+            // repo select + Base picker + "..." button + horizontal padding,
+            // generous so we shed before, not after, overlap (the CSS clip covers
+            // any residual under-estimate); the repo select shrinks in place
+            // rather than overflowing, so its floor is reserved too. With the
+            // pickers in the repository header only the "..." button and padding
+            // remain, so the icons are not shed for controls that are not here.
+            reserved: hostsSource
+              ? TOOLBAR_ALWAYS_PRESENT_WIDTH + (hasRepoSelect(payload) ? TOOLBAR_REPO_SELECT_MIN : 0)
+              : TOOLBAR_ACTIONS_ONLY_WIDTH,
             items: overflowItems,
           }).overflow,
         );
@@ -1640,15 +1730,10 @@ function Toolbar({
   const showLayoutToggle = !overflow.has("layout-toggle");
   const showExternalLink = externalURL != null && !overflow.has("external-link");
   return (
-    <header id="toolbar" ref={toolbarRef}>
-      <SourceControls
-        activeSessionSource={activeSessionSource}
-        label={label}
-        onNavigate={onNavigate}
-        onSelectSessionSource={onSelectSessionSource}
-        payload={payload}
-        transport={transport}
-      />
+    // `data-hosts-source` picks the CSS layout: with the pickers here the bar
+    // stacks into two rows at narrow widths; without them it stays one row.
+    <header id="toolbar" ref={toolbarRef} data-hosts-source={hostsSource ? "true" : "false"}>
+      {sourceControls}
       {/* Small diffs use a native jump select. Large diffs route this control to
           the virtualized file-tree search so the toolbar never creates one DOM
           option per file. */}
@@ -1746,6 +1831,9 @@ const TOOLBAR_ALWAYS_PRESENT_WIDTH = 248;
 // floor of 56px + ~4px gap). It ellipsizes in place down to this floor rather
 // than overflowing, so reserve only the floor, not its full natural width.
 const TOOLBAR_REPO_SELECT_MIN = 60;
+// Width reserved when the repository header hosts the pickers: only the "..."
+// button (20px), its gaps, and the bar's horizontal padding remain fixed.
+const TOOLBAR_ACTIONS_ONLY_WIDTH = 48;
 
 function hasRepoSelect(payload: any): boolean {
   return Array.isArray(payload?.repoOptions) && payload.repoOptions.length >= 2;
@@ -1753,6 +1841,7 @@ function hasRepoSelect(payload: any): boolean {
 
 function SourceControls({
   activeSessionSource,
+  className,
   label,
   onNavigate,
   onSelectSessionSource,
@@ -1760,6 +1849,8 @@ function SourceControls({
   transport,
 }: {
   activeSessionSource: DiffSource | null;
+  /** `toolbar-left` in the toolbar, `repo-header-source` in the repository header. */
+  className: string;
   label: DiffViewerLabelResolver;
   onNavigate: (url: string) => void;
   onSelectSessionSource: (source: DiffSource) => void;
@@ -1767,7 +1858,7 @@ function SourceControls({
   transport: DiffTransport | null;
 }) {
   return (
-    <div className="toolbar-left flex min-w-0 items-center gap-1.5">
+    <div className={`${className} flex min-w-0 items-center gap-1.5`}>
       <NavigationSelect
         ariaLabel={label("diffTarget")}
         fallbackValue=""
@@ -3036,6 +3127,21 @@ function useNativeViewerNavigation(
       disposeManualInputReset();
     };
   }, [dispatch, findBridgeRef, onJumpAdjacentFile, onJumpAdjacentHunk, onToggleViewed, viewerRef]);
+}
+
+/**
+ * Installs `window.cmuxDiffViewer.refresh()` for the host. The object is
+ * created once and routes through a ref, so it always runs the latest
+ * closure (the current source, session, and pending state); it is removed on
+ * unmount.
+ */
+function useHostRefresh(refreshRef: React.MutableRefObject<() => boolean>) {
+  useEffect(() => {
+    window.cmuxDiffViewer = { refresh: () => refreshRef.current() };
+    return () => {
+      delete window.cmuxDiffViewer;
+    };
+  }, [refreshRef]);
 }
 
 function useOptionsDismiss(optionsOpen: boolean, dispatch: React.Dispatch<AppAction>) {

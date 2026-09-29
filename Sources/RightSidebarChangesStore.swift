@@ -125,23 +125,37 @@ final class RightSidebarChangesStore: ObservableObject {
     private var watchStartTask: Task<Void, Never>?
     private var watchEventsTask: Task<Void, Never>?
     private var watchGeneration: UInt64 = 0
+    private let fingerprintProducer: RightSidebarChangesFingerprint.Producer
+    /// The working-tree digest the displayed page reflects; `nil` until the
+    /// seed taken after a page installs has landed (or when it failed).
+    private var lastFingerprint: String?
+    /// One digest runs at a time; events arriving meanwhile fold into a single
+    /// re-check once it lands, so a burst costs two `git status` runs at most.
+    private var fingerprintTask: Task<Void, Never>?
+    private var fingerprintRecheckPending = false
+    private var fingerprintGeneration: UInt64 = 0
+    /// Completed digest runs (tests).
+    private(set) var fingerprintCheckCount = 0
 
     init(
         repoRootResolver: @escaping RepoRootResolver = RightSidebarChangesStore.defaultRepoRootResolver,
         pageProducer: @escaping PageProducer = RightSidebarChangesStore.defaultPageProducer,
         watchFactory: @escaping GitStatusRepositoryWatchFactory = GitStatusRepositoryWatching.defaultFactory,
         schemeHandler: CmuxDiffViewerURLSchemeHandler = .shared,
-        productionTimeout: TimeInterval = RightSidebarChangesStore.defaultProductionTimeout
+        productionTimeout: TimeInterval = RightSidebarChangesStore.defaultProductionTimeout,
+        fingerprintProducer: @escaping RightSidebarChangesFingerprint.Producer = RightSidebarChangesFingerprint.defaultProducer
     ) {
         self.repoRootResolver = repoRootResolver
         self.pageProducer = pageProducer
         self.watchFactory = watchFactory
         self.schemeHandler = schemeHandler
         self.productionTimeout = productionTimeout
+        self.fingerprintProducer = fingerprintProducer
     }
 
     deinit {
         loadTask?.cancel()
+        fingerprintTask?.cancel()
         watchStartTask?.cancel()
         watchEventsTask?.cancel()
         // Nothing displays these documents any more; their sessions go too.
@@ -378,6 +392,9 @@ final class RightSidebarChangesStore: ObservableObject {
     /// now displays `page`, and the evicted one is four repositories back.
     private func installPage(_ page: RightSidebarChangesPage, for repoRoot: String) {
         self.page = page
+        // The new document reflects the working tree as of now; record that
+        // digest so the first unrelated event afterwards does not reload it.
+        seedFingerprint()
         if let index = recentPages.firstIndex(where: { $0.repoRoot == repoRoot }) {
             let replaced = recentPages.remove(at: index).page
             if replaced.token != page.token {
@@ -406,22 +423,74 @@ final class RightSidebarChangesStore: ObservableObject {
 
     // MARK: Refresh
 
-    /// Applies one repository change: reloadable pages reload in place, static
-    /// pages regenerate. Bursts are already folded by the repository watch's
-    /// coalescing window, so each event is one refresh.
+    /// Applies one repository change. The watch's coalescing window folds a
+    /// burst into one event, but not every event changes the working-tree
+    /// diff: the digest decides, and only a changed (or unobtainable) digest
+    /// refreshes the page.
     func handleRepositoryChange() {
-        guard isActive else { return }
-        refreshExistingPage()
+        guard isActive, target != nil, page != nil else { return }
+        scheduleFingerprintCheck(refreshOnChange: true)
     }
 
+    /// A page that a `needsRefresh` or a static regeneration replaces reflects
+    /// the working tree as of the check; the digest recorded with it decides
+    /// what the next event means.
     private func refreshExistingPage() {
         guard let target, let page else { return }
         if page.reloadable {
             reloadGeneration &+= 1
+            seedFingerprint()
         } else {
             // Keep the current document on screen while the replacement renders.
             producePage(for: target)
         }
+    }
+
+    // MARK: Working-tree digest
+
+    /// Records the digest the displayed page corresponds to, without refreshing.
+    private func seedFingerprint() {
+        lastFingerprint = nil
+        scheduleFingerprintCheck(refreshOnChange: false)
+    }
+
+    /// Runs one digest for the current target. While one is in flight, a
+    /// further request only marks a re-check, which runs once it lands.
+    private func scheduleFingerprintCheck(refreshOnChange: Bool) {
+        guard let target else { return }
+        if fingerprintTask != nil {
+            if refreshOnChange { fingerprintRecheckPending = true }
+            return
+        }
+        fingerprintGeneration &+= 1
+        let generation = fingerprintGeneration
+        let producer = fingerprintProducer
+        let repoRoot = target.repoRoot
+        fingerprintTask = Task { [weak self] in
+            let fingerprint = await producer(repoRoot)
+            guard let self, !Task.isCancelled, self.fingerprintGeneration == generation,
+                  self.target?.repoRoot == repoRoot else { return }
+            self.fingerprintTask = nil
+            self.fingerprintCheckCount += 1
+            let recheck = self.fingerprintRecheckPending
+            self.fingerprintRecheckPending = false
+            if refreshOnChange, self.isActive, fingerprint == nil || fingerprint != self.lastFingerprint {
+                self.lastFingerprint = fingerprint
+                // Refreshing re-seeds; a pending re-check is covered by it.
+                self.refreshExistingPage()
+                return
+            }
+            self.lastFingerprint = fingerprint
+            if recheck { self.scheduleFingerprintCheck(refreshOnChange: true) }
+        }
+    }
+
+    private func cancelFingerprintCheck() {
+        fingerprintGeneration &+= 1
+        fingerprintTask?.cancel()
+        fingerprintTask = nil
+        fingerprintRecheckPending = false
+        lastFingerprint = nil
     }
 
     // MARK: Watch
@@ -459,6 +528,7 @@ final class RightSidebarChangesStore: ObservableObject {
     }
 
     private func stopWatch() {
+        cancelFingerprintCheck()
         watchGeneration &+= 1
         watchStartTask?.cancel(); watchStartTask = nil
         watchEventsTask?.cancel(); watchEventsTask = nil

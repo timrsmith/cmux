@@ -49,6 +49,15 @@ declare global {
 
   interface Window {
     __cmuxPerformDiffViewerNavigationAction?: (action: string) => boolean;
+    /**
+     * Host entry points, called through evaluateJavaScript. `refresh()`
+     * reopens the working-tree session in place (scroll, per-file folds, and
+     * the shown repository status stay); `false` means the host should fall
+     * back to a full reload.
+     */
+    cmuxDiffViewer?: {
+      refresh(): boolean;
+    };
     __cmuxDiffViewer?: {
       codeView?: unknown;
       codeViewItems?: unknown[];

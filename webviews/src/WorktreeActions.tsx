@@ -24,11 +24,11 @@ import {
 } from "./worktree-actions";
 
 /**
- * Write-action controls for the diff viewer: per-file header buttons, the
- * per-hunk action row, the commit and pull request popovers, and the pull
- * request card. Every destructive action asks for an inline confirmation
- * first; nothing here talks to the transport, the App owns the request and
- * the reload.
+ * Header-slot and write-action controls for the diff viewer: the per-file
+ * fold chevron, per-file header buttons, the per-hunk action row, the commit
+ * and pull request popovers, and the pull request card. Every destructive
+ * action asks for an inline confirmation first; nothing here talks to the
+ * transport, the App owns the request and the reload.
  */
 
 const FILE_ACTION_ICON: Record<FileWriteAction, IconName> = {
@@ -37,11 +37,42 @@ const FILE_ACTION_ICON: Record<FileWriteAction, IconName> = {
   unstageFile: "unstage",
 };
 
-// The header slot lives inside Pierre's clickable file header, whose click
-// toggles collapse. Stop the pointer sequence at the action cluster so a
-// button press never doubles as a header toggle. Keys pass through, except
-// the two that would activate the header: the document-level Escape and
-// Cmd+F listeners must still see a key pressed on these buttons.
+/**
+ * Per-file fold control, slotted at the front of the card header. The fold
+ * state is the item's controlled `collapsed` (the App's reducer owns it and
+ * CodeView re-renders the card), so this is a plain button reporting the
+ * click; the header itself never toggles anything.
+ */
+export function FileCollapseToggle({
+  collapsed,
+  label,
+  onToggle,
+}: {
+  collapsed: boolean;
+  label: DiffViewerLabelResolver;
+  onToggle: () => void;
+}) {
+  const title = label(collapsed ? "expandFile" : "collapseFile");
+  return (
+    <button
+      type="button"
+      className="file-collapse-toggle"
+      aria-expanded={!collapsed}
+      aria-label={title}
+      title={title}
+      onClick={onToggle}
+    >
+      <Icon name="chevronDown" />
+    </button>
+  );
+}
+
+// The header slot lives inside Pierre's file header. Stop the pointer
+// sequence at the action cluster so a button press never reaches the header
+// (its line-selection handling, or a header toggle should the library add
+// one). Keys pass through, except the two that would activate the header:
+// the document-level Escape and Cmd+F listeners must still see a key pressed
+// on these buttons.
 function stopHeaderPropagation(event: React.SyntheticEvent): void {
   event.stopPropagation();
 }

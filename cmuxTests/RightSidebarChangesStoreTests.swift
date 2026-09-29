@@ -103,6 +103,48 @@ final class ScriptedChangesPageProducer: @unchecked Sendable {
     }
 }
 
+/// Answers the store's working-tree digest requests. By default every call
+/// returns a fresh value, so each repository event reads as a change; a test
+/// pins a value (or `nil`) to exercise the gate, and may hold answers behind
+/// a gate to observe how events fold while a digest is in flight.
+final class ScriptedFingerprintSource: @unchecked Sendable {
+    private let lock = NSLock()
+    private var pinned: String??
+    private var counter = 0
+    private var callCountStorage = 0
+    private var gateStorage: ProbeGate?
+
+    var callCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return callCountStorage
+    }
+
+    /// Every later answer is `value` (pass `nil` for an unobtainable digest).
+    func pin(_ value: String?) {
+        lock.lock(); pinned = .some(value); lock.unlock()
+    }
+
+    func hold(behind gate: ProbeGate) {
+        lock.lock(); gateStorage = gate; lock.unlock()
+    }
+
+    var producer: RightSidebarChangesFingerprint.Producer {
+        { [self] _ in await self.next() }
+    }
+
+    private func next() async -> String? {
+        lock.lock()
+        let gate = gateStorage
+        lock.unlock()
+        if let gate { await gate.wait() }
+        lock.lock(); defer { lock.unlock() }
+        callCountStorage += 1
+        if let pinned { return pinned }
+        counter += 1
+        return "fingerprint-\(counter)"
+    }
+}
+
 /// A producer that blocks until released, so a test can observe what the
 /// store does while a load is pending, and whether the load was cancelled.
 final class GatedChangesPageProducer: @unchecked Sendable {
@@ -231,7 +273,8 @@ final class RightSidebarChangesStoreTests: XCTestCase {
         producer: ScriptedChangesPageProducer,
         watchSource: ScriptedRepositoryWatchSource,
         handler: CmuxDiffViewerURLSchemeHandler? = nil,
-        repoRootResolver: RightSidebarChangesStore.RepoRootResolver? = nil
+        repoRootResolver: RightSidebarChangesStore.RepoRootResolver? = nil,
+        fingerprints: ScriptedFingerprintSource = ScriptedFingerprintSource()
     ) -> RightSidebarChangesStore {
         // Default arguments evaluate outside the main actor, so the main-actor
         // handler is created here instead of as a `= CmuxDiffViewerURLSchemeHandler()` default.
@@ -247,7 +290,8 @@ final class RightSidebarChangesStoreTests: XCTestCase {
             repoRootResolver: repoRootResolver ?? defaultResolver,
             pageProducer: { _, _ in producer.produce() },
             watchFactory: watchSource.factory,
-            schemeHandler: handler
+            schemeHandler: handler,
+            fingerprintProducer: fingerprints.producer
         )
     }
 
@@ -399,6 +443,78 @@ final class RightSidebarChangesStoreTests: XCTestCase {
         store.stop()
         store.handleRepositoryChange()
         XCTAssertEqual(store.reloadGeneration, 2, "a stopped store ignores changes")
+    }
+
+    /// Other worktrees' commits and fetches write the shared `.git` directory
+    /// without touching this working tree's diff; the digest keeps those
+    /// events from reloading the page.
+    func testEventsThatLeaveTheWorkingTreeDigestUnchangedDoNotReload() async throws {
+        let page = try makePage(reloadable: true)
+        let producer = ScriptedChangesPageProducer(pages: [page])
+        let watchSource = ScriptedRepositoryWatchSource()
+        let fingerprints = ScriptedFingerprintSource()
+        fingerprints.pin("clean")
+        let store = makeStore(producer: producer, watchSource: watchSource, fingerprints: fingerprints)
+        store.update(directory: repoRoot, workspaceId: UUID(), isRemote: false, isActive: true)
+        await waitUntil("ready") { store.state == .ready(url: page.url) }
+        await waitUntil("seeded") { store.fingerprintCheckCount == 1 }
+        await waitUntil("watching") { store.isWatching }
+
+        watchSource.fire(repoRoot: repoRoot)
+        await waitUntil("checked") { store.fingerprintCheckCount == 2 }
+        XCTAssertEqual(store.reloadGeneration, 0, "an unchanged digest is not a change")
+
+        fingerprints.pin("edited")
+        watchSource.fire(repoRoot: repoRoot)
+        await waitUntil("reloaded") { store.reloadGeneration == 1 }
+        // The reload re-seeds the digest for the document now on screen.
+        await waitUntil("reseeded") { store.fingerprintCheckCount == 4 }
+        XCTAssertEqual(producer.callCount, 1)
+    }
+
+    func testAnUnobtainableDigestRefreshesConservatively() async throws {
+        let page = try makePage(reloadable: true)
+        let producer = ScriptedChangesPageProducer(pages: [page])
+        let watchSource = ScriptedRepositoryWatchSource()
+        let fingerprints = ScriptedFingerprintSource()
+        fingerprints.pin(nil)
+        let store = makeStore(producer: producer, watchSource: watchSource, fingerprints: fingerprints)
+        store.update(directory: repoRoot, workspaceId: UUID(), isRemote: false, isActive: true)
+        await waitUntil("ready") { store.state == .ready(url: page.url) }
+        await waitUntil("seeded") { store.fingerprintCheckCount == 1 }
+        await waitUntil("watching") { store.isWatching }
+
+        watchSource.fire(repoRoot: repoRoot)
+        await waitUntil("reloaded") { store.reloadGeneration == 1 }
+    }
+
+    /// A burst of events while a digest is running costs one more digest, not
+    /// one per event, and at most one refresh.
+    func testEventsDuringADigestFoldIntoOneRecheck() async throws {
+        let page = try makePage(reloadable: true)
+        let producer = ScriptedChangesPageProducer(pages: [page])
+        let watchSource = ScriptedRepositoryWatchSource()
+        let fingerprints = ScriptedFingerprintSource()
+        let gate = ProbeGate()
+        fingerprints.hold(behind: gate)
+        let store = makeStore(producer: producer, watchSource: watchSource, fingerprints: fingerprints)
+        store.update(directory: repoRoot, workspaceId: UUID(), isRemote: false, isActive: true)
+        await waitUntil("ready") { store.state == .ready(url: page.url) }
+        await waitUntil("watching") { store.isWatching }
+        XCTAssertEqual(store.fingerprintCheckCount, 0, "the seed is still held")
+
+        for _ in 0..<3 {
+            watchSource.fire(repoRoot: repoRoot)
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        gate.open()
+        // Seed, one folded re-check (a fresh value, so a reload), then the
+        // reload's re-seed.
+        await waitUntil("reloaded once") { store.reloadGeneration == 1 }
+        await waitUntil("settled") { store.fingerprintCheckCount == 3 }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(store.reloadGeneration, 1)
+        XCTAssertEqual(store.fingerprintCheckCount, 3)
     }
 
     func testStaticPagesRegenerateInsteadOfReloading() async throws {

@@ -27,10 +27,13 @@ import {
 } from "./worktree-actions";
 
 /**
- * Repository header for working-tree views: `<repo>: <branch>`, the file
- * and line totals, and the primary split button (Commit, with Push and
- * Create PR/MR in its menu) plus a "..." overflow for whole-session actions.
- * Menus and popovers are clusters of native buttons toggled with
+ * Repository header for working-tree views: the source/repo/base pickers
+ * (passed in by the App, which renders them from exactly one host), then
+ * `<branch> · N files +A -D · position`, and the primary split button
+ * (Commit, with Push and Create PR/MR in its menu) plus a "..." overflow for
+ * whole-session actions. When the payload offers no repo select, the plain
+ * abbreviated repo label precedes the branch so the view still names its
+ * repository. Menus and popovers are clusters of native buttons toggled with
  * `aria-expanded`/`aria-controls` and dismissed on outside click or Escape;
  * nothing here reimplements a composite ARIA widget.
  */
@@ -66,7 +69,9 @@ export function RepositoryHeader({
   onRefresh,
   pending,
   pullRequest,
+  showRepoLabel,
   source,
+  sourceControls,
   status,
 }: {
   commit: CommitControl;
@@ -80,7 +85,11 @@ export function RepositoryHeader({
   onRefresh: () => void;
   pending: boolean;
   pullRequest: PullRequestControl;
+  /** True when no repo select renders, so the abbreviated repo path is shown as text. */
+  showRepoLabel: boolean;
   source: WritableDiffSource;
+  /** The source/repo/base pickers, hosted here instead of in the toolbar. */
+  sourceControls: React.ReactNode;
   status: RepositoryStatus | null;
 }) {
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
@@ -112,50 +121,68 @@ export function RepositoryHeader({
   return (
     <header id="repo-header" data-pending={pending ? "true" : "false"}>
       <div className="repo-header-summary">
-        <span className="repo-header-title" title={source.repoRoot}>
-          <span className="repo-header-repo">{model.repoLabel}</span>
-          {model.branch ? (
-            <>
-              <span className="repo-header-separator">:</span>
-              <span
-                className="repo-header-branch"
-                data-detached={model.detached ? "true" : "false"}
-              >
-                <Icon name="branch" />
-                {model.branch}
-              </span>
-            </>
+        {sourceControls}
+        <span className="repo-header-status">
+          {showRepoLabel || model.branch ? (
+            <span className="repo-header-title" title={source.repoRoot}>
+              {showRepoLabel ? (
+                <span className="repo-header-repo">{model.repoLabel}</span>
+              ) : null}
+              {showRepoLabel && model.branch ? (
+                <span className="repo-header-separator">:</span>
+              ) : null}
+              {model.branch ? (
+                <span
+                  className="repo-header-branch"
+                  data-detached={model.detached ? "true" : "false"}
+                >
+                  <Icon name="branch" />
+                  {model.branch}
+                </span>
+              ) : null}
+            </span>
           ) : null}
-        </span>
-        <span className="repo-header-stats" aria-label={label("diffStats")}>
-          <span className="repo-header-files">
-            {formatLabel(label("changedFilesCount"), {
-              count: model.fileCount,
-            })}
+          {model.branch ? <HeaderDot /> : null}
+          <span className="repo-header-stats" aria-label={label("diffStats")}>
+            <span className="repo-header-files">
+              {formatLabel(label("changedFilesCount"), {
+                count: model.fileCount,
+              })}
+            </span>
+            <span className="repo-header-additions">+{model.additions}</span>
+            <span className="repo-header-deletions">-{model.deletions}</span>
+            {status != null && !model.detached ? (
+              <>
+                <HeaderDot />
+                <span className="repo-header-position">
+                  {model.upstream == null
+                    ? label("noUpstreamShort")
+                    : [
+                        model.ahead > 0
+                          ? formatLabel(label("aheadBy"), {
+                              count: model.ahead,
+                            })
+                          : null,
+                        model.behind > 0
+                          ? formatLabel(label("behindBy"), {
+                              count: model.behind,
+                            })
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                </span>
+              </>
+            ) : null}
+            {model.detached ? (
+              <>
+                <HeaderDot />
+                <span className="repo-header-position">
+                  {label("detachedHeadShort")}
+                </span>
+              </>
+            ) : null}
           </span>
-          <span className="repo-header-additions">+{model.additions}</span>
-          <span className="repo-header-deletions">-{model.deletions}</span>
-          {status != null && !model.detached ? (
-            <span className="repo-header-position">
-              {model.upstream == null
-                ? label("noUpstreamShort")
-                : [
-                    model.ahead > 0
-                      ? formatLabel(label("aheadBy"), { count: model.ahead })
-                      : null,
-                    model.behind > 0
-                      ? formatLabel(label("behindBy"), { count: model.behind })
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-            </span>
-          ) : null}
-          {model.detached ? (
-            <span className="repo-header-position">
-              {label("detachedHeadShort")}
-            </span>
-          ) : null}
         </span>
       </div>
       <div className="repo-header-actions">
@@ -305,6 +332,15 @@ export function RepositoryHeader({
         />
       ) : null}
     </header>
+  );
+}
+
+/** Visual separator between header segments; screen readers skip it. */
+function HeaderDot() {
+  return (
+    <span className="repo-header-dot" aria-hidden="true">
+      ·
+    </span>
   );
 }
 
