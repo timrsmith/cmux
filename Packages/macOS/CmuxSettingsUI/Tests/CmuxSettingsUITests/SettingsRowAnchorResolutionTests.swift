@@ -99,6 +99,8 @@ struct SettingsRowAnchorResolutionTests {
         "fileEditor.lineNumbers",
         "fileEditor.syntaxHighlighting",
         "fileEditor.tabWidth",
+        "fileEditor.terminalEditorCommand",
+        "fileExplorer.doubleClickAction",
         "fileEditor.wordWrap",
         "mobile.artifactFolderAccess",
         "mobile.browserTunnel.allowOtherHosts",

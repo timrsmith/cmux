@@ -2176,7 +2176,7 @@
         },
         "fileExplorer": {
           "description": "Ajustes del explorador de archivos (árbol de archivos) de la barra lateral derecha.",
-          "doubleClickAction": "Qué hace al hacer doble clic (o presionar Return en un resultado de búsqueda) sobre un archivo en el explorador de archivos. `preview` abre la vista previa integrada de archivos de cmux (comportamiento predeterminado e histórico). `defaultEditor` abre con la app predeterminada de macOS para ese tipo de archivo. `preferredEditor` abre con el comando `app.preferredEditor`, con fallback a la app predeterminada cuando no está configurado. Solo aplica a archivos; los directorios siempre se expanden/contraen, y los exploradores de archivos no locales (remotos) siempre abren la vista previa de cmux."
+          "doubleClickAction": "Qué abre la activación de un archivo: doble clic o Return en el explorador de archivos, la vista previa de la barra lateral derecha y «Abrir en cmux» del visor de diferencias. `preview` abre el editor integrado de cmux (comportamiento predeterminado e histórico). `terminalEditor` abre una terminal en cmux que ejecuta `fileEditor.terminalEditorCommand` (si no, `$VISUAL`, `$EDITOR`, `vi`) sobre el archivo. `defaultEditor` abre con la app predeterminada de macOS para ese tipo de archivo. `preferredEditor` abre con el comando `app.preferredEditor`, con fallback a la app predeterminada cuando no está configurado. Solo aplica a archivos; los directorios siempre se expanden/contraen, y los exploradores no locales (remotos) siempre abren la vista previa de cmux."
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."
@@ -2191,7 +2191,8 @@
           "lineNumbers": "Numera cada línea en una columna junto al texto del editor de archivos integrado.",
           "indentGuides": "Marca cada nivel de sangría con una línea vertical fina en el editor de archivos integrado.",
           "currentLineHighlight": "Resalta con color la fila que contiene el cursor de texto mientras no haya nada seleccionado.",
-          "tabWidth": "Cuántas columnas abarca una tabulación. Las guías de sangría usan el mismo espaciado."
+          "tabWidth": "Cuántas columnas abarca una tabulación. Las guías de sangría usan el mismo espaciado.",
+          "terminalEditorCommand": "Comando que se ejecuta en una terminal de cmux cuando `fileExplorer.doubleClickAction` es `terminalEditor`, seguido de la ruta absoluta del archivo entrecomillada para el shell. Vacío usa `$VISUAL`, luego `$EDITOR` y luego `vi`."
         }
       },
       "exampleMarkdownFontSize": "Default body font size (points) for newly opened markdown viewers.",

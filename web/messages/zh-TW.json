@@ -2176,7 +2176,7 @@
         },
         "fileExplorer": {
           "description": "右側邊欄檔案瀏覽器（檔案樹）設定。",
-          "doubleClickAction": "設定在檔案瀏覽器中按兩下檔案（或在搜尋結果上按 Return）時要執行的動作。`preview` 會開啟 cmux 內建檔案預覽（預設與既有行為）。`defaultEditor` 會使用該檔案類型的 macOS 預設 App 開啟。`preferredEditor` 會使用 `app.preferredEditor` 命令開啟；未設定時會退回預設 App。僅適用於檔案；目錄一律展開/收合，非本機（遠端）檔案瀏覽器一律開啟 cmux 預覽。"
+          "doubleClickAction": "啟用檔案時開啟的內容：檔案總管中的雙擊或 Return、右側邊欄的檔案預覽，以及 diff 檢視器中的「在 cmux 中開啟」。`preview` 以內建的 cmux 編輯器開啟（預設且沿用的行為）。`terminalEditor` 在 cmux 中開啟一個終端機，對該檔案執行 `fileEditor.terminalEditorCommand`（否則依序為 `$VISUAL`、`$EDITOR`、`vi`）。`defaultEditor` 以該檔案類型的 macOS 預設 App 開啟。`preferredEditor` 以 `app.preferredEditor` 命令開啟，未設定時回退至預設 App。僅適用於檔案；目錄一律展開/收合，非本機（遠端）檔案總管一律開啟 cmux 預覽。"
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."
@@ -2191,7 +2191,8 @@
           "lineNumbers": "在內建檔案編輯器中，於內文旁的欄位顯示每一行的行號。",
           "indentGuides": "在內建檔案編輯器中，以一條細直線標示每一層縮排。",
           "currentLineHighlight": "在沒有選取任何內容時，為游標所在的那一列上色。",
-          "tabWidth": "一個定位點所佔的欄數。縮排參考線使用相同的間距。"
+          "tabWidth": "一個定位點所佔的欄數。縮排參考線使用相同的間距。",
+          "terminalEditorCommand": "當 `fileExplorer.doubleClickAction` 為 `terminalEditor` 時在 cmux 終端機中執行的命令，其後附加經 shell 引號處理的檔案絕對路徑。留空時依序使用 `$VISUAL`、`$EDITOR`、`vi`。"
         }
       },
       "exampleMarkdownFontSize": "Default body font size (points) for newly opened markdown viewers.",

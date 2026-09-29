@@ -3392,7 +3392,8 @@
           "lineNumbers": "Number each line in a column beside the text of the built-in file editor.",
           "indentGuides": "Mark each indentation level with a thin vertical line in the built-in file editor.",
           "currentLineHighlight": "Tint the row that holds the caret while nothing is selected.",
-          "tabWidth": "How many columns one tab stop spans. Indent guides use the same spacing."
+          "tabWidth": "How many columns one tab stop spans. Indent guides use the same spacing.",
+          "terminalEditorCommand": "Command run in a cmux terminal when `fileExplorer.doubleClickAction` is `terminalEditor`, followed by the shell-quoted absolute file path. Empty uses `$VISUAL`, then `$EDITOR`, then `vi`."
         },
         "sidebar": {
           "compactAgentStatus": "Show each workspace on one line: one colored icon before the title for agent, unread, and pull request state replaces the agent status rows (for example Running or Needs input), the branch and directory line, and the pull request rows, whose details move to the icon's tooltip. Other status entries keep their rows.",
@@ -3408,7 +3409,7 @@
         },
         "fileExplorer": {
           "description": "Right-sidebar file explorer (file tree) settings.",
-          "doubleClickAction": "What double-clicking (or pressing Return on a search result for) a file in the file explorer does. `preview` opens the built-in cmux file preview (the default and historical behavior). `defaultEditor` opens with the macOS default app for the file type. `preferredEditor` opens with the `app.preferredEditor` command, falling back to the default app when none is set. Only applies to files; directories always expand/collapse, and non-local (remote) file explorers always open the cmux preview."
+          "doubleClickAction": "What activating a file opens: a double-click or Return in the file explorer, the right sidebar's file preview, and the diff viewer's Open in cmux. `preview` opens the built-in cmux editor (the default and historical behavior). `terminalEditor` opens a terminal in cmux running `fileEditor.terminalEditorCommand` (else `$VISUAL`, `$EDITOR`, `vi`) on the file. `defaultEditor` opens with the macOS default app for the file type. `preferredEditor` opens with the `app.preferredEditor` command, falling back to the default app when none is set. Only applies to files; directories always expand/collapse, and non-local (remote) file explorers always open the cmux preview."
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."

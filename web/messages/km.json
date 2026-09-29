@@ -2176,7 +2176,7 @@
         },
         "fileExplorer": {
           "description": "ការកំណត់កម្មវិធីរុករកឯកសារ (មែកធាងឯកសារ) នៅក្នុងរបារចំហៀងស្តាំ។",
-          "doubleClickAction": "កំណត់អ្វីដែលកើតឡើងពេលចុចពីរដង (ឬចុច Return លើលទ្ធផលស្វែងរក) លើឯកសារនៅក្នុងកម្មវិធីរុករកឯកសារ។ `preview` បើកការមើលជាមុនឯកសារ cmux ដែលភ្ជាប់មកជាមួយ (ជាលំនាំដើម និងជាឥរិយាបថចាស់)។ `defaultEditor` បើកដោយប្រើកម្មវិធីលំនាំដើមរបស់ macOS សម្រាប់ប្រភេទឯកសារនោះ។ `preferredEditor` បើកដោយប្រើពាក្យបញ្ជា `app.preferredEditor` ហើយត្រឡប់ទៅកម្មវិធីលំនាំដើម ប្រសិនបើមិនបានកំណត់។ អនុវត្តតែលើឯកសារ; ថតតែងតែពង្រីក/បង្រួម ហើយកម្មវិធីរុករកឯកសារដែលមិនមែនក្នុងមូលដ្ឋាន (ពីចម្ងាយ) តែងតែបើកការមើលជាមុនរបស់ cmux។"
+          "doubleClickAction": "អ្វីដែលបើកនៅពេលធ្វើឱ្យឯកសារសកម្ម៖ ចុចពីរដង ឬ Return ក្នុងកម្មវិធីរុករកឯកសារ ការមើលឯកសារជាមុននៅរបារចំហៀងខាងស្ដាំ និង “បើកក្នុង cmux” ក្នុងកម្មវិធីមើល diff។ `preview` បើកកម្មវិធីកែសម្រួល cmux ដែលភ្ជាប់មកជាមួយ (លំនាំដើម និងឥរិយាបថដើម)។ `terminalEditor` បើកស្ថានីយក្នុង cmux ដែលដំណើរការ `fileEditor.terminalEditorCommand` (បើគ្មាន ប្រើ `$VISUAL`, `$EDITOR`, `vi`) លើឯកសារ។ `defaultEditor` បើកដោយកម្មវិធីលំនាំដើមរបស់ macOS សម្រាប់ប្រភេទឯកសារ។ `preferredEditor` បើកដោយពាក្យបញ្ជា `app.preferredEditor` ហើយត្រឡប់ទៅកម្មវិធីលំនាំដើមនៅពេលមិនបានកំណត់។ អនុវត្តតែចំពោះឯកសារ; ថតតែងតែពង្រីក/បង្រួម ហើយកម្មវិធីរុករកឯកសារមិនមែនក្នុងម៉ាស៊ីន (ពីចម្ងាយ) តែងតែបើកការមើលជាមុនរបស់ cmux។"
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."
@@ -2191,7 +2191,8 @@
           "lineNumbers": "ដាក់លេខលើបន្ទាត់នីមួយៗក្នុងជួរឈរមួយនៅក្បែរអត្ថបទ នៃកម្មវិធីកែសម្រួលឯកសារដែលភ្ជាប់មកជាមួយ។",
           "indentGuides": "សម្គាល់កម្រិតចូលបន្ទាត់នីមួយៗដោយខ្សែបញ្ឈរស្ដើងមួយ នៅក្នុងកម្មវិធីកែសម្រួលឯកសារដែលភ្ជាប់មកជាមួយ។",
           "currentLineHighlight": "ដាក់ពណ៌លើជួរដែលមានទស្សន៍ទ្រនិច ពេលមិនមានអ្វីត្រូវបានជ្រើសរើស។",
-          "tabWidth": "ចំនួនជួរឈរដែល tab stop មួយគ្របដណ្ដប់។ indent guide ប្រើគម្លាតដូចគ្នា។"
+          "tabWidth": "ចំនួនជួរឈរដែល tab stop មួយគ្របដណ្ដប់។ indent guide ប្រើគម្លាតដូចគ្នា។",
+          "terminalEditorCommand": "ពាក្យបញ្ជាដែលដំណើរការក្នុងស្ថានីយ cmux នៅពេល `fileExplorer.doubleClickAction` ជា `terminalEditor` បន្តដោយផ្លូវឯកសារពេញលេញដែលបានដាក់សញ្ញាសម្រង់សម្រាប់សែល។ ទុកទទេប្រើ `$VISUAL` បន្ទាប់មក `$EDITOR` បន្ទាប់មក `vi`។"
         }
       },
       "exampleMarkdownFontSize": "Default body font size (points) for newly opened markdown viewers.",

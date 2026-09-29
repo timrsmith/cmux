@@ -4447,5 +4447,38 @@
       "ko": "The concurrent machine count is a numeric plan limit and is invariant across locales.",
       "ja": "The concurrent machine count is a numeric plan limit and is invariant across locales."
     }
+  },
+  "settings.fileEditor.terminalEditorCommand.placeholder": {
+    "source": "$EDITOR",
+    "identityLocales": {
+      "de": "Environment variable name shown as a placeholder; invariant across locales, and the translated entry is still required.",
+      "fr": "Environment variable name shown as a placeholder; invariant across locales, and the translated entry is still required.",
+      "ar": "Environment variable name shown as a placeholder; invariant across locales, and the translated entry is still required.",
+      "es": "Environment variable name shown as a placeholder; invariant across locales, and the translated entry is still required.",
+      "zh-Hant": "Environment variable name shown as a placeholder; invariant across locales, and the translated entry is still required.",
+      "zh-Hans": "Environment variable name shown as a placeholder; invariant across locales, and the translated entry is still required.",
+      "ko": "Environment variable name shown as a placeholder; invariant across locales, and the translated entry is still required.",
+      "ja": "Environment variable name shown as a placeholder; invariant across locales, and the translated entry is still required."
+    }
+  },
+  "filesPanel.header.editor": {
+    "source": "Editor",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "filesPanel.header.editor.terminalEditorWithFallback": {
+    "source": "%1$@ (%2$@)",
+    "identityLocales": {
+      "de": "Format-only string: two placeholders and parentheses, no translatable words; the translated entry is still required.",
+      "fr": "Format-only string: two placeholders and parentheses, no translatable words; the translated entry is still required.",
+      "ar": "Format-only string: two placeholders and parentheses, no translatable words; the translated entry is still required.",
+      "es": "Format-only string: two placeholders and parentheses, no translatable words; the translated entry is still required.",
+      "zh-Hant": "Format-only string: two placeholders and parentheses, no translatable words; the translated entry is still required.",
+      "zh-Hans": "Format-only string: two placeholders and parentheses, no translatable words; the translated entry is still required.",
+      "ko": "Format-only string: two placeholders and parentheses, no translatable words; the translated entry is still required.",
+      "ja": "Format-only string: two placeholders and parentheses, no translatable words; the translated entry is still required."
+    }
   }
 }

@@ -2,22 +2,17 @@ import AppKit
 import CmuxSettings
 import CmuxWorkspaces
 
-/// Perform the configured action for opening a local file from the file explorer.
+/// Opens a local file activated in the file explorer.
+///
+/// The editor choice (`fileExplorer.doubleClickAction`) is resolved in one
+/// place, `Workspace.openFile(_:inPane:activation:)`, which every
+/// `onOpenFilePreview` host reaches through `FileExplorerPreviewCoordinator`;
+/// this entry point stays so the tree's two activation sites (outline row and
+/// search result) share it. Remote providers never get here: their hosts
+/// call the callback directly and the coordinator shows a downloaded copy.
 @MainActor
 func performFileExplorerFileOpen(path: String, onOpenFilePreview: (String) -> Void) {
-    let action = FileExplorerDoubleClickActionSettings.resolvedAction()
-    let hasPreferredEditor = PreferredEditorSettingsStore(defaults: .standard).resolvedCommand != nil
-    switch FileExplorerDoubleClickActionSettings.fileActivation(
-        action: action,
-        hasPreferredEditorCommand: hasPreferredEditor
-    ) {
-    case .preview:
-        onOpenFilePreview(path)
-    case .defaultEditor:
-        FileExternalOpenAction.openDefault(fileURL: URL(fileURLWithPath: path))
-    case .preferredEditor:
-        PreferredEditorService(defaults: .standard).open(URL(fileURLWithPath: path))
-    }
+    onOpenFilePreview(path)
 }
 
 @MainActor

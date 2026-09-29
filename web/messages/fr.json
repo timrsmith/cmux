@@ -2176,7 +2176,7 @@
         },
         "fileExplorer": {
           "description": "Paramètres de l’explorateur de fichiers (arborescence) dans la barre latérale droite.",
-          "doubleClickAction": "Ce que fait un double-clic (ou l’appui sur Return dans un résultat de recherche) sur un fichier dans l’explorateur de fichiers. `preview` ouvre l’aperçu de fichier intégré à cmux (comportement par défaut et historique). `defaultEditor` ouvre le fichier avec l’app macOS par défaut pour ce type de fichier. `preferredEditor` ouvre avec la commande `app.preferredEditor`, avec repli vers l’app par défaut lorsqu’aucune commande n’est définie. S’applique uniquement aux fichiers ; les dossiers se développent/se replient toujours, et les explorateurs de fichiers non locaux (distants) ouvrent toujours l’aperçu cmux."
+          "doubleClickAction": "Ce qu'ouvre l'activation d'un fichier : double-clic ou Retour dans l'explorateur de fichiers, l'aperçu de fichier de la barre latérale droite et « Ouvrir dans cmux » du visualiseur de diff. `preview` ouvre l'éditeur intégré de cmux (comportement par défaut et historique). `terminalEditor` ouvre un terminal dans cmux qui exécute `fileEditor.terminalEditorCommand` (sinon `$VISUAL`, `$EDITOR`, `vi`) sur le fichier. `defaultEditor` ouvre avec l'app macOS par défaut pour ce type de fichier. `preferredEditor` ouvre avec la commande `app.preferredEditor`, avec repli sur l'app par défaut si aucune n'est définie. Ne s'applique qu'aux fichiers ; les dossiers se déplient/replient toujours, et les explorateurs non locaux (distants) ouvrent toujours l'aperçu cmux."
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."
@@ -2191,7 +2191,8 @@
           "lineNumbers": "Numérote chaque ligne dans une colonne à côté du texte de l’éditeur de fichiers intégré.",
           "indentGuides": "Marque chaque niveau d’indentation d’une fine ligne verticale dans l’éditeur de fichiers intégré.",
           "currentLineHighlight": "Colore la ligne qui contient le curseur de texte tant que rien n’est sélectionné.",
-          "tabWidth": "Nombre de colonnes couvertes par une tabulation. Les guides d’indentation utilisent le même espacement."
+          "tabWidth": "Nombre de colonnes couvertes par une tabulation. Les guides d’indentation utilisent le même espacement.",
+          "terminalEditorCommand": "Commande exécutée dans un terminal cmux lorsque `fileExplorer.doubleClickAction` vaut `terminalEditor`, suivie du chemin absolu du fichier échappé pour le shell. Vide : `$VISUAL`, puis `$EDITOR`, puis `vi`."
         }
       },
       "exampleMarkdownFontSize": "Default body font size (points) for newly opened markdown viewers.",

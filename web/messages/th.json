@@ -2177,7 +2177,7 @@
         },
         "fileExplorer": {
           "description": "การตั้งค่าตัวสำรวจไฟล์ (แผนผังไฟล์) ในแถบด้านขวา",
-          "doubleClickAction": "กำหนดว่าการดับเบิลคลิกไฟล์ในตัวสำรวจไฟล์ (หรือกด Return บนผลการค้นหา) จะทำอะไร `preview` เปิดตัวอย่างไฟล์ในตัวของ cmux (ค่าเริ่มต้นและพฤติกรรมเดิม) `defaultEditor` เปิดด้วยแอปเริ่มต้นของ macOS สำหรับชนิดไฟล์นั้น `preferredEditor` เปิดด้วยคำสั่ง `app.preferredEditor` และถ้าไม่ได้ตั้งค่าไว้จะกลับไปใช้แอปเริ่มต้น มีผลกับไฟล์เท่านั้น; ไดเรกทอรีจะขยาย/ยุบเสมอ และตัวสำรวจไฟล์ที่ไม่ใช่ในเครื่อง (รีโมต) จะเปิดตัวอย่างของ cmux เสมอ"
+          "doubleClickAction": "สิ่งที่เปิดเมื่อเปิดใช้งานไฟล์: ดับเบิลคลิกหรือ Return ในตัวสำรวจไฟล์ ตัวอย่างไฟล์ในแถบด้านข้างขวา และ “เปิดใน cmux” ในตัวดู diff `preview` เปิดด้วยตัวแก้ไขในตัวของ cmux (ค่าเริ่มต้นและพฤติกรรมเดิม) `terminalEditor` เปิดเทอร์มินัลใน cmux ที่รัน `fileEditor.terminalEditorCommand` (มิฉะนั้นใช้ `$VISUAL`, `$EDITOR`, `vi`) กับไฟล์นั้น `defaultEditor` เปิดด้วยแอปเริ่มต้นของ macOS สำหรับชนิดไฟล์ `preferredEditor` เปิดด้วยคำสั่ง `app.preferredEditor` และกลับไปใช้แอปเริ่มต้นเมื่อไม่ได้ตั้งค่า ใช้กับไฟล์เท่านั้น ไดเรกทอรีจะขยาย/ยุบเสมอ และตัวสำรวจไฟล์ที่ไม่ใช่ในเครื่อง (ระยะไกล) จะเปิดตัวอย่างของ cmux เสมอ"
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."
@@ -2192,7 +2192,8 @@
           "lineNumbers": "แสดงหมายเลขของแต่ละบรรทัดในคอลัมน์ข้างข้อความของตัวแก้ไขไฟล์ในตัว",
           "indentGuides": "แสดงเส้นแนวตั้งบาง ๆ ที่แต่ละระดับการเยื้องในตัวแก้ไขไฟล์ในตัว",
           "currentLineHighlight": "แต้มสีบรรทัดที่เคอร์เซอร์อยู่ขณะที่ไม่ได้เลือกข้อความใด",
-          "tabWidth": "จำนวนคอลัมน์ที่ tab stop หนึ่งตำแหน่งครอบคลุม เส้นนำการเยื้องใช้ระยะเดียวกัน"
+          "tabWidth": "จำนวนคอลัมน์ที่ tab stop หนึ่งตำแหน่งครอบคลุม เส้นนำการเยื้องใช้ระยะเดียวกัน",
+          "terminalEditorCommand": "คำสั่งที่รันในเทอร์มินัลของ cmux เมื่อ `fileExplorer.doubleClickAction` เป็น `terminalEditor` ตามด้วยพาธสัมบูรณ์ของไฟล์ที่ใส่เครื่องหมายคำพูดสำหรับเชลล์ หากว่างจะใช้ `$VISUAL` แล้ว `$EDITOR` แล้ว `vi`"
         }
       },
       "exampleMarkdownFontSize": "Default body font size (points) for newly opened markdown viewers.",

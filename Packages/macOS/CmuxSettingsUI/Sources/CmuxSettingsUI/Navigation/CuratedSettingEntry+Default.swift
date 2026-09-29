@@ -112,6 +112,18 @@ extension Array where Element == CuratedSettingEntry {
                 title: String(localized: "settings.app.fileEditorTabWidth", defaultValue: "File Editor Tab Width"),
                 synonyms: "fileEditor.tabWidth " + String(localized: "settings.search.fileEditor.tabWidth", defaultValue: "tab width indent columns")
             ),
+            .init(
+                section: .app,
+                id: "file-explorer-double-click-action",
+                title: String(localized: "settings.fileExplorer.doubleClickAction", defaultValue: "Open Files From Tree In"),
+                synonyms: "fileExplorer.doubleClickAction " + String(localized: "settings.search.fileExplorer.doubleClickAction", defaultValue: "file tree files panel double click open native editor terminal editor default app preferred editor preview")
+            ),
+            .init(
+                section: .app,
+                id: "file-editor-terminal-editor-command",
+                title: String(localized: "settings.fileEditor.terminalEditorCommand", defaultValue: "Terminal Editor"),
+                synonyms: "fileEditor.terminalEditorCommand " + String(localized: "settings.search.fileEditor.terminalEditorCommand", defaultValue: "terminal editor command vim nvim nano helix emacs VISUAL EDITOR")
+            ),
             .init(section: .app, id: "terminal-config", title: String(localized: "settings.app.configWindow", defaultValue: "Terminal Config"), synonyms: "Terminal Config ghostty config merged generated preview terminal configuration window open config macos-option-as-alt option as alt left option right option alt key meta"),
             .init(section: .app, id: "global-font-magnification", title: String(localized: "settings.app.globalFontMagnification", defaultValue: "Global Font Magnification"), synonyms: "app.globalFontMagnification global font magnification scale text zoom terminals tabs chrome bigger smaller accessibility"),
             .init(section: .app, id: "imessage-mode", title: String(localized: "settings.app.iMessageMode", defaultValue: "iMessage Mode"), synonyms: "iMessage Mode app.iMessageMode imessage message messages chat prompt prompts submitted texting reorder move workspace top agent send"),

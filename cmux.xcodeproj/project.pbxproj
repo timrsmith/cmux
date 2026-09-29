@@ -2108,6 +2108,7 @@
 		A5001445A5001445A5001445 /* FilePreviewWorkspaceOpenSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5001444A5001444A5001444 /* FilePreviewWorkspaceOpenSupport.swift */; };
 		FE002103 /* FileSearchRipgrepParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE002003 /* FileSearchRipgrepParserTests.swift */; };
 		CFSF00000000000000000005 /* FileSearchScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFSR00000000000000000005 /* FileSearchScope.swift */; };
+		F4BFD93A1306A9E47CB4F158 /* FilesPanelEditorMenuItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CD3BF2FEF2E8E1A32CB2321 /* FilesPanelEditorMenuItems.swift */; };
 		F52E500591EC8B2722047BF9 /* FilesPanelHeaderMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4CFF7A4EC355F4F840B51C8 /* FilesPanelHeaderMenu.swift */; };
 		6C7F1DE2D38146AFB7129D84 /* FilesPanelPlacementLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5345F62D0F6FB0CEE8963356 /* FilesPanelPlacementLayout.swift */; };
 		EABD4BDC792CECBB04751AD3 /* FilesPanelPlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF070650B6A1C26FFDC2679E /* FilesPanelPlacementTests.swift */; };
@@ -3817,6 +3818,8 @@
 		EC010B01 /* TerminalCustomUploadRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC010B02 /* TerminalCustomUploadRunner.swift */; };
 		6277E32DA3CFCD625C6BD4E0 /* TerminalDictationAccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B9355A408361D86E077820 /* TerminalDictationAccessibilityTests.swift */; };
 		0D56BE882EAD4B67AC44F96D /* TerminalDirectoryOpenSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B8E2E03F4A64C61B729CF19 /* TerminalDirectoryOpenSupport.swift */; };
+		F6F3B7F82B05202DBDB475F8 /* TerminalEditorCommandResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDC0EF37641AF2605DA3A132 /* TerminalEditorCommandResolver.swift */; };
+		46FD06D26A72785BB2F77BE7 /* TerminalEditorCommandResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83A005590F8EBB098EB61B91 /* TerminalEditorCommandResolverTests.swift */; };
 		E5C0F1A0E5C0F1A0E5C0F1A0 /* TerminalFindEscapeRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C0F1A1E5C0F1A1E5C0F1A1 /* TerminalFindEscapeRouting.swift */; };
 		F87920000000000000000007 /* TerminalFontConfigurationReconciliationWork.swift in Sources */ = {isa = PBXBuildFile; fileRef = F87920000000000000000008 /* TerminalFontConfigurationReconciliationWork.swift */; };
 		F87920000000000000000009 /* TerminalFontConfigurationReloadPhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8792000000000000000000A /* TerminalFontConfigurationReloadPhase.swift */; };
@@ -6513,6 +6516,7 @@
 		A5001444A5001444A5001444 /* FilePreviewWorkspaceOpenSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewWorkspaceOpenSupport.swift; sourceTree = "<group>"; };
 		FE002003 /* FileSearchRipgrepParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSearchRipgrepParserTests.swift; sourceTree = "<group>"; };
 		CFSR00000000000000000005 /* FileSearchScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSearchScope.swift; sourceTree = "<group>"; };
+		7CD3BF2FEF2E8E1A32CB2321 /* FilesPanelEditorMenuItems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesPanelEditorMenuItems.swift; sourceTree = "<group>"; };
 		E4CFF7A4EC355F4F840B51C8 /* FilesPanelHeaderMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesPanelHeaderMenu.swift; sourceTree = "<group>"; };
 		5345F62D0F6FB0CEE8963356 /* FilesPanelPlacementLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesPanelPlacementLayout.swift; sourceTree = "<group>"; };
 		EF070650B6A1C26FFDC2679E /* FilesPanelPlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FilesPanelPlacementTests.swift"; sourceTree = "<group>"; };
@@ -8197,6 +8201,8 @@
 		EC010B02 /* TerminalCustomUploadRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalCustomUploadRunner.swift; sourceTree = "<group>"; };
 		81B9355A408361D86E077820 /* TerminalDictationAccessibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TerminalDictationAccessibilityTests.swift"; sourceTree = "<group>"; };
 		6B8E2E03F4A64C61B729CF19 /* TerminalDirectoryOpenSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/TerminalDirectoryOpenSupport.swift; sourceTree = "<group>"; };
+		DDC0EF37641AF2605DA3A132 /* TerminalEditorCommandResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalEditorCommandResolver.swift; sourceTree = "<group>"; };
+		83A005590F8EBB098EB61B91 /* TerminalEditorCommandResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TerminalEditorCommandResolverTests.swift"; sourceTree = "<group>"; };
 		E5C0F1A1E5C0F1A1E5C0F1A1 /* TerminalFindEscapeRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/TerminalFindEscapeRouting.swift; sourceTree = "<group>"; };
 		F87920000000000000000008 /* TerminalFontConfigurationReconciliationWork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalFontConfigurationReconciliationWork.swift; sourceTree = "<group>"; };
 		F8792000000000000000000A /* TerminalFontConfigurationReloadPhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalFontConfigurationReloadPhase.swift; sourceTree = "<group>"; };
@@ -11887,6 +11893,8 @@
 				DED4FEFAEE05022F3946451B /* GitStatusWatchRelevance.swift */,
 				5F149EFED0D496B230DCB8ED /* Workspace+FileOpen.swift */,
 				E4CFF7A4EC355F4F840B51C8 /* FilesPanelHeaderMenu.swift */,
+				7CD3BF2FEF2E8E1A32CB2321 /* FilesPanelEditorMenuItems.swift */,
+				DDC0EF37641AF2605DA3A132 /* TerminalEditorCommandResolver.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -13399,6 +13407,7 @@
 				DD1F94BEE2C23CB028816305 /* RightSidebarChangesStoreTests.swift */,
 				EF070650B6A1C26FFDC2679E /* FilesPanelPlacementTests.swift */,
 				BD8C9BAF077878309DE0180B /* GitStatusWatchRelevanceTests.swift */,
+				83A005590F8EBB098EB61B91 /* TerminalEditorCommandResolverTests.swift */,
 			);
 			path = cmuxTests;
 			sourceTree = "<group>";
@@ -15236,6 +15245,7 @@
 					F11E52270000000000005227 /* FilePreviewWordWrapSettings.swift in Sources */,
 				A5001445A5001445A5001445 /* FilePreviewWorkspaceOpenSupport.swift in Sources */,
 				CFSF00000000000000000005 /* FileSearchScope.swift in Sources */,
+				F4BFD93A1306A9E47CB4F158 /* FilesPanelEditorMenuItems.swift in Sources */,
 				F52E500591EC8B2722047BF9 /* FilesPanelHeaderMenu.swift in Sources */,
 				6C7F1DE2D38146AFB7129D84 /* FilesPanelPlacementLayout.swift in Sources */,
 				5673BF08AFA8FFEF7B71DFA6 /* FilesPanelStackedLayout.swift in Sources */,
@@ -16376,6 +16386,7 @@
 				C0DE7C0A0000000000000001 /* TerminalCopyAction.swift in Sources */,
 				EC010B01 /* TerminalCustomUploadRunner.swift in Sources */,
 				0D56BE882EAD4B67AC44F96D /* TerminalDirectoryOpenSupport.swift in Sources */,
+				F6F3B7F82B05202DBDB475F8 /* TerminalEditorCommandResolver.swift in Sources */,
 				E5C0F1A0E5C0F1A0E5C0F1A0 /* TerminalFindEscapeRouting.swift in Sources */,
 				F87920000000000000000007 /* TerminalFontConfigurationReconciliationWork.swift in Sources */,
 				F87920000000000000000009 /* TerminalFontConfigurationReloadPhase.swift in Sources */,
@@ -18288,6 +18299,7 @@
 				A5C41105A1B2C3D4E5F60718 /* TerminalControllingTTYWaiter.swift in Sources */,
 				6190C0126190C0126190C012 /* TerminalCopyOnSelectManagedConfigLayeringTests.swift in Sources */,
 				6277E32DA3CFCD625C6BD4E0 /* TerminalDictationAccessibilityTests.swift in Sources */,
+				46FD06D26A72785BB2F77BE7 /* TerminalEditorCommandResolverTests.swift in Sources */,
 				851500000000000000000001 /* TerminalFontZoomSessionPersistenceTests.swift in Sources */,
 				B12715000000000000000005 /* TerminalImageTransferConcurrencyTests+RepeatedPastes.swift in Sources */,
 				B8835A000000000000000005 /* TerminalImageTransferConcurrencyTests+Timeouts.swift in Sources */,

@@ -1,3 +1,4 @@
+import CmuxSettings
 import Foundation
 import Testing
 
@@ -33,6 +34,7 @@ import Testing
 
     @Test func parsesEachKnownRawValue() {
         #expect(FileExplorerDoubleClickActionSettings.action(forRawValue: "preview") == .preview)
+        #expect(FileExplorerDoubleClickActionSettings.action(forRawValue: "terminalEditor") == .terminalEditor)
         #expect(FileExplorerDoubleClickActionSettings.action(forRawValue: "defaultEditor") == .defaultEditor)
         #expect(FileExplorerDoubleClickActionSettings.action(forRawValue: "preferredEditor") == .preferredEditor)
     }
@@ -52,11 +54,21 @@ import Testing
 
     @Test func rawValuesMatchConfigSchema() {
         #expect(FileExplorerDoubleClickAction.preview.rawValue == "preview")
+        #expect(FileExplorerDoubleClickAction.terminalEditor.rawValue == "terminalEditor")
         #expect(FileExplorerDoubleClickAction.defaultEditor.rawValue == "defaultEditor")
         #expect(FileExplorerDoubleClickAction.preferredEditor.rawValue == "preferredEditor")
+        // Declaration order is the Settings picker and Files header menu order.
         #expect(
-            FileExplorerDoubleClickAction.allCases == [.preview, .defaultEditor, .preferredEditor]
+            FileExplorerDoubleClickAction.allCases == [.preview, .terminalEditor, .defaultEditor, .preferredEditor]
         )
+    }
+
+    @Test func storageKeyIsTheCatalogKey() {
+        let key = FileExplorerCatalogSection().doubleClickAction
+        #expect(key.id == "fileExplorer.doubleClickAction")
+        #expect(FileExplorerDoubleClickActionSettings.key == key.userDefaultsKey)
+        #expect(FileExplorerDoubleClickActionSettings.key == "fileExplorerDoubleClickAction")
+        #expect(FileExplorerDoubleClickActionSettings.defaultValue == key.defaultValue)
     }
 
     // MARK: - UserDefaults round-trip
@@ -124,5 +136,37 @@ import Testing
                 hasPreferredEditorCommand: false
             ) == .defaultEditor
         )
+    }
+
+    @Test func terminalEditorNeverFallsBack() {
+        for hasEditor in [true, false] {
+            #expect(
+                FileExplorerDoubleClickActionSettings.fileActivation(
+                    action: .terminalEditor,
+                    hasPreferredEditorCommand: hasEditor
+                ) == .terminalEditor
+            )
+        }
+    }
+
+    // MARK: - The shared open path's resolution (Workspace.openFile reads this)
+
+    @Test func resolvedFileActivationDefaultsToPreview() {
+        #expect(FileExplorerDoubleClickActionSettings.resolvedFileActivation(defaults: makeDefaults()) == .preview)
+    }
+
+    @Test func resolvedFileActivationHonorsTheStoredTerminalEditorChoice() {
+        let defaults = makeDefaults()
+        FileExplorerDoubleClickActionSettings.setAction(.terminalEditor, defaults: defaults, notificationCenter: NotificationCenter())
+        #expect(FileExplorerDoubleClickActionSettings.resolvedFileActivation(defaults: defaults) == .terminalEditor)
+    }
+
+    @Test func resolvedFileActivationFoldsPreferredEditorWithoutACommandIntoDefaultEditor() {
+        let defaults = makeDefaults()
+        FileExplorerDoubleClickActionSettings.setAction(.preferredEditor, defaults: defaults, notificationCenter: NotificationCenter())
+        #expect(FileExplorerDoubleClickActionSettings.resolvedFileActivation(defaults: defaults) == .defaultEditor)
+
+        defaults.set("code --wait", forKey: AppCatalogSection().preferredEditor.userDefaultsKey)
+        #expect(FileExplorerDoubleClickActionSettings.resolvedFileActivation(defaults: defaults) == .preferredEditor)
     }
 }

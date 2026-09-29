@@ -446,6 +446,27 @@ The app-wide switch for `cmux agent message`. When `false`, sends fail with "Age
 ```
 
 Default: `true`. Toggle it from **Settings > Automation > Agent Messages**. To turn messages off for one agent or workspace instead, see [Turning messages off](agent-messages.md#turning-messages-off).
+## `fileExplorer.doubleClickAction` and `fileEditor.terminalEditorCommand`
+
+Chooses what opens when a file is activated: a double-click or Return in the file tree, a click on the right sidebar's file preview, and the diff viewer's Open in cmux all share one routing, so they honor the same choice. Directories always expand or collapse, and remote (SSH or Cloud) trees always show the cmux preview of a downloaded copy.
+
+```json
+{
+  "fileExplorer": {
+    "doubleClickAction": "terminalEditor"
+  },
+  "fileEditor": {
+    "terminalEditorCommand": "nvim"
+  }
+}
+```
+
+- `preview` (default): the built-in cmux editor, in the focused pane. An open editor for the file is reused.
+- `terminalEditor`: a new terminal surface in the focused pane, started in the file's directory, running `<editor> '<absolute path>'` through your login shell. The editor is `fileEditor.terminalEditorCommand` when set, else `$VISUAL`, else `$EDITOR` as seen by the cmux process, else `vi`. Values are trimmed and blank values are skipped. The command may carry arguments (`"emacs -nw"`); the quoted file path is appended last.
+- `defaultEditor`: the macOS default app for the file type, the same as the tree's "Open in <App>" context menu item.
+- `preferredEditor`: the `app.preferredEditor` command, the same as Cmd-clicking a path in a terminal. Falls back to `defaultEditor` when that command is empty.
+
+Change it from **Settings > App > Open Files From Tree In** or from the Editor submenu of the Files header's "…" menu; both write the same key. The header menu's Terminal Editor item names the editor that would run (for example "Terminal Editor (nvim)") while no command is configured.
 
 ## `diffViewer.defaultLayout`
 
