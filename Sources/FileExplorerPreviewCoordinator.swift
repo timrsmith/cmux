@@ -12,8 +12,7 @@ struct FileExplorerPreviewCoordinator {
         let context = store.resourceContextID
         if provider is LocalFileExplorerProvider {
             guard !workspace.usesRemoteDirectoryProvenance else { return }
-            _ = workspace.openFileSurfaces(inPane: pane, filePaths: [path], focus: true,
-                                          reuseExisting: true, duplicateWhenFocused: true)
+            workspace.openFile(path, inPane: pane)
             return
         }
         guard let remoteProvider = provider as? any RemoteFileExplorerProvider else { return }

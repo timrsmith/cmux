@@ -82,7 +82,11 @@ abstract class BaseDiffTransport implements DiffTransport {
 
 function unwrapResponse(response: DiffResponse): unknown {
   if (response.error) {
-    throw new DiffTransportError(response.error.code, response.error.message);
+    throw new DiffTransportError(
+      response.error.code,
+      response.error.message,
+      response.error.stateMayHaveChanged === true,
+    );
   }
   if (!response.result) {
     throw new DiffTransportError(
@@ -294,11 +298,18 @@ export function supportsFetchTransport(protocol: string): boolean {
 
 export class DiffTransportError extends Error {
   readonly code: string;
+  /**
+   * The sidecar's word that a failed working-tree write may have left the
+   * repository ahead of the rendered diff (a mutating Git child ran, or the
+   * diff had already changed under the page), so the page should reload.
+   */
+  readonly stateMayHaveChanged: boolean;
 
-  constructor(code: string, message: string) {
+  constructor(code: string, message: string, stateMayHaveChanged = false) {
     super(message);
     this.name = "DiffTransportError";
     this.code = code;
+    this.stateMayHaveChanged = stateMayHaveChanged;
   }
 }
 

@@ -2,12 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// The shell is a one-column grid whose rows are the optional repository
-// header (repo and its actions), the toolbar (file navigation), and the
+// The shell is a one-column grid with two rows: one top bar, the repository
+// header (working-tree views) or the toolbar (every other session), then the
 // content (diffs). A DOM test cannot observe layout, so this guards the rule
-// set directly: when a row is added to #app, the template and the pinned rows
-// must move together, or #content lands in an implicit zero-height row and
-// the diff disappears behind a centered header.
+// set directly: a third row, or a child pinned to one, would put #content in
+// the wrong track and the diff would disappear behind a centered header.
 const css = readFileSync(
   join(import.meta.dir, "..", "src", "styles.css"),
   "utf8",
@@ -25,19 +24,16 @@ function declaration(selector: string, property: string): string | undefined {
 }
 
 describe("app shell grid", () => {
-  test("declares one row per shell child and pins each child to its row", () => {
+  test("declares one top bar row and one content row, with no child pinned", () => {
     expect(declaration("#app", "grid-template-rows")).toBe(
-      "auto auto minmax(0, 1fr)",
+      "auto minmax(0, 1fr)",
     );
-    expect(declaration("#app > #repo-header", "grid-row")).toBe("1");
-    expect(declaration("#app > #toolbar", "grid-row")).toBe("2");
-    expect(declaration("#app > #content", "grid-row")).toBe("3");
+    // The header and the toolbar are mutually exclusive (the UI tests cover
+    // that), so no shell child needs a `grid-row`.
+    expect(css).not.toMatch(/#app\s*>\s*#[\w-]+\s*\{[^}]*grid-row/s);
   });
 
   test("the toolbar keeps its two-row stacking at narrow widths for the sessions that render it", () => {
-    // Working-tree views render the header instead of the toolbar, so the
-    // toolbar never needs a header-mode variant: no host-dependent selector.
-    expect(css).not.toContain("data-hosts-source");
     const narrow = /@media \(max-width: 760px\) \{([\s\S]*?)\n\}/.exec(
       css,
     )?.[1];

@@ -135,12 +135,11 @@ const BRANCH_CHANGE_CHILD_TIMEOUT: Duration = Duration::from_secs(120);
 // Push, repository status, and pull request creation bound their own
 // children; the host bridge waits 130 seconds, so this sits between the two.
 // Budget: a push is at most `worktree::PUSH_TIMEOUT` (120 s); a status runs
-// local Git plus at most two forge calls of `forge::FORGE_CLI_TIMEOUT` (30 s
-// each); pull request creation chains `auth status`, an implicit push, the
-// request lookup, and `pr create` under one shared
-// `worktree::PULL_REQUEST_FLOW_BUDGET` (115 s) deadline, each step taking
-// the remainder capped by its own maximum, so no flow's children can outlive
-// this bound and answer into a closed request.
+// local Git plus two concurrent forge calls of `forge::FORGE_CLI_TIMEOUT`
+// (30 s); pull request creation chains `auth status`, an implicit push, the
+// request lookup, and `pr create` under one `tokio::time::timeout` of
+// `worktree::PULL_REQUEST_FLOW_BUDGET` (115 s), so no flow's children can
+// outlive this bound and answer into a closed request.
 const NETWORK_ACTION_TIMEOUT: Duration = Duration::from_secs(125);
 
 #[cfg(feature = "http-server")]
@@ -571,73 +570,123 @@ async fn handle_protocol_request(
         // Every `DiffCommand::is_worktree_write` variant; the loopback HTTP
         // and WebSocket routes reject those before reaching this function.
         DiffCommand::WorktreeRevertFile(params) => {
-            worktree_response(request.id, worktree::revert_file(state, &params)).await
+            worktree_response(
+                request.id,
+                worktree::revert_file(state, &params),
+                SESSION_OPEN_TIMEOUT,
+            )
+            .await
         }
         DiffCommand::WorktreeStageFile(params) => {
-            worktree_response(request.id, worktree::stage_file(state, &params)).await
+            worktree_response(
+                request.id,
+                worktree::stage_file(state, &params),
+                SESSION_OPEN_TIMEOUT,
+            )
+            .await
         }
         DiffCommand::WorktreeUnstageFile(params) => {
-            worktree_response(request.id, worktree::unstage_file(state, &params)).await
+            worktree_response(
+                request.id,
+                worktree::unstage_file(state, &params),
+                SESSION_OPEN_TIMEOUT,
+            )
+            .await
         }
         DiffCommand::WorktreeRevertHunk(params) => {
-            worktree_response(request.id, worktree::revert_hunk(state, &params)).await
+            worktree_response(
+                request.id,
+                worktree::revert_hunk(state, &params),
+                SESSION_OPEN_TIMEOUT,
+            )
+            .await
         }
         DiffCommand::WorktreeCommit(params) => {
-            worktree_response(request.id, worktree::commit(state, &params)).await
+            worktree_response(
+                request.id,
+                worktree::commit(state, &params),
+                SESSION_OPEN_TIMEOUT,
+            )
+            .await
         }
         DiffCommand::WorktreeDiscardAll(params) => {
-            worktree_response(request.id, worktree::discard_all(state, &params)).await
+            worktree_response(
+                request.id,
+                worktree::discard_all(state, &params),
+                SESSION_OPEN_TIMEOUT,
+            )
+            .await
         }
         DiffCommand::WorktreeStageAll(params) => {
-            worktree_response(request.id, worktree::stage_all(state, &params)).await
+            worktree_response(
+                request.id,
+                worktree::stage_all(state, &params),
+                SESSION_OPEN_TIMEOUT,
+            )
+            .await
         }
         DiffCommand::WorktreeUnstageAll(params) => {
-            worktree_response(request.id, worktree::unstage_all(state, &params)).await
+            worktree_response(
+                request.id,
+                worktree::unstage_all(state, &params),
+                SESSION_OPEN_TIMEOUT,
+            )
+            .await
         }
+        // The commands that talk to a remote or the forge CLI bound their
+        // own children (`PUSH_TIMEOUT`, `FORGE_CLI_TIMEOUT`,
+        // `PULL_REQUEST_FLOW_BUDGET`), so the outer bound only has to sit
+        // above the longest of them.
         DiffCommand::WorktreePush(params) => {
-            network_response(request.id, worktree::push(state, &params)).await
+            worktree_response(
+                request.id,
+                worktree::push(state, &params),
+                NETWORK_ACTION_TIMEOUT,
+            )
+            .await
         }
         // Read-only, but stdio-only like the writes (`requires_stdio`): the
         // loopback routes reject it before reaching this function.
         DiffCommand::WorktreeRepositoryStatus(params) => {
-            network_response(request.id, worktree::repository_status(state, &params)).await
+            worktree_response(
+                request.id,
+                worktree::repository_status(state, &params),
+                NETWORK_ACTION_TIMEOUT,
+            )
+            .await
         }
         DiffCommand::WorktreeCreatePullRequest(params) => {
-            network_response(request.id, worktree::create_pull_request(state, &params)).await
+            worktree_response(
+                request.id,
+                worktree::create_pull_request(state, &params),
+                NETWORK_ACTION_TIMEOUT,
+            )
+            .await
         }
     }
 }
 
+/// Answers a working-tree command within `timeout`. A failure carries
+/// whether the repository may no longer match the rendered diff; a timeout
+/// does too, since the step it cut short may have been a mutating child.
 async fn worktree_response(
     id: String,
-    write: impl Future<Output = Result<DiffResult, worktree::WriteError>>,
-) -> DiffResponse {
-    worktree_response_within(id, write, SESSION_OPEN_TIMEOUT).await
-}
-
-/// A command that talks to a remote or the forge CLI: its own children carry
-/// deadlines (`PUSH_TIMEOUT`, `FORGE_CLI_TIMEOUT`, `PULL_REQUEST_FLOW_BUDGET`
-/// for the chained flow), so the outer bound only has to sit above the
-/// longest of them.
-async fn network_response(
-    id: String,
-    write: impl Future<Output = Result<DiffResult, worktree::WriteError>>,
-) -> DiffResponse {
-    worktree_response_within(id, write, NETWORK_ACTION_TIMEOUT).await
-}
-
-async fn worktree_response_within(
-    id: String,
-    write: impl Future<Output = Result<DiffResult, worktree::WriteError>>,
+    write: impl Future<Output = Result<DiffResult, worktree::WriteFailure>>,
     timeout: Duration,
 ) -> DiffResponse {
     match tokio::time::timeout(timeout, write).await {
         Ok(Ok(result)) => DiffResponse::success(id, result),
-        Ok(Err(error)) => DiffResponse::failure(id, error.code(), &error.message()),
-        Err(_) => DiffResponse::failure(
+        Ok(Err(failure)) => DiffResponse::write_failure(
+            id,
+            failure.error.code(),
+            &failure.error.message(),
+            failure.state_may_have_changed,
+        ),
+        Err(_) => DiffResponse::write_failure(
             id,
             worktree::WriteError::Failed.code(),
             "Timed out while updating the working tree",
+            true,
         ),
     }
 }

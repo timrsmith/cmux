@@ -15,14 +15,12 @@ use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
 use std::time::Duration;
 
-use tokio::time::Instant;
-
 use crate::forge::{self, FORGE_CLI_TIMEOUT, ForgeCli};
 use crate::git::{self, Access};
 use crate::manifest::valid_token;
 use crate::protocol::{
     CommitResult, DiffResult, DiffSource, DiffSourceKind, ForgeCliKind, ForgeCliStatus, HunkRef,
-    PullRequestCreated, PushResult, RepositoryStatus, WorktreeCommitRequest,
+    PullRequestCreated, PushResult, RepositoryHostKind, RepositoryStatus, WorktreeCommitRequest,
     WorktreeCreatePullRequestRequest, WorktreeFileRequest, WorktreeHunkRequest, WorktreeMutated,
     WorktreePushRequest, WorktreeSessionRequest,
 };
@@ -52,9 +50,10 @@ const MAX_HOOK_DETAIL_CHARS: usize = 200;
 /// longer than a local query but must still give up eventually.
 pub(crate) const PUSH_TIMEOUT: Duration = Duration::from_secs(120);
 /// One deadline for the whole pull request flow (`auth status`, the implicit
-/// push, the request lookup, `pr create`): each step gets what is left of
-/// it, capped by its own maximum, so the chain stays under the server's
+/// push, the request lookup, `pr create`): the flow runs under a single
+/// `tokio::time::timeout`, so the chain stays under the server's
 /// `NETWORK_ACTION_TIMEOUT` instead of adding its steps' budgets together.
+/// Each step keeps its own maximum (`FORGE_CLI_TIMEOUT`, `PUSH_TIMEOUT`).
 pub(crate) const PULL_REQUEST_FLOW_BUDGET: Duration = Duration::from_secs(115);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -162,6 +161,40 @@ impl WriteError {
     }
 }
 
+/// A refused or failed write, and whether the repository may no longer match
+/// the diff the page rendered. The flag is set once a mutating child has been
+/// spawned (Git may have changed some paths before exiting non-zero for
+/// another) and for the errors that mean the diff changed under the page
+/// (`StaleHunk`, `Conflict`, `PartialRevert`); the page reloads on it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct WriteFailure {
+    pub(crate) error: WriteError,
+    pub(crate) state_may_have_changed: bool,
+}
+
+impl From<WriteError> for WriteFailure {
+    fn from(error: WriteError) -> Self {
+        let state_may_have_changed = matches!(
+            error,
+            WriteError::StaleHunk | WriteError::Conflict | WriteError::PartialRevert
+        );
+        Self {
+            error,
+            state_may_have_changed,
+        }
+    }
+}
+
+impl WriteFailure {
+    /// `error`, raised after a mutating child ran.
+    fn after_write(error: WriteError) -> Self {
+        Self {
+            error,
+            state_may_have_changed: true,
+        }
+    }
+}
+
 struct Target {
     repo: PathBuf,
     staged: bool,
@@ -177,21 +210,21 @@ enum FileOp {
 pub(crate) async fn revert_file(
     state: &AppState,
     request: &WorktreeFileRequest,
-) -> Result<DiffResult, WriteError> {
+) -> Result<DiffResult, WriteFailure> {
     file_op(state, request, FileOp::Revert).await
 }
 
 pub(crate) async fn stage_file(
     state: &AppState,
     request: &WorktreeFileRequest,
-) -> Result<DiffResult, WriteError> {
+) -> Result<DiffResult, WriteFailure> {
     file_op(state, request, FileOp::Stage).await
 }
 
 pub(crate) async fn unstage_file(
     state: &AppState,
     request: &WorktreeFileRequest,
-) -> Result<DiffResult, WriteError> {
+) -> Result<DiffResult, WriteFailure> {
     file_op(state, request, FileOp::Unstage).await
 }
 
@@ -199,7 +232,7 @@ async fn file_op(
     state: &AppState,
     request: &WorktreeFileRequest,
     op: FileOp,
-) -> Result<DiffResult, WriteError> {
+) -> Result<DiffResult, WriteFailure> {
     let _permit = permit(state)?;
     let target = authorize(
         state,
@@ -214,17 +247,17 @@ async fn file_op(
             // A `git diff` session lists index-tracked files only, so a path
             // outside the index can only come from the page; staging it
             // would add an arbitrary untracked file.
-            let in_index = listed_paths(&target.repo, &["ls-files", "-z"], &paths).await?;
+            let in_index = index_paths(&target.repo, &paths).await?;
             require_all(&paths, &in_index)?;
-            run_checked(&target.repo, &["add"], &paths).await?;
+            run_over_paths(&target.repo, &["add"], &paths).await?;
         }
         FileOp::Unstage => {
             // A staged deletion has no index entry but is in HEAD, which is
             // where `restore --staged` takes it from.
-            let mut known = listed_paths(&target.repo, &["ls-files", "-z"], &paths).await?;
+            let mut known = index_paths(&target.repo, &paths).await?;
             known.extend(head_paths(&target.repo, &paths).await?);
             require_all(&paths, &known)?;
-            run_checked(&target.repo, &["restore", "--staged"], &paths).await?;
+            run_over_paths(&target.repo, &["restore", "--staged"], &paths).await?;
         }
         FileOp::Revert => revert_paths(&target, &paths).await?,
     }
@@ -234,7 +267,7 @@ async fn file_op(
 pub(crate) async fn revert_hunk(
     state: &AppState,
     request: &WorktreeHunkRequest,
-) -> Result<DiffResult, WriteError> {
+) -> Result<DiffResult, WriteFailure> {
     let _permit = permit(state)?;
     let target = authorize(
         state,
@@ -281,7 +314,7 @@ pub(crate) async fn revert_hunk(
     .await
     .map_err(|()| WriteError::Failed)?;
     if !status.success() {
-        return Err(WriteError::Failed);
+        return Err(WriteError::Failed.into());
     }
     let reverse_patch =
         select_hunk_patch(&diff, request.hunk, path).ok_or(WriteError::StaleHunk)?;
@@ -290,7 +323,7 @@ pub(crate) async fn revert_hunk(
         return if apply_patch(&target.repo, &apply, &reverse_patch).await? {
             Ok(mutated(&request.source))
         } else {
-            Err(WriteError::Conflict)
+            Err(WriteError::Conflict.into())
         };
     }
     // Reverting a staged hunk means "unstage it and discard it": first the
@@ -304,19 +337,22 @@ pub(crate) async fn revert_hunk(
     )
     .await?
     {
-        return Err(WriteError::Conflict);
+        return Err(WriteError::Conflict.into());
     }
-    if apply_patch(&target.repo, &apply, &reverse_patch).await? {
+    if apply_patch(&target.repo, &apply, &reverse_patch)
+        .await
+        .map_err(WriteFailure::after_write)?
+    {
         Ok(mutated(&request.source))
     } else {
-        Err(WriteError::PartialRevert)
+        Err(WriteError::PartialRevert.into())
     }
 }
 
 pub(crate) async fn commit(
     state: &AppState,
     request: &WorktreeCommitRequest,
-) -> Result<DiffResult, WriteError> {
+) -> Result<DiffResult, WriteFailure> {
     let _permit = permit(state)?;
     let target = authorize(
         state,
@@ -329,17 +365,29 @@ pub(crate) async fn commit(
     // its tracked changes to be staged first (one authorization, one action);
     // without that it has nothing of its own to commit.
     if !target.staged && !request.stage_all {
-        return Err(WriteError::NotAllowed);
+        return Err(WriteError::NotAllowed.into());
     }
     let message = request.message.trim();
     if message.is_empty() || message.len() > MAX_COMMIT_MESSAGE_BYTES {
-        return Err(WriteError::InvalidMessage);
+        return Err(WriteError::InvalidMessage.into());
     }
     if request.stage_all {
         stage_tracked_changes(&target.repo).await?;
+        // `add --update` has run: whatever refuses the commit now leaves the
+        // index changed under the page.
+        return commit_index(&target.repo, message)
+            .await
+            .map_err(WriteFailure::after_write);
     }
+    Ok(commit_index(&target.repo, message).await?)
+}
+
+/// Records the index as a commit with `message`: nothing staged is
+/// `NothingToCommit`, a hook's refusal is `CommitRejected` with its last
+/// line, and the new HEAD comes back verified as a hex object name.
+async fn commit_index(repo: &Path, message: &str) -> Result<DiffResult, WriteError> {
     match git_status(
-        &target.repo,
+        repo,
         &["diff", "--cached", "--quiet"],
         Access::ReadOnly,
         None,
@@ -356,7 +404,7 @@ pub(crate) async fn commit(
     // Hooks run inside this command; it gets its own process group so a hung
     // hook dies with the deadline, and its stderr explains a refusal.
     let (_, stderr, status) = git::capture_with_hooks(
-        &target.repo,
+        repo,
         &["commit", "--quiet", "--cleanup=whitespace", "-F", "-"],
         Some(&body),
         MAX_STATUS_OUTPUT_BYTES,
@@ -367,7 +415,7 @@ pub(crate) async fn commit(
     if !status.success() {
         return Err(commit_rejection(&stderr));
     }
-    let commit = git::single_line(&target.repo, &["rev-parse", "--verify", "HEAD"])
+    let commit = git::single_line(repo, &["rev-parse", "--verify", "HEAD"])
         .await
         .map_err(|()| WriteError::Failed)?;
     if !(40..=64).contains(&commit.len()) || !commit.bytes().all(|byte| byte.is_ascii_hexdigit()) {
@@ -414,7 +462,7 @@ fn last_stderr_line(stderr: &[u8]) -> Option<String> {
 pub(crate) async fn discard_all(
     state: &AppState,
     request: &WorktreeSessionRequest,
-) -> Result<DiffResult, WriteError> {
+) -> Result<DiffResult, WriteFailure> {
     let _permit = permit(state)?;
     let target = authorize(
         state,
@@ -424,7 +472,7 @@ pub(crate) async fn discard_all(
     )
     .await?;
     if !target.staged {
-        let changed = listing(
+        let changed = listed_paths(
             &target.repo,
             &[
                 "diff",
@@ -433,37 +481,35 @@ pub(crate) async fn discard_all(
                 "--no-renames",
                 "--diff-filter=ACDMRT",
             ],
+            &[],
+            MAX_PATH_LISTING_BYTES,
         )
         .await?;
-        let paths: Vec<String> = changed
-            .split(|byte| *byte == 0)
-            .filter(|name| !name.is_empty())
-            .map(|name| String::from_utf8_lossy(name).into_owned())
-            .collect();
-        run_over_pathspecs(&target.repo, &["restore", "--worktree"], &paths).await?;
+        let paths: Vec<String> = changed.into_iter().collect();
+        run_over_paths(&target.repo, &["restore", "--worktree"], &paths).await?;
         return Ok(mutated(&request.source));
     }
-    let listed = listing(&target.repo, &["diff", "--cached", "--name-status", "-z"]).await?;
+    let listed = listing(
+        &target.repo,
+        &["diff", "--cached", "--name-status", "-z"],
+        &[],
+        MAX_PATH_LISTING_BYTES,
+    )
+    .await?;
     let (in_head, added) = partition_staged_entries(&parse_name_status_z(&listed));
-    run_over_pathspecs(
+    run_over_paths(
         &target.repo,
         &["restore", "--staged", "--worktree", "--source=HEAD"],
         &in_head,
     )
     .await?;
-    run_over_pathspecs(
+    run_over_paths(
         &target.repo,
         &["rm", "-f", "-q", "--ignore-unmatch"],
         &added,
     )
     .await
-    .map_err(|error| {
-        if in_head.is_empty() {
-            error
-        } else {
-            WriteError::PartialRevert
-        }
-    })?;
+    .map_err(|failure| removal_failure(failure, !in_head.is_empty()))?;
     Ok(mutated(&request.source))
 }
 
@@ -472,7 +518,7 @@ pub(crate) async fn discard_all(
 pub(crate) async fn stage_all(
     state: &AppState,
     request: &WorktreeSessionRequest,
-) -> Result<DiffResult, WriteError> {
+) -> Result<DiffResult, WriteFailure> {
     let _permit = permit(state)?;
     let target = authorize(
         state,
@@ -491,7 +537,7 @@ pub(crate) async fn stage_all(
 pub(crate) async fn unstage_all(
     state: &AppState,
     request: &WorktreeSessionRequest,
-) -> Result<DiffResult, WriteError> {
+) -> Result<DiffResult, WriteFailure> {
     let _permit = permit(state)?;
     let target = authorize(
         state,
@@ -505,24 +551,40 @@ pub(crate) async fn unstage_all(
     } else {
         &["rm", "-r", "-q", "--cached", "--ignore-unmatch", "--", "."]
     };
-    if git_status(&target.repo, arguments, Access::Mutating, None)
-        .await?
-        .success()
-    {
-        Ok(mutated(&request.source))
-    } else {
-        Err(WriteError::Failed)
-    }
+    run_mutating(&target.repo, arguments, None).await?;
+    Ok(mutated(&request.source))
 }
 
-async fn stage_tracked_changes(repo: &Path) -> Result<(), WriteError> {
-    if git_status(repo, &["add", "--update"], Access::Mutating, None)
-        .await?
-        .success()
+async fn stage_tracked_changes(repo: &Path) -> Result<(), WriteFailure> {
+    run_mutating(repo, &["add", "--update"], None).await
+}
+
+/// Runs a mutating command and requires success. Any failure is reported
+/// with `state_may_have_changed`: Git may have changed some paths before
+/// exiting non-zero for another.
+async fn run_mutating(
+    repo: &Path,
+    arguments: &[&str],
+    stdin: Option<&[u8]>,
+) -> Result<(), WriteFailure> {
+    if git_status(repo, arguments, Access::Mutating, stdin)
+        .await
+        .is_ok_and(|status| status.success())
     {
         Ok(())
     } else {
-        Err(WriteError::Failed)
+        Err(WriteFailure::after_write(WriteError::Failed))
+    }
+}
+
+/// The error for a failed removal of the paths staged as new: the generic
+/// failure when nothing else ran, `PartialRevert` once HEAD's paths were
+/// already restored (a half-reverted rename).
+fn removal_failure(failure: WriteFailure, restored_any: bool) -> WriteFailure {
+    if restored_any {
+        WriteFailure::after_write(WriteError::PartialRevert)
+    } else {
+        failure
     }
 }
 
@@ -595,32 +657,14 @@ pub(crate) fn partition_staged_entries(entries: &[NameStatusEntry]) -> (Vec<Stri
     (in_head, added)
 }
 
-/// A read-only listing with a generous bound (bulk actions walk the whole
-/// session).
-async fn listing(repo: &Path, arguments: &[&str]) -> Result<Vec<u8>, WriteError> {
-    let (stdout, status) = git::capture(
-        repo,
-        arguments,
-        Access::ReadOnly,
-        None,
-        MAX_PATH_LISTING_BYTES,
-    )
-    .await
-    .map_err(|()| WriteError::Failed)?;
-    if !status.success() {
-        return Err(WriteError::Failed);
-    }
-    Ok(stdout)
-}
-
 /// Runs a mutating command over `paths`, fed NUL-delimited on stdin as
 /// literal pathspecs so a session with thousands of files never hits the
 /// argument-length limit. Nothing runs for an empty list.
-async fn run_over_pathspecs(
+async fn run_over_paths(
     repo: &Path,
     arguments: &[&str],
     paths: &[String],
-) -> Result<(), WriteError> {
+) -> Result<(), WriteFailure> {
     if paths.is_empty() {
         return Ok(());
     }
@@ -632,14 +676,7 @@ async fn run_over_pathspecs(
     let mut full = vec!["--literal-pathspecs"];
     full.extend_from_slice(arguments);
     full.extend_from_slice(&["--pathspec-from-file=-", "--pathspec-file-nul"]);
-    if git_status(repo, &full, Access::Mutating, Some(&stdin))
-        .await?
-        .success()
-    {
-        Ok(())
-    } else {
-        Err(WriteError::Failed)
-    }
+    run_mutating(repo, &full, Some(&stdin)).await
 }
 
 // MARK: Push and repository status
@@ -647,7 +684,7 @@ async fn run_over_pathspecs(
 pub(crate) async fn push(
     state: &AppState,
     request: &WorktreePushRequest,
-) -> Result<DiffResult, WriteError> {
+) -> Result<DiffResult, WriteFailure> {
     let _permit = permit(state)?;
     let target = authorize(
         state,
@@ -656,11 +693,53 @@ pub(crate) async fn push(
         &request.source,
     )
     .await?;
-    let result = run_push(&target.repo, request.set_upstream, PUSH_TIMEOUT).await?;
+    let push_target = resolve_push_target(&target.repo).await?;
+    let result = run_push(
+        &target.repo,
+        &push_target,
+        request.set_upstream,
+        PUSH_TIMEOUT,
+    )
+    .await?;
     Ok(DiffResult::Pushed(result))
 }
 
-/// Pushes the current branch the way a bare `git push` would, within
+/// The branch a push or pull request acts on, resolved once: its upstream
+/// and the remote a new upstream would go to.
+struct PushTarget {
+    branch: String,
+    upstream: Option<Upstream>,
+    push_remote: String,
+}
+
+impl PushTarget {
+    /// The remote the branch is published on: its upstream's, or the push
+    /// remote when it has none yet.
+    fn remote(&self) -> &str {
+        self.upstream
+            .as_ref()
+            .map_or(self.push_remote.as_str(), |upstream| {
+                upstream.remote.as_str()
+            })
+    }
+}
+
+/// Resolves the checked-out branch (`DetachedHead` when there is none), its
+/// upstream, and its push remote from one configuration read.
+async fn resolve_push_target(repo: &Path) -> Result<PushTarget, WriteError> {
+    let branch = current_branch(repo)
+        .await?
+        .ok_or(WriteError::DetachedHead)?;
+    let config = branch_config(repo, &branch).await;
+    let upstream = upstream(repo, &config).await;
+    Ok(PushTarget {
+        branch,
+        upstream,
+        push_remote: config.push_remote_name(),
+    })
+}
+
+/// Pushes `target`'s branch the way a bare `git push` would, within
 /// `timeout`. The push remote is resolved like Git's own (`pushRemote`,
 /// `remote.pushDefault`, the branch's fetch remote, `origin`); when it is the
 /// upstream's remote the branch lands under its upstream name, and in a
@@ -669,16 +748,15 @@ pub(crate) async fn push(
 /// `set_upstream` creates one on the push remote.
 async fn run_push(
     repo: &Path,
+    target: &PushTarget,
     set_upstream: bool,
     timeout: Duration,
 ) -> Result<PushResult, WriteError> {
-    let branch = current_branch(repo)
-        .await?
-        .ok_or(WriteError::DetachedHead)?;
-    let push_remote = push_remote_name(repo, &branch).await;
-    let (remote, refspec, upstream_created) = match upstream(repo, &branch).await {
+    let branch = target.branch.clone();
+    let push_remote = target.push_remote.clone();
+    let (remote, refspec, upstream_created) = match &target.upstream {
         Some(upstream) if upstream.remote == push_remote => (
-            upstream.remote,
+            upstream.remote.clone(),
             format!("{branch}:{}", upstream.merge_ref),
             false,
         ),
@@ -766,6 +844,104 @@ async fn current_branch(repo: &Path) -> Result<Option<String>, WriteError> {
     }
 }
 
+/// The configuration a push or status reads for one branch, from a single
+/// `git config --get-regexp` child: the branch's fetch remote and merge ref,
+/// its push remote, and the repository's push default. A key that is unset
+/// (or empty) is `None`.
+#[derive(Debug, Default, Eq, PartialEq)]
+struct BranchConfig {
+    remote: Option<String>,
+    merge: Option<String>,
+    push_remote: Option<String>,
+    push_default: Option<String>,
+}
+
+impl BranchConfig {
+    /// The upstream's remote and merge ref when both are configured for a
+    /// real remote. The remote-tracking ref may still be missing locally
+    /// (see [`upstream`]).
+    fn configured_upstream(&self) -> Option<(&str, &str)> {
+        let remote = self.remote.as_deref()?;
+        let merge_ref = self.merge.as_deref()?;
+        (remote != "." && merge_ref.starts_with("refs/heads/")).then_some((remote, merge_ref))
+    }
+
+    /// The remote a new upstream goes to: the branch's push remote, the
+    /// repository's push default, the branch's fetch remote, then `origin`.
+    fn push_remote_name(&self) -> String {
+        [&self.push_remote, &self.push_default, &self.remote]
+            .into_iter()
+            .flatten()
+            .find(|remote| remote.as_str() != ".")
+            .cloned()
+            .unwrap_or_else(|| "origin".to_owned())
+    }
+}
+
+/// Reads `branch`'s [`BranchConfig`] with one `git config --get-regexp -z`.
+/// Git canonicalizes section and variable names to lower case (the branch
+/// name keeps its case) and separates each `key\nvalue` record with NUL; like
+/// `--get`, the last value of a repeated key wins.
+async fn branch_config(repo: &Path, branch: &str) -> BranchConfig {
+    let pattern = format!(
+        "^(branch\\.{}\\.(remote|merge|pushremote)|remote\\.pushdefault)$",
+        regex_literal(branch)
+    );
+    let Ok((stdout, _)) = git::capture(
+        repo,
+        &["config", "--get-regexp", "-z", &pattern],
+        Access::ReadOnly,
+        None,
+        MAX_STATUS_OUTPUT_BYTES,
+    )
+    .await
+    else {
+        return BranchConfig::default();
+    };
+    parse_branch_config(&stdout, branch)
+}
+
+/// Parses `git config --get-regexp -z` output for `branch` (see
+/// [`branch_config`]). A value is taken the way `git::single_line` reads a
+/// `--get` answer: trimmed, and dropped when empty or spanning lines.
+fn parse_branch_config(output: &[u8], branch: &str) -> BranchConfig {
+    let mut config = BranchConfig::default();
+    for record in output.split(|byte| *byte == 0) {
+        let Ok(record) = std::str::from_utf8(record) else {
+            continue;
+        };
+        let Some((key, value)) = record.split_once('\n') else {
+            continue;
+        };
+        let branch_key = key
+            .strip_prefix("branch.")
+            .and_then(|rest| rest.strip_prefix(branch))
+            .and_then(|rest| rest.strip_prefix('.'));
+        let slot = match branch_key {
+            Some("remote") => &mut config.remote,
+            Some("merge") => &mut config.merge,
+            Some("pushremote") => &mut config.push_remote,
+            None if key == "remote.pushdefault" => &mut config.push_default,
+            _ => continue,
+        };
+        let value = value.trim();
+        *slot = (!value.is_empty() && !value.contains(['\r', '\n'])).then(|| value.to_owned());
+    }
+    config
+}
+
+/// `text` as a POSIX extended regular expression matching only itself.
+fn regex_literal(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for character in text.chars() {
+        if r".[]{}()\*+?|^$".contains(character) {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
+}
+
 struct Upstream {
     remote: String,
     /// `refs/heads/<name>` on the remote.
@@ -777,12 +953,8 @@ struct Upstream {
 /// The branch's configured, fetched upstream. Configuration alone is not
 /// enough: an upstream whose remote-tracking ref is missing locally cannot
 /// be pushed to by name, so it counts as absent and `-u` recreates it.
-async fn upstream(repo: &Path, branch: &str) -> Option<Upstream> {
-    let remote = config_value(repo, &format!("branch.{branch}.remote")).await?;
-    let merge_ref = config_value(repo, &format!("branch.{branch}.merge")).await?;
-    if remote == "." || !merge_ref.starts_with("refs/heads/") {
-        return None;
-    }
+async fn upstream(repo: &Path, config: &BranchConfig) -> Option<Upstream> {
+    let (remote, merge_ref) = config.configured_upstream()?;
     let short = git::single_line(
         repo,
         &[
@@ -795,31 +967,10 @@ async fn upstream(repo: &Path, branch: &str) -> Option<Upstream> {
     .await
     .ok()?;
     Some(Upstream {
-        remote,
-        merge_ref,
+        remote: remote.to_owned(),
+        merge_ref: merge_ref.to_owned(),
         short,
     })
-}
-
-async fn config_value(repo: &Path, key: &str) -> Option<String> {
-    git::single_line(repo, &["config", "--get", key]).await.ok()
-}
-
-/// The remote a new upstream goes to: the branch's push remote, the
-/// repository's push default, the branch's fetch remote, then `origin`.
-async fn push_remote_name(repo: &Path, branch: &str) -> String {
-    for key in [
-        format!("branch.{branch}.pushRemote"),
-        "remote.pushDefault".to_owned(),
-        format!("branch.{branch}.remote"),
-    ] {
-        if let Some(remote) = config_value(repo, &key).await
-            && remote != "."
-        {
-            return remote;
-        }
-    }
-    "origin".to_owned()
 }
 
 /// `(behind, ahead)` of HEAD relative to its upstream.
@@ -834,27 +985,52 @@ async fn ahead_behind(repo: &Path) -> Option<(u32, u32)> {
     Some((behind.trim().parse().ok()?, ahead.trim().parse().ok()?))
 }
 
+/// The forge `remote`'s URL points at (`None` when the remote is not
+/// configured).
+async fn remote_host_kind(repo: &Path, remote: &str) -> RepositoryHostKind {
+    let url = git::single_line(repo, &["remote", "get-url", remote])
+        .await
+        .ok();
+    forge::host_kind(url.as_deref())
+}
+
 pub(crate) async fn repository_status(
     state: &AppState,
     request: &WorktreeSessionRequest,
-) -> Result<DiffResult, WriteError> {
-    let _permit = permit(state)?;
-    let target = authorize(
-        state,
-        &request.session_id,
-        &request.capability_token,
-        &request.source,
-    )
-    .await?;
-    Ok(DiffResult::RepositoryStatus(
-        collect_status(&target.repo).await?,
-    ))
+) -> Result<DiffResult, WriteFailure> {
+    // The permit covers the local Git children only: the forge CLI waits on
+    // the network for up to two `FORGE_CLI_TIMEOUT`s, and a permit held that
+    // long would starve session opens and writes, which `try_acquire`.
+    let local = {
+        let _permit = permit(state)?;
+        let target = authorize(
+            state,
+            &request.session_id,
+            &request.capability_token,
+            &request.source,
+        )
+        .await?;
+        local_status(&target.repo).await?
+    };
+    Ok(DiffResult::RepositoryStatus(forge_status(local).await))
 }
 
-/// Gathers branch, upstream, remote host, forge CLI state, and the current
-/// pull request. Every forge call is optional: no CLI, or one that is not
-/// signed in, still yields a status.
-async fn collect_status(repo: &Path) -> Result<RepositoryStatus, WriteError> {
+/// What local Git knows: branch, upstream, position, and the remote's forge,
+/// plus that forge's CLI when installed (not yet consulted).
+struct LocalStatus {
+    branch: String,
+    detached: bool,
+    upstream: Option<Upstream>,
+    ahead: u32,
+    behind: u32,
+    host_kind: RepositoryHostKind,
+    cli: Option<ForgeCli>,
+}
+
+/// Gathers [`LocalStatus`]. After the branch and its configuration, the
+/// children that depend only on those run concurrently: the upstream's
+/// tracking ref, the ahead/behind count, and the remote's URL.
+async fn local_status(repo: &Path) -> Result<LocalStatus, WriteError> {
     let (branch, detached) = match current_branch(repo).await? {
         Some(branch) => (branch, false),
         None => (
@@ -864,52 +1040,105 @@ async fn collect_status(repo: &Path) -> Result<RepositoryStatus, WriteError> {
             true,
         ),
     };
-    let upstream = if detached {
-        None
+    if detached {
+        let host_kind = remote_host_kind(repo, "origin").await;
+        return Ok(LocalStatus {
+            branch,
+            detached,
+            upstream: None,
+            ahead: 0,
+            behind: 0,
+            host_kind,
+            cli: locate_cli(host_kind, repo),
+        });
+    }
+    let config = branch_config(repo, &branch).await;
+    // The remote is the upstream's when its tracking ref exists, else the
+    // push remote; both names come from the configuration, so the likely one
+    // is looked up now and the other only when the ref turns out missing.
+    // The count fails the same way as the ref lookup then and stays (0, 0).
+    let configured = config.configured_upstream();
+    let candidate = configured.map_or_else(
+        || config.push_remote_name(),
+        |(remote, _)| remote.to_owned(),
+    );
+    let (upstream, counts, candidate_host) = tokio::join!(
+        upstream(repo, &config),
+        async {
+            if configured.is_some() {
+                ahead_behind(repo).await
+            } else {
+                None
+            }
+        },
+        remote_host_kind(repo, &candidate),
+    );
+    let remote = upstream.as_ref().map_or_else(
+        || config.push_remote_name(),
+        |upstream| upstream.remote.clone(),
+    );
+    let host_kind = if remote == candidate {
+        candidate_host
     } else {
-        upstream(repo, &branch).await
+        remote_host_kind(repo, &remote).await
     };
-    let (behind, ahead) = if upstream.is_some() {
-        ahead_behind(repo).await.unwrap_or((0, 0))
-    } else {
-        (0, 0)
-    };
-    let remote = match &upstream {
-        Some(upstream) => upstream.remote.clone(),
-        None if detached => "origin".to_owned(),
-        None => push_remote_name(repo, &branch).await,
-    };
-    let remote_url = git::single_line(repo, &["remote", "get-url", &remote])
-        .await
-        .ok();
-    let host_kind = forge::host_kind(remote_url.as_deref());
-    let cli_kind = ForgeCliKind::for_host(host_kind);
-    let cli = cli_kind.and_then(|kind| ForgeCli::locate(kind, repo));
-    let authenticated = match &cli {
-        Some(cli) => cli.is_authenticated(FORGE_CLI_TIMEOUT).await,
-        None => false,
-    };
-    let pull_request = match &cli {
-        Some(cli) if authenticated && !detached => {
-            cli.pull_request(&branch, FORGE_CLI_TIMEOUT).await
+    let (behind, ahead) = counts.unwrap_or((0, 0));
+    Ok(LocalStatus {
+        branch,
+        detached,
+        upstream,
+        ahead,
+        behind,
+        host_kind,
+        cli: locate_cli(host_kind, repo),
+    })
+}
+
+fn locate_cli(host_kind: RepositoryHostKind, repo: &Path) -> Option<ForgeCli> {
+    ForgeCliKind::for_host(host_kind).and_then(|kind| ForgeCli::locate(kind, repo))
+}
+
+/// Adds what the forge CLI knows: whether it is signed in, and the branch's
+/// pull request. Each is one network round trip needing only the branch, so
+/// they run concurrently; the request counts only for a signed-in CLI, as a
+/// signed-out one has no answer to trust. No CLI still yields a status.
+async fn forge_status(local: LocalStatus) -> RepositoryStatus {
+    let LocalStatus {
+        branch,
+        detached,
+        upstream,
+        ahead,
+        behind,
+        host_kind,
+        cli,
+    } = local;
+    let (authenticated, pull_request) = match &cli {
+        Some(cli) => {
+            let (authenticated, pull_request) =
+                tokio::join!(cli.is_authenticated(FORGE_CLI_TIMEOUT), async {
+                    if detached {
+                        None
+                    } else {
+                        cli.pull_request(&branch, FORGE_CLI_TIMEOUT).await
+                    }
+                },);
+            (authenticated, pull_request.filter(|_| authenticated))
         }
-        _ => None,
+        None => (false, None),
     };
-    Ok(RepositoryStatus {
+    RepositoryStatus {
         branch,
         detached,
         upstream: upstream.map(|upstream| upstream.short),
         ahead,
         behind,
-        remote_url,
         host_kind,
         forge_cli: ForgeCliStatus {
-            kind: cli_kind,
             available: cli.is_some(),
             authenticated,
         },
         pull_request,
-    })
+    }
 }
 
 // MARK: Pull requests
@@ -917,7 +1146,7 @@ async fn collect_status(repo: &Path) -> Result<RepositoryStatus, WriteError> {
 pub(crate) async fn create_pull_request(
     state: &AppState,
     request: &WorktreeCreatePullRequestRequest,
-) -> Result<DiffResult, WriteError> {
+) -> Result<DiffResult, WriteFailure> {
     let _permit = permit(state)?;
     let target = authorize(
         state,
@@ -929,47 +1158,48 @@ pub(crate) async fn create_pull_request(
     let title = validate_pull_request_title(&request.title)?;
     let body = validate_pull_request_body(&request.body)?;
     let base = request.base.as_deref().map(validate_ref_name).transpose()?;
-    let deadline = Instant::now() + PULL_REQUEST_FLOW_BUDGET;
-    let repo = &target.repo;
-    let branch = current_branch(repo)
-        .await?
-        .ok_or(WriteError::DetachedHead)?;
-    let remote = match upstream(repo, &branch).await {
-        Some(upstream) => upstream.remote,
-        None => push_remote_name(repo, &branch).await,
-    };
-    let remote_url = git::single_line(repo, &["remote", "get-url", &remote])
-        .await
-        .ok();
-    let host_kind = forge::host_kind(remote_url.as_deref());
-    let cli_kind = ForgeCliKind::for_host(host_kind).ok_or(WriteError::ForgeCliMissing)?;
-    let cli = ForgeCli::locate(cli_kind, repo).ok_or(WriteError::ForgeCliMissing)?;
-    if !cli
-        .is_authenticated(remaining_budget(deadline, FORGE_CLI_TIMEOUT))
-        .await
-    {
+    // One deadline for the chained flow. Every child is killed on drop in its
+    // own process group, so the step running when it passes dies with it.
+    let created = tokio::time::timeout(
+        PULL_REQUEST_FLOW_BUDGET,
+        pull_request_flow(&target.repo, title, body, base, request.draft),
+    )
+    .await
+    .map_err(|_| WriteError::PullRequestCreateFailed(Some("timed out".to_owned())))??;
+    Ok(DiffResult::PullRequestCreated(created))
+}
+
+/// `auth status`, the implicit push of a branch without an upstream, the
+/// lookup of an existing request, then `pr create` / `mr create`, each
+/// within its own maximum and all under the caller's flow budget.
+async fn pull_request_flow(
+    repo: &Path,
+    title: &str,
+    body: &str,
+    base: Option<&str>,
+    draft: bool,
+) -> Result<PullRequestCreated, WriteError> {
+    let target = resolve_push_target(repo).await?;
+    let host_kind = remote_host_kind(repo, target.remote()).await;
+    let cli = locate_cli(host_kind, repo).ok_or(WriteError::ForgeCliMissing)?;
+    if !cli.is_authenticated(FORGE_CLI_TIMEOUT).await {
         return Err(WriteError::ForgeNotAuthenticated);
     }
     // The forge only sees the branch once it has been pushed.
-    if upstream(repo, &branch).await.is_none() {
-        run_push(repo, true, remaining_budget(deadline, PUSH_TIMEOUT)).await?;
+    if target.upstream.is_none() {
+        run_push(repo, &target, true, PUSH_TIMEOUT).await?;
     }
-    if let Some(existing) = cli
-        .pull_request(&branch, remaining_budget(deadline, FORGE_CLI_TIMEOUT))
-        .await
+    let branch = target.branch.as_str();
+    if let Some(existing) = cli.pull_request(branch, FORGE_CLI_TIMEOUT).await
         && existing.state == "open"
     {
         return Err(WriteError::PullRequestExists(Some(existing.url)));
     }
     let (arguments, stdin) =
-        pull_request_create_command(cli.kind, title, body, &branch, request.draft, base);
+        pull_request_create_command(cli.kind, title, body, branch, draft, base);
     let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
     let output = cli
-        .run(
-            &borrowed,
-            stdin.as_deref(),
-            remaining_budget(deadline, FORGE_CLI_TIMEOUT),
-        )
+        .run(&borrowed, stdin.as_deref(), FORGE_CLI_TIMEOUT)
         .await
         .map_err(|()| WriteError::PullRequestCreateFailed(Some("timed out".to_owned())))?;
     let stdout = output.stdout_text();
@@ -984,25 +1214,16 @@ pub(crate) async fn create_pull_request(
     let number = match forge::number_from_url(&url) {
         Some(number) => number,
         None => cli
-            .pull_request(&branch, remaining_budget(deadline, FORGE_CLI_TIMEOUT))
+            .pull_request(branch, FORGE_CLI_TIMEOUT)
             .await
             .map_or(0, |summary| summary.number),
     };
-    Ok(DiffResult::PullRequestCreated(PullRequestCreated {
+    Ok(PullRequestCreated {
         number,
         url,
         title: title.to_owned(),
-        is_draft: request.draft,
-    }))
-}
-
-/// What is left of `deadline`, capped at `step_maximum`: the budget for the
-/// next step of a chained flow. Zero once the deadline has passed, so the
-/// step fails at once instead of starting a child it cannot wait for.
-fn remaining_budget(deadline: Instant, step_maximum: Duration) -> Duration {
-    deadline
-        .saturating_duration_since(Instant::now())
-        .min(step_maximum)
+        is_draft: draft,
+    })
 }
 
 /// The forge CLI invocation that creates the request. Every user value rides
@@ -1237,17 +1458,17 @@ fn require_all(paths: &[String], known: &HashSet<String>) -> Result<(), WriteErr
 /// lists untracked files, so such a path can only come from the page, and
 /// honoring it (with `git clean`) would delete an arbitrary untracked file.
 /// Listings match whole blobs only, so a directory name is never "known".
-async fn revert_paths(target: &Target, paths: &[String]) -> Result<(), WriteError> {
-    let in_index = listed_paths(&target.repo, &["ls-files", "-z"], paths).await?;
+async fn revert_paths(target: &Target, paths: &[String]) -> Result<(), WriteFailure> {
+    let in_index = index_paths(&target.repo, paths).await?;
     if !target.staged {
         require_all(paths, &in_index)?;
-        return run_checked(&target.repo, &["restore", "--worktree"], paths).await;
+        return run_over_paths(&target.repo, &["restore", "--worktree"], paths).await;
     }
     let head = head_paths(&target.repo, paths).await?;
     let (in_head, added): (Vec<String>, Vec<String>) =
         paths.iter().cloned().partition(|path| head.contains(path));
     require_all(&added, &in_index)?;
-    run_if_any(
+    run_over_paths(
         &target.repo,
         &["restore", "--staged", "--worktree", "--source=HEAD"],
         &in_head,
@@ -1256,26 +1477,32 @@ async fn revert_paths(target: &Target, paths: &[String]) -> Result<(), WriteErro
     // A file staged as new has no HEAD version to restore; discarding it
     // removes the index entry and the working-tree copy. Once the restore
     // above has run, a failure here leaves a half-reverted rename.
-    run_if_any(
+    run_over_paths(
         &target.repo,
         &["rm", "-f", "-q", "--ignore-unmatch"],
         &added,
     )
     .await
-    .map_err(|error| {
-        if in_head.is_empty() {
-            error
-        } else {
-            WriteError::PartialRevert
-        }
-    })
+    .map_err(|failure| removal_failure(failure, !in_head.is_empty()))
+}
+
+/// The subset of `paths` that are index entries.
+async fn index_paths(repo: &Path, paths: &[String]) -> Result<HashSet<String>, WriteError> {
+    listed_paths(repo, &["ls-files", "-z"], paths, MAX_STATUS_OUTPUT_BYTES).await
 }
 
 /// The subset of `paths` that are blobs in HEAD's tree (`-r`, so a directory
 /// lists its files and never itself). An unborn branch has no HEAD tree, so
 /// nothing is in it.
 async fn head_paths(repo: &Path, paths: &[String]) -> Result<HashSet<String>, WriteError> {
-    match listed_paths(repo, &["ls-tree", "-r", "-z", "--name-only", "HEAD"], paths).await {
+    match listed_paths(
+        repo,
+        &["ls-tree", "-r", "-z", "--name-only", "HEAD"],
+        paths,
+        MAX_STATUS_OUTPUT_BYTES,
+    )
+    .await
+    {
         Ok(listed) => Ok(listed),
         Err(error) => {
             let head_exists = git_status(
@@ -1295,30 +1522,18 @@ async fn head_paths(repo: &Path, paths: &[String]) -> Result<HashSet<String>, Wr
     }
 }
 
-/// Runs a NUL-delimited listing (`ls-files -z`, `ls-tree -r -z`) over `paths`
-/// as literal pathspecs and returns the names Git printed. A path that names
+/// The names a NUL-delimited listing (`ls-files -z`, `ls-tree -r -z`, `diff
+/// --name-only -z`) prints for `paths` (see [`listing`]). A path that names
 /// a directory lists its children, none of which equal the path itself, so
 /// it is never classified as tracked.
 async fn listed_paths(
     repo: &Path,
     arguments: &[&str],
     paths: &[String],
+    limit: usize,
 ) -> Result<HashSet<String>, WriteError> {
-    let arguments = with_paths(arguments, paths);
-    let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
-    let (stdout, status) = git::capture(
-        repo,
-        &borrowed,
-        Access::ReadOnly,
-        None,
-        MAX_STATUS_OUTPUT_BYTES,
-    )
-    .await
-    .map_err(|()| WriteError::Failed)?;
-    if !status.success() {
-        return Err(WriteError::Failed);
-    }
-    Ok(stdout
+    Ok(listing(repo, arguments, paths, limit)
+        .await?
         .split(|byte| *byte == 0)
         .filter(|name| !name.is_empty())
         .filter_map(|name| std::str::from_utf8(name).ok())
@@ -1326,11 +1541,27 @@ async fn listed_paths(
         .collect())
 }
 
-fn with_paths(arguments: &[&str], paths: &[String]) -> Vec<String> {
-    let mut result: Vec<String> = arguments.iter().map(|value| (*value).to_owned()).collect();
-    result.push("--".to_owned());
-    result.extend(paths.iter().map(|path| literal_pathspec(path)));
-    result
+/// A read-only listing over `paths` as literal pathspecs (the listing
+/// commands take no `--pathspec-from-file`; a per-file action names at most
+/// two), or over the whole session when `paths` is empty, with at most
+/// `limit` bytes of output.
+async fn listing(
+    repo: &Path,
+    arguments: &[&str],
+    paths: &[String],
+    limit: usize,
+) -> Result<Vec<u8>, WriteError> {
+    let mut full: Vec<String> = arguments.iter().map(|value| (*value).to_owned()).collect();
+    full.push("--".to_owned());
+    full.extend(paths.iter().map(|path| literal_pathspec(path)));
+    let borrowed: Vec<&str> = full.iter().map(String::as_str).collect();
+    let (stdout, status) = git::capture(repo, &borrowed, Access::ReadOnly, None, limit)
+        .await
+        .map_err(|()| WriteError::Failed)?;
+    if !status.success() {
+        return Err(WriteError::Failed);
+    }
+    Ok(stdout)
 }
 
 /// Builds a single-hunk patch from the first file section of a unified diff:
@@ -1514,29 +1745,6 @@ fn parse_range(value: &str) -> Option<(u32, u32)> {
     }
 }
 
-/// Runs a mutating Git command over `paths` (as literal pathspecs after
-/// `--`) and requires success.
-async fn run_checked(repo: &Path, arguments: &[&str], paths: &[String]) -> Result<(), WriteError> {
-    let arguments = with_paths(arguments, paths);
-    let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
-    if git_status(repo, &borrowed, Access::Mutating, None)
-        .await?
-        .success()
-    {
-        Ok(())
-    } else {
-        Err(WriteError::Failed)
-    }
-}
-
-async fn run_if_any(repo: &Path, arguments: &[&str], paths: &[String]) -> Result<(), WriteError> {
-    if paths.is_empty() {
-        Ok(())
-    } else {
-        run_checked(repo, arguments, paths).await
-    }
-}
-
 /// Feeds a sidecar-built patch to `git apply` and reports whether it applied.
 /// Only a failure to run Git at all is an error; a rejected patch is `false`.
 async fn apply_patch(repo: &Path, arguments: &[&str], patch: &[u8]) -> Result<bool, WriteError> {
@@ -1560,12 +1768,76 @@ async fn git_status(
 #[cfg(test)]
 mod tests {
     use super::{
-        ForgeCliKind, HunkRef, NameStatusEntry, WriteError, commit_rejection, header_names_path,
-        mentions_authentication, parse_hunk_header, parse_name_status_z, partition_staged_entries,
-        pull_request_create_command, pull_request_create_failure, push_rejection,
+        BranchConfig, ForgeCliKind, HunkRef, NameStatusEntry, WriteError, WriteFailure,
+        commit_rejection, header_names_path, mentions_authentication, parse_branch_config,
+        parse_hunk_header, parse_name_status_z, partition_staged_entries,
+        pull_request_create_command, pull_request_create_failure, push_rejection, regex_literal,
         select_hunk_patch, unquote_c_style, validate_pull_request_body,
         validate_pull_request_title, validate_ref_name, validate_repo_relative_path,
     };
+
+    #[test]
+    fn write_failures_flag_a_diff_that_changed_under_the_page() {
+        for changed in [
+            WriteError::StaleHunk,
+            WriteError::Conflict,
+            WriteError::PartialRevert,
+        ] {
+            assert!(WriteFailure::from(changed).state_may_have_changed);
+        }
+        for current in [
+            WriteError::NotAllowed,
+            WriteError::Failed,
+            WriteError::CommitFailed,
+            WriteError::NothingToCommit,
+        ] {
+            assert!(!WriteFailure::from(current.clone()).state_may_have_changed);
+            assert!(WriteFailure::after_write(current).state_may_have_changed);
+        }
+    }
+
+    #[test]
+    fn branch_config_reads_one_get_regexp_listing_and_resolves_the_push_remote() {
+        let branch = "feat/x.y+1";
+        assert_eq!(regex_literal(branch), "feat/x\\.y\\+1");
+        assert_eq!(regex_literal("a(b)|c$"), "a\\(b\\)\\|c\\$");
+        // Canonical keys: lower-case variable names, the branch as written,
+        // `key\nvalue\0` records; a repeated key keeps its last value and an
+        // empty one counts as unset.
+        let output = b"branch.feat/x.y+1.remote\norigin\0branch.feat/x.y+1.merge\nrefs/heads/main\0branch.feat/x.y+1.pushremote\nfork\0remote.pushdefault\nteam\0branch.feat/x.y+1.remote\nupstream\0branch.other.remote\nnope\0branch.feat/x.y+1.pushremote\n\0";
+        let config = parse_branch_config(output, branch);
+        assert_eq!(
+            config,
+            BranchConfig {
+                remote: Some("upstream".to_owned()),
+                merge: Some("refs/heads/main".to_owned()),
+                push_remote: None,
+                push_default: Some("team".to_owned()),
+            }
+        );
+        assert_eq!(
+            config.configured_upstream(),
+            Some(("upstream", "refs/heads/main"))
+        );
+        assert_eq!(config.push_remote_name(), "team");
+        assert_eq!(parse_branch_config(b"", branch), BranchConfig::default());
+        assert_eq!(BranchConfig::default().push_remote_name(), "origin");
+        let local = BranchConfig {
+            remote: Some(".".to_owned()),
+            merge: Some("refs/heads/main".to_owned()),
+            push_remote: None,
+            push_default: None,
+        };
+        assert_eq!(local.configured_upstream(), None);
+        assert_eq!(local.push_remote_name(), "origin");
+        let triangular = BranchConfig {
+            remote: Some("origin".to_owned()),
+            merge: Some("refs/heads/main".to_owned()),
+            push_remote: Some("fork".to_owned()),
+            push_default: None,
+        };
+        assert_eq!(triangular.push_remote_name(), "fork");
+    }
 
     #[test]
     fn name_status_listings_parse_renames_and_partition_by_head_membership() {

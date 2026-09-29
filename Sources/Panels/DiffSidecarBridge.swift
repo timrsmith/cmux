@@ -127,12 +127,7 @@ final class DiffSidecarBridge: NSObject, WKScriptMessageHandlerWithReply {
                 discardedSessionInvocations.insert(pendingID)
                 invocations[pendingID]?.cancel()
             }
-            replyHandler([
-                "id": (message.body as? [String: Any])?["id"] as? String ?? "unknown",
-                "version": 1,
-                "result": ["type": "sessionClosed"],
-                "error": NSNull(),
-            ], nil)
+            replyHandler(Self.successResponse(body: message.body, result: ["type": "sessionClosed"]), nil)
             return
         }
         if method == "sessionOpen", let viewerKey,
@@ -477,7 +472,21 @@ final class DiffSidecarBridge: NSObject, WKScriptMessageHandlerWithReply {
         return root
     }
 
-    private static func failureResponse(body: Any, code: String, message: String) -> [String: Any] {
+    /// A `cmuxDiff` envelope answering the request in `body` with `result`;
+    /// the id and protocol version echo the request. Shared with the host
+    /// actions the bridge answers itself.
+    static func successResponse(body: Any, result: [String: Any]) -> [String: Any] {
+        let request = body as? [String: Any]
+        return [
+            "id": request?["id"] as? String ?? "unknown",
+            "version": request?["version"] as? Int ?? 1,
+            "result": result,
+            "error": NSNull(),
+        ]
+    }
+
+    /// The failing counterpart of ``successResponse(body:result:)``.
+    static func failureResponse(body: Any, code: String, message: String) -> [String: Any] {
         let request = body as? [String: Any]
         return [
             "id": request?["id"] as? String ?? "unknown",

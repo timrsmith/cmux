@@ -250,12 +250,21 @@ struct GitStatusProvider: Sendable {
     }
 
     private func runGit(in directory: String, arguments: [String]) -> String? {
+        guard let data = runGitData(in: directory, arguments: arguments) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// Runs `git <arguments>` in `directory` under the untrusted-repository
+    /// guards, the non-locking environment and the local timeout, returning
+    /// its raw standard output on exit 0. Shared with other repository-reading
+    /// types that digest NUL-delimited listings as bytes.
+    func runGitData(in directory: String, arguments: [String]) -> Data? {
         let process = Process()
         process.executableURL = gitExecutableURL
         process.arguments = Self.untrustedRepositoryGuardArguments + arguments
         process.currentDirectoryURL = URL(fileURLWithPath: directory)
         process.environment = nonLockingGitEnvironment()
-        return Self.runCapturingStandardOutput(process, timeout: localTimeout)
+        return Self.runCapturingStandardOutputData(process, timeout: localTimeout)
     }
 
     private func nonLockingGitEnvironment() -> [String: String] {

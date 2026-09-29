@@ -128,7 +128,7 @@ export function FileWriteActions({
       ) : (
         <>
           {onOpenInCmux ? (
-            <FileUtilityButton
+            <WorktreeActionButton
               action="openInCmux"
               icon="open"
               label={label("openInCmux")}
@@ -136,7 +136,7 @@ export function FileWriteActions({
             />
           ) : null}
           {onCopyPath ? (
-            <FileUtilityButton
+            <WorktreeActionButton
               action="copyPath"
               icon="clipboard"
               label={label("copyPath")}
@@ -144,20 +144,16 @@ export function FileWriteActions({
             />
           ) : null}
           {actions.map((action) => (
-            <button
+            <WorktreeActionButton
               key={action}
-              type="button"
-              className="worktree-action"
-              data-action={action}
+              action={action}
+              icon={FILE_ACTION_ICON[action]}
+              label={label(action)}
               disabled={pending}
-              title={label(action)}
-              aria-label={label(action)}
               onClick={() =>
                 action === "revertFile" ? setConfirming(true) : onAction(action)
               }
-            >
-              <Icon name={FILE_ACTION_ICON[action]} />
-            </button>
+            />
           ))}
         </>
       )}
@@ -165,14 +161,20 @@ export function FileWriteActions({
   );
 }
 
-/** Per-file utilities (open, copy path) never mutate, so they ignore `pending`. */
-function FileUtilityButton({
+/**
+ * One icon button of the per-file action cluster. The write actions pass
+ * `pending`; the utilities (open, copy path) never mutate, so they stay
+ * enabled.
+ */
+function WorktreeActionButton({
   action,
+  disabled,
   icon,
   label,
   onClick,
 }: {
   action: string;
+  disabled?: boolean;
   icon: IconName;
   label: string;
   onClick: () => void;
@@ -182,6 +184,7 @@ function FileUtilityButton({
       type="button"
       className="worktree-action"
       data-action={action}
+      disabled={disabled}
       title={label}
       aria-label={label}
       onClick={onClick}
@@ -395,7 +398,8 @@ export function PullRequestPopover({
     null,
   );
   const keys = pullRequestLabelKeys(hostKind);
-  const invalid = validation != null && !validation.ok;
+  // The last submit's verdict when it failed, until the next edit clears it.
+  const failure = validation != null && !validation.ok ? validation : null;
   const validate = () => {
     const next = validatePullRequestDraft({ title, body, draft, base });
     setValidation(next);
@@ -420,10 +424,9 @@ export function PullRequestPopover({
         placeholder={label("pullRequestTitlePlaceholder")}
         aria-label={label("pullRequestTitlePlaceholder")}
         aria-invalid={
-          invalid &&
-          !validation.ok &&
-          validation.reason !== "bodyTooLong" &&
-          validation.reason !== "invalidBase"
+          failure != null &&
+          failure.reason !== "bodyTooLong" &&
+          failure.reason !== "invalidBase"
         }
         value={title}
         disabled={pending}
@@ -461,9 +464,7 @@ export function PullRequestPopover({
           type="text"
           placeholder={label("pullRequestBasePlaceholder")}
           aria-label={label("pullRequestBasePlaceholder")}
-          aria-invalid={
-            invalid && !validation.ok && validation.reason === "invalidBase"
-          }
+          aria-invalid={failure?.reason === "invalidBase"}
           value={base}
           disabled={pending}
           onChange={(event) => {
@@ -484,9 +485,7 @@ export function PullRequestPopover({
       </div>
       <div className="commit-popover-footer">
         <span className="commit-popover-hint" aria-live="polite">
-          {invalid && !validation.ok
-            ? label(PULL_REQUEST_VALIDATION_LABEL[validation.reason])
-            : ""}
+          {failure ? label(PULL_REQUEST_VALIDATION_LABEL[failure.reason]) : ""}
         </span>
         <span className="commit-popover-buttons">
           <button type="button" className="comment-button" onClick={onCancel}>
@@ -496,7 +495,7 @@ export function PullRequestPopover({
             type="button"
             className="comment-button comment-button-primary"
             data-action="createPullRequest"
-            disabled={pending || title.trim() === "" || invalid}
+            disabled={pending || title.trim() === "" || failure != null}
             onClick={submit}
           >
             {label(keys.submit)}
@@ -653,16 +652,4 @@ export function useDismissOnOutsideInteraction(
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [onClose, open, within]);
-}
-
-/** Closes the commit popover on an outside click or Escape while it is open. */
-export function useCommitPopoverDismiss(
-  open: boolean,
-  onClose: () => void,
-): void {
-  useDismissOnOutsideInteraction(
-    open,
-    onClose,
-    "#commit-popover, #commit-button",
-  );
 }

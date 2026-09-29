@@ -154,15 +154,25 @@ export function ViewOptionsMenuItems({
   );
 }
 
+/**
+ * One row of a "..." menu. A toggle passes `checked` (rendered as
+ * `aria-pressed` plus the check mark); a repository action passes `action`
+ * (its `data-action` hook for tests and CSS) and `danger` for a destructive
+ * one.
+ */
 export function MenuButton({
+  action,
   checked,
+  danger,
   disabled,
   icon,
   label,
   onClick,
   title,
 }: {
+  action?: string;
   checked?: boolean;
+  danger?: boolean;
   disabled?: boolean;
   icon: IconName;
   label: string;
@@ -174,6 +184,8 @@ export function MenuButton({
       type="button"
       className="menu-item"
       aria-pressed={checked == null ? undefined : checked}
+      data-action={action}
+      data-danger={danger ? "true" : undefined}
       disabled={disabled}
       title={title}
       onClick={onClick}

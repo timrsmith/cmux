@@ -467,9 +467,15 @@ final class RightSidebarChangesStoreTests: XCTestCase {
         fingerprints.pin("edited")
         watchSource.fire(repoRoot: repoRoot)
         await waitUntil("reloaded") { store.reloadGeneration == 1 }
-        // The reload re-seeds the digest for the document now on screen.
-        await waitUntil("reseeded") { store.fingerprintCheckCount == 4 }
+        // The digest that triggered the reload is the document's; no re-seed.
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(store.fingerprintCheckCount, 3)
         XCTAssertEqual(producer.callCount, 1)
+
+        // The same digest again is not a change.
+        watchSource.fire(repoRoot: repoRoot)
+        await waitUntil("checked again") { store.fingerprintCheckCount == 4 }
+        XCTAssertEqual(store.reloadGeneration, 1)
     }
 
     func testAnUnobtainableDigestRefreshesConservatively() async throws {
@@ -508,13 +514,13 @@ final class RightSidebarChangesStoreTests: XCTestCase {
             try await Task.sleep(nanoseconds: 20_000_000)
         }
         gate.open()
-        // Seed, one folded re-check (a fresh value, so a reload), then the
-        // reload's re-seed.
+        // Seed, then one folded re-check (a fresh value, so a reload) whose
+        // digest is kept for the reloaded document.
         await waitUntil("reloaded once") { store.reloadGeneration == 1 }
-        await waitUntil("settled") { store.fingerprintCheckCount == 3 }
+        await waitUntil("settled") { store.fingerprintCheckCount == 2 }
         try await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertEqual(store.reloadGeneration, 1)
-        XCTAssertEqual(store.fingerprintCheckCount, 3)
+        XCTAssertEqual(store.fingerprintCheckCount, 2)
     }
 
     func testStaticPagesRegenerateInsteadOfReloading() async throws {

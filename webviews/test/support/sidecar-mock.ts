@@ -62,18 +62,16 @@ export const MOCK_REPOSITORY_STATUS = {
   upstream: "origin/main",
   ahead: 0,
   behind: 0,
-  remoteUrl: "/tmp/origin.git",
   hostKind: "other",
-  forgeCli: { kind: null, available: false, authenticated: false },
+  forgeCli: { available: false, authenticated: false },
 };
 
 /** The same repository hosted on GitHub with a signed-in `gh`. */
 export const MOCK_GITHUB_STATUS = {
   ...MOCK_REPOSITORY_STATUS,
   ahead: 2,
-  remoteUrl: "https://github.com/acme/widgets.git",
   hostKind: "github",
-  forgeCli: { kind: "gh", available: true, authenticated: true },
+  forgeCli: { available: true, authenticated: true },
 };
 
 export const MOCK_PULL_REQUEST = {
@@ -103,8 +101,14 @@ export function failureResponse(
   request: SidecarRequest,
   code: string,
   message: string,
+  stateMayHaveChanged?: boolean,
 ) {
-  return { id: request.id, version: 1, result: null, error: { code, message } };
+  return {
+    id: request.id,
+    version: 1,
+    result: null,
+    error: { code, message, ...(stateMayHaveChanged ? { stateMayHaveChanged } : {}) },
+  };
 }
 
 /**

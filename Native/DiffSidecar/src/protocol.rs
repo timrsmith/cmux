@@ -282,7 +282,6 @@ pub enum ForgeCliKind {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "protocol.ts")]
 pub struct ForgeCliStatus {
-    pub kind: Option<ForgeCliKind>,
     pub available: bool,
     pub authenticated: bool,
 }
@@ -327,9 +326,6 @@ pub struct RepositoryStatus {
     pub upstream: Option<String>,
     pub ahead: u32,
     pub behind: u32,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional)]
-    pub remote_url: Option<String>,
     pub host_kind: RepositoryHostKind,
     pub forge_cli: ForgeCliStatus,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -511,6 +507,12 @@ pub struct NavigationResult {
 pub struct DiffProtocolError {
     pub code: String,
     pub message: String,
+    /// A working-tree write failed after a mutating Git child ran, or found
+    /// the diff already changed under the page: the rendered diff may be
+    /// stale, so the page reloads it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub state_may_have_changed: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, TS)]
@@ -557,6 +559,18 @@ impl DiffResponse {
 
     #[must_use]
     pub fn failure(id: String, code: &str, message: &str) -> Self {
+        Self::write_failure(id, code, message, false)
+    }
+
+    /// [`Self::failure`] for a working-tree write, carrying whether the
+    /// repository may no longer match the rendered diff.
+    #[must_use]
+    pub fn write_failure(
+        id: String,
+        code: &str,
+        message: &str,
+        state_may_have_changed: bool,
+    ) -> Self {
         Self {
             id,
             version: PROTOCOL_VERSION,
@@ -564,6 +578,7 @@ impl DiffResponse {
             error: Some(DiffProtocolError {
                 code: code.to_owned(),
                 message: message.to_owned(),
+                state_may_have_changed,
             }),
         }
     }

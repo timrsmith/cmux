@@ -2074,6 +2074,8 @@
 		897FE1BDA0E8F2EFA5C0A8A0 /* GitRepositoryTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73A4C5374756559C8B3AD947 /* GitRepositoryTestSupport.swift */; };
 		FE001106 /* GitStatusProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE001006 /* GitStatusProvider.swift */; };
 		06ED36846073A23F577492D7 /* GitStatusRepositoryWatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0265ACB8C78712473EAD71C1 /* GitStatusRepositoryWatch.swift */; };
+		D3D7B12B743A3393F1962EEB /* GitStatusWatchRelevance.swift in Sources */ = {isa = PBXBuildFile; fileRef = B46BB5924CE29F3E7134586D /* GitStatusWatchRelevance.swift */; };
+		ED5CC3BCB7933048FA9B1D31 /* GitStatusWatchRelevanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD8C9BAF077878309DE0180B /* GitStatusWatchRelevanceTests.swift */; };
 		3865A0023865A0023865A002 /* GlobalSearchCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3865B0023865B0023865B002 /* GlobalSearchCoordinator.swift */; };
 		3865A0073865A0073865A007 /* GlobalSearchDocuments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3865B0073865B0073865B007 /* GlobalSearchDocuments.swift */; };
 		8561A0018561A0018561A001 /* GlobalSearchInputOwnershipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8561B0018561B0018561B001 /* GlobalSearchInputOwnershipTests.swift */; };
@@ -3967,6 +3969,7 @@
 		D86840000000000000000013 /* Workspace+DockSessionRestore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D86840000000000000000014 /* Workspace+DockSessionRestore.swift */; };
 		E3309A05 /* Workspace+EqualizeSplitsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3309A06 /* Workspace+EqualizeSplitsSupport.swift */; };
 		5612833801064F77B42F8A36 /* Workspace+ExternalTabDrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FA535CA67264C0F864B049B /* Workspace+ExternalTabDrop.swift */; };
+		53A6BFAEB74EBD83133DF1F0 /* Workspace+FileOpen.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0BFC6440ED536A78416820 /* Workspace+FileOpen.swift */; };
 		F0ACC0DE0000000000000009 /* Workspace+ForkAgentConversationAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0ACC0DE000000000000000A /* Workspace+ForkAgentConversationAvailability.swift */; };
 		F0ACC0DE0000000000000003 /* Workspace+ForkConversationContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0ACC0DE0000000000000004 /* Workspace+ForkConversationContextMenu.swift */; };
 		112950000000000000000010 /* Workspace+ForkStartupInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11295000000000000000000F /* Workspace+ForkStartupInput.swift */; };
@@ -6215,6 +6218,8 @@
 		73A4C5374756559C8B3AD947 /* GitRepositoryTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GitRepositoryTestSupport.swift"; sourceTree = "<group>"; };
 		FE001006 /* GitStatusProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStatusProvider.swift; sourceTree = "<group>"; };
 		0265ACB8C78712473EAD71C1 /* GitStatusRepositoryWatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStatusRepositoryWatch.swift; sourceTree = "<group>"; };
+		B46BB5924CE29F3E7134586D /* GitStatusWatchRelevance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStatusWatchRelevance.swift; sourceTree = "<group>"; };
+		BD8C9BAF077878309DE0180B /* GitStatusWatchRelevanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GitStatusWatchRelevanceTests.swift"; sourceTree = "<group>"; };
 		3865B0023865B0023865B002 /* GlobalSearchCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Search/GlobalSearchCoordinator.swift; sourceTree = "<group>"; };
 		3865B0073865B0073865B007 /* GlobalSearchDocuments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Search/GlobalSearchDocuments.swift; sourceTree = "<group>"; };
 		8561B0018561B0018561B001 /* GlobalSearchInputOwnershipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalSearchInputOwnershipTests.swift; sourceTree = "<group>"; };
@@ -8080,6 +8085,7 @@
 		D86840000000000000000014 /* Workspace+DockSessionRestore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Workspace+DockSessionRestore.swift"; sourceTree = "<group>"; };
 		E3309A06 /* Workspace+EqualizeSplitsSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Workspace+EqualizeSplitsSupport.swift"; sourceTree = "<group>"; };
 		7FA535CA67264C0F864B049B /* Workspace+ExternalTabDrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Workspace+ExternalTabDrop.swift"; sourceTree = "<group>"; };
+		BC0BFC6440ED536A78416820 /* Workspace+FileOpen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Workspace+FileOpen.swift"; sourceTree = "<group>"; };
 		F0ACC0DE000000000000000A /* Workspace+ForkAgentConversationAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Workspace+ForkAgentConversationAvailability.swift"; sourceTree = "<group>"; };
 		F0ACC0DE0000000000000004 /* Workspace+ForkConversationContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Workspace+ForkConversationContextMenu.swift"; sourceTree = "<group>"; };
 		11295000000000000000000F /* Workspace+ForkStartupInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Workspace+ForkStartupInput.swift"; sourceTree = "<group>"; };
@@ -11030,6 +11036,8 @@
 				B37A00000000000000000004 /* RightSidebarMode+Availability.swift */,
 				B37A0000000000000000000E /* RightSidebarRemoteCommand.swift */,
 				FE003003 /* RightSidebarPanelView.swift */,
+				BC0BFC6440ED536A78416820 /* Workspace+FileOpen.swift */,
+				B46BB5924CE29F3E7134586D /* GitStatusWatchRelevance.swift */,
 				8689024056FFAB422E9621F0 /* RightSidebarChangesFingerprint.swift */,
 				8384D7F6880CCA195D6406CA /* FilesPanelView.swift */,
 				F7B6AE88191F61FF0881A991 /* DiffViewerCLILaunch.swift */,
@@ -12600,6 +12608,7 @@
 				677DEDB5CB1B2A9C55BB9670 /* DiffViewerWriteActionsTests.swift */,
 				73A4C5374756559C8B3AD947 /* GitRepositoryTestSupport.swift */,
 				EF070650B6A1C26FFDC2679E /* FilesPanelPlacementTests.swift */,
+				BD8C9BAF077878309DE0180B /* GitStatusWatchRelevanceTests.swift */,
 			);
 			path = cmuxTests;
 			sourceTree = "<group>";
@@ -14415,6 +14424,7 @@
 				FE001107 /* GitFileStatus.swift in Sources */,
 				FE001106 /* GitStatusProvider.swift in Sources */,
 				06ED36846073A23F577492D7 /* GitStatusRepositoryWatch.swift in Sources */,
+				D3D7B12B743A3393F1962EEB /* GitStatusWatchRelevance.swift in Sources */,
 					3865A0023865A0023865A002 /* GlobalSearchCoordinator.swift in Sources */,
 				3865A0073865A0073865A007 /* GlobalSearchDocuments.swift in Sources */,
 					8561A0058561A0058561A005 /* GlobalSearchKeyEvent+QueryEditing.swift in Sources */,
@@ -15701,6 +15711,7 @@
 				D86840000000000000000013 /* Workspace+DockSessionRestore.swift in Sources */,
 				E3309A05 /* Workspace+EqualizeSplitsSupport.swift in Sources */,
 				5612833801064F77B42F8A36 /* Workspace+ExternalTabDrop.swift in Sources */,
+				53A6BFAEB74EBD83133DF1F0 /* Workspace+FileOpen.swift in Sources */,
 				F0ACC0DE0000000000000009 /* Workspace+ForkAgentConversationAvailability.swift in Sources */,
 				F0ACC0DE0000000000000003 /* Workspace+ForkConversationContextMenu.swift in Sources */,
 				112950000000000000000010 /* Workspace+ForkStartupInput.swift in Sources */,
@@ -16813,6 +16824,7 @@
 				F50C3237EF790051B3B0A76B /* GhosttyWorkspaceActionTestHarness.swift in Sources */,
 				ED5DB47E40B1F74D486EEAB9 /* GhosttyWorkspaceActionTests.swift in Sources */,
 				897FE1BDA0E8F2EFA5C0A8A0 /* GitRepositoryTestSupport.swift in Sources */,
+				ED5CC3BCB7933048FA9B1D31 /* GitStatusWatchRelevanceTests.swift in Sources */,
 				8561A0018561A0018561A001 /* GlobalSearchInputOwnershipTests.swift in Sources */,
 				3865A0113865A0113865A011 /* GlobalSearchPaletteModelTests.swift in Sources */,
 				D5AAB5856FF095F610EB565A /* GlobalSearchShortcutBehaviorTests.swift in Sources */,

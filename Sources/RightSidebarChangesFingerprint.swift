@@ -4,13 +4,15 @@ import Foundation
 /// A digest of everything the Changes panel's working-tree diff can depend on,
 /// so a filesystem event only refreshes the page when the diff can differ.
 ///
-/// The git-aware watcher is deliberately conservative: it fires for any write
-/// under the repository's `.git` directory and, in a large repository, for
-/// any write under the working tree. A repository whose linked worktrees are
-/// busy (other sessions committing, fetching, checking out) therefore raises
-/// a steady stream of events that leave the working-tree diff untouched. The
-/// panel used to reload its whole document on each one, faster than a diff
-/// could parse.
+/// The git-aware watcher fires for the repository's `HEAD`, `index`, `refs`,
+/// `packed-refs`, `reftable` and `config` paths and for tracked entries (in a
+/// large repository, for any write under the working tree). Ref, packed-ref
+/// and reflog churn from other worktrees is dropped before it reaches the
+/// store (``GitStatusWatchRelevance``), but the index is still rewritten
+/// without the diff changing: another tool's `git status` refreshing the stat
+/// cache, `git add` of an already-staged path, an editor saving a file with
+/// identical contents. The panel used to reload its whole document on each
+/// such event, faster than a diff could parse.
 ///
 /// The digest covers `git status --porcelain=v2 -z` (index and HEAD object
 /// ids and modes for every changed entry, the paths, the untracked set) plus
@@ -22,20 +24,12 @@ struct RightSidebarChangesFingerprint: Sendable {
     /// computed (the panel then refreshes, as before).
     typealias Producer = @Sendable (_ repoRoot: String) async -> String?
 
-    private static let nonLockingGitEnvironment = ["GIT_OPTIONAL_LOCKS": "0"]
+    /// Runs git with the same untrusted-repository guards, non-locking
+    /// environment and timeout as the file tree's status fetch.
+    private let gitStatusProvider: GitStatusProvider
 
-    private let gitExecutableURL: URL
-    private let environment: [String: String]
-    private let timeout: TimeInterval
-
-    init(
-        gitExecutableURL: URL = URL(fileURLWithPath: "/usr/bin/git"),
-        environment: [String: String] = ProcessInfo.processInfo.environment,
-        timeout: TimeInterval = GitStatusProvider.defaultLocalTimeout
-    ) {
-        self.gitExecutableURL = gitExecutableURL
-        self.environment = environment
-        self.timeout = timeout
+    init(gitStatusProvider: GitStatusProvider = GitStatusProvider()) {
+        self.gitStatusProvider = gitStatusProvider
     }
 
     /// The default producer: runs the digest off the main actor.
@@ -47,13 +41,10 @@ struct RightSidebarChangesFingerprint: Sendable {
 
     /// Runs git and stats the listed paths. Synchronous; call off the main actor.
     func fingerprint(repoRoot: String) -> String? {
-        let process = Process()
-        process.executableURL = gitExecutableURL
-        process.arguments = GitStatusProvider.untrustedRepositoryGuardArguments
-            + ["status", "--porcelain=v2", "-z", "--untracked-files=normal"]
-        process.currentDirectoryURL = URL(fileURLWithPath: repoRoot, isDirectory: true)
-        process.environment = environment.merging(Self.nonLockingGitEnvironment) { _, nonLocking in nonLocking }
-        guard let status = GitStatusProvider.runCapturingStandardOutputData(process, timeout: timeout) else {
+        guard let status = gitStatusProvider.runGitData(
+            in: repoRoot,
+            arguments: ["status", "--porcelain=v2", "-z", "--untracked-files=normal"]
+        ) else {
             return nil
         }
         return Self.digest(porcelainV2: status, repoRoot: repoRoot)

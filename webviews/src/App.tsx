@@ -92,7 +92,7 @@ import {
   FileCollapseToggle,
   FileWriteActions,
   HunkWriteActions,
-  useCommitPopoverDismiss,
+  useDismissOnOutsideInteraction,
   type WorktreeNotice,
 } from "./WorktreeActions";
 import { RepositoryHeader } from "./RepositoryHeader";
@@ -477,13 +477,13 @@ export function App({ config, initialStatus }: ConfigProps) {
   // a second click can never race the reload or target the closed session.
   const [pendingWrite, setPendingWrite] = useState(false);
   const pendingWriteRef = useRef(false);
-  // Counts settled (opened) sessions so the repository status can load once
-  // the first typed session of a working-tree view exists.
-  const [sessionGeneration, setSessionGeneration] = useState(0);
+  // A settled session is also when a working-tree view's repository status
+  // loads (`loadRepositoryStatusOnce`, defined with the status below).
+  const loadRepositoryStatusOnceRef = useRef<() => void>(() => {});
   const settleWrite = useCallback(() => {
     pendingWriteRef.current = false;
     setPendingWrite(false);
-    setSessionGeneration((generation) => generation + 1);
+    loadRepositoryStatusOnceRef.current();
   }, []);
   // Scroll offset to restore once the stream after a write action reload
   // completes; any other stream start clears it.
@@ -506,7 +506,8 @@ export function App({ config, initialStatus }: ConfigProps) {
     settleWrite,
   );
   useCommentsBootstrap(bridgeAvailable ? commentRepoRoot : null, comments.onLoaded);
-  useOptionsDismiss(state.optionsOpen, dispatch);
+  const closeOptions = useCallback(() => dispatch({ type: "set-options-open", open: false }), [dispatch]);
+  useDismissOnOutsideInteraction(state.optionsOpen, closeOptions, "#toolbar");
   useFileSearchDismiss(state.fileSearchOpen, dispatch);
 
   // Working-tree write actions: only for typed unstaged/staged sessions on a
@@ -529,7 +530,6 @@ export function App({ config, initialStatus }: ConfigProps) {
   const noticeTokenRef = useRef(0);
   const closeCommitPopover = useCallback(() => setCommitOpen(false), []);
   const closePullRequestPopover = useCallback(() => setPullRequestOpen(false), []);
-  useCommitPopoverDismiss(commitOpen, closeCommitPopover);
   const expireNotice = useCallback((token: number) => {
     setWorktreeNotice((current) => (current?.token === token ? null : current));
   }, []);
@@ -565,21 +565,26 @@ export function App({ config, initialStatus }: ConfigProps) {
   }, [transport, writeSource]);
   const statusKey = writeAvailable && writeSource ? `${writeSource.kind}\n${writeSource.repoRoot}` : null;
   const statusFetchedForRef = useRef<string | null>(null);
-  useEffect(() => {
+  // The first settled session of each working-tree view loads its status; a
+  // reload after a write keeps the one already shown. Runs when a session
+  // settles (`settleWrite`) and when the view changes, whichever comes last.
+  const loadRepositoryStatusOnce = useCallback(() => {
     if (statusKey == null) {
       statusFetchedForRef.current = null;
       return;
     }
-    // The first settled session of each working-tree view loads its status;
-    // a reload after a write keeps the one already shown.
-    if (sessionGeneration === 0 || statusFetchedForRef.current === statusKey || !activeSessionRef.current) {
+    if (statusFetchedForRef.current === statusKey || !activeSessionRef.current) {
       return;
     }
     statusFetchedForRef.current = statusKey;
     setRepositoryStatus(null);
     setCreatedPullRequest(null);
     refreshRepositoryStatus();
-  }, [refreshRepositoryStatus, sessionGeneration, statusKey]);
+  }, [refreshRepositoryStatus, statusKey]);
+  useEffect(() => {
+    loadRepositoryStatusOnceRef.current = loadRepositoryStatusOnce;
+    loadRepositoryStatusOnce();
+  }, [loadRepositoryStatusOnce]);
   // Only a write action reload asks to restore the scroll offset; any other
   // source change drops a pending restore so it cannot fire on the stream
   // of an unrelated diff.
@@ -645,7 +650,7 @@ export function App({ config, initialStatus }: ConfigProps) {
         reloadAfterWrite(source);
         const commit: unknown = result.value?.commit;
         const shortCommit = typeof commit === "string" ? commit.slice(0, 10) : "";
-        showWorktreeNotice(label("committed").replace("{commit}", shortCommit).trim(), false);
+        showWorktreeNotice(formatLabel(label("committed"), { commit: shortCommit }).trim(), false);
         setCommitOpen(false);
       } else if (result.type === "worktreeMutated") {
         reloading = true;
@@ -674,11 +679,12 @@ export function App({ config, initialStatus }: ConfigProps) {
         throw new DiffTransportError("invalidResponse", "Diff transport did not confirm the change");
       }
     } catch (error) {
-      const code = error instanceof DiffTransportError ? error.code : undefined;
+      const transportError = error instanceof DiffTransportError ? error : null;
+      const code = transportError?.code;
       const detail = worktreeErrorDetail(code, error instanceof Error ? error.message : undefined);
       const summary = label(worktreeErrorLabelKey(code));
       showWorktreeNotice(detail ? `${summary} ${detail}` : summary, true);
-      if (worktreeErrorReloads(code, command)) {
+      if (worktreeErrorReloads(code, transportError?.stateMayHaveChanged)) {
         reloading = true;
         reloadAfterWrite(source);
       }
@@ -782,19 +788,12 @@ export function App({ config, initialStatus }: ConfigProps) {
     await closeActiveSession();
     window.location.reload();
   };
+  // One condition decides the top row: a working-tree view whose source can
+  // be committed shows the repository header (with its commit control), and
+  // every other session shows the toolbar.
   const availability = commitAvailability(writeSource);
-  const headerSource = writeAvailable && availability !== "hidden" ? writeSource : null;
-  const commitControl = headerSource && availability !== "hidden"
-    ? {
-        availability,
-        onClose: closeCommitPopover,
-        onCommit,
-        onToggle: () => {
-          setPullRequestOpen(false);
-          setCommitOpen((open) => !open);
-        },
-        open: commitOpen,
-      }
+  const header = writeAvailable && writeSource != null && availability !== "hidden"
+    ? { availability, source: writeSource }
     : null;
   const pullRequestControl = {
     current: repositoryStatus?.pullRequest ?? createdPullRequest,
@@ -937,12 +936,11 @@ export function App({ config, initialStatus }: ConfigProps) {
   // plus every view option). The toolbar renders only for every other
   // session, so the pickers and the view options each come from exactly one
   // place. Picker ids stay put for the tests and CSS that address them.
-  const showRepositoryHeader = headerSource != null && commitControl != null;
   const externalURL = resolveExternalURL(payload);
   const sourceControls = (
     <SourceControls
       activeSessionSource={resolvedSessionSource ?? activeSessionSource}
-      className={showRepositoryHeader ? "repo-header-source" : "toolbar-left"}
+      className={header != null ? "repo-header-source" : "toolbar-left"}
       label={label}
       onNavigate={navigateTo}
       onSelectSessionSource={(source) => selectSessionSource(source)}
@@ -953,11 +951,20 @@ export function App({ config, initialStatus }: ConfigProps) {
 
   return (
     <div id="app" data-file-search-open={state.fileSearchOpen}>
-      {headerSource && commitControl ? (
+      {header != null ? (
         <RepositoryHeader
-          commit={commitControl}
+          commit={{
+            availability: header.availability,
+            onClose: closeCommitPopover,
+            onCommit,
+            onToggle: () => {
+              setPullRequestOpen(false);
+              setCommitOpen((open) => !open);
+            },
+            open: commitOpen,
+          }}
           label={label}
-          model={repositoryHeaderModel(headerSource, repositoryStatus, state.treeSource?.diffStats)}
+          model={repositoryHeaderModel(header.source, repositoryStatus, state.treeSource?.diffStats)}
           notice={worktreeNotice}
           onBulkAction={onBulkAction}
           onCopyGitApply={copyGitApply}
@@ -971,7 +978,7 @@ export function App({ config, initialStatus }: ConfigProps) {
             visible: state.filesVisible,
           }}
           showRepoLabel={!hasRepoSelect(payload)}
-          source={headerSource}
+          source={header.source}
           sourceControls={sourceControls}
           status={repositoryStatus}
           viewOptions={
@@ -988,6 +995,7 @@ export function App({ config, initialStatus }: ConfigProps) {
       ) : (
         <Toolbar
           config={config}
+          externalURL={externalURL}
           label={label}
           onCopyGitApply={copyGitApply}
           onJump={scrollToItem}
@@ -1261,6 +1269,7 @@ function WorkerRenderOptionsSync({
 function Toolbar({
   config,
   dispatch,
+  externalURL,
   label,
   onCopyGitApply,
   onJump,
@@ -1271,6 +1280,7 @@ function Toolbar({
 }: {
   config: DiffViewerConfig;
   dispatch: React.Dispatch<AppAction>;
+  externalURL: string | null;
   label: DiffViewerLabelResolver;
   onCopyGitApply: () => void;
   onJump: (itemId: string) => void;
@@ -1281,7 +1291,6 @@ function Toolbar({
   state: AppState;
 }) {
   const payload = config.payload ?? {};
-  const externalURL = resolveExternalURL(payload);
   const toolbarRef = useRef<HTMLElement>(null);
   const toolbarWidth = useToolbarWidth(toolbarRef);
   // Optional ACCESSORY controls, HIGH priority first (last = first to overflow).
@@ -2507,31 +2516,6 @@ function useHostRefresh(refreshRef: React.MutableRefObject<() => boolean>) {
       delete window.cmuxDiffViewer;
     };
   }, [refreshRef]);
-}
-
-function useOptionsDismiss(optionsOpen: boolean, dispatch: React.Dispatch<AppAction>) {
-  useEffect(() => {
-    if (!optionsOpen) {
-      return;
-    }
-    const closeOnOutsideClick = (event: MouseEvent) => {
-      if (event.target instanceof Element && event.target.closest("#toolbar")) {
-        return;
-      }
-      dispatch({ type: "set-options-open", open: false });
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        dispatch({ type: "set-options-open", open: false });
-      }
-    };
-    document.addEventListener("click", closeOnOutsideClick);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("click", closeOnOutsideClick);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [dispatch, optionsOpen]);
 }
 
 export function closeFileSearch(dispatch: React.Dispatch<AppAction>, targetDocument: Document = document) {

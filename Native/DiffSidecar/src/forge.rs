@@ -19,7 +19,7 @@ use crate::protocol::{ChecksSummary, ForgeCliKind, PullRequestSummary, Repositor
 /// Every forge CLI call is a network call: `auth status` verifies the stored
 /// token against the API, and the request lookup and creation are one API
 /// round trip each. This is the most any single call may take; a chained
-/// flow passes what is left of its own budget instead.
+/// flow also runs under one overall deadline (`PULL_REQUEST_FLOW_BUDGET`).
 pub(crate) const FORGE_CLI_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_FORGE_STDOUT_BYTES: usize = 4 * 1024 * 1024;
 const MAX_FORGE_STDERR_BYTES: usize = 64 * 1024;
@@ -254,6 +254,8 @@ impl ForgeCli {
                         "--source-branch",
                         branch,
                         "--all",
+                        "--per-page",
+                        "1",
                         "--output",
                         "json",
                     ],
