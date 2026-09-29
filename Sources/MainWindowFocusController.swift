@@ -503,9 +503,9 @@ final class MainWindowFocusController {
         guard let state = fileExplorerState else { return nil }
         var desiredMode = requestedMode ?? rememberedRightSidebarMode ?? state.mode
         // "Focus the right sidebar" with no mode means the panel on the right:
-        // a remembered Files interaction that happened in the leading files
-        // panel must not pull focus back to the left of the panes.
-        if requestedMode == nil, desiredMode == .files, FileExplorerState.filesPanelIsLeading() {
+        // a remembered Files interaction that happened in the leading or
+        // stacked files panel must not pull focus back to the left of the panes.
+        if requestedMode == nil, desiredMode == .files, FileExplorerState.filesPanelIsDetached() {
             desiredMode = state.mode
         }
         if desiredMode.isAvailable() {

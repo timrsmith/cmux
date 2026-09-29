@@ -1557,9 +1557,9 @@ enum CmuxEmbeddedConfigSchema {
         },
         "filesPanelPlacement": {
           "type": "string",
-          "enum": ["rightSidebar", "leading"],
+          "enum": ["rightSidebar", "leading", "stacked"],
           "default": "rightSidebar",
-          "description": "Where the file tree lives: rightSidebar (the Files tab of the right sidebar, the default) or leading (its own panel between the workspace sidebar and the panes, IDE style; the right sidebar with Find, Changes, and the other tools stays on the right edge and drops its Files tab)."
+          "description": "Where the file tree lives: rightSidebar (the Files tab of the right sidebar, the default), leading (its own panel between the workspace sidebar and the panes, IDE style), or stacked (below the workspace list inside the workspace sidebar, split by a draggable divider). With leading or stacked the right sidebar with Find, Changes, and the other tools stays on the right edge and drops its Files tab."
         }
       }
     },

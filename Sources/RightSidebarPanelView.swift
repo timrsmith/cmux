@@ -109,8 +109,8 @@ struct RightSidebarPanelView: View {
     @AppStorage(RightSidebarBetaFeatureSettings.feedEnabledKey)
     private var feedEnabled = RightSidebarBetaFeatureSettings.defaultFeedEnabled
     @LiveSetting(\.customSidebars.renderer) private var customSidebarRenderer
-    /// With `leading` the file tree is its own panel left of the panes, so the
-    /// mode bar drops its Files tab (`RightSidebarMode.visibleModes`).
+    /// With `leading` or `stacked` the file tree lives outside the right
+    /// sidebar, so the mode bar drops its Files tab (`RightSidebarMode.visibleModes`).
     @LiveSetting(\.sidebar.filesPanelPlacement) private var filesPanelPlacement
     /// The right rail's OWN worker client. Never share the left sidebar's:
     /// the remote host swaps files in place on one client, so a shared client
@@ -125,14 +125,15 @@ struct RightSidebarPanelView: View {
     }
 
     /// Modes that can be right-sidebar tabs: the feature-available modes,
-    /// minus Files while the file tree is docked as its own leading panel.
+    /// minus Files while the file tree is docked as its own leading panel or
+    /// stacked under the workspace list.
     private var featureAvailableModes: [RightSidebarMode] {
         _ = managedPolicyRevision
         let modes = RightSidebarMode.availableModes(
             feedEnabled: feedEnabled,
             machinesEnabled: CloudMachinesFeature.isAvailable
         )
-        guard filesPanelPlacement == .leading else { return modes }
+        guard filesPanelPlacement.isDetachedFromRightSidebar else { return modes }
         return modes.filter { $0 != .files }
     }
 

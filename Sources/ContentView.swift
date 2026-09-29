@@ -984,6 +984,11 @@ struct ContentView: View {
     /// is the persisted value it is reconciled with, like `fileExplorerWidth`.
     @State private var filesPanelWidth: CGFloat = FilesPanelPlacementLayout.defaultWidth
     @State private var filesPanelDragStartWidth: CGFloat?
+    /// Live height of the Files region stacked under the workspace list
+    /// (`sidebar.filesPanelPlacement` = `stacked`), deliberately NOT observed
+    /// here: divider ticks re-evaluate only `StackedFilesPanelSplit`.
+    /// `fileExplorerState.filesPanelStackedHeight` is the persisted value.
+    @State private var stackedFilesPanelLayout = StackedFilesPanelLayoutModel()
     @State private var previousSelectedWorkspaceId: UUID?
     @State private var didApplyUITestSidebarSelection = false
     @State private var titlebarThemeGeneration: UInt64 = 0
@@ -1764,7 +1769,7 @@ struct ContentView: View {
         }
     }
 
-    private var sidebarView: some View {
+    private func sidebarView(appearance: WindowAppearanceSnapshot) -> some View {
         let sidebar = VerticalTabsSidebar(
             updateViewModel: updateViewModel,
             fileExplorerState: fileExplorerState,
@@ -1787,7 +1792,7 @@ struct ContentView: View {
             selection: $sidebarSelectionState.selection,
             selectedTabIds: $selectedTabIds, lastSidebarSelectionIndex: $lastSidebarSelectionIndex, sidebarRenderWorkerClient: $sidebarRenderWorkerClient
         )
-        return Group {
+        let gatedSidebar = Group {
             if featureFlags.isAppKitSidebarListEnabled {
                 // FLAG(sidebar-appkit-list-experiment): parent-driven
                 // re-evaluations (divider width ticks, unrelated ContentView
@@ -1796,6 +1801,29 @@ struct ContentView: View {
                 sidebar.equatable()
             } else {
                 sidebar
+            }
+        }
+        return Group {
+            if filesPanelPlacement == .stacked {
+                // `sidebar.filesPanelPlacement` = `stacked`: the workspace list
+                // on top, the file tree below it, split by a draggable
+                // horizontal divider (`FilesPanelStackedLayout`). The split
+                // hosts the gated sidebar value as-is, so the gate still skips
+                // parent-driven re-evaluations of the list, and it stays
+                // mounted while the region is closed or the sidebar hidden so
+                // the list keeps its identity; only the placement swaps it.
+                StackedFilesPanelSplit(
+                    layout: stackedFilesPanelLayout,
+                    showsPanel: filesPanelIsStacked,
+                    chromeBackgroundColor: appearance.resolvedChromeBackgroundColor,
+                    onHeightCommitted: { height in
+                        fileExplorerState.filesPanelStackedHeight = height
+                    },
+                    list: { gatedSidebar },
+                    panel: { stackedFilesPanel(appearance: appearance) }
+                )
+            } else {
+                gatedSidebar
             }
         }
         .modifier(SidebarWidthFrameModifier(layout: sidebarLayout))
@@ -1968,6 +1996,17 @@ struct ContentView: View {
         )
     }
 
+    /// Whether the file tree is laid out under the workspace list inside the
+    /// workspace sidebar: `sidebar.filesPanelPlacement` is `stacked`, the
+    /// user has not closed it, and the sidebar that hosts it is shown.
+    private var filesPanelIsStacked: Bool {
+        FilesPanelStackedLayout.isStacked(
+            placement: filesPanelPlacement,
+            isFilesPanelVisible: fileExplorerState.filesPanelVisible,
+            isLeadingSidebarVisible: sidebarState.isVisible
+        )
+    }
+
     /// The files panel's laid-out width: its width while docked, else `0`.
     private var filesPanelDockedWidth: CGFloat {
         filesPanelIsDocked ? filesPanelWidth : 0
@@ -2036,7 +2075,7 @@ struct ContentView: View {
     private func sidebarPanelWithBackdrop(appearance: WindowAppearanceSnapshot) -> some View {
         SidebarWidthReader(layout: sidebarLayout) { width in
             sidebarPanelContainer(width: width, alignment: .leading, role: .leftSidebar, appearance: appearance) {
-                sidebarView
+                sidebarView(appearance: appearance)
             }
         }
     }
@@ -2132,12 +2171,17 @@ struct ContentView: View {
         }
     }
 
-    private func filesPanel(appearance: WindowAppearanceSnapshot) -> some View {
+    /// The Files panel chrome and tree shared by the leading panel and the
+    /// stacked region: same store, state, header controls, and close action.
+    private func filesPanelContent(
+        appearance: WindowAppearanceSnapshot,
+        headerBelowTitlebarStrip: Bool
+    ) -> FilesPanelView {
         FilesPanelView(
             fileExplorerStore: fileExplorerStore,
             fileExplorerState: fileExplorerState,
             titlebarHeight: RightSidebarChromeMetrics.titlebarHeight,
-            headerBelowTitlebarStrip: filesPanelHeaderNeedsOwnRow,
+            headerBelowTitlebarStrip: headerBelowTitlebarStrip,
             windowAppearance: appearance,
             onOpenFilePreview: { filePath in
                 openFilePreviewFromSidebar(filePath: filePath)
@@ -2152,6 +2196,44 @@ struct ContentView: View {
                 fileExplorerState.setFilesPanelVisible(false)
             }
         )
+    }
+
+    /// The file tree stacked under the workspace list. It fills the sidebar's
+    /// width; `StackedFilesPanelSplit` applies the height. The header never
+    /// sits under the window controls here (the workspace list is above it),
+    /// so it stays in one row. The live height is reconciled with the persisted
+    /// value the way the leading panel's width is.
+    private func stackedFilesPanel(appearance: WindowAppearanceSnapshot) -> some View {
+        filesPanelContent(appearance: appearance, headerBelowTitlebarStrip: false)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .transaction { $0.animation = nil }
+            .onAppear {
+                let sanitized = FilesPanelStackedLayout.clampedHeight(
+                    fileExplorerState.filesPanelStackedHeight,
+                    availableHeight: .infinity
+                )
+                stackedFilesPanelLayout.height = sanitized
+                if abs(fileExplorerState.filesPanelStackedHeight - sanitized) > 0.5 {
+                    DispatchQueue.main.async {
+                        fileExplorerState.filesPanelStackedHeight = sanitized
+                    }
+                }
+            }
+            .onChange(of: fileExplorerState.filesPanelStackedHeight) { _, newValue in
+                guard stackedFilesPanelLayout.dragStartHeight == nil else { return }
+                let sanitized = FilesPanelStackedLayout.clampedHeight(newValue, availableHeight: .infinity)
+                if abs(newValue - sanitized) > 0.5 {
+                    DispatchQueue.main.async {
+                        fileExplorerState.filesPanelStackedHeight = sanitized
+                    }
+                    return
+                }
+                stackedFilesPanelLayout.height = sanitized
+            }
+    }
+
+    private func filesPanel(appearance: WindowAppearanceSnapshot) -> some View {
+        filesPanelContent(appearance: appearance, headerBelowTitlebarStrip: filesPanelHeaderNeedsOwnRow)
         .frame(width: filesPanelWidth)
         .clipped()
         .transaction { $0.animation = nil }
@@ -2644,7 +2726,7 @@ struct ContentView: View {
         FileExplorerRootSyncPolicy.shouldSyncFileExplorerStore(
             isRightSidebarVisible: fileExplorerState.isVisible,
             mode: fileExplorerState.mode,
-            isFilesPanelDocked: filesPanelIsDocked
+            isFilesPanelDocked: filesPanelIsDocked || filesPanelIsStacked
         )
     }
 
@@ -2846,6 +2928,14 @@ struct ContentView: View {
                     restoreMainPanelFocusAfterAppKitSidebarHiddenIfNeeded()
                 }
             }
+            // With `sidebar.filesPanelPlacement` = `stacked` the tree lives
+            // inside the workspace sidebar, so "show Files" must also show
+            // the sidebar when it is hidden (`FileExplorerState.showFiles`).
+            fileExplorerState.installStackedSidebarHost(
+                ownerId: windowId,
+                isVisible: { sidebarState.isVisible },
+                reveal: { sidebarState.setVisible(true) }
+            )
             selectedWorkspaceDirectoryObserver.wire(tabManager: tabManager)
             tabManager.applyWindowBackgroundForSelectedTab()
             reconcileMountedWorkspaceIds()
@@ -3597,6 +3687,16 @@ struct ContentView: View {
             schedulePortalGeometrySynchronize()
             updateSidebarResizerBandState()
             syncTrafficLightInset()
+            // A stacked file tree shows and hides with the sidebar that hosts
+            // it: its root follows the selected workspace only while on
+            // screen, and hiding it hands focus back to the terminal when the
+            // tree owned it, like closing the panel does.
+            if filesPanelPlacement == .stacked, fileExplorerState.filesPanelVisible {
+                if !isVisible {
+                    _ = AppDelegate.shared?.restoreTerminalFocusAfterRightSidebarHidden(in: observedWindow)
+                }
+                syncFileExplorerDirectory()
+            }
         })
 
         view = AnyView(view.onChange(of: fileExplorerState.isVisible) { isVisible in
@@ -3681,6 +3781,7 @@ struct ContentView: View {
 
         view = AnyView(view.onDisappear {
             sidebarState.removeVisibilityWillChangeHandler(ownerId: windowId)
+            fileExplorerState.removeStackedSidebarHost(ownerId: windowId)
             workspaceSwitchPortalSignalRouter.clearSources()
             // The Changes store is only ever driven by `sync(...)`; a window
             // closed in Changes mode would otherwise keep its repository

@@ -27,7 +27,10 @@ enum FilesPanelPlacementLayout {
     }
 
     /// Whether the panel is laid out at all: the placement is `leading` and
-    /// the user has not closed it.
+    /// the user has not closed it. The `stacked` placement puts the tree inside
+    /// the workspace sidebar instead (`FilesPanelStackedLayout.isStacked`), so
+    /// it never docks a leading panel and, like `rightSidebar`, needs no
+    /// leading titlebar inset and no header row of its own.
     static func isDocked(placement: FilesPanelPlacement, isFilesPanelVisible: Bool) -> Bool {
         placement == .leading && isFilesPanelVisible
     }

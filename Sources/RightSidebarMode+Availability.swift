@@ -70,10 +70,11 @@ extension RightSidebarMode {
 
     /// The tabs the mode bar actually shows: feature-available modes in the
     /// user's configured order, minus the ones the user hid. With
-    /// `sidebar.filesPanelPlacement` set to `leading` the file tree is its own
-    /// panel, so `.files` is never a tab (`isAvailable` still reports it, since
-    /// the mode can be shown; `FileExplorerState.showFiles` routes it to the
-    /// panel). See `positionalShortcutModes` for the `ctrl+1…9` digits.
+    /// `sidebar.filesPanelPlacement` set to `leading` or `stacked` the file
+    /// tree lives outside the right sidebar, so `.files` is never a tab
+    /// (`isAvailable` still reports it, since the mode can be shown;
+    /// `FileExplorerState.showFiles` routes it to the panel). See
+    /// `positionalShortcutModes` for the `ctrl+1…9` digits.
     nonisolated static func visibleModes(defaults: UserDefaults = .standard) -> [RightSidebarMode] {
         visibleModes(
             defaults: defaults,
@@ -98,13 +99,14 @@ extension RightSidebarMode {
 
     /// The modes that own the positional `ctrl+1…9` digit-shortcut defaults,
     /// so the Nth entry always answers ctrl+N unless the user rebound it. This
-    /// is the mode bar's visible tabs, except that a leading files panel keeps
-    /// `ctrl+1` as the first tool: it is the same "show Files" action as
-    /// before, just docked elsewhere, and the mode bar's digits start at 2.
+    /// is the mode bar's visible tabs, except that a detached files panel
+    /// (leading or stacked) keeps `ctrl+1` as the first tool: it is the same
+    /// "show Files" action as before, just docked elsewhere, and the mode
+    /// bar's digits start at 2.
     nonisolated static func positionalShortcutModes(defaults: UserDefaults = .standard) -> [RightSidebarMode] {
         let placement = FileExplorerState.filesPanelPlacement(defaults: defaults)
         let tabs = visibleModes(defaults: defaults, filesPanelPlacement: placement)
-        return placement == .leading ? [.files] + tabs : tabs
+        return placement.isDetachedFromRightSidebar ? [.files] + tabs : tabs
     }
 
     /// 1-based `ctrl+digit` position of `mode` in `positionalShortcutModes`,

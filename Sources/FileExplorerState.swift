@@ -10,6 +10,7 @@ final class FileExplorerState: ObservableObject {
     private let defaults: UserDefaults
     static let filesPanelVisibleKey = "filesPanel.isVisible"
     static let filesPanelWidthKey = "filesPanel.width"
+    static let filesPanelStackedHeightKey = "filesPanel.stackedHeight"
 
     @Published var isVisible: Bool {
         didSet { persistVisibility() }
@@ -28,9 +29,10 @@ final class FileExplorerState: ObservableObject {
         didSet { defaults.set(Double(width), forKey: "fileExplorer.width") }
     }
 
-    /// Whether the leading files panel (the file tree docked between the
-    /// workspace sidebar and the panes) is shown. Only laid out while
-    /// `sidebar.filesPanelPlacement` is `leading`; the value is kept across
+    /// Whether the detached files panel (the file tree docked between the
+    /// workspace sidebar and the panes with `leading`, or stacked under the
+    /// workspace list with `stacked`) is shown. Only laid out while
+    /// `sidebar.filesPanelPlacement` is one of those; the value is kept across
     /// placement changes so switching back and forth restores the panel.
     /// Independent of `isVisible`, which is the right sidebar.
     @Published var filesPanelVisible: Bool {
@@ -40,6 +42,26 @@ final class FileExplorerState: ObservableObject {
     @Published var filesPanelWidth: CGFloat {
         didSet { UserDefaults.standard.set(Double(filesPanelWidth), forKey: Self.filesPanelWidthKey) }
     }
+    /// Persisted height of the Files region stacked under the workspace list
+    /// (`filesPanel.stackedHeight`). Clamped against the live sidebar height
+    /// by `FilesPanelStackedLayout` when laid out.
+    @Published var filesPanelStackedHeight: CGFloat {
+        didSet { UserDefaults.standard.set(Double(filesPanelStackedHeight), forKey: Self.filesPanelStackedHeightKey) }
+    }
+
+    /// The workspace sidebar that hosts the stacked Files region, installed by
+    /// the window's `ContentView` (which owns both states): `isVisible` reports
+    /// whether that sidebar is shown, `reveal` shows it. `showFiles` needs it
+    /// with the `stacked` placement because the tree lives inside the sidebar,
+    /// so revealing Files while the sidebar is hidden must show the sidebar
+    /// too. Runtime-only; without a host (tests, tool windows) the sidebar is
+    /// assumed visible.
+    private struct StackedSidebarHost {
+        let ownerId: UUID
+        let isVisible: () -> Bool
+        let reveal: () -> Void
+    }
+    private var stackedSidebarHost: StackedSidebarHost?
 
     /// Proportion of sidebar height allocated to the tab list (0.0-1.0).
     /// The file explorer gets the remaining space below.
@@ -90,6 +112,10 @@ final class FileExplorerState: ObservableObject {
         self.filesPanelWidth = storedFilesPanelWidth > 0
             ? CGFloat(storedFilesPanelWidth)
             : FilesPanelPlacementLayout.defaultWidth
+        let storedFilesPanelStackedHeight = defaults.double(forKey: Self.filesPanelStackedHeightKey)
+        self.filesPanelStackedHeight = storedFilesPanelStackedHeight > 0
+            ? CGFloat(storedFilesPanelStackedHeight)
+            : FilesPanelStackedLayout.defaultHeight
         let storedPosition = defaults.double(forKey: "fileExplorer.dividerPosition")
         self.dividerPosition = storedPosition > 0 ? CGFloat(storedPosition) : 0.6
         let storedShowHidden = defaults.object(forKey: "fileExplorer.showHidden")
@@ -138,40 +164,82 @@ final class FileExplorerState: ObservableObject {
         filesPanelPlacement(defaults: defaults) == .leading
     }
 
+    /// Whether the file tree is stacked under the workspace list inside the
+    /// workspace sidebar.
+    nonisolated static func filesPanelIsStacked(defaults: UserDefaults = .standard) -> Bool {
+        filesPanelPlacement(defaults: defaults) == .stacked
+    }
+
+    /// Whether the file tree lives anywhere other than the right sidebar's
+    /// Files tab (`leading` or `stacked`): the right sidebar then has no Files
+    /// tab, and "show Files" targets the detached panel.
+    nonisolated static func filesPanelIsDetached(defaults: UserDefaults = .standard) -> Bool {
+        filesPanelPlacement(defaults: defaults).isDetachedFromRightSidebar
+    }
+
+    /// Lets the window's `ContentView` tell this state about the workspace
+    /// sidebar that hosts the stacked Files region (see `stackedSidebarHost`).
+    /// Mirrors `SidebarState.installVisibilityWillChangeHandler`: the owner id
+    /// keeps a stale view from removing a newer owner's handler.
+    func installStackedSidebarHost(
+        ownerId: UUID,
+        isVisible: @escaping () -> Bool,
+        reveal: @escaping () -> Void
+    ) {
+        stackedSidebarHost = StackedSidebarHost(ownerId: ownerId, isVisible: isVisible, reveal: reveal)
+    }
+
+    func removeStackedSidebarHost(ownerId: UUID) {
+        guard stackedSidebarHost?.ownerId == ownerId else { return }
+        stackedSidebarHost = nil
+    }
+
     /// The one action path behind every "show Files" entry point (CLI
     /// `right-sidebar files`, the Ctrl+1 mode shortcut, the command palette,
     /// notification routing, `openRightSidebarToolPane` fallbacks). With the
     /// leading placement it reveals the docked files panel and leaves the right
-    /// sidebar's visibility and mode alone; otherwise it shows the right sidebar
-    /// on its Files tab, exactly the pre-panel behavior. Focus is the
-    /// `MainWindowFocusController`'s job, which calls this before focusing the
-    /// registered `.files` host.
+    /// sidebar's visibility and mode alone; with the stacked placement it
+    /// reveals the Files region and the workspace sidebar that hosts it;
+    /// otherwise it shows the right sidebar on its Files tab, exactly the
+    /// pre-panel behavior. Focus is the `MainWindowFocusController`'s job,
+    /// which calls this before focusing the registered `.files` host.
     func showFiles(defaults: UserDefaults = .standard) {
-        if Self.filesPanelIsLeading(defaults: defaults) {
+        switch Self.filesPanelPlacement(defaults: defaults) {
+        case .leading:
             setFilesPanelVisible(true)
-        } else {
+        case .stacked:
+            setFilesPanelVisible(true)
+            stackedSidebarHost?.reveal()
+        case .rightSidebar:
             setVisible(true)
             setMode(.files, defaults: defaults)
         }
     }
 
-    /// Hides the file tree wherever it lives: closes the leading panel, or
-    /// hides the right sidebar when it is showing the Files tab (any other tab
-    /// stays put, since it is not "Files" that is showing).
+    /// Hides the file tree wherever it lives: closes the leading panel or the
+    /// stacked Files region (the workspace sidebar itself stays), or hides the
+    /// right sidebar when it is showing the Files tab (any other tab stays
+    /// put, since it is not "Files" that is showing).
     func hideFiles(defaults: UserDefaults = .standard) {
-        if Self.filesPanelIsLeading(defaults: defaults) {
+        if Self.filesPanelIsDetached(defaults: defaults) {
             setFilesPanelVisible(false)
         } else if mode == .files {
             setVisible(false)
         }
     }
 
-    /// Whether the file tree is currently on screen, wherever it lives.
+    /// Whether the file tree is currently on screen, wherever it lives. A
+    /// stacked Files region is on screen only while the workspace sidebar that
+    /// hosts it is shown.
     func filesAreShown(defaults: UserDefaults = .standard) -> Bool {
-        if Self.filesPanelIsLeading(defaults: defaults) {
+        switch Self.filesPanelPlacement(defaults: defaults) {
+        case .leading:
             return filesPanelVisible
+        case .stacked:
+            return filesPanelVisible && (stackedSidebarHost?.isVisible() ?? true)
+        case .rightSidebar:
+            return isVisible && mode == .files
         }
-        return isVisible && mode == .files
     }
 
     /// Toggles the file tree through `showFiles`/`hideFiles`.
@@ -235,14 +303,14 @@ final class FileExplorerState: ObservableObject {
     }
 
     /// The mode the right sidebar may actually land on. Feature-gated modes
-    /// fall back like before; with the leading placement `.files` is no longer
-    /// a right-sidebar tab at all, so it (and any fallback) lands on the first
-    /// tab the mode bar shows instead.
+    /// fall back like before; with the leading or stacked placement `.files`
+    /// is no longer a right-sidebar tab at all, so it (and any fallback) lands
+    /// on the first tab the mode bar shows instead.
     private static func availableMode(
         _ mode: RightSidebarMode,
         defaults: UserDefaults
     ) -> RightSidebarMode {
-        let filesInRightSidebar = !filesPanelIsLeading(defaults: defaults)
+        let filesInRightSidebar = !filesPanelIsDetached(defaults: defaults)
         if mode.isAvailable(defaults: defaults), mode != .files || filesInRightSidebar {
             return mode
         }
