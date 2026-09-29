@@ -178,17 +178,6 @@ public struct SidebarSection: View {
         rightSidebarWidthSettings.clampedSettingsEditorMaximumWidth(value)
     }
 
-    private func filesPanelPlacementLabel(_ placement: FilesPanelPlacement) -> String {
-        switch placement {
-        case .rightSidebar:
-            return String(localized: "settings.sidebar.filesPanelPlacement.rightSidebar", defaultValue: "In Right Sidebar")
-        case .leading:
-            return String(localized: "settings.sidebar.filesPanelPlacement.leading", defaultValue: "Left of Panes")
-        case .stacked:
-            return String(localized: "settings.sidebar.filesPanelPlacement.stacked", defaultValue: "Below Workspaces")
-        }
-    }
-
     @ViewBuilder
     private var mainCard: some View {
         SettingsCard {
@@ -257,7 +246,7 @@ public struct SidebarSection: View {
                     set: { filesPanelPlacement.set($0) }
                 )) {
                     ForEach(FilesPanelPlacement.allCases, id: \.self) { placement in
-                        Text(filesPanelPlacementLabel(placement)).tag(placement)
+                        Text(placement.localizedTitle).tag(placement)
                     }
                 }
                 .labelsHidden()
