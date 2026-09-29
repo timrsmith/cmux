@@ -54,6 +54,23 @@ extension TabManager {
         return panel
     }
 
+    /// The focused panel when it edits text natively: a file preview showing
+    /// its text editor, or a markdown panel in its text (source) mode. The
+    /// markdown preview mode finds in the rendered page instead
+    /// (`focusedMarkdownPanel`).
+    var focusedTextEditingPanel: (any FilePreviewTextEditingPanel)? {
+        guard let tab = selectedWorkspace,
+              let panelId = tab.focusedPanelId,
+              let panel = tab.panels[panelId] else { return nil }
+        if let filePreview = panel as? FilePreviewPanel {
+            return filePreview
+        }
+        if let markdown = panel as? MarkdownPanel, markdown.displayMode == .text {
+            return markdown
+        }
+        return nil
+    }
+
     @discardableResult
     func zoomInFocusedTextFilePreview() -> Bool {
         performFocusedTextFilePreviewZoom { $0.zoomTextPreviewIn() } ?? false

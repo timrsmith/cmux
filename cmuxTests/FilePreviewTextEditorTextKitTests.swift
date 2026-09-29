@@ -382,11 +382,42 @@ struct FilePreviewTextEditorTextKitTests {
         )
     }
 
+    /// Cmd+F is cmux's own shortcut, so it never reaches the text view's
+    /// responder chain; `TabManager.startSearch()` asks the panel instead.
+    @Test("Find… shows the editor's find bar once the editor is in a window")
+    func startTextFindShowsTheFindBar() {
+        let panel = TextEditingPanelSpy()
+        let textView = SavingTextView.makeFilePreviewTextView()
+        #expect(textView.usesFindBar)
+        #expect(textView.isIncrementalSearchingEnabled)
+        #expect(panel.startTextFind() == false, "nothing attached yet")
+
+        panel.attachTextView(textView)
+        #expect(panel.startTextFind() == false, "attached, but not in a window")
+
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
+        scrollView.documentView = textView
+        let window = NSWindow(
+            contentRect: scrollView.frame,
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        defer { window.close() }
+        window.contentView = scrollView
+
+        #expect(panel.startTextFind())
+        #expect(scrollView.isFindBarVisible)
+    }
+
     private final class TextEditingPanelSpy: FilePreviewTextEditingPanel {
         var textContent = ""
         var saveCount = 0
+        weak var textView: NSTextView?
 
-        func attachTextView(_: NSTextView) {}
+        func attachTextView(_ textView: NSTextView) {
+            self.textView = textView
+        }
         func retryPendingFocus() {}
         func updateTextContent(_ nextContent: String) {
             textContent = nextContent

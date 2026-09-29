@@ -9,6 +9,8 @@ import SwiftUI
 protocol FilePreviewTextEditingPanel: AnyObject {
     var textContent: String { get }
     var textContentRevision: Int { get }
+    /// The editor view attached through `attachTextView`, while it is alive.
+    var textView: NSTextView? { get }
 
     func attachTextView(_ textView: NSTextView)
     func retryPendingFocus()
@@ -19,6 +21,23 @@ protocol FilePreviewTextEditingPanel: AnyObject {
 
 extension FilePreviewTextEditingPanel {
     var textContentRevision: Int { 0 }
+
+    /// Shows the editor's find bar: the same "Find…" the terminal, browser,
+    /// and markdown panels answer through `TabManager.startSearch()`. The
+    /// text view takes first responder so typing goes to the search field.
+    /// Returns `false` when no editor is attached to a window (an image or
+    /// PDF preview, or a panel that is not on screen).
+    @discardableResult
+    func startTextFind() -> Bool {
+        guard let textView, let window = textView.window else { return false }
+        if window.firstResponder !== textView {
+            window.makeFirstResponder(textView)
+        }
+        let sender = NSMenuItem()
+        sender.tag = NSTextFinder.Action.showFindInterface.rawValue
+        textView.performTextFinderAction(sender)
+        return textView.enclosingScrollView?.isFindBarVisible ?? false
+    }
 }
 
 struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: ObservableObject & FilePreviewTextEditingPanel {
@@ -407,7 +426,11 @@ extension SavingTextView {
         textView.allowsUndo = true
         textView.isRichText = false
         textView.importsGraphics = false
-        textView.usesFindPanel = true
+        // The in-scroll-view find bar, like the terminal and browser panels;
+        // Cmd+F reaches it through `TabManager.startSearch()`, never through
+        // the responder chain (cmux owns the shortcut).
+        textView.usesFindBar = true
+        textView.isIncrementalSearchingEnabled = true
         textView.usesFontPanel = false
         textView.applyCurrentPreviewFont()
         textView.minSize = NSSize(width: 0, height: 0)

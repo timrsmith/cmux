@@ -930,7 +930,8 @@ class TabManager: ObservableObject {
     var isFindVisible: Bool {
         selectedTerminalPanel?.searchState != nil ||
             focusedBrowserPanel?.searchState != nil ||
-            focusedMarkdownPanel?.searchState != nil
+            focusedMarkdownPanel?.searchState != nil ||
+            focusedTextEditingPanel?.textView?.enclosingScrollView?.isFindBarVisible == true
     }
 
     var canUseSelectionForFind: Bool {
@@ -965,6 +966,12 @@ class TabManager: ObservableObject {
             // A diff viewer page owns find in-page; the native bar stays
             // hidden but the shortcut was handled.
             return browserPanel.searchState != nil || browserPanel.isDiffViewerFindOwner
+        }
+        // A native text editor (file preview, markdown source mode) shows its
+        // own find bar; the shortcut never reaches the text view's responder
+        // chain because cmux owns Cmd+F.
+        if let editingPanel = focusedTextEditingPanel {
+            return editingPanel.startTextFind()
         }
         guard let markdownPanel = focusedMarkdownPanel else { return false }
         markdownPanel.startFind()
