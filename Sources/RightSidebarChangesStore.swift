@@ -133,7 +133,6 @@ final class RightSidebarChangesStore: ObservableObject {
     /// re-check once it lands, so a burst costs two `git status` runs at most.
     private var fingerprintTask: Task<Void, Never>?
     private var fingerprintRecheckPending = false
-    private var fingerprintGeneration: UInt64 = 0
     /// Completed digest runs (tests).
     private(set) var fingerprintCheckCount = 0
 
@@ -428,18 +427,19 @@ final class RightSidebarChangesStore: ObservableObject {
     /// diff: the digest decides, and only a changed (or unobtainable) digest
     /// refreshes the page.
     func handleRepositoryChange() {
-        guard isActive, target != nil, page != nil else { return }
+        guard isActive, page != nil else { return }
         scheduleFingerprintCheck(refreshOnChange: true)
     }
 
-    /// A page that a `needsRefresh` or a static regeneration replaces reflects
-    /// the working tree as of the check; the digest recorded with it decides
-    /// what the next event means.
-    private func refreshExistingPage() {
+    /// Refreshes the displayed page. A reload after a `needsRefresh` records
+    /// the digest of the document now on screen; a reload the digest itself
+    /// triggered already holds that digest (`seedingFingerprint: false`). A
+    /// static page regenerates and seeds when the replacement installs.
+    private func refreshExistingPage(seedingFingerprint: Bool = true) {
         guard let target, let page else { return }
         if page.reloadable {
             reloadGeneration &+= 1
-            seedFingerprint()
+            if seedingFingerprint { seedFingerprint() }
         } else {
             // Keep the current document on screen while the replacement renders.
             producePage(for: target)
@@ -462,22 +462,23 @@ final class RightSidebarChangesStore: ObservableObject {
             if refreshOnChange { fingerprintRecheckPending = true }
             return
         }
-        fingerprintGeneration &+= 1
-        let generation = fingerprintGeneration
         let producer = fingerprintProducer
         let repoRoot = target.repoRoot
         fingerprintTask = Task { [weak self] in
             let fingerprint = await producer(repoRoot)
-            guard let self, !Task.isCancelled, self.fingerprintGeneration == generation,
-                  self.target?.repoRoot == repoRoot else { return }
+            // A cancelled run was already detached by `cancelFingerprintCheck`
+            // (which may have started a successor); a live run is `fingerprintTask`.
+            guard let self, !Task.isCancelled else { return }
             self.fingerprintTask = nil
-            self.fingerprintCheckCount += 1
             let recheck = self.fingerprintRecheckPending
             self.fingerprintRecheckPending = false
+            guard self.target?.repoRoot == repoRoot else { return }
+            self.fingerprintCheckCount += 1
             if refreshOnChange, self.isActive, fingerprint == nil || fingerprint != self.lastFingerprint {
                 self.lastFingerprint = fingerprint
-                // Refreshing re-seeds; a pending re-check is covered by it.
-                self.refreshExistingPage()
+                // The reload recomputes the diff after any event that arrived
+                // meanwhile, so a pending re-check is covered by it.
+                self.refreshExistingPage(seedingFingerprint: false)
                 return
             }
             self.lastFingerprint = fingerprint
@@ -486,7 +487,6 @@ final class RightSidebarChangesStore: ObservableObject {
     }
 
     private func cancelFingerprintCheck() {
-        fingerprintGeneration &+= 1
         fingerprintTask?.cancel()
         fingerprintTask = nil
         fingerprintRecheckPending = false

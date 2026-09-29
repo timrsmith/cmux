@@ -3,8 +3,9 @@ import type {
   PullRequestSummary,
   RepositoryStatus,
 } from "./diff/generated/protocol";
-import { Icon, type IconName } from "./icons";
+import { Icon } from "./icons";
 import { formatLabel, type DiffViewerLabelResolver } from "./labels";
+import { MenuButton } from "./ViewOptionsMenu";
 import {
   CommitPopover,
   InlineConfirmation,
@@ -108,6 +109,11 @@ export function RepositoryHeader({
     setConfirmingDiscard(false);
   }, []);
   useDismissOnOutsideInteraction(openMenu != null, closeMenus, "#repo-header");
+  useDismissOnOutsideInteraction(
+    commit.open,
+    commit.onClose,
+    "#commit-popover, #commit-button",
+  );
   useDismissOnOutsideInteraction(
     pullRequest.open,
     pullRequest.onClose,
@@ -255,13 +261,8 @@ export function RepositoryHeader({
       </div>
       {openMenu === "commit" ? (
         <div id="commit-menu" className="repo-menu">
-          <HeaderMenuButton
-            icon="commit"
-            label={label("commitChanges")}
-            disabled={pending}
-            onClick={() => runFromMenu(commit.onToggle)}
-          />
-          <HeaderMenuButton
+          {/* The split button's primary action is Commit; the menu holds the rest. */}
+          <MenuButton
             action="push"
             icon="push"
             label={label("push")}
@@ -269,7 +270,7 @@ export function RepositoryHeader({
             title={pushHint ? label(pushHint) : undefined}
             onClick={() => runFromMenu(onPush)}
           />
-          <HeaderMenuButton
+          <MenuButton
             action="createPullRequest"
             icon="pullRequest"
             label={label(requestKeys.create)}
@@ -293,7 +294,7 @@ export function RepositoryHeader({
               />
             </div>
           ) : (
-            <HeaderMenuButton
+            <MenuButton
               action="discardAll"
               danger
               icon="trash"
@@ -303,7 +304,7 @@ export function RepositoryHeader({
             />
           )}
           {stageAction ? (
-            <HeaderMenuButton
+            <MenuButton
               action={stageAction}
               icon={stageAction === "stageAll" ? "stage" : "unstage"}
               label={label(stageAction)}
@@ -315,12 +316,12 @@ export function RepositoryHeader({
           {/* View options stay open on toggle, like the toolbar menu does. */}
           {viewOptions}
           <div className="menu-separator" />
-          <HeaderMenuButton
+          <MenuButton
             icon="clipboard"
             label={label("copyGitApplyCommand")}
             onClick={() => runFromMenu(onCopyGitApply)}
           />
-          <HeaderMenuButton
+          <MenuButton
             action="refresh"
             icon="refresh"
             label={label("refresh")}
@@ -364,38 +365,5 @@ function HeaderDot() {
     <span className="repo-header-dot" aria-hidden="true">
       ·
     </span>
-  );
-}
-
-function HeaderMenuButton({
-  action,
-  danger,
-  disabled,
-  icon,
-  label,
-  onClick,
-  title,
-}: {
-  action?: string;
-  danger?: boolean;
-  disabled?: boolean;
-  icon: IconName;
-  label: string;
-  onClick: () => void;
-  title?: string;
-}) {
-  return (
-    <button
-      type="button"
-      className="menu-item"
-      data-action={action}
-      data-danger={danger ? "true" : undefined}
-      disabled={disabled}
-      title={title}
-      onClick={onClick}
-    >
-      <Icon name={icon} />
-      <span className="menu-label">{label}</span>
-    </button>
   );
 }

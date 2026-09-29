@@ -216,18 +216,28 @@ fn run_stdio_rpc(input: &[u8]) -> Output {
             .expect("secure root permissions");
     }
 
-    let output = run_stdio_rpc_in_root(input, &root);
+    let output = run_stdio_rpc_in_root(input, &root, &[]);
     assert!(!root.join(".server.json").exists());
     let _ = std::fs::remove_dir_all(root);
     output
 }
 
-fn run_stdio_rpc_in_root(input: &[u8], root: &Path) -> Output {
+/// Extra environment for a stdio sidecar run: the forge CLI candidates come
+/// from `PATH`, and the fake `gh`/`glab` scripts read their behavior from
+/// `CMUX_TEST_*` variables the sidecar passes through.
+type TestEnvironment = Vec<(String, std::ffi::OsString)>;
+
+fn run_stdio_rpc_in_root(
+    input: &[u8],
+    root: &Path,
+    environment: &[(String, std::ffi::OsString)],
+) -> Output {
     // The host may carry repository-location variables (a terminal inside a
     // hook or `GIT_DIR` export). Every Git command the sidecar runs must
     // target the `-C` repository regardless, so each stdio test runs under
     // hostile values: honoring any of them fails the test.
-    let mut child = Command::new(env!("CARGO_BIN_EXE_cmux-diff-sidecar"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_cmux-diff-sidecar"));
+    command
         .arg("rpc")
         .arg("--root")
         .arg(root)
@@ -239,11 +249,18 @@ fn run_stdio_rpc_in_root(input: &[u8], root: &Path) -> Output {
         .env("GIT_CONFIG_COUNT", "1")
         .env("GIT_CONFIG_KEY_0", "diff.noprefix")
         .env("GIT_CONFIG_VALUE_0", "true")
+        // A real `gh` on a candidate path must answer from an empty config
+        // (not signed in) rather than a developer's token or the network.
+        .env_remove("GH_TOKEN")
+        .env_remove("GITHUB_TOKEN")
+        .env_remove("GITLAB_TOKEN")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .expect("start stdio sidecar");
+        .stderr(Stdio::inherit());
+    for (name, value) in environment {
+        command.env(name, value);
+    }
+    let mut child = command.spawn().expect("start stdio sidecar");
     child
         .stdin
         .take()
@@ -416,7 +433,7 @@ fn assert_overlapping_sessions_remain_independently_closable(
     }))
     .expect("encode attacker close");
     assert!(
-        run_stdio_rpc_in_root(&attacker_close, root)
+        run_stdio_rpc_in_root(&attacker_close, root, &[])
             .status
             .success()
     );
@@ -457,7 +474,7 @@ fn open_session_matches_git(
         }
     }))
     .expect("encode request");
-    let output = run_stdio_rpc_in_root(&request, root);
+    let output = run_stdio_rpc_in_root(&request, root, &[]);
     assert!(
         output.status.success(),
         "{}",
@@ -501,7 +518,7 @@ fn close_session(root: &Path, token: &str, session_id: &str, request_path: &str)
         "params": {"sessionId": session_id, "capabilityToken": token}
     }))
     .expect("encode close request");
-    let close_output = run_stdio_rpc_in_root(&close, root);
+    let close_output = run_stdio_rpc_in_root(&close, root, &[]);
     assert!(close_output.status.success());
     let close_response: serde_json::Value =
         serde_json::from_slice(&close_output.stdout).expect("decode close response");
@@ -1114,7 +1131,7 @@ fn rpc_worktree_writes_mutate_the_repository_like_git() {
         ),
         (file_params(&session, token, &unstaged, ""), "invalidPath"),
     ] {
-        let response = worktree_write(&root, "worktreeRevertFile", &params);
+        let response = worktree_write(&root, "worktreeRevertFile", &params, &[]);
         assert_eq!(response["error"]["code"], code, "{params} -> {response}");
         assert_eq!(
             std::fs::read_to_string(repo.join("story.txt")).expect("read file"),
@@ -1129,6 +1146,7 @@ fn rpc_worktree_writes_mutate_the_repository_like_git() {
         &root,
         "worktreeRevertFile",
         &file_params(&session, token, &unstaged, "untracked.txt"),
+        &[],
     );
     assert_eq!(
         untracked_alone["error"]["code"], "invalidPath",
@@ -1144,6 +1162,7 @@ fn rpc_worktree_writes_mutate_the_repository_like_git() {
             "path": "story.txt",
             "previousPath": "untracked.txt"
         }),
+        &[],
     );
     assert_eq!(
         untracked_origin["error"]["code"], "invalidPath",
@@ -1167,12 +1186,14 @@ fn rpc_worktree_writes_mutate_the_repository_like_git() {
             "source": unstaged,
             "message": "never"
         }),
+        &[],
     );
     assert_eq!(commit_on_unstaged["error"]["code"], "notAllowed");
     let reverted = worktree_write(
         &root,
         "worktreeRevertFile",
         &file_params(&session, token, &unstaged, "story.txt"),
+        &[],
     );
     assert_eq!(reverted["result"]["type"], "worktreeMutated", "{reverted}");
     assert_eq!(reverted["result"]["value"]["source"], unstaged);
@@ -1186,6 +1207,7 @@ fn rpc_worktree_writes_mutate_the_repository_like_git() {
         &root,
         "worktreeRevertFile",
         &file_params(&session, token, &unstaged, "story.txt"),
+        &[],
     );
     assert_eq!(closed["error"]["code"], "notAllowed");
 
@@ -1196,6 +1218,7 @@ fn rpc_worktree_writes_mutate_the_repository_like_git() {
         &root,
         "worktreeStageFile",
         &file_params(&session, token, &unstaged, "story.txt"),
+        &[],
     );
     assert_eq!(staged_response["result"]["type"], "worktreeMutated");
     assert_eq!(
@@ -1206,6 +1229,7 @@ fn rpc_worktree_writes_mutate_the_repository_like_git() {
         &root,
         "worktreeUnstageFile",
         &file_params(&session, token, &unstaged, "story.txt"),
+        &[],
     );
     assert_eq!(unstaged_response["result"]["type"], "worktreeMutated");
     assert_eq!(git_stdout(&repo, &["diff", "--cached", "--name-only"]), "");
@@ -1231,6 +1255,7 @@ fn rpc_worktree_writes_mutate_the_repository_like_git() {
         &root,
         "worktreeRevertHunk",
         &hunk_params(&session, &unstaged, &hunks[1]),
+        &[],
     );
     assert_eq!(
         hunk_reverted["result"]["type"], "worktreeMutated",
@@ -1244,6 +1269,7 @@ fn rpc_worktree_writes_mutate_the_repository_like_git() {
         &root,
         "worktreeRevertHunk",
         &hunk_params(&session, &unstaged, &hunks[1]),
+        &[],
     );
     assert_eq!(stale["error"]["code"], "staleHunk", "{stale}");
     close_session(&root, token, &session, &request_path);
@@ -1259,6 +1285,7 @@ fn rpc_worktree_writes_mutate_the_repository_like_git() {
         &root,
         "worktreeRevertHunk",
         &hunk_params(&session, &staged, &staged_hunks[0]),
+        &[],
     );
     assert_eq!(
         staged_revert["result"]["type"], "worktreeMutated",
@@ -1280,6 +1307,7 @@ fn rpc_worktree_writes_mutate_the_repository_like_git() {
         &root,
         "worktreeRevertFile",
         &file_params(&session, token, &staged, "new.txt"),
+        &[],
     );
     assert_eq!(
         new_reverted["result"]["type"], "worktreeMutated",
@@ -1320,6 +1348,7 @@ fn rpc_worktree_writes_mutate_the_repository_like_git() {
         &root,
         "worktreeRevertHunk",
         &rename_hunk_params(&rename_hunks[1], false),
+        &[],
     );
     assert_eq!(
         without_origin["error"]["code"], "staleHunk",
@@ -1329,6 +1358,7 @@ fn rpc_worktree_writes_mutate_the_repository_like_git() {
         &root,
         "worktreeRevertHunk",
         &rename_hunk_params(&rename_hunks[1], true),
+        &[],
     );
     assert_eq!(
         rename_hunk_reverted["result"]["type"], "worktreeMutated",
@@ -1361,12 +1391,13 @@ fn rpc_worktree_writes_mutate_the_repository_like_git() {
             "message": message
         })
     };
-    let empty_message = worktree_write(&root, "worktreeCommit", &commit_params("   \n"));
+    let empty_message = worktree_write(&root, "worktreeCommit", &commit_params("   \n"), &[]);
     assert_eq!(empty_message["error"]["code"], "invalidMessage");
     let committed = worktree_write(
         &root,
         "worktreeCommit",
         &commit_params("  Change line three\n\nBody text\n"),
+        &[],
     );
     assert_eq!(committed["result"]["type"], "committed", "{committed}");
     assert_eq!(
@@ -1378,7 +1409,7 @@ fn rpc_worktree_writes_mutate_the_repository_like_git() {
         "Change line three\n"
     );
     assert_eq!(git_stdout(&repo, &["status", "--porcelain"]), "");
-    let nothing = worktree_write(&root, "worktreeCommit", &commit_params("again"));
+    let nothing = worktree_write(&root, "worktreeCommit", &commit_params("again"), &[]);
     assert_eq!(nothing["error"]["code"], "nothingToCommit");
     close_session(&root, token, &session, &request_path);
 
@@ -1546,6 +1577,7 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
             &root,
             "worktreeStageFile",
             &write_params(session, token, &unstaged, "story.txt"),
+            &[],
         );
         assert_eq!(response["error"]["code"], "notAllowed", "{response}");
     }
@@ -1553,6 +1585,7 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
         &root,
         "worktreeRevertFile",
         &write_params(&branch_session, token, &staged, "story.txt"),
+        &[],
     );
     assert_eq!(cross_kind_revert["error"]["code"], "notAllowed");
     assert_eq!(
@@ -1575,6 +1608,7 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
             "story.txt",
             &staged_hunks[0],
         ),
+        &[],
     );
     assert_eq!(reverted["result"]["type"], "worktreeMutated", "{reverted}");
     assert_eq!(git_stdout(&repo, &["diff", "--cached", "--name-only"]), "");
@@ -1598,8 +1632,10 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
             "story.txt",
             &staged_hunks[0],
         ),
+        &[],
     );
     assert_eq!(partial["error"]["code"], "partialRevert", "{partial}");
+    assert_eq!(partial["error"]["stateMayHaveChanged"], true);
     assert_eq!(git_stdout(&repo, &["diff", "--cached", "--name-only"]), "");
     assert_eq!(
         std::fs::read_to_string(repo.join("story.txt")).expect("read story"),
@@ -1620,9 +1656,11 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
             "story.txt",
             &locked_hunks[0],
         ),
+        &[],
     );
     std::fs::remove_file(repo.join(".git/index.lock")).expect("release the index lock");
     assert_eq!(conflict["error"]["code"], "conflict", "{conflict}");
+    assert_eq!(conflict["error"]["stateMayHaveChanged"], true);
     assert_eq!(
         git_stdout(&repo, &["diff", "--cached", "--name-only"]),
         "story.txt\n"
@@ -1637,6 +1675,7 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
         &root,
         "worktreeRevertFile",
         &write_params(&staged_session, token, &staged, "src"),
+        &[],
     );
     assert_eq!(directory["error"]["code"], "invalidPath", "{directory}");
     assert_eq!(
@@ -1657,6 +1696,7 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
         &root,
         "worktreeStageFile",
         &write_params(&unstaged_session, token, &unstaged, "untracked.txt"),
+        &[],
     );
     assert_eq!(untracked["error"]["code"], "invalidPath", "{untracked}");
     assert_eq!(git_stdout(&repo, &["ls-files", "--", "untracked.txt"]), "");
@@ -1673,6 +1713,7 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
         &root,
         "worktreeRevertHunk",
         &hunk_params(&unstaged_session, token, &unstaged, weird, &weird_hunks[0]),
+        &[],
     );
     assert_eq!(
         weird_hunk["result"]["type"], "worktreeMutated",
@@ -1688,6 +1729,7 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
             &root,
             "worktreeStageFile",
             &write_params(&unstaged_session, token, &unstaged, path),
+            &[],
         );
         assert_eq!(
             staged_file["result"]["type"], "worktreeMutated",
@@ -1703,6 +1745,7 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
             &root,
             "worktreeUnstageFile",
             &write_params(&unstaged_session, token, &unstaged, path),
+            &[],
         );
         assert_eq!(
             unstaged_file["result"]["type"], "worktreeMutated",
@@ -1712,6 +1755,7 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
             &root,
             "worktreeRevertFile",
             &write_params(&unstaged_session, token, &unstaged, path),
+            &[],
         );
         assert_eq!(
             reverted_file["result"]["type"], "worktreeMutated",
@@ -1738,6 +1782,7 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
         &root,
         "worktreeRevertFile",
         &write_params(&nested_session, token, &nested_source, "nested/inner.txt"),
+        &[],
     );
     assert_eq!(
         nested_write["error"]["code"], "notAllowed",
@@ -1755,16 +1800,13 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
     run_git(&repo, &["add", "story.txt"]);
     let hook = repo.join(".git/hooks/pre-commit");
     std::fs::create_dir_all(repo.join(".git/hooks")).expect("create hooks directory");
-    std::fs::write(
+    write_executable(
         &hook,
-        format!(
+        &format!(
             "#!/bin/sh\necho checking >&2\necho \"hook says no {}\" >&2\nexit 1\n",
             "x".repeat(400)
         ),
-    )
-    .expect("write hook");
-    #[cfg(unix)]
-    std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).expect("chmod hook");
+    );
     let head_before = git_stdout(&repo, &["rev-parse", "HEAD"]);
     let (hook_session, hook_path) =
         open_session_matches_git(&root, &repo, token, &staged, &STAGED_GIT);
@@ -1777,6 +1819,7 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
             "source": staged,
             "message": "blocked"
         }),
+        &[],
     );
     assert_eq!(refused["error"]["code"], "commitFailed", "{refused}");
     let message = refused["error"]["message"].as_str().expect("message");
@@ -1798,6 +1841,7 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
         &root,
         "worktreeRevertFile",
         &write_params(&unborn_session, token, &unborn_staged, "first.txt"),
+        &[],
     );
     assert_eq!(removed["result"]["type"], "worktreeMutated", "{removed}");
     assert!(!unborn.join("first.txt").exists());
@@ -1813,6 +1857,7 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
             "source": unborn_staged,
             "message": "Initial commit"
         }),
+        &[],
     );
     assert_eq!(
         first_commit["result"]["type"], "committed",
@@ -1832,7 +1877,12 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
     let _ = std::fs::remove_dir_all(root);
 }
 
-fn worktree_write(root: &Path, method: &str, params: &serde_json::Value) -> serde_json::Value {
+fn worktree_write(
+    root: &Path,
+    method: &str,
+    params: &serde_json::Value,
+    environment: &[(String, std::ffi::OsString)],
+) -> serde_json::Value {
     let request = serde_json::to_vec(&serde_json::json!({
         "id": method,
         "version": 1,
@@ -1840,7 +1890,7 @@ fn worktree_write(root: &Path, method: &str, params: &serde_json::Value) -> serd
         "params": params
     }))
     .expect("encode write request");
-    let output = run_stdio_rpc_in_root(&request, root);
+    let output = run_stdio_rpc_in_root(&request, root, environment);
     assert!(
         output.status.success(),
         "{}",
@@ -1891,71 +1941,6 @@ fn hunk_refs(diff: &str) -> Vec<serde_json::Value> {
         .collect()
 }
 
-/// Extra environment for a stdio sidecar run: the forge CLI candidates come
-/// from `PATH`, and the fake `gh`/`glab` scripts read their behavior from
-/// `CMUX_TEST_*` variables the sidecar passes through.
-type TestEnvironment = Vec<(String, std::ffi::OsString)>;
-
-fn run_stdio_rpc_with_env(input: &[u8], root: &Path, environment: &TestEnvironment) -> Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_cmux-diff-sidecar"));
-    command
-        .arg("rpc")
-        .arg("--root")
-        .arg(root)
-        .arg("--cmux")
-        .arg(env!("CARGO_BIN_EXE_diff-sidecar-test-host"))
-        .env("GIT_DIR", root.join("not-a-repository"))
-        .env("GIT_WORK_TREE", root.join("not-a-work-tree"))
-        .env("GIT_INDEX_FILE", root.join("not-an-index"))
-        .env("GIT_CONFIG_COUNT", "1")
-        .env("GIT_CONFIG_KEY_0", "diff.noprefix")
-        .env("GIT_CONFIG_VALUE_0", "true")
-        // A real `gh` on a candidate path must answer from an empty config
-        // (not signed in) rather than a developer's token or the network.
-        .env_remove("GH_TOKEN")
-        .env_remove("GITHUB_TOKEN")
-        .env_remove("GITLAB_TOKEN")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit());
-    for (name, value) in environment {
-        command.env(name, value);
-    }
-    let mut child = command.spawn().expect("start stdio sidecar");
-    child
-        .stdin
-        .take()
-        .expect("sidecar stdin")
-        .write_all(input)
-        .expect("write request");
-    child.wait_with_output().expect("wait for sidecar")
-}
-
-fn worktree_command(
-    root: &Path,
-    method: &str,
-    params: &serde_json::Value,
-    environment: &TestEnvironment,
-) -> serde_json::Value {
-    let request = serde_json::to_vec(&serde_json::json!({
-        "id": method,
-        "version": 1,
-        "method": method,
-        "params": params
-    }))
-    .expect("encode request");
-    let output = run_stdio_rpc_with_env(&request, root, environment);
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let response: serde_json::Value =
-        serde_json::from_slice(&output.stdout).expect("decode response");
-    assert_eq!(response["id"], method);
-    response
-}
-
 /// A `gh` stand-in that records every invocation and answers `auth status`,
 /// `pr list`, and `pr create` from the `CMUX_TEST_GH_*` variables. The list
 /// answer is a one-element array around the stored request, or `[]`.
@@ -2000,6 +1985,14 @@ case "$1 $2" in
 esac
 exit 2
 "#;
+
+/// The non-empty lines of a fake CLI's log, sorted: concurrent invocations
+/// append in either order.
+fn sorted_lines(log: &str) -> Vec<&str> {
+    let mut lines: Vec<&str> = log.lines().filter(|line| !line.is_empty()).collect();
+    lines.sort_unstable();
+    lines
+}
 
 fn write_executable(path: &Path, contents: &str) {
     std::fs::write(path, contents).expect("write script");
@@ -2125,12 +2118,14 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
         for source in [&branch, &patch] {
             let mut params = session_params(&session, source);
             params["title"] = "t".into();
-            let response = worktree_command(&root, method, &params, &plain);
+            let response = worktree_write(&root, method, &params, &plain);
             assert_eq!(response["error"]["code"], "notAllowed", "{method} {source}");
+            // Refused before anything ran: the page is still current.
+            assert!(response["error"].get("stateMayHaveChanged").is_none());
         }
         let mut foreign = session_params(&uuid::Uuid::new_v4().to_string(), &unstaged);
         foreign["title"] = "t".into();
-        let response = worktree_command(&root, method, &foreign, &plain);
+        let response = worktree_write(&root, method, &foreign, &plain);
         assert_eq!(
             response["error"]["code"], "notAllowed",
             "{method} unknown session"
@@ -2140,7 +2135,7 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
         std::fs::read_to_string(repo.join("story.txt")).expect("story"),
         modified
     );
-    let discarded = worktree_command(
+    let discarded = worktree_write(
         &root,
         "worktreeDiscardAll",
         &session_params(&session, &unstaged),
@@ -2170,7 +2165,7 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     run_git(&repo, &["rm", "-q", "gone.txt"]);
     let (session, request_path) =
         open_session_matches_git(&root, &repo, token, &staged, &STAGED_GIT);
-    let discarded = worktree_command(
+    let discarded = worktree_write(
         &root,
         "worktreeDiscardAll",
         &session_params(&session, &staged),
@@ -2198,7 +2193,7 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     std::fs::remove_file(repo.join("gone.txt")).expect("delete gone");
     let (session, request_path) =
         open_session_matches_git(&root, &repo, token, &unstaged, &UNSTAGED_GIT);
-    let staged_all = worktree_command(
+    let staged_all = worktree_write(
         &root,
         "worktreeStageAll",
         &session_params(&session, &unstaged),
@@ -2217,7 +2212,7 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     close_session(&root, token, &session, &request_path);
     let (session, request_path) =
         open_session_matches_git(&root, &repo, token, &staged, &STAGED_GIT);
-    let unstaged_all = worktree_command(
+    let unstaged_all = worktree_write(
         &root,
         "worktreeUnstageAll",
         &session_params(&session, &staged),
@@ -2236,10 +2231,10 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
         open_session_matches_git(&root, &repo, token, &unstaged, &UNSTAGED_GIT);
     let mut commit_params = session_params(&session, &unstaged);
     commit_params["message"] = "Change line three".into();
-    let refused = worktree_command(&root, "worktreeCommit", &commit_params, &plain);
+    let refused = worktree_write(&root, "worktreeCommit", &commit_params, &plain);
     assert_eq!(refused["error"]["code"], "notAllowed");
     commit_params["stageAll"] = true.into();
-    let committed = worktree_command(&root, "worktreeCommit", &commit_params, &plain);
+    let committed = worktree_write(&root, "worktreeCommit", &commit_params, &plain);
     assert_eq!(committed["result"]["type"], "committed", "{committed}");
     assert_eq!(
         committed["result"]["value"]["commit"],
@@ -2253,14 +2248,14 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
 
     // Push: no upstream yet. Without `setUpstream` that is the answer; with
     // it the upstream is created on `origin` and the status shows it.
-    let no_upstream = worktree_command(
+    let no_upstream = worktree_write(
         &root,
         "worktreePush",
         &session_params(&session, &unstaged),
         &plain,
     );
     assert_eq!(no_upstream["error"]["code"], "noUpstream", "{no_upstream}");
-    let before = worktree_command(
+    let before = worktree_write(
         &root,
         "worktreeRepositoryStatus",
         &session_params(&session, &unstaged),
@@ -2274,11 +2269,11 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     assert_eq!(before["value"]["hostKind"], "other");
     assert_eq!(
         before["value"]["forgeCli"],
-        serde_json::json!({"kind": null, "available": false, "authenticated": false})
+        serde_json::json!({"available": false, "authenticated": false})
     );
     let mut push_params = session_params(&session, &unstaged);
     push_params["setUpstream"] = true.into();
-    let pushed = worktree_command(&root, "worktreePush", &push_params, &plain);
+    let pushed = worktree_write(&root, "worktreePush", &push_params, &plain);
     assert_eq!(
         pushed["result"],
         serde_json::json!({
@@ -2295,7 +2290,7 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
         git_stdout(&origin, &["rev-parse", "main"]),
         git_stdout(&repo, &["rev-parse", "HEAD"])
     );
-    let after = worktree_command(
+    let after = worktree_write(
         &root,
         "worktreeRepositoryStatus",
         &session_params(&session, &unstaged),
@@ -2307,11 +2302,6 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     );
     assert_eq!(after["result"]["value"]["ahead"], 0);
     assert_eq!(after["result"]["value"]["behind"], 0);
-    assert!(
-        after["result"]["value"]["remoteUrl"]
-            .as_str()
-            .is_some_and(|url| url.ends_with("origin.git"))
-    );
 
     // A second commit is one ahead, and a plain push (upstream present) lands it.
     std::fs::write(
@@ -2320,14 +2310,14 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     )
     .expect("modify story");
     run_git(&repo, &["commit", "-q", "-a", "-m", "second"]);
-    let ahead = worktree_command(
+    let ahead = worktree_write(
         &root,
         "worktreeRepositoryStatus",
         &session_params(&session, &unstaged),
         &plain,
     );
     assert_eq!(ahead["result"]["value"]["ahead"], 1, "{ahead}");
-    let pushed_again = worktree_command(
+    let pushed_again = worktree_write(
         &root,
         "worktreePush",
         &session_params(&session, &unstaged),
@@ -2356,7 +2346,7 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     .expect("modify story");
     run_git(&repo, &["commit", "-q", "-a", "-m", "triangular"]);
     let origin_main_before = git_stdout(&origin, &["rev-parse", "main"]);
-    let triangular = worktree_command(
+    let triangular = worktree_write(
         &root,
         "worktreePush",
         &session_params(&session, &unstaged),
@@ -2384,7 +2374,7 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     );
     // Back to a plain workflow: the same push lands on the upstream again.
     run_git(&repo, &["config", "--unset", "remote.pushDefault"]);
-    let back_to_origin = worktree_command(
+    let back_to_origin = worktree_write(
         &root,
         "worktreePush",
         &session_params(&session, &unstaged),
@@ -2415,7 +2405,7 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     )
     .expect("modify story");
     run_git(&repo, &["commit", "-q", "-a", "-m", "third"]);
-    let rejected = worktree_command(
+    let rejected = worktree_write(
         &root,
         "worktreePush",
         &session_params(&session, &unstaged),
@@ -2429,7 +2419,7 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     );
     assert!(detail.len() <= 230, "{detail}");
     assert!(!detail.chars().any(char::is_control), "{detail}");
-    let behind = worktree_command(
+    let behind = worktree_write(
         &root,
         "worktreeRepositoryStatus",
         &session_params(&session, &unstaged),
@@ -2440,7 +2430,7 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     assert_eq!(behind["result"]["value"]["ahead"], 1, "{behind}");
     assert_eq!(behind["result"]["value"]["behind"], 0, "{behind}");
     run_git(&repo, &["fetch", "-q", "origin"]);
-    let fetched = worktree_command(
+    let fetched = worktree_write(
         &root,
         "worktreeRepositoryStatus",
         &session_params(&session, &unstaged),
@@ -2471,7 +2461,7 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
             &origin.to_string_lossy(),
         ],
     );
-    let signed_out = worktree_command(
+    let signed_out = worktree_write(
         &root,
         "worktreeRepositoryStatus",
         &session_params(&session, &unstaged),
@@ -2482,18 +2472,16 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
         "{signed_out}"
     );
     assert_eq!(
-        signed_out["result"]["value"]["remoteUrl"],
-        "https://github.com/acme/widgets.git"
-    );
-    assert_eq!(
         signed_out["result"]["value"]["forgeCli"],
-        serde_json::json!({"kind": "gh", "available": true, "authenticated": false})
+        serde_json::json!({"available": true, "authenticated": false})
     );
     assert!(signed_out["result"]["value"].get("pullRequest").is_none());
-    // Signed out, the pull request lookup never runs.
-    assert_eq!(gh_log_text(), "auth status\n");
+    // The sign-in check and the lookup run concurrently, so the lookup runs
+    // (and its answer is dropped) while signed out; the log order varies.
+    let pr_list = "pr list --head main --state all --limit 1 --json number,url,title,state,isDraft,baseRefName,reviewDecision,statusCheckRollup";
+    assert_eq!(sorted_lines(&gh_log_text()), ["auth status", pr_list]);
     let _ = std::fs::remove_file(&gh_log);
-    let signed_in = worktree_command(
+    let signed_in = worktree_write(
         &root,
         "worktreeRepositoryStatus",
         &session_params(&session, &unstaged),
@@ -2501,22 +2489,19 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     );
     assert_eq!(
         signed_in["result"]["value"]["forgeCli"],
-        serde_json::json!({"kind": "gh", "available": true, "authenticated": true}),
+        serde_json::json!({"available": true, "authenticated": true}),
         "{signed_in}"
     );
     assert!(
         signed_in["result"]["value"].get("pullRequest").is_none(),
         "{signed_in}"
     );
-    assert_eq!(
-        gh_log_text(),
-        "auth status\npr list --head main --state all --limit 1 --json number,url,title,state,isDraft,baseRefName,reviewDecision,statusCheckRollup\n"
-    );
+    assert_eq!(sorted_lines(&gh_log_text()), ["auth status", pr_list]);
     let _ = std::fs::remove_file(&gh_log);
     // Without the fake directory on PATH the fake is never consulted, whatever
     // else the machine has installed; `GH_CONFIG_DIR` keeps a real `gh` signed
     // out and offline.
-    let path_only = worktree_command(
+    let path_only = worktree_write(
         &root,
         "worktreeRepositoryStatus",
         &session_params(&session, &unstaged),
@@ -2549,18 +2534,18 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     let mut create = session_params(&session, &unstaged);
     create["title"] = "   ".into();
     create["body"] = "Body".into();
-    let response = worktree_command(&root, "worktreeCreatePullRequest", &create, &signed_in);
+    let response = worktree_write(&root, "worktreeCreatePullRequest", &create, &signed_in);
     assert_eq!(response["error"]["code"], "invalidTitle", "{response}");
     create["title"] = "x".repeat(257).into();
-    let response = worktree_command(&root, "worktreeCreatePullRequest", &create, &signed_in);
+    let response = worktree_write(&root, "worktreeCreatePullRequest", &create, &signed_in);
     assert_eq!(response["error"]["code"], "invalidTitle", "{response}");
     create["title"] = "Add widgets".into();
     create["body"] = "b".repeat(64 * 1024 + 1).into();
-    let response = worktree_command(&root, "worktreeCreatePullRequest", &create, &signed_in);
+    let response = worktree_write(&root, "worktreeCreatePullRequest", &create, &signed_in);
     assert_eq!(response["error"]["code"], "invalidBody", "{response}");
     create["body"] = "Body line 1\n\n--not-a-flag\n".into();
     create["base"] = "-main".into();
-    let response = worktree_command(&root, "worktreeCreatePullRequest", &create, &signed_in);
+    let response = worktree_write(&root, "worktreeCreatePullRequest", &create, &signed_in);
     assert_eq!(response["error"]["code"], "invalidBase", "{response}");
     assert_eq!(gh_log_text(), "");
     // `config --get` exits non-zero for an unset key: no upstream was created.
@@ -2577,7 +2562,7 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     );
     create["base"] = "main".into();
     create["draft"] = true.into();
-    let signed_out_create = worktree_command(
+    let signed_out_create = worktree_write(
         &root,
         "worktreeCreatePullRequest",
         &create,
@@ -2588,7 +2573,7 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
         "{signed_out_create}"
     );
     let _ = std::fs::remove_file(&gh_log);
-    let created = worktree_command(&root, "worktreeCreatePullRequest", &create, &signed_in);
+    let created = worktree_write(&root, "worktreeCreatePullRequest", &create, &signed_in);
     assert_eq!(
         created["result"],
         serde_json::json!({
@@ -2620,7 +2605,7 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     );
     // The forge now knows the request: creating again reports it, and the
     // status carries its summary.
-    let exists = worktree_command(&root, "worktreeCreatePullRequest", &create, &signed_in);
+    let exists = worktree_write(&root, "worktreeCreatePullRequest", &create, &signed_in);
     assert_eq!(exists["error"]["code"], "pullRequestExists", "{exists}");
     assert!(
         exists["error"]["message"]
@@ -2628,7 +2613,7 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
             .is_some_and(|message| message.ends_with("https://github.com/acme/widgets/pull/42")),
         "{exists}"
     );
-    let with_request = worktree_command(
+    let with_request = worktree_write(
         &root,
         "worktreeRepositoryStatus",
         &session_params(&session, &unstaged),
@@ -2659,7 +2644,7 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
             "git@gitlab.com:acme/widgets.git",
         ],
     );
-    let gitlab = worktree_command(
+    let gitlab = worktree_write(
         &root,
         "worktreeRepositoryStatus",
         &session_params(&session, &unstaged),
@@ -2668,7 +2653,7 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     assert_eq!(gitlab["result"]["value"]["hostKind"], "gitlab", "{gitlab}");
     assert_eq!(
         gitlab["result"]["value"]["forgeCli"],
-        serde_json::json!({"kind": "glab", "available": true, "authenticated": true})
+        serde_json::json!({"available": true, "authenticated": true})
     );
     assert_eq!(gitlab["result"]["value"]["pullRequest"]["number"], 9);
     assert_eq!(gitlab["result"]["value"]["pullRequest"]["state"], "open");
@@ -2678,14 +2663,14 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     );
     // A detached HEAD has no branch to push or open a request for.
     run_git(&repo, &["checkout", "-q", "--detach"]);
-    let detached = worktree_command(
+    let detached = worktree_write(
         &root,
         "worktreeRepositoryStatus",
         &session_params(&session, &unstaged),
         &plain,
     );
     assert_eq!(detached["result"]["value"]["detached"], true, "{detached}");
-    let detached_push = worktree_command(
+    let detached_push = worktree_write(
         &root,
         "worktreePush",
         &session_params(&session, &unstaged),

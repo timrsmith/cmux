@@ -28,7 +28,6 @@ import {
   hunkActionAnchor,
   hunkActionTargets,
   hunkRefFromPierreHunk,
-  isBulkWrite,
   pullRequestLabelKeys,
   pullRequestStateLabelKey,
   repositoryHeaderModel,
@@ -453,62 +452,25 @@ describe("commit popover validation", () => {
     expect(worktreeErrorReloads("commitFailed")).toBe(false);
   });
 
-  test("bulk writes reload after any failure past the pre-write rejections", () => {
-    const target = { path: "story.txt" };
-    const single = [
-      buildFileRequest("stageFile", session, unstaged, target),
-      buildHunkRequest(session, unstaged, target, {
-        oldStart: 1,
-        oldCount: 3,
-        newStart: 1,
-        newCount: 3,
-      }),
-      buildCommitRequest(session, staged, "Message", false),
-      buildPushRequest(session, staged, true),
-    ];
-    for (const command of single) {
-      expect(isBulkWrite(command)).toBe(false);
-      // A single-path write only reloads for the codes that name a changed diff.
-      expect(worktreeErrorReloads("worktreeWriteFailed", command)).toBe(false);
-      expect(worktreeErrorReloads("commitFailed", command)).toBe(false);
-      expect(worktreeErrorReloads("staleHunk", command)).toBe(true);
+  test("a write reloads when the sidecar says the state may have changed", () => {
+    // The sidecar sets the flag once a mutating Git child ran (a bulk
+    // restore, `add -u`, or `rm` that exited non-zero, a commit after
+    // staging) or when the diff had changed under the page; the code alone
+    // decides nothing.
+    for (const code of ["worktreeWriteFailed", "nothingToCommit", "commitFailed", undefined]) {
+      expect(worktreeErrorReloads(code, true)).toBe(true);
+      expect(worktreeErrorReloads(code, false)).toBe(false);
+      expect(worktreeErrorReloads(code)).toBe(false);
     }
-    const bulk = [
-      buildBulkRequest("discardAll", session, unstaged),
-      buildBulkRequest("stageAll", session, unstaged),
-      buildBulkRequest("unstageAll", session, staged),
-      buildCommitRequest(session, unstaged, "Message", true),
-    ];
-    for (const command of bulk) {
-      expect(isBulkWrite(command)).toBe(true);
-      // Git may have changed some paths before exiting non-zero for another.
-      expect(worktreeErrorReloads("worktreeWriteFailed", command)).toBe(true);
-      expect(worktreeErrorReloads("partialRevert", command)).toBe(true);
-      expect(worktreeErrorReloads("missingResult", command)).toBe(true);
-      expect(worktreeErrorReloads(undefined, command)).toBe(true);
-      // Rejected before anything ran: the page is still current.
-      for (const code of [
-        "notAllowed",
-        "invalidMessage",
-        "invalidRequest",
-        "requestTooLarge",
-        "requestTimeout",
-        "unsupportedVersion",
-        "hostUnavailable",
-        "closed",
-        "connectFailed",
-        "requestFailed",
-      ]) {
-        expect(worktreeErrorReloads(code, command)).toBe(false);
-      }
+    // An older sidecar without the flag still reloads for the codes that
+    // always meant a changed diff.
+    for (const code of ["staleHunk", "conflict", "partialRevert"]) {
+      expect(worktreeErrorReloads(code, false)).toBe(true);
     }
-    // Stage all and commit: `git add -u` ran before the empty index was found.
-    const stageAllCommit = buildCommitRequest(session, unstaged, "Message", true);
-    expect(worktreeErrorReloads("nothingToCommit", stageAllCommit)).toBe(true);
-    expect(worktreeErrorReloads("commitFailed", stageAllCommit)).toBe(true);
-    expect(
-      worktreeErrorReloads("nothingToCommit", buildCommitRequest(session, staged, "Message", false)),
-    ).toBe(false);
+    // Refused before anything ran, or never delivered: the page is current.
+    for (const code of ["notAllowed", "invalidMessage", "requestTimeout", "closed", "missingResult"]) {
+      expect(worktreeErrorReloads(code, false)).toBe(false);
+    }
   });
 });
 
@@ -519,9 +481,8 @@ describe("bulk, push, status, and pull request envelopes", () => {
     upstream: "origin/feat",
     ahead: 1,
     behind: 0,
-    remoteUrl: "https://github.com/acme/widgets.git",
     hostKind: "github",
-    forgeCli: { kind: "gh", available: true, authenticated: true },
+    forgeCli: { available: true, authenticated: true },
   };
 
   test("session-wide commands carry only the session and its source", () => {
@@ -705,7 +666,7 @@ describe("bulk, push, status, and pull request envelopes", () => {
       push: "detached",
       createPullRequest: "detached",
     });
-    expect(forgeActionAvailability({ ...status, hostKind: "none", remoteUrl: undefined })).toEqual({
+    expect(forgeActionAvailability({ ...status, hostKind: "none" })).toEqual({
       push: "noRemote",
       createPullRequest: "noRemote",
     });
@@ -716,14 +677,14 @@ describe("bulk, push, status, and pull request envelopes", () => {
     expect(
       forgeActionAvailability({
         ...status,
-        forgeCli: { kind: "gh", available: false, authenticated: false },
+        forgeCli: { available: false, authenticated: false },
       }),
     ).toEqual({ push: "enabled", createPullRequest: "cliMissing" });
     expect(
       forgeActionAvailability({
         ...status,
         hostKind: "gitlab",
-        forgeCli: { kind: "glab", available: true, authenticated: false },
+        forgeCli: { available: true, authenticated: false },
       }),
     ).toEqual({ push: "enabled", createPullRequest: "notAuthenticated" });
     expect(forgeActionHintKey("enabled")).toBeNull();

@@ -75,25 +75,15 @@ body {
      the implicit `auto` track sizes to content max-width, letting #content
      (and its files sidebar) overflow the window and clip on the right. */
   grid-template-columns: minmax(0, 1fr);
-  /* Repository header (working-tree views) or toolbar (every other
-     session), then content. Each child pins its own row so whichever top row
-     is absent never pushes #content into an implicit zero-height row; an
-     empty `auto` row costs no height. */
-  grid-template-rows: auto auto minmax(0, 1fr);
+  /* One top row, the repository header (working-tree views) or the toolbar
+     (every other session), then content. Exactly one of the two renders, so
+     the rows need no pinning. */
+  grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
   overscroll-behavior: contain;
   contain: strict;
   background: transparent;
   color: inherit;
-}
-#app > #repo-header {
-  grid-row: 1;
-}
-#app > #toolbar {
-  grid-row: 2;
-}
-#app > #content {
-  grid-row: 3;
 }
 .copy-fallback-textarea {
   position: fixed;
@@ -1834,6 +1824,7 @@ svg[data-icon-fill] {
    options). */
 #repo-header {
   position: relative;
+  container-type: inline-size;
   flex: 0 0 auto;
   display: flex;
   align-items: flex-start;
@@ -1853,9 +1844,6 @@ svg[data-icon-fill] {
    ahead/behind position hides, and the branch name truncates last. The
    source picker and the actions keep their natural width. A wrapped summary
    would grow the header over the first file card. */
-#repo-header {
-  container-type: inline-size;
-}
 .repo-header-summary {
   display: flex;
   flex: 1 1 0;

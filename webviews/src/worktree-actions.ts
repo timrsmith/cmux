@@ -596,74 +596,28 @@ export function worktreeErrorDetail(
   return detail === "" ? null : detail;
 }
 
-/** Methods whose sidecar handler runs one Git command over many paths. */
-const BULK_WRITE_METHODS = new Set<string>([
-  "worktreeDiscardAll",
-  "worktreeStageAll",
-  "worktreeUnstageAll",
-]);
-
 /**
- * Error codes a bulk write can only produce before it touched the
- * repository, so the rendered diff is still current after them. Every other
- * failure of a bulk write may have changed some paths before Git gave up
- * on another (`git restore` and `git add -u` exit non-zero as a whole).
- *
- * - `notAllowed`: the token, session, source, or repository was refused
- *   (`worktree.rs` `authorize`), or the commit asked to record an unstaged
- *   view without staging first.
- * - `invalidMessage`: the commit message failed validation, which runs
- *   before `git add -u`.
- * - `invalidRequest`, `requestTooLarge`, `requestTimeout`,
- *   `unsupportedVersion`, `hostUnavailable`: the frame never reached a
- *   handler (`server.rs`).
- * - `closed`, `connectFailed`, `requestFailed`: the transport never
- *   delivered the request or is gone, so a reload could not run either
- *   (`transport.ts`).
+ * Codes a sidecar from before `stateMayHaveChanged` used for a diff that
+ * changed under the page: a stale or conflicting hunk, or a revert that
+ * changed the index without the working tree.
  */
-const PRE_WRITE_ERROR_CODES = new Set<string>([
-  "notAllowed",
-  "invalidMessage",
-  "invalidRequest",
-  "requestTooLarge",
-  "requestTimeout",
-  "unsupportedVersion",
-  "hostUnavailable",
-  "closed",
-  "connectFailed",
-  "requestFailed",
+const LEGACY_RELOAD_CODES = new Set<string>([
+  "staleHunk",
+  "conflict",
+  "partialRevert",
 ]);
-
-/**
- * Whether `command` writes many paths in one Git command: the session-wide
- * actions, and a commit that stages every tracked change first.
- */
-export function isBulkWrite(command: DiffCommand | undefined): boolean {
-  if (command == null) {
-    return false;
-  }
-  if (BULK_WRITE_METHODS.has(command.method)) {
-    return true;
-  }
-  return command.method === "worktreeCommit" && command.params.stageAll === true;
-}
 
 /**
  * Whether a failed write left the on-disk state ahead of the rendered diff.
- * For any write, a stale or conflicting hunk means the diff changed under the
- * page, and a partial revert changed the index without the working tree. A
- * bulk write (see {@link isBulkWrite}) reloads after every failure past the
- * pre-write rejections in {@link PRE_WRITE_ERROR_CODES}: Git may have changed
- * some of its paths before exiting non-zero for another.
+ * The sidecar says so (`stateMayHaveChanged`) once a mutating Git child ran
+ * or the diff was found changed under the page; an older sidecar without the
+ * flag still reloads for the codes in {@link LEGACY_RELOAD_CODES}.
  */
 export function worktreeErrorReloads(
   code: string | undefined,
-  command?: DiffCommand,
+  stateMayHaveChanged = false,
 ): boolean {
-  if (code === "staleHunk" || code === "conflict" || code === "partialRevert") {
-    return true;
-  }
-  return isBulkWrite(command) && !PRE_WRITE_ERROR_CODES.has(code ?? "");
+  return stateMayHaveChanged || LEGACY_RELOAD_CODES.has(code ?? "");
 }
 
 // MARK: Repository header and forge availability

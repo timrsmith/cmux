@@ -97,8 +97,10 @@ enum DiffViewerHostActions {
         }
     }
 
-    /// Repository roots every allow-list under `trustedRoot` binds to `token`.
-    /// Unreadable, oversized, or malformed files contribute nothing.
+    /// Repository roots the allow-list under `trustedRoot` binds to `token`.
+    /// Each group id is issued for one token, so the first file whose token
+    /// matches is the answer. Unreadable, oversized, or malformed files
+    /// contribute nothing.
     static func allowedRepoRoots(
         forToken token: String,
         trustedRoot: URL = CmuxDiffViewerSessionPreparer.defaultTrustedRootURL
@@ -107,7 +109,6 @@ enum DiffViewerHostActions {
               let names = try? FileManager.default.contentsOfDirectory(atPath: trustedRoot.path) else {
             return []
         }
-        var roots: [URL] = []
         for name in names where name.hasPrefix(".branch-session-") && name.hasSuffix(".json") {
             let group = name.dropFirst(".branch-session-".count).dropLast(".json".count)
             guard (1...64).contains(group.count),
@@ -124,9 +125,9 @@ enum DiffViewerHostActions {
                   session.groupID == String(group) else {
                 continue
             }
-            roots.append(contentsOf: session.allowedRepoRoots.map { URL(fileURLWithPath: $0, isDirectory: true) })
+            return session.allowedRepoRoots.map { URL(fileURLWithPath: $0, isDirectory: true) }
         }
-        return roots
+        return []
     }
 
     /// Resolves `path` to a regular file inside one of `allowedRepoRoots`. The
@@ -143,8 +144,10 @@ enum DiffViewerHostActions {
                 .appendingPathComponent(path, isDirectory: false)
                 .standardizedFileURL
                 .resolvingSymlinksInPath()
-            let rootPath = canonicalRoot.path.hasSuffix("/") ? canonicalRoot.path : canonicalRoot.path + "/"
-            guard canonical.path.hasPrefix(rootPath) else {
+            // Strictly below the resolved root: a link back to the root
+            // itself is not a file inside it.
+            guard canonical.path != canonicalRoot.path,
+                  GitStatusProvider.path(canonical.path, isContainedIn: canonicalRoot.path) else {
                 continue
             }
             guard let attributes = try? FileManager.default.attributesOfItem(atPath: canonical.path),
@@ -166,12 +169,14 @@ enum DiffViewerHostActions {
         webView: WKWebView?,
         open: @MainActor (Workspace, String) -> Bool = openInWorkspace
     ) async -> [String: Any] {
-        let id = body["id"] as? String ?? "unknown"
+        func failure(_ failure: Failure) -> [String: Any] {
+            DiffSidecarBridge.failureResponse(body: body, code: failure.code, message: failure.message)
+        }
         guard let request = openFileRequest(from: body) else {
-            return failure(id: id, .invalidPath)
+            return failure(.invalidPath)
         }
         guard let workspace = DiffCommentsBridge.associatedWorkspace(for: webView) else {
-            return failure(id: id, .unresolvedWorkspace)
+            return failure(.unresolvedWorkspace)
         }
         let token = request.capabilityToken
         let path = request.path
@@ -187,39 +192,16 @@ enum DiffViewerHostActions {
         }.value
         switch resolution {
         case .failure(let reason):
-            return failure(id: id, reason)
+            return failure(reason)
         case .success(let fileURL):
-            return open(workspace, fileURL.path) ? success(id: id) : failure(id: id, .openFailed)
+            guard open(workspace, fileURL.path) else { return failure(.openFailed) }
+            return DiffSidecarBridge.successResponse(body: body, result: ["type": "fileOpened"])
         }
     }
 
-    /// The same routing the sidebar file tree uses for a click: the focused
-    /// pane (or the first), reusing an existing preview of the file.
+    /// The same routing the sidebar file tree uses for a click.
     @MainActor
     static func openInWorkspace(_ workspace: Workspace, _ path: String) -> Bool {
-        guard let pane = workspace.bonsplitController.focusedPaneId
-            ?? workspace.bonsplitController.allPaneIds.first else {
-            return false
-        }
-        return !workspace.openFileSurfaces(
-            inPane: pane,
-            filePaths: [path],
-            focus: true,
-            reuseExisting: true,
-            duplicateWhenFocused: true
-        ).isEmpty
-    }
-
-    static func success(id: String) -> [String: Any] {
-        ["id": id, "version": 1, "result": ["type": "fileOpened"], "error": NSNull()]
-    }
-
-    static func failure(id: String, _ failure: Failure) -> [String: Any] {
-        [
-            "id": id,
-            "version": 1,
-            "result": NSNull(),
-            "error": ["code": failure.code, "message": failure.message],
-        ]
+        workspace.openFileInFocusedPane(path)
     }
 }

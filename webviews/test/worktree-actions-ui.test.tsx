@@ -855,9 +855,8 @@ test("the split button offers push and create PR/MR according to the host kind a
     {
       status: {
         ...MOCK_GITHUB_STATUS,
-        remoteUrl: "git@gitlab.com:acme/widgets.git",
         hostKind: "gitlab",
-        forgeCli: { kind: "glab", available: true, authenticated: false },
+        forgeCli: { available: true, authenticated: false },
       },
       push: true,
       create: false,
@@ -867,7 +866,7 @@ test("the split button offers push and create PR/MR according to the host kind a
     {
       status: {
         ...MOCK_GITHUB_STATUS,
-        forgeCli: { kind: "gh", available: false, authenticated: false },
+        forgeCli: { available: false, authenticated: false },
       },
       push: true,
       create: false,
@@ -875,7 +874,7 @@ test("the split button offers push and create PR/MR according to the host kind a
       createHint: "Install the GitHub CLI (gh) or GitLab CLI (glab) to use this action.",
     },
     {
-      status: { ...MOCK_REPOSITORY_STATUS, upstream: undefined, remoteUrl: undefined, hostKind: "none" },
+      status: { ...MOCK_REPOSITORY_STATUS, upstream: undefined, hostKind: "none" },
       push: false,
       create: false,
       createLabel: "Create PR",
@@ -935,7 +934,7 @@ test("the pull request card renders the status' request and links to it external
     {
       ...MOCK_GITHUB_STATUS,
       hostKind: "gitlab",
-      forgeCli: { kind: "glab", available: true, authenticated: true },
+      forgeCli: { available: true, authenticated: true },
       pullRequest: {
         ...MOCK_PULL_REQUEST,
         state: "merged",
@@ -995,7 +994,7 @@ test("a failed discard all reloads the diff: Git may have restored some paths be
   const requests: SidecarRequest[] = [];
   const document = await renderWithStatus(unstagedSource, MOCK_REPOSITORY_STATUS, requests, {
     worktreeDiscardAll: (request) =>
-      failureResponse(request, "worktreeWriteFailed", "Could not update the working tree"),
+      failureResponse(request, "worktreeWriteFailed", "Could not update the working tree", true),
   });
   click(document.getElementById("repo-overflow-button") as HTMLButtonElement);
   click(menuAction(document, "discardAll"));

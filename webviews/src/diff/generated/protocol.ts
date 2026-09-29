@@ -18,7 +18,13 @@ export type CommitResult = { commit: string, };
 
 export type DiffEvent = { "type": "sessionStatus", sessionId: string, status: DiffSessionStatus, } | { "type": "patchReady", sessionId: string, patch: DiffResourceRef, } | { "type": "sessionFailed", sessionId: string, error: DiffProtocolError, };
 
-export type DiffProtocolError = { code: string, message: string, };
+export type DiffProtocolError = { code: string, message: string, 
+/**
+ * A working-tree write failed after a mutating Git child ran, or found
+ * the diff already changed under the page: the rendered diff may be
+ * stale, so the page reloads it.
+ */
+stateMayHaveChanged?: boolean, };
 
 export type DiffRequest = { id: string, version: number, } & ({ "method": "protocolHandshake" } | { "method": "sessionOpen", "params": OpenSessionRequest } | { "method": "sessionClose", "params": SessionRequest } | { "method": "branchList", "params": BranchListRequest } | { "method": "branchChange", "params": BranchChangeRequest } | { "method": "worktreeRevertFile", "params": WorktreeFileRequest } | { "method": "worktreeStageFile", "params": WorktreeFileRequest } | { "method": "worktreeUnstageFile", "params": WorktreeFileRequest } | { "method": "worktreeRevertHunk", "params": WorktreeHunkRequest } | { "method": "worktreeCommit", "params": WorktreeCommitRequest } | { "method": "worktreeDiscardAll", "params": WorktreeSessionRequest } | { "method": "worktreeStageAll", "params": WorktreeSessionRequest } | { "method": "worktreeUnstageAll", "params": WorktreeSessionRequest } | { "method": "worktreePush", "params": WorktreePushRequest } | { "method": "worktreeRepositoryStatus", "params": WorktreeSessionRequest } | { "method": "worktreeCreatePullRequest", "params": WorktreeCreatePullRequestRequest });
 
@@ -36,9 +42,7 @@ export type DiffTransportConfig = { kind: DiffTransportKind, endpoint: string, p
 
 export type DiffTransportKind = "fetch" | "webSocket" | "webKit";
 
-export type ForgeCliKind = "gh" | "glab";
-
-export type ForgeCliStatus = { kind: ForgeCliKind | null, available: boolean, authenticated: boolean, };
+export type ForgeCliStatus = { available: boolean, authenticated: boolean, };
 
 export type HandshakeResult = { protocolVersion: number, capabilities: Array<string>, };
 
@@ -66,7 +70,7 @@ export type PushResult = { remote: string, branch: string, upstreamCreated: bool
  */
 export type RepositoryHostKind = "github" | "gitlab" | "other" | "none";
 
-export type RepositoryStatus = { branch: string, detached: boolean, upstream?: string, ahead: number, behind: number, remoteUrl?: string, hostKind: RepositoryHostKind, forgeCli: ForgeCliStatus, pullRequest?: PullRequestSummary, };
+export type RepositoryStatus = { branch: string, detached: boolean, upstream?: string, ahead: number, behind: number, hostKind: RepositoryHostKind, forgeCli: ForgeCliStatus, pullRequest?: PullRequestSummary, };
 
 export type SessionOpened = { sessionId: string, patch: DiffResourceRef, source: DiffSource, 
 /**
