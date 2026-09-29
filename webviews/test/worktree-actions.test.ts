@@ -28,6 +28,7 @@ import {
   hunkActionAnchor,
   hunkActionTargets,
   hunkRefFromPierreHunk,
+  payloadRepoLabel,
   pullRequestLabelKeys,
   pullRequestStateLabelKey,
   repositoryHeaderModel,
@@ -617,6 +618,24 @@ describe("bulk, push, status, and pull request envelopes", () => {
     for (const code of ["pushRejected", "noUpstream", "authRequired", "pullRequestExists"]) {
       expect(worktreeErrorReloads(code)).toBe(false);
     }
+  });
+
+  test("the header model prefers the host's repository label and falls back to the path shape", () => {
+    const linuxHome = { kind: "unstaged", repoRoot: "/srv/home/dev/widgets" } as const;
+    // The CLI abbreviates with the real home directory, which the page cannot guess.
+    const payload = { repoRoot: "/srv/home/dev/widgets", repoLabel: "~/widgets" };
+    expect(payloadRepoLabel(payload, linuxHome)).toBe("~/widgets");
+    expect(repositoryHeaderModel(linuxHome, null, null, payloadRepoLabel(payload, linuxHome)).repoLabel).toBe(
+      "~/widgets",
+    );
+    // The label names the payload's repository only: a sibling from the repo
+    // picker, an older page without the field, and an empty label all fall back.
+    expect(payloadRepoLabel(payload, unstaged)).toBeNull();
+    expect(payloadRepoLabel({ repoRoot: "/srv/home/dev/widgets" }, linuxHome)).toBeNull();
+    expect(payloadRepoLabel({ repoRoot: "/srv/home/dev/widgets", repoLabel: "" }, linuxHome)).toBeNull();
+    expect(payloadRepoLabel({ repoLabel: "~/widgets" }, linuxHome)).toBeNull();
+    expect(repositoryHeaderModel(linuxHome, null, null, null).repoLabel).toBe("/srv/home/dev/widgets");
+    expect(repositoryHeaderModel(linuxHome, null, null).repoLabel).toBe("/srv/home/dev/widgets");
   });
 
   test("the header model abbreviates the home directory and reads the streamed totals", () => {

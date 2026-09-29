@@ -760,6 +760,7 @@ async function renderWithStatus(
   status: Record<string, unknown>,
   requests: SidecarRequest[],
   overrides: Record<string, (request: SidecarRequest) => unknown> = {},
+  payloadExtras: Record<string, unknown> = {},
 ) {
   const document = await renderApp(
     source,
@@ -768,6 +769,7 @@ async function renderWithStatus(
       ...overrides,
     }),
     ONE_FILE_PATCH,
+    payloadExtras,
   );
   await waitFor(
     () => document.querySelector(".repo-header-branch") != null,
@@ -820,7 +822,22 @@ test("the repository header shows the repo, branch, streamed totals, and upstrea
   expect(requestsFor(requests, "worktreeRepositoryStatus")).toHaveLength(1);
 });
 
-test("a home-directory repository is abbreviated with ~ in the header", async () => {
+test("the header shows the host's ~-abbreviated repository label from the payload", async () => {
+  // The CLI knows the real home directory; here it is one the page could not
+  // guess from the path's shape.
+  const requests: SidecarRequest[] = [];
+  const homeSource = { kind: "unstaged", repoRoot: "/srv/home/dev/widgets" };
+  const document = await renderWithStatus(homeSource, MOCK_REPOSITORY_STATUS, requests, {}, {
+    repoRoot: "/srv/home/dev/widgets",
+    repoLabel: "~/widgets",
+  });
+  expect(document.querySelector(".repo-header-repo")?.textContent).toBe("~/widgets");
+  expect(document.querySelector(".repo-header-title")?.getAttribute("title")).toBe(
+    "/srv/home/dev/widgets",
+  );
+});
+
+test("an older page without a repository label abbreviates a home-directory path itself", async () => {
   const requests: SidecarRequest[] = [];
   const homeSource = { kind: "unstaged", repoRoot: "/Users/dev/src/widgets" };
   const document = await renderWithStatus(homeSource, MOCK_REPOSITORY_STATUS, requests);
@@ -1460,6 +1477,8 @@ test("collapse all then a per-file expand reopens only that card, and both survi
 const SINGLE_REPO_OPTIONS = {
   sourceOptions: PICKER_OPTIONS.sourceOptions,
   repoOptions: PICKER_OPTIONS.repoOptions.slice(0, 1),
+  repoRoot: "/Users/dev/src/widgets",
+  repoLabel: "~/src/widgets",
 };
 
 test("the header names a single repository as text and offers the picker only with a choice", async () => {

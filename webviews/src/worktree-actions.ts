@@ -623,9 +623,10 @@ export function worktreeErrorReloads(
 // MARK: Repository header and forge availability
 
 /**
- * `~`-abbreviates the current user's home directory on macOS (`/Users/<name>`)
- * and Linux (`/home/<name>`). The page never learns `$HOME`; the prefix shape
- * is enough, and any other path is shown as is.
+ * Fallback `~`-abbreviation for pages written before the host supplied
+ * `payload.repoLabel`: guesses the home directory from its shape on macOS
+ * (`/Users/<name>`) and Linux (`/home/<name>`). The page never learns `$HOME`,
+ * so a home elsewhere is shown as is. Prefer `payloadRepoLabel`.
  */
 export function abbreviateHomePath(path: string): string {
   const match = /^(\/Users\/[^/]+|\/home\/[^/]+)(?=\/|$)/.exec(path);
@@ -648,7 +649,28 @@ export type RepositoryHeaderModel = {
 };
 
 /**
- * Header line for a working-tree view: the `~`-abbreviated repository, the
+ * The host's label for `source`'s repository, when the page payload carries
+ * one. The CLI writes `repoLabel` next to `repoRoot` with the real home
+ * directory abbreviated to `~`, so it names that repository only: a sibling
+ * chosen from the repo picker, or an older page without the field, yields
+ * `null` and the caller falls back to `abbreviateHomePath`.
+ */
+export function payloadRepoLabel(
+  payload: { repoRoot?: string; repoLabel?: string },
+  source: WritableDiffSource,
+): string | null {
+  if (typeof payload.repoLabel !== "string" || payload.repoLabel === "") {
+    return null;
+  }
+  if (typeof payload.repoRoot !== "string" || payload.repoRoot !== source.repoRoot) {
+    return null;
+  }
+  return payload.repoLabel;
+}
+
+/**
+ * Header line for a working-tree view: the repository (the host's `repoLabel`
+ * when given, otherwise the path with its home prefix abbreviated), the
  * branch and upstream position from the last status, and the streamed
  * diff totals (zero while the stream is still starting).
  */
@@ -656,9 +678,10 @@ export function repositoryHeaderModel(
   source: WritableDiffSource,
   status: RepositoryStatus | null,
   stats: DiffStats | null | undefined,
+  repoLabel: string | null = null,
 ): RepositoryHeaderModel {
   return {
-    repoLabel: abbreviateHomePath(source.repoRoot),
+    repoLabel: repoLabel ?? abbreviateHomePath(source.repoRoot),
     branch: status?.branch ?? null,
     detached: status?.detached ?? false,
     upstream: status?.upstream ?? null,

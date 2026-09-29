@@ -106,6 +106,7 @@ import {
   buildRepositoryStatusRequest,
   commitAvailability,
   fileActionsForSource,
+  payloadRepoLabel,
   repositoryHeaderModel,
   worktreeErrorDetail,
   worktreeErrorLabelKey,
@@ -1215,7 +1216,7 @@ export function App({ config, initialStatus }: ConfigProps) {
             open: commitOpen,
           }}
           label={label}
-          model={repositoryHeaderModel(header.source, repositoryStatus, state.treeSource?.diffStats)}
+          model={repositoryHeaderModel(header.source, repositoryStatus, state.treeSource?.diffStats, payloadRepoLabel(payload, header.source))}
           notice={worktreeNotice}
           onBulkAction={onBulkAction}
           onCopyGitApply={copyGitApply}

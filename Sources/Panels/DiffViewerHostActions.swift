@@ -1,6 +1,7 @@
 import AppKit
 import Bonsplit
 import CmuxBrowser
+import CmuxFoundation
 import Foundation
 import WebKit
 
@@ -19,7 +20,6 @@ enum DiffViewerHostActions {
     /// Methods handled natively; the policy treats them like writes.
     static let methods: Set<String> = ["hostOpenFile"]
 
-    private static let maximumSessionFileBytes = 1024 * 1024
     private static let maximumRepoRelativePathBytes = 4096
 
     enum Failure: Error, Equatable, Sendable {
@@ -63,14 +63,6 @@ enum DiffViewerHostActions {
         let path: String
     }
 
-    /// One `.branch-session-<group>.json` allow-list, as the CLI writes it and
-    /// the sidecar reads it (`BranchSessionAuthorization`).
-    private struct BranchSessionAllowList: Decodable {
-        let token: String
-        let groupID: String
-        let allowedRepoRoots: [String]
-    }
-
     /// Parses the `hostOpenFile` params; `nil` for anything malformed.
     static func openFileRequest(from body: [String: Any]) -> OpenFileRequest? {
         guard body["method"] as? String == "hostOpenFile",
@@ -97,7 +89,8 @@ enum DiffViewerHostActions {
         }
     }
 
-    /// Repository roots the allow-list under `trustedRoot` binds to `token`.
+    /// Repository roots the allow-list under `trustedRoot` binds to `token`,
+    /// read by the same ``DiffViewerBranchSessionStore`` the CLI's server uses.
     /// Each group id is issued for one token, so the first file whose token
     /// matches is the answer. Unreadable, oversized, or malformed files
     /// contribute nothing.
@@ -105,29 +98,7 @@ enum DiffViewerHostActions {
         forToken token: String,
         trustedRoot: URL = CmuxDiffViewerSessionPreparer.defaultTrustedRootURL
     ) -> [URL] {
-        guard CmuxDiffViewerURLSchemeHandler.isValidToken(token),
-              let names = try? FileManager.default.contentsOfDirectory(atPath: trustedRoot.path) else {
-            return []
-        }
-        for name in names where name.hasPrefix(".branch-session-") && name.hasSuffix(".json") {
-            let group = name.dropFirst(".branch-session-".count).dropLast(".json".count)
-            guard (1...64).contains(group.count),
-                  group.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }) else {
-                continue
-            }
-            let fileURL = trustedRoot.appendingPathComponent(name, isDirectory: false)
-            guard let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path),
-                  attributes[.type] as? FileAttributeType == .typeRegular,
-                  let size = attributes[.size] as? Int, size <= maximumSessionFileBytes,
-                  let data = try? Data(contentsOf: fileURL),
-                  let session = try? JSONDecoder().decode(BranchSessionAllowList.self, from: data),
-                  session.token == token,
-                  session.groupID == String(group) else {
-                continue
-            }
-            return session.allowedRepoRoots.map { URL(fileURLWithPath: $0, isDirectory: true) }
-        }
-        return []
+        DiffViewerBranchSessionStore(rootDirectory: trustedRoot).allowedRepoRoots(forToken: token)
     }
 
     /// Resolves `path` to a regular file inside one of `allowedRepoRoots`. The
