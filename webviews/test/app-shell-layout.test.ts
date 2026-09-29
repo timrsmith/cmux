@@ -45,6 +45,26 @@ describe("app shell grid", () => {
     expect(narrow).toMatch(/\n\s*#toolbar\s*\{[^}]*grid-template-areas:/s);
   });
 
+  test("the repository header summary never wraps and sheds detail by priority", () => {
+    // A wrapped summary grew the header over the first file card. The
+    // summary and status stay single-line; narrow headers hide the repo path
+    // first and the ahead/behind position next, through container queries.
+    expect(declaration(".repo-header-summary", "flex-wrap")).toBe("nowrap");
+    expect(declaration(".repo-header-status", "flex-wrap")).toBe("nowrap");
+    expect(declaration(".repo-header-status", "white-space")).toBe("nowrap");
+    expect(declaration(".repo-header-source", "flex")).toBe("0 0 auto");
+    expect(css).toMatch(/#repo-header\s*\{[^}]*container-type: inline-size;/s);
+    const repoHidden = /@container \(max-width: 560px\) \{([\s\S]*?)\n\}/.exec(
+      css,
+    )?.[1];
+    expect(repoHidden).toMatch(
+      /\.repo-header-repo,\s*\.repo-header-separator\s*\{\s*display: none;/s,
+    );
+    const positionHidden =
+      /@container \(max-width: 440px\) \{([\s\S]*?)\n\}/.exec(css)?.[1];
+    expect(positionHidden).toMatch(/\.repo-header-position/);
+  });
+
   test("whichever top row renders draws the block's bottom border on the same background", () => {
     for (const row of ["#repo-header", "#toolbar"]) {
       expect(declaration(row, "border-bottom")).toBe(
