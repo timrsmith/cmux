@@ -130,7 +130,7 @@ Sidebar content and metadata visibility from Settings > Sidebar.
 | `sidebar.loadingSpinnerPosition` | `"leading"` or `"trailing"` | `"leading"` | Which side of the workspace row the loading spinner appears on: leading (left, sharing the unread-badge slot) or trailing (right). |
 | `sidebar.notificationBadgePosition` | `"leading"` or `"trailing"` | `"leading"` | Which side of the workspace row the unread notification badge appears on: leading (left) or trailing (right). |
 | `sidebar.rightMaxWidth` | number | — | Maximum width in points for the right sidebar. When omitted, the built-in dynamic cap applies. |
-| `sidebar.filesPanelPlacement` | `"rightSidebar"` or `"leading"` | `"rightSidebar"` | Where the file tree lives: rightSidebar (the Files tab of the right sidebar, the default) or leading (its own panel between the workspace sidebar and the panes, IDE style; the right sidebar with Find, Changes, and the other tools stays on the right edge and drops its Files tab). |
+| `sidebar.filesPanelPlacement` | `"rightSidebar"`, `"leading"`, or `"stacked"` | `"rightSidebar"` | Where the file tree lives: rightSidebar (the Files tab of the right sidebar, the default), leading (its own panel between the workspace sidebar and the panes, IDE style), or stacked (below the workspace list inside the workspace sidebar, split by a draggable divider). With leading or stacked the right sidebar with Find, Changes, and the other tools stays on the right edge and drops its Files tab. |
 
 ## workspaceColors
 

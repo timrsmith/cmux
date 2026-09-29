@@ -219,6 +219,133 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
         }
     }
 
+    // MARK: - sidebar.filesPanelPlacement = stacked
+
+    func testStackedPlacementDropsFilesFromTheModeBarButKeepsCtrl1OnFiles() {
+        withSavedRightSidebarModeDefaults {
+            let defaults = UserDefaults.standard
+            defaults.set(FilesPanelPlacement.stacked.rawValue, forKey: filesPanelPlacementKey)
+
+            XCTAssertFalse(RightSidebarMode.visibleModes(defaults: defaults).contains(.files))
+            XCTAssertFalse(
+                RightSidebarMode.visibleModes(defaults: defaults, filesPanelPlacement: .stacked).contains(.files)
+            )
+            XCTAssertTrue(
+                RightSidebarMode.files.isAvailable(defaults: defaults),
+                "Files stays a reachable mode (CLI, shortcut, palette); it is only not a tab"
+            )
+            XCTAssertEqual(
+                RightSidebarMode.positionalShortcutModes(defaults: defaults).first,
+                .files,
+                "Ctrl+1 stays Files; the mode bar's digits start at 2"
+            )
+            XCTAssertEqual(RightSidebarMode.positionalDigit(for: .files, defaults: defaults), 1)
+            XCTAssertEqual(
+                RightSidebarMode.positionalShortcutModes(defaults: defaults).dropFirst().map { $0 },
+                RightSidebarMode.visibleModes(defaults: defaults)
+            )
+        }
+    }
+
+    func testStackedPlacementModeSetterNeverLandsOnFiles() {
+        withSavedRightSidebarModeDefaults {
+            let defaults = UserDefaults.standard
+            defaults.set(FilesPanelPlacement.stacked.rawValue, forKey: filesPanelPlacementKey)
+            defaults.set(RightSidebarMode.files.rawValue, forKey: modeKey)
+
+            let state = FileExplorerState()
+            let expected = RightSidebarMode.visibleModes(defaults: defaults).first
+            XCTAssertNotEqual(state.mode, .files, "a stored Files mode falls back to the first visible tab")
+            XCTAssertEqual(state.mode, expected)
+
+            state.mode = .changes
+            XCTAssertEqual(state.mode, .changes)
+            state.mode = .files
+            XCTAssertNotEqual(state.mode, .files, "the right sidebar has no Files tab to show")
+            XCTAssertEqual(state.mode, expected)
+        }
+    }
+
+    func testShowFilesRevealsTheStackedRegionAndTheSidebarThatHostsIt() {
+        withSavedRightSidebarModeDefaults {
+            let defaults = UserDefaults.standard
+            defaults.set(FilesPanelPlacement.stacked.rawValue, forKey: filesPanelPlacementKey)
+            defaults.set(false, forKey: filesPanelVisibleKey)
+            let state = FileExplorerState()
+            state.setVisible(false)
+            state.mode = .changes
+            var sidebarVisible = false
+            var revealCount = 0
+            let ownerId = UUID()
+            state.installStackedSidebarHost(
+                ownerId: ownerId,
+                isVisible: { sidebarVisible },
+                reveal: {
+                    revealCount += 1
+                    sidebarVisible = true
+                }
+            )
+            XCTAssertFalse(state.filesAreShown())
+
+            state.showFiles()
+
+            XCTAssertTrue(state.filesPanelVisible)
+            XCTAssertTrue(sidebarVisible, "showing Files shows the hidden workspace sidebar that hosts the tree")
+            XCTAssertEqual(revealCount, 1)
+            XCTAssertTrue(state.filesAreShown())
+            XCTAssertTrue(defaults.bool(forKey: filesPanelVisibleKey), "the region's visibility persists")
+            XCTAssertFalse(state.isVisible, "the right sidebar stays hidden")
+            XCTAssertEqual(state.mode, .changes, "the right sidebar keeps its tab")
+
+            // Closing the region leaves the workspace sidebar alone.
+            state.hideFiles()
+            XCTAssertFalse(state.filesPanelVisible)
+            XCTAssertTrue(sidebarVisible)
+            XCTAssertFalse(state.filesAreShown())
+
+            // Toggling from closed re-opens it (and re-reveals a shown sidebar harmlessly).
+            state.toggleFiles()
+            XCTAssertTrue(state.filesPanelVisible)
+            XCTAssertTrue(state.filesAreShown())
+
+            // With the sidebar hidden the tree is off screen even though the
+            // region is open, so a toggle shows rather than hides.
+            sidebarVisible = false
+            XCTAssertFalse(state.filesAreShown(), "a hidden sidebar hides the stacked tree with it")
+            state.toggleFiles()
+            XCTAssertTrue(state.filesPanelVisible)
+            XCTAssertTrue(sidebarVisible)
+            XCTAssertTrue(state.filesAreShown())
+
+            // A stale owner cannot remove a newer host; the real owner can.
+            state.removeStackedSidebarHost(ownerId: UUID())
+            sidebarVisible = false
+            XCTAssertFalse(state.filesAreShown())
+            state.removeStackedSidebarHost(ownerId: ownerId)
+            XCTAssertTrue(state.filesAreShown(), "without a host the sidebar is assumed visible")
+        }
+    }
+
+    func testStackedHeightPersistsAndFallsBackToTheDefault() {
+        withSavedRightSidebarModeDefaults {
+            let defaults = UserDefaults.standard
+            defaults.removeObject(forKey: FileExplorerState.filesPanelStackedHeightKey)
+            let fresh = FileExplorerState()
+            XCTAssertEqual(fresh.filesPanelStackedHeight, FilesPanelStackedLayout.defaultHeight)
+
+            fresh.filesPanelStackedHeight = 244
+            XCTAssertEqual(defaults.double(forKey: FileExplorerState.filesPanelStackedHeightKey), 244, accuracy: 0.001)
+            XCTAssertEqual(FileExplorerState().filesPanelStackedHeight, 244, accuracy: 0.001)
+
+            defaults.set(-10.0, forKey: FileExplorerState.filesPanelStackedHeightKey)
+            XCTAssertEqual(
+                FileExplorerState().filesPanelStackedHeight,
+                FilesPanelStackedLayout.defaultHeight,
+                "a non-positive persisted height is discarded"
+            )
+        }
+    }
+
     func testCLIArgumentNormalizerMapsVaultAndSessionsToSessions() {
         XCTAssertEqual(RightSidebarMode.from(cliArgument: "files"), .files)
         XCTAssertEqual(RightSidebarMode.from(cliArgument: "find"), .find)
@@ -244,6 +371,7 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
         let previousLegacyDockBeta = defaults.object(forKey: legacyDockBetaKey)
         let previousFilesPanelPlacement = defaults.object(forKey: filesPanelPlacementKey)
         let previousFilesPanelVisible = defaults.object(forKey: filesPanelVisibleKey)
+        let previousFilesPanelStackedHeight = defaults.object(forKey: FileExplorerState.filesPanelStackedHeightKey)
         let previousRightSidebarVisible = defaults.object(forKey: "fileExplorer.isVisible")
         defer {
             restore(previousMode, forKey: modeKey)
@@ -252,6 +380,7 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
             restore(previousLegacyDockBeta, forKey: legacyDockBetaKey)
             restore(previousFilesPanelPlacement, forKey: filesPanelPlacementKey)
             restore(previousFilesPanelVisible, forKey: filesPanelVisibleKey)
+            restore(previousFilesPanelStackedHeight, forKey: FileExplorerState.filesPanelStackedHeightKey)
             restore(previousRightSidebarVisible, forKey: "fileExplorer.isVisible")
         }
         // The placement is read through the catalog on every check, so start

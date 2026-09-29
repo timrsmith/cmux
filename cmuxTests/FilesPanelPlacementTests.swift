@@ -59,9 +59,28 @@ final class FilesPanelPlacementTests: XCTestCase {
         }
     }
 
+    func testSettingsFileStoreAppliesStackedFilesPanelPlacement() throws {
+        try withCleanManagedDefaults { defaults in
+            try loadSettingsFile(
+                """
+                {
+                  "sidebar": {
+                    "filesPanelPlacement": "stacked"
+                  }
+                }
+                """
+            )
+            XCTAssertEqual(defaults.string(forKey: managedKey), "stacked")
+            XCTAssertEqual(FileExplorerState.filesPanelPlacement(defaults: defaults), .stacked)
+            XCTAssertTrue(FileExplorerState.filesPanelIsStacked(defaults: defaults))
+            XCTAssertTrue(FileExplorerState.filesPanelIsDetached(defaults: defaults))
+            XCTAssertFalse(FileExplorerState.filesPanelIsLeading(defaults: defaults))
+        }
+    }
+
     func testSettingsFileStoreIgnoresUnknownFilesPanelPlacement() throws {
         try withCleanManagedDefaults { defaults in
-            for raw in ["left", "trailing", "Leading"] {
+            for raw in ["left", "trailing", "Leading", "Stacked", "below"] {
                 try loadSettingsFile(
                     """
                     {
@@ -110,6 +129,99 @@ final class FilesPanelPlacementTests: XCTestCase {
         XCTAssertFalse(FilesPanelPlacementLayout.isDocked(placement: .leading, isFilesPanelVisible: false))
         XCTAssertFalse(FilesPanelPlacementLayout.isDocked(placement: .rightSidebar, isFilesPanelVisible: true))
         XCTAssertFalse(FilesPanelPlacementLayout.isDocked(placement: .rightSidebar, isFilesPanelVisible: false))
+        // The stacked tree lives inside the workspace sidebar, never as a leading panel.
+        XCTAssertFalse(FilesPanelPlacementLayout.isDocked(placement: .stacked, isFilesPanelVisible: true))
+        XCTAssertFalse(FilesPanelPlacementLayout.isDocked(placement: .stacked, isFilesPanelVisible: false))
+    }
+
+    // MARK: - Stacked split
+
+    func testTreeIsStackedOnlyWhenStackedShownAndTheSidebarIsVisible() {
+        XCTAssertTrue(
+            FilesPanelStackedLayout.isStacked(placement: .stacked, isFilesPanelVisible: true, isLeadingSidebarVisible: true)
+        )
+        XCTAssertFalse(
+            FilesPanelStackedLayout.isStacked(placement: .stacked, isFilesPanelVisible: false, isLeadingSidebarVisible: true),
+            "the user closed the region"
+        )
+        XCTAssertFalse(
+            FilesPanelStackedLayout.isStacked(placement: .stacked, isFilesPanelVisible: true, isLeadingSidebarVisible: false),
+            "hiding the sidebar hides the tree with it"
+        )
+        for placement in [FilesPanelPlacement.rightSidebar, .leading] {
+            XCTAssertFalse(
+                FilesPanelStackedLayout.isStacked(placement: placement, isFilesPanelVisible: true, isLeadingSidebarVisible: true),
+                "\(placement) never stacks the tree under the list"
+            )
+        }
+    }
+
+    func testDraggingTheStackedDividerDownShrinksTheTree() {
+        // The tree is below the divider: a downward drag grows the list.
+        XCTAssertEqual(
+            FilesPanelStackedLayout.draggedHeight(startHeight: 320, translation: 40),
+            280,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            FilesPanelStackedLayout.draggedHeight(startHeight: 320, translation: -40),
+            360,
+            accuracy: 0.001
+        )
+    }
+
+    func testStackedHeightKeepsBothRegionsUsable() {
+        XCTAssertEqual(FilesPanelStackedLayout.defaultHeight, 320)
+        XCTAssertEqual(FilesPanelStackedLayout.minimumListHeight, 120)
+        XCTAssertEqual(FilesPanelStackedLayout.minimumTreeHeight, 160)
+        // Inside the window: the tree never drops under its floor, and the
+        // list always keeps its minimum above the divider.
+        XCTAssertEqual(FilesPanelStackedLayout.clampedHeight(90, availableHeight: 800), 160, accuracy: 0.001)
+        XCTAssertEqual(FilesPanelStackedLayout.clampedHeight(750, availableHeight: 800), 680, accuracy: 0.001)
+        XCTAssertEqual(FilesPanelStackedLayout.clampedHeight(333, availableHeight: 800), 333, accuracy: 0.001)
+        // Exactly enough room for both minimums pins the tree to its floor.
+        XCTAssertEqual(FilesPanelStackedLayout.clampedHeight(333, availableHeight: 280), 160, accuracy: 0.001)
+    }
+
+    func testStackedHeightSharesAShortSidebarProportionally() {
+        // Too short for both minimums: neither region swallows the other; the
+        // split follows the ratio of the minimums (160 : 120).
+        XCTAssertEqual(FilesPanelStackedLayout.clampedHeight(320, availableHeight: 210), 120, accuracy: 0.001)
+        XCTAssertEqual(FilesPanelStackedLayout.clampedHeight(50, availableHeight: 210), 120, accuracy: 0.001)
+        XCTAssertEqual(FilesPanelStackedLayout.clampedHeight(320, availableHeight: 70), 40, accuracy: 0.001)
+        XCTAssertEqual(FilesPanelStackedLayout.clampedHeight(320, availableHeight: 0), 320, accuracy: 0.001)
+    }
+
+    func testStackedHeightSanitizesCorruptAndUnmeasuredInput() {
+        // A corrupted persisted height lands on the default.
+        XCTAssertEqual(FilesPanelStackedLayout.clampedHeight(.nan, availableHeight: 800), 320, accuracy: 0.001)
+        XCTAssertEqual(FilesPanelStackedLayout.clampedHeight(.infinity, availableHeight: 800), 320, accuracy: 0.001)
+        // Before the sidebar is measured only the tree's floor applies; the
+        // live layout re-clamps once it knows the height.
+        XCTAssertEqual(FilesPanelStackedLayout.clampedHeight(90, availableHeight: .infinity), 160, accuracy: 0.001)
+        XCTAssertEqual(FilesPanelStackedLayout.clampedHeight(900, availableHeight: .infinity), 900, accuracy: 0.001)
+        XCTAssertEqual(FilesPanelStackedLayout.clampedHeight(.nan, availableHeight: .nan), 320, accuracy: 0.001)
+    }
+
+    func testStackedPlacementCedesNoLeadingTitlebarStripAndKeepsTheHeaderInOneRow() {
+        // Nothing new sits under the window controls: the workspace list is
+        // above the tree, so the band behaves exactly as with the right-sidebar
+        // placement and the panel header never needs its own row.
+        for filesPanelVisible in [true, false] {
+            let insets = FilesPanelPlacementLayout.titlebarBandInsets(
+                placement: .stacked,
+                isFilesPanelVisible: filesPanelVisible,
+                leadingSidebarWidth: 240,
+                filesPanelWidth: 260,
+                rightSidebarWidth: 300
+            )
+            XCTAssertEqual(insets, .init(leading: 0, trailing: 300), "visible=\(filesPanelVisible)")
+        }
+        for sidebarVisible in [true, false] {
+            XCTAssertFalse(
+                FilesPanelPlacementLayout.headerNeedsOwnRow(placement: .stacked, isLeadingSidebarVisible: sidebarVisible)
+            )
+        }
     }
 
     // MARK: - Resizer geometry

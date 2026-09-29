@@ -261,6 +261,35 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
         )
     }
 
+    // MARK: - Stacked files panel
+
+    func testStackedFilesPanelRemovesTheFilesTabAndKeepsControlOne() {
+        CmuxFeatureFlags.shared.setOverride(true, for: CmuxFeatureFlags.cloudMachinesFlag)
+        enableAllModeGates()
+        defaults.set(
+            FilesPanelPlacement.stacked.rawValue,
+            forKey: SidebarCatalogSection().filesPanelPlacement.userDefaultsKey
+        )
+        XCTAssertEqual(
+            RightSidebarMode.visibleModes(defaults: defaults),
+            [.find, .sessions, .feed, .dock, .machines, .changes],
+            "the tree under the workspace list is not a right-sidebar tab"
+        )
+        XCTAssertEqual(
+            RightSidebarMode.positionalShortcutModes(defaults: defaults),
+            [.files, .find, .sessions, .feed, .dock, .machines, .changes]
+        )
+        XCTAssertEqual(
+            KeyboardShortcutSettings.rightSidebarPositionalDefaultShortcut(for: .files, defaults: defaults),
+            StoredShortcut(key: "1", command: false, shift: false, option: false, control: true),
+            "the stacked file tree is still the first tool: Ctrl+1 shows it"
+        )
+        XCTAssertEqual(
+            KeyboardShortcutSettings.rightSidebarPositionalDefaultShortcut(for: .find, defaults: defaults),
+            StoredShortcut(key: "2", command: false, shift: false, option: false, control: true)
+        )
+    }
+
     func testLeadingFilesPanelIgnoresAHiddenFilesTabPreference() {
         enableAllModeGates()
         RightSidebarTabPreferences.setHidden(true, mode: .files, defaults: defaults)

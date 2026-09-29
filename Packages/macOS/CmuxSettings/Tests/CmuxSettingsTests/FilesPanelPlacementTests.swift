@@ -13,16 +13,24 @@ struct FilesPanelPlacementTests {
     @Test func rawValuesMatchTheConfigSchema() {
         #expect(FilesPanelPlacement.rightSidebar.rawValue == "rightSidebar")
         #expect(FilesPanelPlacement.leading.rawValue == "leading")
-        #expect(FilesPanelPlacement.allCases == [.rightSidebar, .leading])
+        #expect(FilesPanelPlacement.stacked.rawValue == "stacked")
+        #expect(FilesPanelPlacement.allCases == [.rightSidebar, .leading, .stacked])
     }
 
     @Test func decodesEachKnownJSONValue() {
         #expect(FilesPanelPlacement.decodeFromJSON("rightSidebar") == .rightSidebar)
         #expect(FilesPanelPlacement.decodeFromJSON("leading") == .leading)
+        #expect(FilesPanelPlacement.decodeFromJSON("stacked") == .stacked)
+    }
+
+    @Test func onlyTheRightSidebarPlacementKeepsAFilesTab() {
+        #expect(!FilesPanelPlacement.rightSidebar.isDetachedFromRightSidebar)
+        #expect(FilesPanelPlacement.leading.isDetachedFromRightSidebar)
+        #expect(FilesPanelPlacement.stacked.isDetachedFromRightSidebar)
     }
 
     @Test func rejectsUnknownJSONValues() {
-        for raw in ["", "left", "right", "trailing", "Leading", "RIGHTSIDEBAR", "right-sidebar", 1, true] as [Any] {
+        for raw in ["", "left", "right", "trailing", "Leading", "RIGHTSIDEBAR", "right-sidebar", "Stacked", "below", 1, true] as [Any] {
             #expect(FilesPanelPlacement.decodeFromJSON(raw) == nil, "\(raw) should not decode")
         }
         #expect(FilesPanelPlacement.decodeFromJSON(nil) == nil)

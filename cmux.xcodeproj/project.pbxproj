@@ -1950,6 +1950,7 @@
 		CFSF00000000000000000005 /* FileSearchScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFSR00000000000000000005 /* FileSearchScope.swift */; };
 		65D4427B316B2C291F5D9AFF /* FilesPanelPlacementLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26C6D5118DE67B311322C939 /* FilesPanelPlacementLayout.swift */; };
 		EABD4BDC792CECBB04751AD3 /* FilesPanelPlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF070650B6A1C26FFDC2679E /* FilesPanelPlacementTests.swift */; };
+		4425E4C1EB0886673668AE5D /* FilesPanelStackedLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 500A58838D65315E7D6E63BE /* FilesPanelStackedLayout.swift */; };
 		7738E46AC91FA44D374BE7BF /* FilesPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8384D7F6880CCA195D6406CA /* FilesPanelView.swift */; };
 		C35610000000000000000001 /* FinderFileDropRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35610000000000000000002 /* FinderFileDropRegressionTests.swift */; };
 		D0E0F0B4A1B2C3D4E5F60718 /* FindSelectionShortcutUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E0F0B5A1B2C3D4E5F60718 /* FindSelectionShortcutUITests.swift */; };
@@ -3291,6 +3292,8 @@
 		A5C017000000000000000005 /* StackAccountAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C017000000000000000006 /* StackAccountAvatarView.swift */; };
 		A11C00050000000000000001 /* StackAccountAvatarViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11C00050000000000000002 /* StackAccountAvatarViewTests.swift */; };
 		F20F85FC5900550685FA33AD /* StackAuth in Frameworks */ = {isa = PBXBuildFile; productRef = A8BD195031FC4B82B4354297 /* StackAuth */; };
+		4470FC8C3973E97FAE2974B2 /* StackedFilesPanelLayoutModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1ADE937E7A6C3248F9F290 /* StackedFilesPanelLayoutModel.swift */; };
+		BF1E52F9ED7A069F7863EBD9 /* StackedFilesPanelSplit.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2EA78A428D44EE8A7CDA7D3 /* StackedFilesPanelSplit.swift */; };
 		C0DE70500000000000000002 /* start-cmux-profiling in Copy CLI */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000001 /* start-cmux-profiling */; };
 		D35B71010000000000000001 /* StartupBreadcrumbLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = D35B71010000000000000002 /* StartupBreadcrumbLog.swift */; };
 		C0DE70530000000000000002 /* submit-cmux-profile in Copy CLI */ = {isa = PBXBuildFile; fileRef = C0DE70530000000000000001 /* submit-cmux-profile */; };
@@ -6088,6 +6091,7 @@
 		CFSR00000000000000000005 /* FileSearchScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSearchScope.swift; sourceTree = "<group>"; };
 		26C6D5118DE67B311322C939 /* FilesPanelPlacementLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesPanelPlacementLayout.swift; sourceTree = "<group>"; };
 		EF070650B6A1C26FFDC2679E /* FilesPanelPlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FilesPanelPlacementTests.swift"; sourceTree = "<group>"; };
+		500A58838D65315E7D6E63BE /* FilesPanelStackedLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesPanelStackedLayout.swift; sourceTree = "<group>"; };
 		8384D7F6880CCA195D6406CA /* FilesPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesPanelView.swift; sourceTree = "<group>"; };
 		C35610000000000000000002 /* FinderFileDropRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderFileDropRegressionTests.swift; sourceTree = "<group>"; };
 		D0E0F0B5A1B2C3D4E5F60718 /* FindSelectionShortcutUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindSelectionShortcutUITests.swift; sourceTree = "<group>"; };
@@ -7404,6 +7408,8 @@
 		A11C00030000000000000002 /* StackAccountAvatarImageLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackAccountAvatarImageLoaderTests.swift; sourceTree = "<group>"; };
 		A5C017000000000000000006 /* StackAccountAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackAccountAvatarView.swift; sourceTree = "<group>"; };
 		A11C00050000000000000002 /* StackAccountAvatarViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackAccountAvatarViewTests.swift; sourceTree = "<group>"; };
+		EF1ADE937E7A6C3248F9F290 /* StackedFilesPanelLayoutModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sidebar/StackedFilesPanelLayoutModel.swift; sourceTree = "<group>"; };
+		C2EA78A428D44EE8A7CDA7D3 /* StackedFilesPanelSplit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sidebar/StackedFilesPanelSplit.swift; sourceTree = "<group>"; };
 		C0DE70500000000000000001 /* start-cmux-profiling */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "Resources/bin/start-cmux-profiling"; sourceTree = SOURCE_ROOT; };
 		D35B71010000000000000002 /* StartupBreadcrumbLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/StartupBreadcrumbLog.swift; sourceTree = "<group>"; };
 		C0DE70530000000000000001 /* submit-cmux-profile */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "Resources/bin/submit-cmux-profile"; sourceTree = SOURCE_ROOT; };
@@ -9429,6 +9435,8 @@
 				B804B0270000000000000027 /* SidebarDividerTrackingView.swift */,
 				B804B0280000000000000028 /* SidebarSelectionCoalescer.swift */,
 				B804B0290000000000000029 /* SidebarLayoutModel.swift */,
+				C2EA78A428D44EE8A7CDA7D3 /* StackedFilesPanelSplit.swift */,
+				EF1ADE937E7A6C3248F9F290 /* StackedFilesPanelLayoutModel.swift */,
 				A8624F0C0000000000000002 /* SidebarFocusBoundaryReference.swift */,
 				B804B0210000000000000021 /* SidebarGroupHeaderRowView.swift */,
 				C9A57302C9A57302C9A57302 /* SidebarWorkspaceGroupHeaderMetrics.swift */,
@@ -11030,6 +11038,7 @@
 				0265ACB8C78712473EAD71C1 /* GitStatusRepositoryWatch.swift */,
 				90D5B6B60FE51D6FCC8385DF /* FileExplorerFileTypeIcon.swift */,
 				26C6D5118DE67B311322C939 /* FilesPanelPlacementLayout.swift */,
+				500A58838D65315E7D6E63BE /* FilesPanelStackedLayout.swift */,
 				272B367E39A68B0DCDE9E182 /* RightSidebarMode.swift */,
 				46814000000000000000000E /* RightSidebarModeShortcutEntry.swift */,
 				468110000000000000000006 /* RightSidebarModeShortcutMatcher.swift */,
@@ -14330,6 +14339,7 @@
 				A5001445A5001445A5001445 /* FilePreviewWorkspaceOpenSupport.swift in Sources */,
 				CFSF00000000000000000005 /* FileSearchScope.swift in Sources */,
 				65D4427B316B2C291F5D9AFF /* FilesPanelPlacementLayout.swift in Sources */,
+				4425E4C1EB0886673668AE5D /* FilesPanelStackedLayout.swift in Sources */,
 				7738E46AC91FA44D374BE7BF /* FilesPanelView.swift in Sources */,
 				F1A0C0DE0000000000000002 /* FindTextFieldSupport.swift in Sources */,
 				F0C05170000000000000002 /* FocusHistory.swift in Sources */,
@@ -15170,6 +15180,8 @@
 				0754B84093909FD27762E206 /* SSHTuiWorkspaceCoordinator.swift in Sources */,
 				A11C00020000000000000001 /* StackAccountAvatarImageLoader.swift in Sources */,
 				A5C017000000000000000005 /* StackAccountAvatarView.swift in Sources */,
+				4470FC8C3973E97FAE2974B2 /* StackedFilesPanelLayoutModel.swift in Sources */,
+				BF1E52F9ED7A069F7863EBD9 /* StackedFilesPanelSplit.swift in Sources */,
 				D35B71010000000000000001 /* StartupBreadcrumbLog.swift in Sources */,
 				D7AB00000000000000B041 /* SupersededPhoneDismissBuffer.swift in Sources */,
 				C935C833B18F4CC18711BD77 /* SurfaceAgentNaming.swift in Sources */,

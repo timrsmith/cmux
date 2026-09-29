@@ -12,12 +12,18 @@ import SwiftUI
 /// cursor with no async runloop hop, while the panes remain SwiftUI-owned
 /// (both blend modes keep their existing geometry).
 struct SidebarDividerTracker: NSViewRepresentable {
+    /// Which way the divider moves. `.horizontal` (the default) is a vertical
+    /// divider dragged left/right and reports the x translation; `.vertical`
+    /// is a horizontal divider dragged up/down (the stacked Files split) and
+    /// reports the translation toward the bottom of the window.
+    var axis: SidebarDividerTrackingView.Axis = .horizontal
     let onBegan: () -> Void
     let onChanged: (CGFloat) -> Void
     let onEnded: () -> Void
 
     func makeNSView(context: Context) -> SidebarDividerTrackingView {
         let view = SidebarDividerTrackingView()
+        view.axis = axis
         view.onBegan = onBegan
         view.onChanged = onChanged
         view.onEnded = onEnded
@@ -25,6 +31,7 @@ struct SidebarDividerTracker: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: SidebarDividerTrackingView, context: Context) {
+        nsView.axis = axis
         nsView.onBegan = onBegan
         nsView.onChanged = onChanged
         nsView.onEnded = onEnded
@@ -33,6 +40,37 @@ struct SidebarDividerTracker: NSViewRepresentable {
 
 @MainActor
 final class SidebarDividerTrackingView: NSView {
+    enum Axis {
+        /// Left/right drag of a vertical divider.
+        case horizontal
+        /// Up/down drag of a horizontal divider.
+        case vertical
+
+        var cursor: NSCursor {
+            switch self {
+            case .horizontal: return .resizeLeftRight
+            case .vertical: return .resizeUpDown
+            }
+        }
+
+        /// Translation from `start` to `current` along the axis, in points.
+        /// Vertical drags are reported positive toward the bottom of the
+        /// window (AppKit window coordinates grow upward), matching the
+        /// direction the pointer moved on screen.
+        func translation(from start: NSPoint, to current: NSPoint) -> CGFloat {
+            switch self {
+            case .horizontal: return current.x - start.x
+            case .vertical: return start.y - current.y
+            }
+        }
+    }
+
+    var axis: Axis = .horizontal {
+        didSet {
+            guard axis != oldValue else { return }
+            window?.invalidateCursorRects(for: self)
+        }
+    }
     var onBegan: (() -> Void)?
     var onChanged: ((CGFloat) -> Void)?
     var onEnded: (() -> Void)?
@@ -72,7 +110,7 @@ final class SidebarDividerTrackingView: NSView {
 
     override func resetCursorRects() {
         super.resetCursorRects()
-        addCursorRect(bounds, cursor: .resizeLeftRight)
+        addCursorRect(bounds, cursor: axis.cursor)
     }
 
     // Divider drags work without first activating the window, matching
@@ -88,10 +126,11 @@ final class SidebarDividerTrackingView: NSView {
     func trackMouseDown(with event: NSEvent, in window: NSWindow) {
         guard event.window === window else { return }
         onBegan?()
-        let startX = event.locationInWindow.x
+        let startPoint = event.locationInWindow
+        let axis = self.axis
         var eventCount = 0
         var writeMs = 0.0, commitMs = 0.0, layoutMs = 0.0, displayMs = 0.0, flushMs = 0.0
-        NSCursor.resizeLeftRight.push()
+        axis.cursor.push()
         let startedAt = CACurrentMediaTime()
         defer {
             NSCursor.pop()
@@ -130,7 +169,7 @@ final class SidebarDividerTrackingView: NSView {
             }
             eventCount += 1
             let t0 = CACurrentMediaTime()
-            onChanged?(next.locationInWindow.x - startX)
+            onChanged?(axis.translation(from: startPoint, to: next.locationInWindow))
             let t1 = CACurrentMediaTime()
             // A zero-deadline runloop pass returns before the before-waiting
             // phase, which is where SwiftUI and Core Animation register their
