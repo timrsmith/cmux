@@ -56,15 +56,49 @@ const ONE_FILE_HUNK = {
   newCount: 3,
 };
 
+/** `story.txt` followed by `notes.txt`, each with one hunk. */
+const TWO_FILE_PATCH = `${ONE_FILE_PATCH}diff --git a/notes.txt b/notes.txt
+index 3333333..4444444 100644
+--- a/notes.txt
++++ b/notes.txt
+@@ -1,2 +1,2 @@
+ alpha
+-beta
++beta changed
+`;
+
+/** Source and repo options as the CLI sends them for a multi-repo view. */
+const PICKER_OPTIONS = {
+  sourceOptions: [
+    { label: "Unstaged", value: "unstaged", sessionSource: unstagedSource },
+    { label: "Staged", value: "staged", sessionSource: stagedSource },
+    {
+      label: "Last turn",
+      value: "last-turn",
+      sessionSource: { kind: "patch", path: "/last-turn.patch" },
+    },
+  ],
+  repoOptions: [
+    { label: "repo", value: "/tmp/repo", sessionSource: unstagedSource },
+    {
+      label: "other",
+      value: "/tmp/other",
+      sessionSource: { kind: "unstaged", repoRoot: "/tmp/other" },
+    },
+  ],
+};
+
 /**
  * Mounts the App on a typed WebKit session against `mock`. With a `patch`,
  * every patch fetch streams it and the render waits for its file header
  * actions; otherwise the diff is empty and the render waits for that.
+ * `payloadExtras` adds to the page payload (picker options, for instance).
  */
 async function renderApp(
   source: any,
   mock: ReturnType<typeof sidecarMock>,
   patch = "",
+  payloadExtras: Record<string, unknown> = {},
 ) {
   const dom = mountDom(
     viewerURL,
@@ -84,6 +118,7 @@ async function renderApp(
             endpoint: "cmuxDiff",
             protocolVersion: 1,
           },
+          ...payloadExtras,
         },
       }}
       initialStatus={createDiffViewerStatus("Loading diff", {
@@ -1210,4 +1245,350 @@ test("open in cmux failures surface as a notice", async () => {
     "the failure notice",
   );
   expect(document.getElementById("worktree-notice")?.dataset.error).toBe("true");
+});
+
+// MARK: Header hosts the pickers; per-file fold
+
+/**
+ * Opens the toolbar's options menu unless it is already open. Header-action
+ * clicks stop propagation, so an open menu survives them; toggling blindly
+ * would close it.
+ */
+async function openOptionsMenu(document: Document): Promise<void> {
+  if (!document.getElementById("options-menu")) {
+    document.getElementById("options-button")?.click();
+  }
+  await waitFor(
+    () => Boolean(document.getElementById("options-menu")),
+    "the options menu",
+  );
+}
+
+function selectOption(select: HTMLSelectElement, value: string): void {
+  const window = select.ownerDocument.defaultView!;
+  select.value = value;
+  flushSync(() => {
+    select.dispatchEvent(new window.Event("change", { bubbles: true }));
+  });
+}
+
+test("a working-tree view hosts the source and repo pickers in the repository header, not the toolbar", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderApp(
+    unstagedSource,
+    sidecarMock(requests, ["worktree.write"]),
+    ONE_FILE_PATCH,
+    PICKER_OPTIONS,
+  );
+  await waitFor(
+    () => Boolean(document.getElementById("repo-header")),
+    "the repository header",
+  );
+  const header = document.getElementById("repo-header")!;
+  const toolbar = document.getElementById("toolbar")!;
+  // Exactly one copy of the pickers, and it lives in the header.
+  expect(document.querySelectorAll("#source-select")).toHaveLength(1);
+  expect(header.querySelector("#source-select")).toBeTruthy();
+  expect(header.querySelector("#repo-select")).toBeTruthy();
+  expect(toolbar.querySelector("#source-select")).toBeNull();
+  expect(toolbar.querySelector("#repo-select")).toBeNull();
+  expect(toolbar.dataset.hostsSource).toBe("false");
+  // The repo select replaces the plain repo label and carries its path.
+  expect(header.querySelector(".repo-header-repo")).toBeNull();
+  expect(header.querySelector<HTMLSelectElement>("#repo-select")?.title).toBe(
+    "/tmp/repo",
+  );
+  // Repo first, file navigation second, diffs last.
+  expect(header.nextElementSibling?.id).toBe("toolbar");
+  expect(toolbar.nextElementSibling?.id).toBe("content");
+  // The header's jump/actions bar still offers its icon actions.
+  expect(toolbar.querySelector("#options-button")).toBeTruthy();
+  // Switching the source from the header opens the new session.
+  selectOption(header.querySelector<HTMLSelectElement>("#source-select")!, "staged");
+  await waitFor(() => sessionOpens(requests) === 2, "the staged session");
+  expect(requestsFor(requests, "sessionOpen")[1].params.source).toEqual(stagedSource);
+});
+
+test("a patch session keeps the pickers in the toolbar and renders no repository header", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderApp(
+    { kind: "patch", path: "/last-turn.patch" },
+    sidecarMock(requests, ["worktree.write"]),
+    "",
+    PICKER_OPTIONS,
+  );
+  await waitFor(
+    () => requests.some((request) => request.method === "protocolHandshake"),
+    "the handshake",
+  );
+  expect(document.getElementById("repo-header")).toBeNull();
+  const toolbar = document.getElementById("toolbar")!;
+  expect(toolbar.dataset.hostsSource).toBe("true");
+  expect(toolbar.querySelector("#source-select")).toBeTruthy();
+  expect(document.querySelectorAll("#source-select")).toHaveLength(1);
+  // Patch sessions have no repository to pick.
+  expect(document.getElementById("repo-select")).toBeNull();
+});
+
+/**
+ * Every file card. The library renders the card header in its worker, which
+ * JSDOM never runs, so a card is known by its element and, when the file
+ * matters, by the path its "Open in cmux" action reports (`pathOf`).
+ */
+function cards(document: Document): HTMLElement[] {
+  return Array.from(document.querySelectorAll<HTMLElement>("diffs-container"));
+}
+
+function codeBlocksIn(card: HTMLElement): number {
+  return card.shadowRoot?.querySelectorAll("pre").length ?? 0;
+}
+
+function foldToggle(card: HTMLElement): HTMLButtonElement {
+  const toggle = card.querySelector<HTMLButtonElement>(".file-collapse-toggle");
+  expect(toggle).toBeTruthy();
+  return toggle!;
+}
+
+function isExpanded(card: HTMLElement): boolean {
+  return foldToggle(card).getAttribute("aria-expanded") === "true";
+}
+
+/** The card's file path, learned from its host open request (never a reload). */
+async function pathOf(card: HTMLElement, requests: SidecarRequest[]): Promise<string> {
+  const before = requestsFor(requests, "hostOpenFile").length;
+  click(card.querySelector<HTMLButtonElement>('[data-action="openInCmux"]'));
+  await waitFor(
+    () => requestsFor(requests, "hostOpenFile").length === before + 1,
+    "the host open request",
+  );
+  return requestsFor(requests, "hostOpenFile")[before].params.path;
+}
+
+test("a file card folds from its header chevron and unfolds again", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderApp(
+    unstagedSource,
+    sidecarMock(requests, ["worktree.write"]),
+    ONE_FILE_PATCH,
+  );
+  await waitFor(() => renderedCodeBlocks(document) === 1, "the file's code");
+  const [card] = cards(document);
+  expect(isExpanded(card)).toBe(true);
+  expect(foldToggle(card).title).toBe("Collapse file");
+  click(foldToggle(card));
+  // The controlled `collapsed` reaches CodeView: the card keeps its header
+  // (chevron and write actions) but renders no code.
+  await waitFor(() => codeBlocksIn(card) === 0, "the card to fold");
+  await waitFor(() => !isExpanded(card), "the chevron to report the fold");
+  expect(foldToggle(card).title).toBe("Expand file");
+  expect(card.querySelectorAll(".worktree-action")).toHaveLength(4);
+  // A single fold leaves the collapse-all option alone.
+  await openOptionsMenu(document);
+  expect(findButton(document, "Collapse all diffs")).toBeTruthy();
+  expect(findButton(document, "Expand all diffs")).toBeUndefined();
+  click(foldToggle(card));
+  await waitFor(() => codeBlocksIn(card) === 1, "the card to unfold");
+  await waitFor(() => isExpanded(card), "the chevron to report the unfold");
+  expect(foldToggle(card).title).toBe("Collapse file");
+  // No fold ever touches the session.
+  expect(sessionOpens(requests)).toBe(1);
+});
+
+test("collapse all then a per-file expand reopens only that card, and both survive a write reload", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderApp(
+    unstagedSource,
+    sidecarMock(requests, ["worktree.write"]),
+    TWO_FILE_PATCH,
+  );
+  await waitFor(() => renderedCodeBlocks(document) === 2, "both files' code");
+  expect(cards(document)).toHaveLength(2);
+  await openOptionsMenu(document);
+  click(findButton(document, "Collapse all diffs"));
+  await waitFor(() => renderedCodeBlocks(document) === 0, "every card to fold");
+  await waitFor(
+    () => cards(document).every((card) => !isExpanded(card)),
+    "every chevron to report the fold",
+  );
+  // Expanding one card from its chevron leaves the other folded and the
+  // collapse-all option on.
+  const [first, second] = cards(document);
+  click(foldToggle(first));
+  await waitFor(() => codeBlocksIn(first) === 1, "the first card to unfold");
+  expect(isExpanded(first)).toBe(true);
+  expect(codeBlocksIn(second)).toBe(0);
+  expect(isExpanded(second)).toBe(false);
+  expect(renderedCodeBlocks(document)).toBe(1);
+  const expandedPath = await pathOf(first, requests);
+  expect(["story.txt", "notes.txt"]).toContain(expandedPath);
+  await openOptionsMenu(document);
+  expect(findButton(document, "Expand all diffs")).toBeTruthy();
+  // A write reloads the session in place; the re-streamed cards come back
+  // with the same folds: the per-file expand (keyed by path, so it finds its
+  // file again) and the collapse-all baseline for the rest.
+  click(first.querySelector<HTMLButtonElement>('[data-action="stageFile"]'));
+  await waitForReload(document, requests);
+  await waitFor(
+    () => document.body.dataset.streamFileCount === "2",
+    "both files to stream again",
+  );
+  await waitFor(
+    () => cards(document).length === 2 && renderedCodeBlocks(document) === 1,
+    "one card to come back open",
+  );
+  const reopened = cards(document).filter(isExpanded);
+  expect(reopened).toHaveLength(1);
+  expect(codeBlocksIn(reopened[0])).toBe(1);
+  expect(await pathOf(reopened[0], requests)).toBe(expandedPath);
+  // Expand all resets the per-file choices: every card opens.
+  await openOptionsMenu(document);
+  click(findButton(document, "Expand all diffs"));
+  await waitFor(() => renderedCodeBlocks(document) === 2, "every card to unfold");
+  expect(cards(document).every(isExpanded)).toBe(true);
+  // Folding one card again after expand all works from a clean slate.
+  const [, other] = cards(document);
+  click(foldToggle(other));
+  await waitFor(() => codeBlocksIn(other) === 0, "the second card to fold");
+  expect(renderedCodeBlocks(document)).toBe(1);
+});
+
+// MARK: Repo picker only with a choice; host in-place refresh
+
+const SINGLE_REPO_OPTIONS = {
+  sourceOptions: PICKER_OPTIONS.sourceOptions,
+  repoOptions: PICKER_OPTIONS.repoOptions.slice(0, 1),
+};
+
+test("the header names a single repository as text and offers the picker only with a choice", async () => {
+  // One repository (the docked panel follows the workspace): no picker, the
+  // abbreviated path precedes the branch.
+  const single: SidecarRequest[] = [];
+  const singleDocument = await renderApp(
+    { kind: "unstaged", repoRoot: "/Users/dev/src/widgets" },
+    sidecarMock(single, ["worktree.write"]),
+    ONE_FILE_PATCH,
+    SINGLE_REPO_OPTIONS,
+  );
+  await waitFor(
+    () => singleDocument.querySelector(".repo-header-branch") != null,
+    "the status to render",
+  );
+  const singleHeader = singleDocument.getElementById("repo-header")!;
+  expect(singleHeader.querySelector("#source-select")).toBeTruthy();
+  expect(singleDocument.getElementById("repo-select")).toBeNull();
+  expect(singleHeader.querySelector(".repo-header-repo")?.textContent).toBe(
+    "~/src/widgets",
+  );
+  expect(singleHeader.querySelector(".repo-header-separator")?.textContent).toBe(":");
+  expect(singleHeader.querySelector(".repo-header-branch")?.textContent).toBe("main");
+  expect(singleHeader.querySelector(".repo-header-title")?.getAttribute("title")).toBe(
+    "/Users/dev/src/widgets",
+  );
+  await resetDom();
+  // Two repositories: the picker replaces the text.
+  const multi: SidecarRequest[] = [];
+  const multiDocument = await renderApp(
+    unstagedSource,
+    sidecarMock(multi, ["worktree.write"]),
+    ONE_FILE_PATCH,
+    PICKER_OPTIONS,
+  );
+  await waitFor(
+    () => multiDocument.querySelector(".repo-header-branch") != null,
+    "the status to render",
+  );
+  const multiHeader = multiDocument.getElementById("repo-header")!;
+  expect(multiHeader.querySelector("#repo-select")).toBeTruthy();
+  expect(multiHeader.querySelector(".repo-header-repo")).toBeNull();
+  expect(multiHeader.querySelector(".repo-header-separator")).toBeNull();
+  expect(multiHeader.querySelector(".repo-header-branch")?.textContent).toBe("main");
+});
+
+test("the toolbar fallback also renders the repo picker only with two or more repositories", async () => {
+  // A branch session is read-only, so the toolbar hosts the pickers.
+  const branchSource = { kind: "branch", repoRoot: "/tmp/repo", baseRef: "main" };
+  const single: SidecarRequest[] = [];
+  const singleDocument = await renderApp(
+    branchSource,
+    sidecarMock(single, ["worktree.write"]),
+    "",
+    SINGLE_REPO_OPTIONS,
+  );
+  expect(singleDocument.getElementById("repo-header")).toBeNull();
+  expect(singleDocument.getElementById("toolbar")?.dataset.hostsSource).toBe("true");
+  expect(singleDocument.querySelector("#toolbar #source-select")).toBeTruthy();
+  expect(singleDocument.getElementById("repo-select")).toBeNull();
+  await resetDom();
+  const multi: SidecarRequest[] = [];
+  const multiDocument = await renderApp(
+    branchSource,
+    sidecarMock(multi, ["worktree.write"]),
+    "",
+    PICKER_OPTIONS,
+  );
+  expect(multiDocument.getElementById("repo-header")).toBeNull();
+  expect(multiDocument.querySelector("#toolbar #repo-select")).toBeTruthy();
+  expect(multiDocument.querySelectorAll("#repo-select")).toHaveLength(1);
+});
+
+test("window.cmuxDiffViewer.refresh() reopens the working-tree session in place and keeps the folds and status", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(unstagedSource, MOCK_GITHUB_STATUS, requests);
+  const window = document.defaultView!;
+  await waitFor(() => renderedCodeBlocks(document) === 1, "the file's code");
+  expect(requestsFor(requests, "worktreeRepositoryStatus")).toHaveLength(1);
+  // Fold the card first: the refresh must bring it back folded.
+  const [card] = cards(document);
+  click(foldToggle(card));
+  await waitFor(() => codeBlocksIn(card) === 0, "the card to fold");
+  const before = requests.length;
+  expect(window.cmuxDiffViewer?.refresh()).toBe(true);
+  // While the reload is in flight a second refresh is refused, like a write.
+  expect(window.cmuxDiffViewer?.refresh()).toBe(false);
+  await waitForReload(document, requests);
+  // The same source was closed and reopened, in that order, with no
+  // navigation and no status refetch.
+  const afterwards = requests.slice(before).map((request) => request.method);
+  expect(afterwards.indexOf("sessionClose")).toBeGreaterThanOrEqual(0);
+  expect(afterwards.indexOf("sessionClose")).toBeLessThan(afterwards.indexOf("sessionOpen"));
+  expect(requestsFor(requests, "sessionOpen")[1].params.source).toEqual(unstagedSource);
+  expect(window.location.href).toBe(viewerURL);
+  expect(requestsFor(requests, "worktreeRepositoryStatus")).toHaveLength(1);
+  expect(document.querySelector(".repo-header-position")?.textContent).toBe("2 ahead");
+  await waitFor(
+    () => document.body.dataset.streamFileCount === "1" && cards(document).length === 1,
+    "the file to stream again",
+  );
+  expect(codeBlocksIn(cards(document)[0])).toBe(0);
+  expect(isExpanded(cards(document)[0])).toBe(false);
+  // Once settled, a refresh is accepted again.
+  expect(window.cmuxDiffViewer?.refresh()).toBe(true);
+  await waitFor(() => sessionOpens(requests) === 3, "the third session");
+});
+
+test("window.cmuxDiffViewer.refresh() is refused while a write is pending", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderApp(
+    unstagedSource,
+    sidecarMock(requests, ["worktree.write"]),
+    ONE_FILE_PATCH,
+  );
+  click(headerAction(document, "stageFile"));
+  expect(document.defaultView!.cmuxDiffViewer?.refresh()).toBe(false);
+  await waitForReload(document, requests);
+  // Exactly the write's reload happened.
+  expect(sessionOpens(requests)).toBe(2);
+});
+
+test("a patch session has no in-place refresh", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderApp(
+    { kind: "patch", path: "/last-turn.patch" },
+    sidecarMock(requests, ["worktree.write"]),
+    "",
+    PICKER_OPTIONS,
+  );
+  expect(document.defaultView!.cmuxDiffViewer?.refresh() ?? false).toBe(false);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(sessionOpens(requests)).toBe(1);
 });

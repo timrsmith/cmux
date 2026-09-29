@@ -291,6 +291,13 @@ struct GitStatusProvider: Sendable {
     /// hung child and the store's in-flight token is released like any other
     /// failed run. Standard error is discarded.
     private static func runCapturingStandardOutput(_ process: Process, timeout: TimeInterval) -> String? {
+        guard let data = runCapturingStandardOutputData(process, timeout: timeout) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// `runCapturingStandardOutput` without the UTF-8 decode, for NUL-delimited
+    /// listings that other repository-reading types digest as bytes.
+    static func runCapturingStandardOutputData(_ process: Process, timeout: TimeInterval) -> Data? {
         let pipe = Pipe()
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = pipe
@@ -327,7 +334,7 @@ struct GitStatusProvider: Sendable {
         // detached grandchild inherited it.
         guard drained.wait(timeout: .now() + timeout) == .success else { return nil }
         guard process.terminationStatus == 0 else { return nil }
-        return String(data: output.data, encoding: .utf8)
+        return output.data
     }
 }
 

@@ -302,7 +302,27 @@ struct RightSidebarChangesWebView: NSViewRepresentable {
         }
         if context.coordinator.reloadGeneration != reloadGeneration {
             context.coordinator.reloadGeneration = reloadGeneration
-            webView.reload()
+            Self.refresh(webView)
+        }
+    }
+
+    /// The page exposes `window.cmuxDiffViewer.refresh()` for working-tree
+    /// views: it reopens the diff session in place, keeping scroll position,
+    /// per-file collapse state, and the repository status already shown. A
+    /// page without it (still loading, a static snapshot, an older bundle)
+    /// reloads the document instead.
+    static let inPlaceRefreshScript = """
+    (function () {
+      var viewer = window.cmuxDiffViewer;
+      return !!(viewer && typeof viewer.refresh === "function" && viewer.refresh());
+    })()
+    """
+
+    private static func refresh(_ webView: CmuxWebView) {
+        webView.evaluateJavaScript(inPlaceRefreshScript) { result, _ in
+            if (result as? Bool) != true {
+                webView.reload()
+            }
         }
     }
 

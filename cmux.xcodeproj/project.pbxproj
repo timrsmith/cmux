@@ -2819,6 +2819,7 @@
 		F6572042A1B2C3D4E5F60718 /* RestoredAgentShellActivityLivenessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6572043A1B2C3D4E5F60718 /* RestoredAgentShellActivityLivenessTests.swift */; };
 		BB8CB1EFD62C8CAE14293195 /* RestoredStartupInputOwnershipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D41A7FBA0A3B1A9109982B /* RestoredStartupInputOwnershipTests.swift */; };
 		9200B0019200B0019200B001 /* ResumeLauncherCwdConsistencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9200B0019200B0019200B002 /* ResumeLauncherCwdConsistencyTests.swift */; };
+		D9B9D0C6245547297C1685D8 /* RightSidebarChangesFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8689024056FFAB422E9621F0 /* RightSidebarChangesFingerprint.swift */; };
 		95696112A88DF22B85601454 /* RightSidebarChangesPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6A2631B5A656CFB37D1F82D /* RightSidebarChangesPanelView.swift */; };
 		8341BFE4226EEE73307CAAF8 /* RightSidebarChangesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50E3EFC5449D0AD5538574E /* RightSidebarChangesStore.swift */; };
 		604817B02AD026F924A06A5D /* RightSidebarChangesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1F94BEE2C23CB028816305 /* RightSidebarChangesStoreTests.swift */; };
@@ -6940,6 +6941,7 @@
 		F6572043A1B2C3D4E5F60718 /* RestoredAgentShellActivityLivenessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestoredAgentShellActivityLivenessTests.swift; sourceTree = "<group>"; };
 		D1D41A7FBA0A3B1A9109982B /* RestoredStartupInputOwnershipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RestoredStartupInputOwnershipTests.swift"; sourceTree = "<group>"; };
 		9200B0019200B0019200B002 /* ResumeLauncherCwdConsistencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResumeLauncherCwdConsistencyTests.swift; sourceTree = "<group>"; };
+		8689024056FFAB422E9621F0 /* RightSidebarChangesFingerprint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarChangesFingerprint.swift; sourceTree = "<group>"; };
 		F6A2631B5A656CFB37D1F82D /* RightSidebarChangesPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarChangesPanelView.swift; sourceTree = "<group>"; };
 		A50E3EFC5449D0AD5538574E /* RightSidebarChangesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarChangesStore.swift; sourceTree = "<group>"; };
 		DD1F94BEE2C23CB028816305 /* RightSidebarChangesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RightSidebarChangesStoreTests.swift"; sourceTree = "<group>"; };
@@ -11020,6 +11022,7 @@
 				B37A00000000000000000004 /* RightSidebarMode+Availability.swift */,
 				B37A0000000000000000000E /* RightSidebarRemoteCommand.swift */,
 				FE003003 /* RightSidebarPanelView.swift */,
+				8689024056FFAB422E9621F0 /* RightSidebarChangesFingerprint.swift */,
 				8384D7F6880CCA195D6406CA /* FilesPanelView.swift */,
 				F7B6AE88191F61FF0881A991 /* DiffViewerCLILaunch.swift */,
 				F6A2631B5A656CFB37D1F82D /* RightSidebarChangesPanelView.swift */,
@@ -14857,6 +14860,7 @@
 				F6572052A1B2C3D4E5F60718 /* RestoredAgentForegroundProcess.swift in Sources */,
 				C7C5FAF2145342F395DB4C40 /* RestoredAgentLifecycleCoordinator.swift in Sources */,
 				F6572072A1B2C3D4E5F60718 /* RestoredAgentLiveness.swift in Sources */,
+				D9B9D0C6245547297C1685D8 /* RightSidebarChangesFingerprint.swift in Sources */,
 				95696112A88DF22B85601454 /* RightSidebarChangesPanelView.swift in Sources */,
 				8341BFE4226EEE73307CAAF8 /* RightSidebarChangesStore.swift in Sources */,
 				B7F9A600B7F9A600B7F9A600 /* RightSidebarChromeGeometryReporting.swift in Sources */,
