@@ -133,12 +133,13 @@ enum DiffViewerHostActions {
 
     /// Answers a `hostOpenFile` request already admitted by the policy. The
     /// allow-list lookup and path resolution run off the main actor; the open
-    /// itself runs on it, through `open` (the workspace's file-open routing).
+    /// itself runs on it, through `open`, which defaults to the same
+    /// workspace file-open routing the sidebar file tree uses for a click.
     @MainActor
     static func handle(
         body: [String: Any],
         webView: WKWebView?,
-        open: @MainActor (Workspace, String) -> Bool = openInWorkspace
+        open: @MainActor (Workspace, String) -> Bool = { $0.openFileInFocusedPane($1) }
     ) async -> [String: Any] {
         func failure(_ failure: Failure) -> [String: Any] {
             DiffSidecarBridge.failureResponse(body: body, code: failure.code, message: failure.message)
@@ -168,11 +169,5 @@ enum DiffViewerHostActions {
             guard open(workspace, fileURL.path) else { return failure(.openFailed) }
             return DiffSidecarBridge.successResponse(body: body, result: ["type": "fileOpened"])
         }
-    }
-
-    /// The same routing the sidebar file tree uses for a click.
-    @MainActor
-    static func openInWorkspace(_ workspace: Workspace, _ path: String) -> Bool {
-        workspace.openFileInFocusedPane(path)
     }
 }

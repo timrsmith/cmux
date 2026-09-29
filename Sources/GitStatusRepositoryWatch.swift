@@ -41,12 +41,12 @@ enum GitStatusRepositoryWatching {
                 if change.requiresFullRescan {
                     return descriptor.containsRelevantChange(paths: change.paths, requiresFullRescan: true)
                 }
-                let statusPaths = GitStatusWatchRelevance.statusRelevantPaths(change.paths)
-                // A batch made only of ignored paths is not a change, and an
-                // emptied batch must not fall into the descriptor's
-                // "no path detail is relevant" rule.
-                if !change.paths.isEmpty, statusPaths.isEmpty { return false }
-                return descriptor.containsRelevantChange(paths: statusPaths, requiresFullRescan: false)
+                // Stops at the first path both filters accept; a batch made
+                // only of ignored paths is not a change.
+                return GitStatusWatchRelevance.batchCanAffectStatus(
+                    change.paths,
+                    isRelevant: descriptor.containsRelevantChange(path:)
+                )
             }
         ) else { return nil }
         return GitStatusRepositoryWatch(

@@ -58,9 +58,12 @@ extension Workspace {
     }
 
     /// Opens `path` in a new, focused terminal surface in `pane` running the
-    /// resolved terminal editor, started in the file's directory. The command
-    /// runs through the user's login shell so profile-managed `PATH` entries
-    /// (Homebrew's `nvim`, for example) resolve as they do in a normal tab.
+    /// terminal editor, started in the file's directory. The command runs
+    /// through the user's login shell so profile-managed `PATH` entries
+    /// (Homebrew's `nvim`, for example) resolve as they do in a normal tab, and
+    /// so the `$VISUAL`/`$EDITOR` fallback the resolver emits when no command
+    /// is configured expands from the profile rather than the app's own
+    /// environment.
     @discardableResult
     func openFileInTerminalEditor(_ path: String, inPane pane: PaneID) -> Bool {
         let request = TerminalEditorCommandResolver(defaults: .standard).openRequest(forFilePath: path)

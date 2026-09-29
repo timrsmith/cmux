@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import CmuxSyntaxHighlighting
 import Testing
 
 #if canImport(cmux_DEV)
@@ -41,6 +42,74 @@ struct FilePreviewTextEditingTests {
         #expect(FilePreviewIndentation.detect(in: "", tabWidth: 0).width == 1)
         #expect(FilePreviewIndentation(usesTabs: true, width: 4).unit == "\t")
         #expect(FilePreviewIndentation(usesTabs: false, width: 3).unit == "   ")
+    }
+
+    @Test("indentation detection stops at the line and scalar budgets")
+    func indentationDetectionBudgets() {
+        let manyLines = String(repeating: "x\n", count: FilePreviewIndentation.detectionLineLimit) + "\tb"
+        #expect(FilePreviewIndentation.detect(in: manyLines, tabWidth: 4) == spaces)
+
+        let longLine = String(repeating: "x", count: FilePreviewIndentation.detectionScalarLimit)
+        #expect(FilePreviewIndentation.detect(in: longLine + "\n\tb", tabWidth: 4) == spaces,
+                "a tab-indented line past the scalar budget is never reached")
+        let withinBudget = String(repeating: "x", count: FilePreviewIndentation.detectionScalarLimit - 3)
+        #expect(FilePreviewIndentation.detect(in: withinBudget + "\n\tb", tabWidth: 4) == tabs)
+    }
+
+    @Test("only Return, Tab, and Shift-Tab read the indentation")
+    func indentationIsReadLazily() {
+        var detections = 0
+        func counted() -> FilePreviewIndentation {
+            detections += 1
+            return spaces
+        }
+        let text = "a{\nb\n"
+        let editing = FilePreviewTextEditing(text: text, indentation: counted())
+        _ = editing.toggleLineComment(in: NSRange(location: 0, length: 0), token: "#")
+        _ = editing.moveLines(in: NSRange(location: 0, length: 0), up: false)
+        _ = editing.duplicateLines(in: NSRange(location: 0, length: 0))
+        _ = editing.deleteLines(in: NSRange(location: 0, length: 0))
+        _ = editing.lineBlockRange(for: NSRange(location: 0, length: 4))
+        #expect(detections == 0)
+
+        _ = editing.newlineInsertion(at: NSRange(location: 2, length: 0))
+        #expect(detections == 1)
+        _ = editing.tabInsertion(at: NSRange(location: 0, length: 0))
+        #expect(detections == 2)
+        _ = editing.tabInsertion(at: NSRange(location: 0, length: 4))
+        #expect(detections == 3, "indenting a block reads the unit once")
+        _ = editing.outdentLines(in: NSRange(location: 0, length: 4))
+        #expect(detections == 4, "outdenting a block reads the width once")
+    }
+
+    @Test("the editor caches detected indentation until the buffer or tab width changes")
+    func editorCachesIndentation() {
+        let textView = SavingTextView.makeFilePreviewTextView()
+        textView.applyFilePreviewTabWidth(4)
+        textView.string = "\ta"
+        let afterFirstAssignment = textView.filePreviewTextEditCount
+        #expect(afterFirstAssignment > 0)
+        #expect(textView.filePreviewIndentation == tabs)
+        #expect(textView.cachedFilePreviewIndentation?.editCount == afterFirstAssignment)
+        #expect(textView.filePreviewIndentation == tabs)
+        #expect(textView.cachedFilePreviewIndentation?.editCount == afterFirstAssignment, "a repeat read is a cache hit")
+
+        textView.string = "  a"
+        #expect(textView.filePreviewTextEditCount > afterFirstAssignment, "assigning the string is a character edit")
+        #expect(textView.filePreviewIndentation == spaces)
+
+        let beforeTyping = textView.filePreviewTextEditCount
+        textView.setSelectedRange(NSRange(location: 0, length: 3))
+        textView.insertText("\tb", replacementRange: NSRange(location: 0, length: 3))
+        #expect(textView.filePreviewTextEditCount > beforeTyping, "typing is a character edit")
+        #expect(textView.filePreviewIndentation == tabs)
+
+        let beforeRestyle = textView.filePreviewTextEditCount
+        textView.applyCurrentPreviewFont()
+        #expect(textView.filePreviewTextEditCount == beforeRestyle, "attribute passes are not edits")
+
+        textView.applyFilePreviewTabWidth(2)
+        #expect(textView.filePreviewIndentation == FilePreviewIndentation(usesTabs: true, width: 2))
     }
 
     // MARK: Return
@@ -148,16 +217,35 @@ struct FilePreviewTextEditingTests {
     func commentTokens() {
         let expectations: [(String?, String, String?)] = [
             ("bash", "run.sh", "#"), ("python", "a.py", "#"), ("ruby", "a.rb", "#"), ("yaml", "a.yml", "#"),
-            ("swift", "a.swift", "//"), ("typescript", "a.ts", "//"), ("rust", "a.rs", "//"), ("go", "a.go", "//"),
-            ("kotlin", "a.kt", "//"), ("java", "a.java", "//"), ("csharp", "a.cs", "//"), ("php", "a.php", "//"),
-            ("sql", "a.sql", "--"), ("lua", "a.lua", "--"), ("haskell", "a.hs", "--"),
-            ("clojure", "a.clj", ";"), ("ini", "a.ini", ";"), ("ini", "Cargo.toml", "#"),
-            ("latex", "a.tex", "%"), ("vbnet", "a.vb", "'"),
-            (nil, "Makefile", "#"), (nil, "Dockerfile", "#"), (nil, "dockerfile.dev", "#"),
+            ("elixir", "a.ex", "#"),
+            ("swift", "a.swift", "//"), ("typescript", "a.ts", "//"), ("javascript", "a.js", "//"),
+            ("rust", "a.rs", "//"), ("go", "a.go", "//"), ("kotlin", "a.kt", "//"), ("java", "a.java", "//"),
+            ("csharp", "a.cs", "//"), ("c", "a.h", "//"), ("cpp", "a.cc", "//"), ("objectivec", "a.m", "//"),
+            ("sql", "a.sql", "--"), ("ini", "a.ini", ";"), ("ini", "Cargo.toml", "#"), ("erlang", "a.erl", "%"),
+            (nil, "Makefile", "#"), (nil, "Dockerfile", "#"), (nil, "dockerfile.dev", "#"), (nil, ".gitignore", "#"),
+            (nil, ".env.local", "#"),
             (nil, "notes.txt", nil), ("json", "a.json", nil), ("markdown", "a.md", nil), ("xml", "a.html", nil),
+            ("css", "a.css", nil),
         ]
         for (language, fileName, token) in expectations {
             #expect(FilePreviewLineCommentToken(language: language, fileName: fileName).token == token, "\(fileName)")
+        }
+        #expect(FilePreviewTextEditor<FilePreviewPanel>.lineCommentToken(forFilePath: "/tmp/src/main.rs").token == "//")
+        #expect(FilePreviewTextEditor<FilePreviewPanel>.lineCommentToken(forFilePath: "/tmp/Makefile").token == "#")
+        #expect(FilePreviewTextEditor<FilePreviewPanel>.lineCommentToken(forFilePath: "/tmp/README.md").token == nil)
+    }
+
+    @Test("every comment-token language is an id the highlighter catalog resolves")
+    func commentTokenLanguagesComeFromTheCatalog() {
+        let catalog = LanguageCatalog()
+        let probeExtensions = [
+            "swift", "ts", "js", "py", "json", "md", "go", "rs", "rb", "ex", "erl", "java", "kt", "cs",
+            "c", "cpp", "m", "sh", "yml", "toml", "ini", "css", "html", "sql",
+        ]
+        let catalogLanguages = Set(probeExtensions.compactMap { catalog.language(forExtension: $0) })
+        #expect(!catalogLanguages.isEmpty)
+        for language in FilePreviewLineCommentToken.tokensByLanguage.keys.sorted() {
+            #expect(catalogLanguages.contains(language), "\(language) is not a LanguageCatalog id")
         }
     }
 
@@ -249,9 +337,15 @@ struct FilePreviewTextEditingTests {
         #expect(locator.range(line: 0, column: nil) == NSRange(location: 0, length: 3))
         #expect(locator.lineNumber(at: 0) == 1)
         #expect(locator.lineNumber(at: 4) == 2)
+        #expect(locator.lineNumber(at: 8) == 3)
         #expect(locator.lineNumber(at: 13) == 4)
+        #expect(locator.lineNumber(at: 99) == 4)
         #expect(FilePreviewLineLocator(text: "").range(line: 5, column: 5) == NSRange(location: 0, length: 0))
+        #expect(FilePreviewLineLocator(text: "").lineCount == 1)
         #expect(FilePreviewLineLocator(text: "a\n").lineCount == 2)
+        #expect(FilePreviewLineLocator(text: "a\n").lineNumber(at: 2) == 2)
+        #expect(FilePreviewLineLocator(text: "a\n").range(line: 2, column: nil) == NSRange(location: 2, length: 0))
+        #expect(FilePreviewLineLocator(text: "a\r\nb").range(line: 2, column: nil) == NSRange(location: 3, length: 1))
     }
 
     // MARK: Completion
@@ -264,23 +358,27 @@ struct FilePreviewTextEditingTests {
         #expect(completion.completions(forPartialWord: "alpha") == ["alphabet"], "the partial word itself is excluded")
         #expect(completion.completions(forPartialWord: "zz") == [])
         #expect(completion.completions(forPartialWord: "a1") == ["a1234"])
+        #expect(completion.completions(forPartialWord: "") == ["a1234", "al_pha", "alpha", "alphabet", "Alpine", "beta"])
+        #expect(completion.completions(forPartialWord: "AL") == ["al_pha", "alpha", "alphabet", "Alpine"], "matching ignores case")
         #expect(FilePreviewWordCompletion.partialWordRange(in: "foo bar_2", endingAt: 9) == NSRange(location: 4, length: 5))
         #expect(FilePreviewWordCompletion.partialWordRange(in: "foo ", endingAt: 4) == NSRange(location: 4, length: 0))
+
+        let accented = FilePreviewWordCompletion(text: "café cafés caf CAFÉ-bar naïve")
+        #expect(accented.completions(forPartialWord: "caf") == ["CAFÉ", "café", "cafés"])
+        #expect(accented.completions(forPartialWord: "na") == ["naïve"])
+        #expect(FilePreviewWordCompletion.isIdentifierScalar("é"))
+        #expect(!FilePreviewWordCompletion.isIdentifierScalar("-"))
     }
 
     // MARK: Text view integration
 
     @Test("editor commands apply through the text view as one undoable change")
     func editorAppliesEditsWithUndo() throws {
-        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 240))
-        let window = NSWindow(contentRect: scrollView.frame, styleMask: .borderless, backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        defer { window.close() }
-        window.contentView = scrollView
-        let textView = SavingTextView.makeFilePreviewTextView()
-        scrollView.documentView = textView
+        let editor = makeWindowedEditor()
+        defer { editor.close() }
+        let textView = editor.textView
         textView.string = "let a = 1\nlet b = 2\n"
-        window.makeFirstResponder(textView)
+        editor.window.makeFirstResponder(textView)
         textView.setSelectedRange(NSRange(location: 4, length: 0))
         let undo = try #require(textView.undoManager)
 
@@ -341,6 +439,21 @@ struct FilePreviewTextEditingTests {
         #expect(textView.selectedRange() == NSRange(location: 0, length: 6))
     }
 
+    @Test("editing commands leave marked text to the input method")
+    func markedTextOwnsEditingKeys() {
+        let textView = SavingTextView.makeFilePreviewTextView()
+        textView.filePreviewLineCommentToken = FilePreviewLineCommentToken(language: "swift")
+        textView.string = "abc"
+        textView.setSelectedRange(NSRange(location: 3, length: 0))
+        textView.setMarkedText("に", selectedRange: NSRange(location: 1, length: 0), replacementRange: NSRange(location: NSNotFound, length: 0))
+        #expect(textView.hasMarkedText())
+        #expect(!textView.applyFilePreviewEdit({ $0.tabInsertion(at: $1) }))
+        #expect(!textView.performFilePreviewEditorAction(.toggleLineComment))
+        #expect(!textView.performFilePreviewEditorAction(.duplicateLine))
+        #expect(textView.hasMarkedText())
+        #expect(textView.string == "abcに")
+    }
+
     @Test("completion popup data comes from the buffer")
     func completionsFromBuffer() {
         let textView = SavingTextView.makeFilePreviewTextView()
@@ -381,24 +494,24 @@ struct FilePreviewTextEditingTests {
             textView.string = "a\nb\nc"
             textView.setSelectedRange(NSRange(location: 0, length: 0))
 
-            let comment = try keyEvent("/", flags: .command, code: UInt16(kVK_ANSI_Slash))
+            let comment = try editorKeyEvent("/", flags: .command, code: UInt16(kVK_ANSI_Slash))
             #expect(textView.performKeyEquivalent(with: comment))
             #expect(textView.string == "# a\nb\nc")
 
-            let down = try keyEvent("\u{F701}", flags: .option, code: UInt16(kVK_DownArrow))
+            let down = try editorKeyEvent("\u{F701}", flags: .option, code: UInt16(kVK_DownArrow))
             #expect(textView.performKeyEquivalent(with: down))
             #expect(textView.string == "b\n# a\nc")
 
-            let duplicate = try keyEvent("\u{F701}", flags: [.option, .shift], code: UInt16(kVK_DownArrow))
+            let duplicate = try editorKeyEvent("\u{F701}", flags: [.option, .shift], code: UInt16(kVK_DownArrow))
             #expect(textView.performKeyEquivalent(with: duplicate))
             #expect(textView.string == "b\n# a\n# a\nc")
 
-            let up = try keyEvent("\u{F700}", flags: .option, code: UInt16(kVK_UpArrow))
+            let up = try editorKeyEvent("\u{F700}", flags: .option, code: UInt16(kVK_UpArrow))
             #expect(textView.performKeyEquivalent(with: up))
             #expect(textView.string == "b\n# a\n# a\nc")
             #expect(textView.selectedRange().location == 4)
 
-            let delete = try keyEvent("k", flags: [.command, .control], code: UInt16(kVK_ANSI_K))
+            let delete = try editorKeyEvent("k", flags: [.command, .control], code: UInt16(kVK_ANSI_K))
             #expect(textView.performKeyEquivalent(with: delete))
             #expect(textView.string == "b\n# a\nc")
 
@@ -410,10 +523,57 @@ struct FilePreviewTextEditingTests {
                 StoredShortcut(key: "d", command: true, shift: true, option: true, control: true),
                 for: .deleteLine
             )
-            let rebound = try keyEvent("d", flags: [.command, .shift, .option, .control], code: UInt16(kVK_ANSI_D))
+            let rebound = try editorKeyEvent("d", flags: [.command, .shift, .option, .control], code: UInt16(kVK_ANSI_D))
             #expect(textView.performKeyEquivalent(with: rebound))
             #expect(textView.string == "b\nc")
         }
+    }
+
+    /// `performKeyEquivalent` runs for every key-down in the editor. The
+    /// candidate list is built once per shortcut-settings change; after
+    /// that, plain typing never walks the shortcut table and repeated
+    /// shortcuts reuse the cached candidates.
+    @Test("plain typing skips shortcut lookups and repeated shortcuts reuse the cached candidates")
+    func plainKeysSkipShortcutLookups() throws {
+        #if DEBUG
+        try withDefaultShortcutSettings {
+            let textView = SavingTextView.makeFilePreviewTextView()
+            textView.filePreviewLineCommentToken = FilePreviewLineCommentToken(language: "swift")
+            textView.string = "a"
+            textView.setSelectedRange(NSRange(location: 0, length: 0))
+            var lookups = 0
+            KeyboardShortcutSettings.shortcutLookupObserver = { _ in lookups += 1 }
+            defer { KeyboardShortcutSettings.shortcutLookupObserver = nil }
+
+            let comment = try editorKeyEvent("/", flags: .command, code: UInt16(kVK_ANSI_Slash))
+            #expect(textView.performKeyEquivalent(with: comment))
+            #expect(textView.string == "// a")
+            let builtOnce = lookups
+            #expect(builtOnce > 0, "the first key event builds the candidates")
+
+            let plain = try editorKeyEvent("x", flags: [], code: UInt16(kVK_ANSI_X))
+            let shifted = try editorKeyEvent("X", flags: .shift, code: UInt16(kVK_ANSI_X))
+            let newline = try editorKeyEvent("\r", flags: [], code: UInt16(kVK_Return))
+            #expect(!textView.performKeyEquivalent(with: plain))
+            #expect(!textView.performKeyEquivalent(with: shifted))
+            #expect(!textView.performKeyEquivalent(with: newline))
+            #expect(lookups == builtOnce, "no Command, Control, or Option: the shortcut table is not consulted")
+
+            #expect(textView.performKeyEquivalent(with: comment))
+            #expect(textView.string == "a")
+            #expect(lookups == builtOnce, "the second shortcut reuses the cached candidates")
+
+            KeyboardShortcutSettings.setShortcut(.unbound, for: .toggleLineComment)
+            #expect(!textView.performKeyEquivalent(with: comment))
+            #expect(textView.string == "a")
+            #expect(lookups > builtOnce, "a settings change rebuilds the candidates")
+            let rebuilt = lookups
+            #expect(!textView.performKeyEquivalent(with: plain))
+            #expect(lookups == rebuilt)
+        }
+        #else
+        Issue.record("shortcutLookupObserver is only available in DEBUG")
+        #endif
     }
 
     @Test("the new editor defaults stay clear of every other default in an overlapping context")
@@ -437,52 +597,28 @@ struct FilePreviewTextEditingTests {
             }
         }
         #expect(KeyboardShortcutSettings.Action.findAndReplace.shortcutContext == .application)
+        #expect(!SavingTextView.filePreviewEditingShortcutActions.contains(.findAndReplace),
+                "the application shortcut is routed by the AppDelegate, not the editor")
         #expect(KeyboardShortcutSettings.Action.goToLine.shortcutContext == .filePreviewTextEditor)
         #expect(KeyboardShortcutSettings.Action.completeWord.shortcutContext == .filePreviewTextEditor)
     }
 
     @Test("cmux.json bindings rebind the editor commands")
     func fileConfiguredBinding() throws {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("editor-shortcut-\(UUID().uuidString).json")
-        defer { try? FileManager.default.removeItem(at: url) }
-        try """
-        {"shortcuts":{"bindings":{"toggleLineComment":"cmd+opt+/","goToLine":null}}}
-        """.write(to: url, atomically: true, encoding: .utf8)
-        let originalStore = KeyboardShortcutSettings.settingsFileStore
-        KeyboardShortcutSettings.settingsFileStore = KeyboardShortcutSettingsFileStore(
-            primaryPath: url.path, fallbackPath: nil, additionalFallbackPaths: [], startWatching: false
-        )
-        KeyboardShortcutSettings.resetAll()
-        defer {
-            KeyboardShortcutSettings.resetAll()
-            KeyboardShortcutSettings.settingsFileStore = originalStore
+        try withShortcutSettingsFile(
+            """
+            {"shortcuts":{"bindings":{"toggleLineComment":"cmd+opt+/","goToLine":null}}}
+            """
+        ) {
+            #expect(KeyboardShortcutSettings.shortcut(for: .goToLine).isUnbound)
+            let textView = SavingTextView.makeFilePreviewTextView()
+            textView.filePreviewLineCommentToken = FilePreviewLineCommentToken(language: "sql")
+            textView.string = "select 1"
+            let commandSlash = try editorKeyEvent("/", flags: .command, code: UInt16(kVK_ANSI_Slash))
+            let commandOptionSlash = try editorKeyEvent("/", flags: [.command, .option], code: UInt16(kVK_ANSI_Slash))
+            #expect(!textView.performKeyEquivalent(with: commandSlash))
+            #expect(textView.performKeyEquivalent(with: commandOptionSlash))
+            #expect(textView.string == "-- select 1")
         }
-        #expect(KeyboardShortcutSettings.shortcut(for: .goToLine).isUnbound)
-        let textView = SavingTextView.makeFilePreviewTextView()
-        textView.filePreviewLineCommentToken = FilePreviewLineCommentToken(language: "sql")
-        textView.string = "select 1"
-        #expect(!textView.performKeyEquivalent(with: try keyEvent("/", flags: .command, code: UInt16(kVK_ANSI_Slash))))
-        #expect(textView.performKeyEquivalent(with: try keyEvent("/", flags: [.command, .option], code: UInt16(kVK_ANSI_Slash))))
-        #expect(textView.string == "-- select 1")
-    }
-
-    // MARK: Fixtures
-
-    private func withDefaultShortcutSettings(_ body: () throws -> Void) rethrows {
-        let originalStore = KeyboardShortcutSettings.installIsolatedTestFileStore(prefix: "cmux-editor-commands")
-        KeyboardShortcutSettings.resetAll()
-        defer {
-            KeyboardShortcutSettings.resetAll()
-            KeyboardShortcutSettings.settingsFileStore = originalStore
-        }
-        try body()
-    }
-
-    private func keyEvent(_ key: String, flags: NSEvent.ModifierFlags, code: UInt16) throws -> NSEvent {
-        try #require(NSEvent.keyEvent(
-            with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0, context: nil,
-            characters: key, charactersIgnoringModifiers: key, isARepeat: false, keyCode: code
-        ))
     }
 }

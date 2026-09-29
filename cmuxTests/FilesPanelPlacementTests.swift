@@ -17,14 +17,12 @@ import XCTest
 /// The SwiftUI layout itself (HStack order, resizer overlay, titlebar band)
 /// is exercised by the tagged dev build; the rules it follows are here.
 final class FilesPanelPlacementTests: XCTestCase {
-    private let settingsFileBackupsDefaultsKey = "cmux.settingsFile.backups.v1"
-    private let importedManagedDefaultsKey = "cmux.settingsFile.importedManagedDefaults.v1"
     private let managedKey = SidebarCatalogSection().filesPanelPlacement.userDefaultsKey
 
     // MARK: - cmux.json parse path
 
     func testSettingsFileStoreAppliesLeadingFilesPanelPlacement() throws {
-        try withCleanManagedDefaults { defaults in
+        try withCleanManagedDefaults(clearing: [managedKey]) { defaults in
             try loadSettingsFile(
                 """
                 {
@@ -44,7 +42,7 @@ final class FilesPanelPlacementTests: XCTestCase {
     }
 
     func testSettingsFileStoreAppliesRightSidebarFilesPanelPlacement() throws {
-        try withCleanManagedDefaults { defaults in
+        try withCleanManagedDefaults(clearing: [managedKey]) { defaults in
             try loadSettingsFile(
                 """
                 {
@@ -60,7 +58,7 @@ final class FilesPanelPlacementTests: XCTestCase {
     }
 
     func testSettingsFileStoreAppliesStackedFilesPanelPlacement() throws {
-        try withCleanManagedDefaults { defaults in
+        try withCleanManagedDefaults(clearing: [managedKey]) { defaults in
             try loadSettingsFile(
                 """
                 {
@@ -72,14 +70,13 @@ final class FilesPanelPlacementTests: XCTestCase {
             )
             XCTAssertEqual(defaults.string(forKey: managedKey), "stacked")
             XCTAssertEqual(FileExplorerState.filesPanelPlacement(defaults: defaults), .stacked)
-            XCTAssertTrue(FileExplorerState.filesPanelIsStacked(defaults: defaults))
+            XCTAssertTrue(FilesPanelPlacement.stacked.isDetachedFromRightSidebar)
             XCTAssertTrue(FileExplorerState.filesPanelIsDetached(defaults: defaults))
-            XCTAssertFalse(FileExplorerState.filesPanelIsLeading(defaults: defaults))
         }
     }
 
     func testSettingsFileStoreIgnoresUnknownFilesPanelPlacement() throws {
-        try withCleanManagedDefaults { defaults in
+        try withCleanManagedDefaults(clearing: [managedKey]) { defaults in
             for raw in ["left", "trailing", "Leading", "Stacked", "below"] {
                 try loadSettingsFile(
                     """
@@ -100,7 +97,7 @@ final class FilesPanelPlacementTests: XCTestCase {
     }
 
     func testSettingsFileStoreIgnoresNonStringFilesPanelPlacement() throws {
-        try withCleanManagedDefaults { defaults in
+        try withCleanManagedDefaults(clearing: [managedKey]) { defaults in
             try loadSettingsFile(
                 """
                 {
@@ -369,48 +366,6 @@ final class FilesPanelPlacementTests: XCTestCase {
         // header takes its own row and the panel keeps the configured width.
         XCTAssertTrue(
             FilesPanelPlacementLayout.headerNeedsOwnRow(placement: .leading, isLeadingSidebarVisible: false)
-        )
-    }
-
-    // MARK: - Helpers
-
-    private func withCleanManagedDefaults(_ body: (UserDefaults) throws -> Void) throws {
-        let defaults = UserDefaults.standard
-        let keys = [managedKey, settingsFileBackupsDefaultsKey, importedManagedDefaultsKey]
-        let previousValues = keys.reduce(into: [String: Any]()) { values, key in
-            values[key] = defaults.object(forKey: key)
-        }
-        defer {
-            for key in keys {
-                if let value = previousValues[key] {
-                    defaults.set(value, forKey: key)
-                } else {
-                    defaults.removeObject(forKey: key)
-                }
-            }
-        }
-        for key in keys {
-            defaults.removeObject(forKey: key)
-        }
-        try body(defaults)
-    }
-
-    private func loadSettingsFile(_ contents: String) throws {
-        let directoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(
-            "files-panel-placement-settings-\(UUID().uuidString)",
-            isDirectory: true
-        )
-        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directoryURL) }
-
-        let settingsFileURL = directoryURL.appendingPathComponent("cmux.json", isDirectory: false)
-        try contents.write(to: settingsFileURL, atomically: true, encoding: .utf8)
-
-        _ = KeyboardShortcutSettingsFileStore(
-            primaryPath: settingsFileURL.path,
-            fallbackPath: nil,
-            additionalFallbackPaths: [],
-            startWatching: false
         )
     }
 }

@@ -293,23 +293,18 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
             let state = FileExplorerState()
             state.setVisible(false)
             state.mode = .changes
-            var sidebarVisible = false
+            let sidebar = SidebarState(isVisible: false)
             var revealCount = 0
-            let ownerId = UUID()
-            state.installStackedSidebarHost(
-                ownerId: ownerId,
-                isVisible: { sidebarVisible },
-                reveal: {
-                    revealCount += 1
-                    sidebarVisible = true
-                }
-            )
+            sidebar.installVisibilityWillChangeHandler(ownerId: UUID()) { isVisible in
+                if isVisible { revealCount += 1 }
+            }
+            state.stackedSidebarState = sidebar
             XCTAssertFalse(state.filesAreShown())
 
             state.showFiles()
 
             XCTAssertTrue(state.filesPanelVisible)
-            XCTAssertTrue(sidebarVisible, "showing Files shows the hidden workspace sidebar that hosts the tree")
+            XCTAssertTrue(sidebar.isVisible, "showing Files shows the hidden workspace sidebar that hosts the tree")
             XCTAssertEqual(revealCount, 1)
             XCTAssertTrue(state.filesAreShown())
             XCTAssertTrue(defaults.bool(forKey: filesPanelVisibleKey), "the region's visibility persists")
@@ -319,29 +314,47 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
             // Closing the region leaves the workspace sidebar alone.
             state.hideFiles()
             XCTAssertFalse(state.filesPanelVisible)
-            XCTAssertTrue(sidebarVisible)
+            XCTAssertTrue(sidebar.isVisible)
             XCTAssertFalse(state.filesAreShown())
 
-            // Toggling from closed re-opens it (and re-reveals a shown sidebar harmlessly).
+            // Toggling from closed re-opens it; a shown sidebar is left as is.
             state.toggleFiles()
             XCTAssertTrue(state.filesPanelVisible)
             XCTAssertTrue(state.filesAreShown())
+            XCTAssertEqual(revealCount, 1, "a visible sidebar is not re-revealed")
 
             // With the sidebar hidden the tree is off screen even though the
             // region is open, so a toggle shows rather than hides.
-            sidebarVisible = false
+            sidebar.setVisible(false)
             XCTAssertFalse(state.filesAreShown(), "a hidden sidebar hides the stacked tree with it")
             state.toggleFiles()
             XCTAssertTrue(state.filesPanelVisible)
-            XCTAssertTrue(sidebarVisible)
+            XCTAssertTrue(sidebar.isVisible)
             XCTAssertTrue(state.filesAreShown())
+            XCTAssertEqual(revealCount, 2)
 
-            // A stale owner cannot remove a newer host; the real owner can.
-            state.removeStackedSidebarHost(ownerId: UUID())
-            sidebarVisible = false
+            // Another window's sidebar cannot detach this one; the host itself can.
+            state.detachStackedSidebarState(SidebarState(isVisible: true))
+            sidebar.setVisible(false)
             XCTAssertFalse(state.filesAreShown())
-            state.removeStackedSidebarHost(ownerId: ownerId)
+            state.detachStackedSidebarState(sidebar)
             XCTAssertTrue(state.filesAreShown(), "without a host the sidebar is assumed visible")
+        }
+    }
+
+    func testStackedSidebarStateIsHeldWeakly() {
+        withSavedRightSidebarModeDefaults {
+            let defaults = UserDefaults.standard
+            defaults.set(FilesPanelPlacement.stacked.rawValue, forKey: filesPanelPlacementKey)
+            defaults.set(true, forKey: filesPanelVisibleKey)
+            let state = FileExplorerState()
+            do {
+                let sidebar = SidebarState(isVisible: false)
+                state.stackedSidebarState = sidebar
+                XCTAssertFalse(state.filesAreShown())
+            }
+            XCTAssertNil(state.stackedSidebarState, "the window owns its sidebar state; this reference must not keep it alive")
+            XCTAssertTrue(state.filesAreShown(), "a released host falls back to assuming the sidebar visible")
         }
     }
 

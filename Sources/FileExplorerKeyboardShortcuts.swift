@@ -2,19 +2,6 @@ import AppKit
 import CmuxSettings
 import CmuxWorkspaces
 
-/// Opens a local file activated in the file explorer.
-///
-/// The editor choice (`fileExplorer.doubleClickAction`) is resolved in one
-/// place, `Workspace.openFile(_:inPane:activation:)`, which every
-/// `onOpenFilePreview` host reaches through `FileExplorerPreviewCoordinator`;
-/// this entry point stays so the tree's two activation sites (outline row and
-/// search result) share it. Remote providers never get here: their hosts
-/// call the callback directly and the coordinator shows a downloaded copy.
-@MainActor
-func performFileExplorerFileOpen(path: String, onOpenFilePreview: (String) -> Void) {
-    onOpenFilePreview(path)
-}
-
 @MainActor
 extension FileExplorerPanelView.Coordinator {
     func openSelectedNode(in outlineView: NSOutlineView) {
@@ -39,11 +26,12 @@ extension FileExplorerPanelView.Coordinator {
             return
         }
 
-        guard store.provider is LocalFileExplorerProvider else {
-            onOpenFilePreview(node.path)
-            return
-        }
-        performFileExplorerFileOpen(path: node.path, onOpenFilePreview: onOpenFilePreview)
+        // The editor choice (`fileExplorer.doubleClickAction`) is resolved in
+        // one place, `Workspace.openFile(_:inPane:activation:)`, which every
+        // `onOpenFilePreview` host reaches through
+        // `FileExplorerPreviewCoordinator`; remote providers show a downloaded
+        // copy there.
+        onOpenFilePreview(node.path)
     }
 }
 

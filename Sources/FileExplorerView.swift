@@ -1768,14 +1768,10 @@ final class FileExplorerContainerView: NSView {
     fileprivate func openSelectedSearchResult() {
         let row = searchResultsView.selectedRow
         guard currentResourceContextID == coordinator.store.resourceContextID, row >= 0, row < searchSnapshot.results.count else { return }
-        let path = searchSnapshot.results[row].path
-        // Editor/preferred-editor actions operate on local file paths via
-        // NSWorkspace; for non-local providers fall back to the cmux preview.
-        guard coordinator.store.provider is LocalFileExplorerProvider else {
-            coordinator.onOpenFilePreview(path)
-            return
-        }
-        performFileExplorerFileOpen(path: path, onOpenFilePreview: coordinator.onOpenFilePreview)
+        // The editor choice is resolved by the `onOpenFilePreview` host
+        // (`Workspace.openFile(_:inPane:activation:)`), for local and remote
+        // providers alike.
+        coordinator.onOpenFilePreview(searchSnapshot.results[row].path)
     }
 
     @objc private func openSelectedSearchResultFromTable(_ sender: NSTableView) {

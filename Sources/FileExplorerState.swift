@@ -49,19 +49,14 @@ final class FileExplorerState: ObservableObject {
         didSet { UserDefaults.standard.set(Double(filesPanelStackedHeight), forKey: Self.filesPanelStackedHeightKey) }
     }
 
-    /// The workspace sidebar that hosts the stacked Files region, installed by
-    /// the window's `ContentView` (which owns both states): `isVisible` reports
-    /// whether that sidebar is shown, `reveal` shows it. `showFiles` needs it
-    /// with the `stacked` placement because the tree lives inside the sidebar,
-    /// so revealing Files while the sidebar is hidden must show the sidebar
-    /// too. Runtime-only; without a host (tests, tool windows) the sidebar is
-    /// assumed visible.
-    private struct StackedSidebarHost {
-        let ownerId: UUID
-        let isVisible: () -> Bool
-        let reveal: () -> Void
-    }
-    private var stackedSidebarHost: StackedSidebarHost?
+    /// The workspace sidebar that hosts the stacked Files region, set by the
+    /// window's `ContentView` (which owns both states) and cleared through
+    /// `detachStackedSidebarState`. `showFiles` needs it with the `stacked`
+    /// placement because the tree lives inside the sidebar, so revealing Files
+    /// while the sidebar is hidden must show the sidebar too. Runtime-only and
+    /// weak (the window owns the sidebar state); without one (tests, tool
+    /// windows) the sidebar is assumed visible.
+    weak var stackedSidebarState: SidebarState?
 
     /// Proportion of sidebar height allocated to the tab list (0.0-1.0).
     /// The file explorer gets the remaining space below.
@@ -158,18 +153,6 @@ final class FileExplorerState: ObservableObject {
         UserDefaultsSettingsClient(defaults: defaults).value(for: SidebarCatalogSection().filesPanelPlacement)
     }
 
-    /// Whether the file tree is docked as its own leading panel rather than
-    /// being a right-sidebar tab.
-    nonisolated static func filesPanelIsLeading(defaults: UserDefaults = .standard) -> Bool {
-        filesPanelPlacement(defaults: defaults) == .leading
-    }
-
-    /// Whether the file tree is stacked under the workspace list inside the
-    /// workspace sidebar.
-    nonisolated static func filesPanelIsStacked(defaults: UserDefaults = .standard) -> Bool {
-        filesPanelPlacement(defaults: defaults) == .stacked
-    }
-
     /// Whether the file tree lives anywhere other than the right sidebar's
     /// Files tab (`leading` or `stacked`): the right sidebar then has no Files
     /// tab, and "show Files" targets the detached panel.
@@ -177,21 +160,12 @@ final class FileExplorerState: ObservableObject {
         filesPanelPlacement(defaults: defaults).isDetachedFromRightSidebar
     }
 
-    /// Lets the window's `ContentView` tell this state about the workspace
-    /// sidebar that hosts the stacked Files region (see `stackedSidebarHost`).
-    /// Mirrors `SidebarState.installVisibilityWillChangeHandler`: the owner id
-    /// keeps a stale view from removing a newer owner's handler.
-    func installStackedSidebarHost(
-        ownerId: UUID,
-        isVisible: @escaping () -> Bool,
-        reveal: @escaping () -> Void
-    ) {
-        stackedSidebarHost = StackedSidebarHost(ownerId: ownerId, isVisible: isVisible, reveal: reveal)
-    }
-
-    func removeStackedSidebarHost(ownerId: UUID) {
-        guard stackedSidebarHost?.ownerId == ownerId else { return }
-        stackedSidebarHost = nil
+    /// Clears `stackedSidebarState` when it is `sidebar`. Like the owner id of
+    /// `SidebarState.installVisibilityWillChangeHandler`, the identity check
+    /// keeps a stale view's teardown from detaching a newer window's sidebar.
+    func detachStackedSidebarState(_ sidebar: SidebarState) {
+        guard stackedSidebarState === sidebar else { return }
+        stackedSidebarState = nil
     }
 
     /// The one action path behind every "show Files" entry point (CLI
@@ -209,7 +183,7 @@ final class FileExplorerState: ObservableObject {
             setFilesPanelVisible(true)
         case .stacked:
             setFilesPanelVisible(true)
-            stackedSidebarHost?.reveal()
+            stackedSidebarState?.setVisible(true)
         case .rightSidebar:
             setVisible(true)
             setMode(.files, defaults: defaults)
@@ -236,7 +210,7 @@ final class FileExplorerState: ObservableObject {
         case .leading:
             return filesPanelVisible
         case .stacked:
-            return filesPanelVisible && (stackedSidebarHost?.isVisible() ?? true)
+            return filesPanelVisible && (stackedSidebarState?.isVisible ?? true)
         case .rightSidebar:
             return isVisible && mode == .files
         }

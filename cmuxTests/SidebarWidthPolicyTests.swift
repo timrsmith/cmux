@@ -12,10 +12,7 @@ import Testing
 #endif
 
 @Suite(.serialized)
-struct SidebarWidthPolicyTests {
-    private let settingsFileBackupsDefaultsKey = "cmux.settingsFile.backups.v1"
-    private let importedManagedDefaultsKey = "cmux.settingsFile.importedManagedDefaults.v1"
-
+struct SidebarWidthPolicyTests: ManagedDefaultsTestSupport {
     @Test
     func defaultMinimumSidebarWidthIsPersistedProductDefault() {
         let suiteName = "SidebarWidthPolicyTests.defaultMinimum.\(UUID().uuidString)"
@@ -142,121 +139,52 @@ struct SidebarWidthPolicyTests {
         #expect(abs(ContentView.clampedRightSidebarWidth(20, availableWidth: 1000) - 295) <= 0.001)
     }
 
+    @MainActor
     @Test
     func settingsFileStoreAppliesRightSidebarMaxWidthSetting() throws {
-        let defaults = UserDefaults.standard
         let managedKey = RightSidebarWidthSettings.maxWidthKey
-        let previousValues = [
-            managedKey,
-            settingsFileBackupsDefaultsKey,
-            importedManagedDefaultsKey,
-        ].reduce(into: [String: Any]()) { values, key in
-            values[key] = defaults.object(forKey: key)
-        }
-        defer {
-            for key in [managedKey, settingsFileBackupsDefaultsKey, importedManagedDefaultsKey] {
-                if let value = previousValues[key] {
-                    defaults.set(value, forKey: key)
-                } else {
-                    defaults.removeObject(forKey: key)
+        try withCleanManagedDefaults(clearing: [managedKey]) { defaults in
+            try loadSettingsFile(
+                """
+                {
+                  "sidebar": {
+                    "rightMaxWidth": 900
+                  }
                 }
-            }
+                """
+            )
+
+            #expect(abs(defaults.double(forKey: managedKey) - 900) <= 0.001)
+            let configuredMaximumWidth = try #require(
+                RightSidebarWidthSettings().configuredMaximumWidth(from: defaults.double(forKey: managedKey))
+            )
+            #expect(abs(configuredMaximumWidth - 900) <= 0.001)
         }
-
-        defaults.removeObject(forKey: managedKey)
-        defaults.removeObject(forKey: settingsFileBackupsDefaultsKey)
-        defaults.removeObject(forKey: importedManagedDefaultsKey)
-
-        let directoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(
-            "right-sidebar-width-settings-\(UUID().uuidString)",
-            isDirectory: true
-        )
-        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directoryURL) }
-
-        let settingsFileURL = directoryURL.appendingPathComponent("cmux.json", isDirectory: false)
-        try """
-        {
-          "sidebar": {
-            "rightMaxWidth": 900
-          }
-        }
-        """.write(to: settingsFileURL, atomically: true, encoding: .utf8)
-
-        _ = KeyboardShortcutSettingsFileStore(
-            primaryPath: settingsFileURL.path,
-            fallbackPath: nil,
-            additionalFallbackPaths: [],
-            startWatching: false
-        )
-
-        #expect(abs(defaults.double(forKey: managedKey) - 900) <= 0.001)
-        let configuredMaximumWidth = try #require(
-            RightSidebarWidthSettings().configuredMaximumWidth(from: defaults.double(forKey: managedKey))
-        )
-        #expect(abs(configuredMaximumWidth - 900) <= 0.001)
     }
 
+    @MainActor
     @Test
     func settingsFileStoreClampsRightSidebarMaxWidthSetting() throws {
-        let defaults = UserDefaults.standard
         let managedKey = RightSidebarWidthSettings.maxWidthKey
-        let previousValues = [
-            managedKey,
-            settingsFileBackupsDefaultsKey,
-            importedManagedDefaultsKey,
-        ].reduce(into: [String: Any]()) { values, key in
-            values[key] = defaults.object(forKey: key)
-        }
-        defer {
-            for key in [managedKey, settingsFileBackupsDefaultsKey, importedManagedDefaultsKey] {
-                if let value = previousValues[key] {
-                    defaults.set(value, forKey: key)
-                } else {
-                    defaults.removeObject(forKey: key)
+        try withCleanManagedDefaults(clearing: [managedKey]) { defaults in
+            try loadSettingsFile(
+                """
+                {
+                  "sidebar": {
+                    "rightMaxWidth": 10000
+                  }
                 }
-            }
+                """
+            )
+
+            #expect(
+                abs(defaults.double(forKey: managedKey) - RightSidebarWidthSettings.settingsEditorMaximumWidth) <= 0.001
+            )
+            let configuredMaximumWidth = try #require(
+                RightSidebarWidthSettings().configuredMaximumWidth(from: defaults.double(forKey: managedKey))
+            )
+            #expect(abs(configuredMaximumWidth - RightSidebarWidthSettings.settingsEditorMaximumWidth) <= 0.001)
         }
-
-        defaults.removeObject(forKey: managedKey)
-        defaults.removeObject(forKey: settingsFileBackupsDefaultsKey)
-        defaults.removeObject(forKey: importedManagedDefaultsKey)
-
-        let directoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(
-            "right-sidebar-width-settings-clamped-\(UUID().uuidString)",
-            isDirectory: true
-        )
-        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directoryURL) }
-
-        let settingsFileURL = directoryURL.appendingPathComponent("cmux.json", isDirectory: false)
-        try """
-        {
-          "sidebar": {
-            "rightMaxWidth": 10000
-          }
-        }
-        """.write(to: settingsFileURL, atomically: true, encoding: .utf8)
-
-        _ = KeyboardShortcutSettingsFileStore(
-            primaryPath: settingsFileURL.path,
-            fallbackPath: nil,
-            additionalFallbackPaths: [],
-            startWatching: false
-        )
-
-        #expect(
-            abs(
-                defaults.double(forKey: managedKey)
-                    - RightSidebarWidthSettings.settingsEditorMaximumWidth
-            ) <= 0.001
-        )
-        let configuredMaximumWidth = try #require(
-            RightSidebarWidthSettings().configuredMaximumWidth(from: defaults.double(forKey: managedKey))
-        )
-        #expect(
-            abs(configuredMaximumWidth - RightSidebarWidthSettings.settingsEditorMaximumWidth) <= 0.001
-        )
     }
 
     @Test

@@ -1,11 +1,6 @@
 import CmuxSettings
 import Foundation
 
-/// The catalog owns the choice (`fileExplorer.doubleClickAction`); the app
-/// target keeps this alias so files that do not import `CmuxSettings` read
-/// the same type.
-typealias FileExplorerDoubleClickAction = CmuxSettings.FileExplorerDoubleClickAction
-
 /// The concrete open behavior for a file activation, after resolving the
 /// configured action and any fallbacks. Computed by
 /// ``FileExplorerDoubleClickActionSettings/fileActivation(action:hasPreferredEditorCommand:)``
@@ -29,17 +24,18 @@ enum FileExplorerDoubleClickActionSettings {
     static let didChangeNotification = Notification.Name("cmux.fileExplorerDoubleClickActionDidChange")
     static let defaultValue: FileExplorerDoubleClickAction = catalogKey.defaultValue
 
-    /// Parse a raw config/UserDefaults string into an action, falling back to
-    /// ``defaultValue`` (`.preview`) for `nil` or unrecognized values.
+    /// Parse a raw config string into an action, falling back to
+    /// ``defaultValue`` (`.preview`) for `nil` or unrecognized values. The
+    /// stored choice is read through the catalog key (``resolvedAction(defaults:)``);
+    /// this remains for the parse-contract tests.
     static func action(forRawValue raw: String?) -> FileExplorerDoubleClickAction {
-        guard let raw, let action = FileExplorerDoubleClickAction(rawValue: raw) else {
-            return defaultValue
-        }
-        return action
+        raw.flatMap(FileExplorerDoubleClickAction.init(rawValue:)) ?? defaultValue
     }
 
+    /// The stored choice, decoded by the catalog key; an unset or undecodable
+    /// value is ``defaultValue``.
     static func resolvedAction(defaults: UserDefaults = .standard) -> FileExplorerDoubleClickAction {
-        action(forRawValue: defaults.string(forKey: key))
+        catalogKey.value(in: defaults)
     }
 
     static func setAction(
@@ -47,7 +43,7 @@ enum FileExplorerDoubleClickActionSettings {
         defaults: UserDefaults = .standard,
         notificationCenter: NotificationCenter = .default
     ) {
-        defaults.set(action.rawValue, forKey: key)
+        catalogKey.set(action, in: defaults)
         notifyDidChange(notificationCenter: notificationCenter)
     }
 

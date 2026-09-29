@@ -1033,9 +1033,9 @@ class TabManager: ObservableObject {
         focusedMarkdownPanel?.findPrevious()
     }
 
-    /// Runs a file-editor command (Go to Line, Toggle Line Comment, Move,
-    /// Duplicate, Delete Line, Complete Word) on the focused text editor,
-    /// the same path its keyboard shortcut takes inside the editor.
+    /// Runs a file-editor command (Find and Replace, Go to Line, Toggle Line
+    /// Comment, Move, Duplicate, Delete Line, Complete Word) on the focused
+    /// text editor, the same path its keyboard shortcut takes.
     @discardableResult
     func performFocusedTextEditorAction(_ action: KeyboardShortcutSettings.Action) -> Bool {
         guard let textView = focusedTextEditingPanel?.textView as? SavingTextView else { return false }

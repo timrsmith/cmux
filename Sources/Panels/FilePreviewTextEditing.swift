@@ -22,12 +22,18 @@ struct FilePreviewTextEditResult: Equatable {
 /// check them without a window. Offsets are UTF-16 (`NSRange`).
 struct FilePreviewTextEditing {
     let text: NSString
-    let indentation: FilePreviewIndentation
+    private let indentationProvider: () -> FilePreviewIndentation
 
-    init(text: String, indentation: FilePreviewIndentation) {
+    /// `indentation` is evaluated on first use, so the whole-line commands
+    /// (comment, move, duplicate, delete) never pay for detection; the text
+    /// view keeps the detected value cached per buffer revision.
+    init(text: String, indentation: @autoclosure @escaping () -> FilePreviewIndentation) {
         self.text = text as NSString
-        self.indentation = indentation
+        indentationProvider = indentation
     }
+
+    /// The file's indentation unit, read only by Return, Tab, and Shift-Tab.
+    var indentation: FilePreviewIndentation { indentationProvider() }
 
     // MARK: Return, Tab, Shift-Tab
 
@@ -61,9 +67,10 @@ struct FilePreviewTextEditing {
     /// tab stop) in place of the selection.
     func tabInsertion(at selection: NSRange) -> FilePreviewTextEditResult {
         let selection = clamped(selection)
-        if selection.length > 0, spansMultipleLines(lineBlockRange(for: selection)) {
+        if selection.length > 0, lines(in: lineBlockRange(for: selection)).count > 1 {
             return indentLines(in: selection)
         }
+        let indentation = self.indentation
         let replacement: String
         if indentation.usesTabs {
             replacement = "\t"
@@ -80,9 +87,10 @@ struct FilePreviewTextEditing {
     /// Inserts one indentation unit at the start of every non-blank selected line.
     func indentLines(in selection: NSRange) -> FilePreviewTextEditResult {
         let selection = clamped(selection)
+        let unit = indentation.unit
         var edits: [FilePreviewTextEdit] = []
         for line in lines(in: lineBlockRange(for: selection)) where line.contentsEnd > line.start {
-            edits.append(FilePreviewTextEdit(range: NSRange(location: line.start, length: 0), replacement: indentation.unit))
+            edits.append(FilePreviewTextEdit(range: NSRange(location: line.start, length: 0), replacement: unit))
         }
         return FilePreviewTextEditResult(edits: edits, selection: adjustedSelection(selection, for: edits))
     }
@@ -91,9 +99,10 @@ struct FilePreviewTextEditing {
     /// start of every selected line that has one.
     func outdentLines(in selection: NSRange) -> FilePreviewTextEditResult {
         let selection = clamped(selection)
+        let unitWidth = indentation.width
         var edits: [FilePreviewTextEdit] = []
         for line in lines(in: lineBlockRange(for: selection)) {
-            let removed = leadingIndentUnitLength(in: line)
+            let removed = leadingIndentUnitLength(in: line, unitWidth: unitWidth)
             if removed > 0 {
                 edits.append(FilePreviewTextEdit(range: NSRange(location: line.start, length: removed), replacement: ""))
             }
@@ -276,10 +285,6 @@ struct FilePreviewTextEditing {
         return result
     }
 
-    func spansMultipleLines(_ block: NSRange) -> Bool {
-        lines(in: block).count > 1
-    }
-
     private func isLineStart(_ location: Int) -> Bool {
         guard location > 0, location <= text.length else { return location == 0 }
         return Self.isLineBreak(text.character(at: location - 1))
@@ -297,11 +302,11 @@ struct FilePreviewTextEditing {
         return index
     }
 
-    private func leadingIndentUnitLength(in line: LineBounds) -> Int {
+    private func leadingIndentUnitLength(in line: LineBounds, unitWidth: Int) -> Int {
         guard line.contentsEnd > line.start else { return 0 }
         if text.character(at: line.start) == 0x09 { return 1 }
         var count = 0
-        while count < indentation.width, line.start + count < line.contentsEnd,
+        while count < unitWidth, line.start + count < line.contentsEnd,
               text.character(at: line.start + count) == 0x20 {
             count += 1
         }

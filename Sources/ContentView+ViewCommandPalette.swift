@@ -385,7 +385,7 @@ extension ContentView {
         _ command: ShortcutParityPaletteCommand,
         performBrowserAction: (BrowserAction) -> Bool,
         preferredWindow: NSWindow?,
-        performFileEditorAction: (KeyboardShortcutSettings.Action) -> Bool = { _ in false }
+        performFileEditorAction: (KeyboardShortcutSettings.Action) -> Bool
     ) -> Bool {
         if let route = command.paneFocusRoute {
             return AppDelegate.shared?.performPaneFocusShortcut(
@@ -414,14 +414,9 @@ extension ContentView {
             ) ?? false
         case .browserHardReload:
             return performBrowserAction(.hardReload)
-        case .fileEditorFindAndReplace:
-            return AppDelegate.shared?.performFindShortcutInActiveMainWindow(
-                preferredWindow: preferredWindow,
-                replace: true
-            ) ?? false
-        case .fileEditorGoToLine, .fileEditorToggleLineComment, .fileEditorMoveLineUp,
-             .fileEditorMoveLineDown, .fileEditorDuplicateLine, .fileEditorDeleteLine,
-             .fileEditorCompleteWord:
+        case .fileEditorFindAndReplace, .fileEditorGoToLine, .fileEditorToggleLineComment,
+             .fileEditorMoveLineUp, .fileEditorMoveLineDown, .fileEditorDuplicateLine,
+             .fileEditorDeleteLine, .fileEditorCompleteWord:
             return performFileEditorAction(command.shortcutAction)
         case .focusPaneLeft, .focusPaneRight, .focusPaneUp, .focusPaneDown,
              .focusPreviousPane, .focusNextPane:

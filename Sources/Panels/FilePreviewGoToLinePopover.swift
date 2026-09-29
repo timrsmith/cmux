@@ -39,10 +39,6 @@ final class FilePreviewGoToLinePopover: NSObject, NSTextFieldDelegate, NSPopover
         field.selectText(nil)
     }
 
-    func close() {
-        popover.performClose(nil)
-    }
-
     /// Commits `text` as if Return were pressed; false when it does not parse.
     @discardableResult
     func commit(_ text: String) -> Bool {

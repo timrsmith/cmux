@@ -8,75 +8,53 @@ import XCTest
 @testable import cmux
 #endif
 
-/// Behavioral coverage for the `terminalEditor` file activation: the editor
-/// resolution chain (`fileEditor.terminalEditorCommand`, `$VISUAL`, `$EDITOR`,
-/// `vi`), the terminal request it builds (quoted path, working directory),
-/// the Files header's Editor submenu rows, and the cmux.json parse path for
-/// the new key.
+/// Behavioral coverage for the `terminalEditor` file activation: the command
+/// the resolver builds (a configured `fileEditor.terminalEditorCommand`
+/// verbatim, else the `$VISUAL`/`$EDITOR`/`vi` shell expression the login
+/// shell expands), the terminal request (quoted path, working directory), the
+/// Files header's Editor submenu row titles, and the cmux.json parse path for
+/// the key.
 ///
 /// Opening the terminal surface itself is `Workspace.openFileInTerminalEditor`,
 /// a one-line forward of the request into `newTerminalSurface`; it is exercised
 /// by the tagged dev build.
 final class TerminalEditorCommandResolverTests: XCTestCase {
     private let terminalEditorCommandKey = FileEditorCatalogSection().terminalEditorCommand.userDefaultsKey
-    private let settingsFileBackupsDefaultsKey = "cmux.settingsFile.backups.v1"
-    private let importedManagedDefaultsKey = "cmux.settingsFile.importedManagedDefaults.v1"
 
-    private func resolver(
-        configured: String = "",
-        environment: [String: String] = [:]
-    ) -> TerminalEditorCommandResolver {
-        TerminalEditorCommandResolver(configuredCommand: configured, environment: environment)
+    private func resolver(configured: String = "") -> TerminalEditorCommandResolver {
+        TerminalEditorCommandResolver(configuredCommand: configured)
     }
 
-    // MARK: - Resolution chain
+    // MARK: - Command resolution
 
-    func testConfiguredCommandWinsOverEnvironment() {
-        let resolution = resolver(
-            configured: "  hx --vsplit  ",
-            environment: ["VISUAL": "nvim", "EDITOR": "nano"]
-        ).resolution
-        XCTAssertEqual(resolution.command, "hx --vsplit")
-        XCTAssertEqual(resolution.source, .setting)
+    func testConfiguredCommandIsUsedVerbatimAfterTrimming() {
+        let resolver = resolver(configured: "  hx --vsplit  ")
+        XCTAssertEqual(resolver.explicitCommand, "hx --vsplit")
+        XCTAssertEqual(resolver.command, "hx --vsplit")
     }
 
-    func testVisualWinsOverEditorWhenNoCommandIsConfigured() {
-        let resolution = resolver(environment: ["VISUAL": "nvim", "EDITOR": "nano"]).resolution
-        XCTAssertEqual(resolution.command, "nvim")
-        XCTAssertEqual(resolution.source, .visual)
-    }
-
-    func testEditorIsUsedWhenVisualIsBlank() {
-        let resolution = resolver(configured: "   ", environment: ["VISUAL": " ", "EDITOR": "nano"]).resolution
-        XCTAssertEqual(resolution.command, "nano")
-        XCTAssertEqual(resolution.source, .editor)
-    }
-
-    func testFallsBackToViWhenNothingIsSet() {
-        let resolution = resolver(environment: ["PATH": "/usr/bin"]).resolution
-        XCTAssertEqual(resolution.command, "vi")
-        XCTAssertEqual(resolution.source, .builtInFallback)
-        XCTAssertEqual(TerminalEditorCommandResolver.builtInFallbackCommand, "vi")
+    func testBlankCommandFallsBackToTheShellExpressionUnderSh() {
+        let fallback = "/bin/sh -c 'exec ${VISUAL:-${EDITOR:-vi}} \"$1\"' cmux-editor"
+        for configured in ["", "   ", "\n\t"] {
+            let resolver = resolver(configured: configured)
+            XCTAssertNil(resolver.explicitCommand, configured.debugDescription)
+            XCTAssertEqual(resolver.command, fallback, configured.debugDescription)
+        }
+        XCTAssertEqual(TerminalEditorCommandResolver.shellFallbackExpression, "${VISUAL:-${EDITOR:-vi}}")
+        // The expansion is confined to `/bin/sh`: the surrounding login shell,
+        // which may be fish, sees only literal words.
+        XCTAssertFalse(fallback.hasPrefix("$"))
+        XCTAssertTrue(fallback.hasPrefix("/bin/sh -c '"))
     }
 
     func testProductionInitializerReadsTheCatalogKey() {
         let suiteName = "cmux-terminal-editor-resolver-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertNil(TerminalEditorCommandResolver(defaults: defaults).explicitCommand)
         defaults.set("micro", forKey: terminalEditorCommandKey)
-
-        let resolution = TerminalEditorCommandResolver(defaults: defaults, environment: ["EDITOR": "nano"]).resolution
-        XCTAssertEqual(resolution.command, "micro")
-        XCTAssertEqual(resolution.source, .setting)
-    }
-
-    // MARK: - Display name
-
-    func testDisplayNameIsTheExecutableBasename() {
-        XCTAssertEqual(resolver(configured: "/opt/homebrew/bin/nvim -u NONE").resolution.displayName, "nvim")
-        XCTAssertEqual(resolver(configured: "emacs -nw").resolution.displayName, "emacs")
-        XCTAssertEqual(resolver(configured: "'/Applications/My Editor.app/Contents/MacOS/edit' --wait").resolution.displayName, "edit")
-        XCTAssertEqual(resolver().resolution.displayName, "vi")
+        XCTAssertEqual(TerminalEditorCommandResolver(defaults: defaults).command, "micro")
     }
 
     // MARK: - Open request
@@ -85,6 +63,15 @@ final class TerminalEditorCommandResolverTests: XCTestCase {
         let request = resolver(configured: "nvim").openRequest(forFilePath: "/Users/alice/proj/it's here/main.swift")
         XCTAssertEqual(request.command, "nvim '/Users/alice/proj/it'\\''s here/main.swift'")
         XCTAssertEqual(request.workingDirectory, "/Users/alice/proj/it's here")
+    }
+
+    func testOpenRequestPassesTheQuotedPathAsTheShellFallbackArgument() {
+        let request = resolver().openRequest(forFilePath: "/Users/alice/proj/main.swift")
+        XCTAssertEqual(
+            request.command,
+            "/bin/sh -c 'exec ${VISUAL:-${EDITOR:-vi}} \"$1\"' cmux-editor '/Users/alice/proj/main.swift'"
+        )
+        XCTAssertEqual(request.workingDirectory, "/Users/alice/proj")
     }
 
     func testOpenRequestKeepsNonASCIIPathsInsideOneShellWord() {
@@ -107,19 +94,38 @@ final class TerminalEditorCommandResolverTests: XCTestCase {
 
     // MARK: - Files header Editor submenu
 
-    func testEditorMenuListsEveryChoiceInPickerOrder() {
-        let items = FilesPanelEditorMenuItems(terminalEditor: resolver(configured: "nvim").resolution).items
-        XCTAssertEqual(items.map(\.action), [.preview, .terminalEditor, .defaultEditor, .preferredEditor])
-        XCTAssertEqual(items.map(\.action), FileExplorerDoubleClickAction.allCases)
-        XCTAssertEqual(items.map(\.title), ["Native Editor", "Terminal Editor", "Default App", "Preferred Editor App"])
+    private func menuTitles(configured: String) -> [String] {
+        FileExplorerDoubleClickAction.allCases.map {
+            FilesPanelEditorMenuItems.title(for: $0, configuredCommand: configured)
+        }
     }
 
-    func testEditorMenuNamesTheFallbackEditorWhenNoCommandIsConfigured() {
-        let fromEnvironment = FilesPanelEditorMenuItems(terminalEditor: resolver(environment: ["EDITOR": "/usr/local/bin/nvim"]).resolution).items
-        XCTAssertEqual(fromEnvironment[1].title, "Terminal Editor (nvim)")
+    func testEditorMenuTitlesEveryChoiceInPickerOrder() {
+        XCTAssertEqual(FileExplorerDoubleClickAction.allCases, [.preview, .terminalEditor, .defaultEditor, .preferredEditor])
+        XCTAssertEqual(
+            menuTitles(configured: "nvim"),
+            ["Native Editor", "Terminal Editor (nvim)", "Default App", "Preferred Editor App"]
+        )
+    }
 
-        let builtIn = FilesPanelEditorMenuItems(terminalEditor: resolver().resolution).items
-        XCTAssertEqual(builtIn[1].title, "Terminal Editor (vi)")
+    func testEditorMenuNamesTheShellResolutionWhenNoCommandIsConfigured() {
+        XCTAssertEqual(
+            menuTitles(configured: "  "),
+            ["Native Editor", "Terminal Editor ($VISUAL, $EDITOR or vi)", "Default App", "Preferred Editor App"]
+        )
+    }
+
+    func testEditorMenuNamesTheConfiguredCommandByItsExecutableBasename() {
+        func terminalEditorTitle(_ configured: String) -> String {
+            FilesPanelEditorMenuItems.title(for: .terminalEditor, configuredCommand: configured)
+        }
+        XCTAssertEqual(terminalEditorTitle("/opt/homebrew/bin/nvim -u NONE"), "Terminal Editor (nvim)")
+        XCTAssertEqual(terminalEditorTitle("emacs -nw"), "Terminal Editor (emacs)")
+        XCTAssertEqual(
+            terminalEditorTitle("'/Applications/My Editor.app/Contents/MacOS/edit' --wait"),
+            "Terminal Editor (edit)"
+        )
+        XCTAssertEqual(terminalEditorTitle("\"/usr/local/bin/hx\" --vsplit"), "Terminal Editor (hx)")
     }
 
     // MARK: - cmux.json
@@ -130,7 +136,7 @@ final class TerminalEditorCommandResolverTests: XCTestCase {
     }
 
     func testSettingsFileStoreAppliesTerminalEditorCommand() throws {
-        try withCleanManagedDefaults { defaults in
+        try withCleanManagedDefaults(clearing: [terminalEditorCommandKey]) { defaults in
             try loadSettingsFile(
                 """
                 {
@@ -141,13 +147,12 @@ final class TerminalEditorCommandResolverTests: XCTestCase {
                 """
             )
             XCTAssertEqual(defaults.string(forKey: terminalEditorCommandKey), "emacs -nw")
-            let resolution = TerminalEditorCommandResolver(defaults: defaults, environment: ["EDITOR": "nano"]).resolution
-            XCTAssertEqual(resolution.command, "emacs -nw")
+            XCTAssertEqual(TerminalEditorCommandResolver(defaults: defaults).command, "emacs -nw")
         }
     }
 
     func testSettingsFileStoreIgnoresANonStringTerminalEditorCommand() throws {
-        try withCleanManagedDefaults { defaults in
+        try withCleanManagedDefaults(clearing: [terminalEditorCommandKey]) { defaults in
             try loadSettingsFile(
                 """
                 {
@@ -158,48 +163,7 @@ final class TerminalEditorCommandResolverTests: XCTestCase {
                 """
             )
             XCTAssertNil(defaults.object(forKey: terminalEditorCommandKey))
+            XCTAssertNil(TerminalEditorCommandResolver(defaults: defaults).explicitCommand)
         }
-    }
-
-    // MARK: - Helpers
-
-    private func withCleanManagedDefaults(_ body: (UserDefaults) throws -> Void) throws {
-        let defaults = UserDefaults.standard
-        let keys = [terminalEditorCommandKey, settingsFileBackupsDefaultsKey, importedManagedDefaultsKey]
-        let previousValues = keys.reduce(into: [String: Any]()) { values, key in
-            values[key] = defaults.object(forKey: key)
-        }
-        defer {
-            for key in keys {
-                if let value = previousValues[key] {
-                    defaults.set(value, forKey: key)
-                } else {
-                    defaults.removeObject(forKey: key)
-                }
-            }
-        }
-        for key in keys {
-            defaults.removeObject(forKey: key)
-        }
-        try body(defaults)
-    }
-
-    private func loadSettingsFile(_ contents: String) throws {
-        let directoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(
-            "terminal-editor-command-settings-\(UUID().uuidString)",
-            isDirectory: true
-        )
-        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directoryURL) }
-
-        let settingsFileURL = directoryURL.appendingPathComponent("cmux.json", isDirectory: false)
-        try contents.write(to: settingsFileURL, atomically: true, encoding: .utf8)
-
-        _ = KeyboardShortcutSettingsFileStore(
-            primaryPath: settingsFileURL.path,
-            fallbackPath: nil,
-            additionalFallbackPaths: [],
-            startWatching: false
-        )
     }
 }

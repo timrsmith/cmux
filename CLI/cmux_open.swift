@@ -6111,43 +6111,17 @@ extension CMUXCLI {
     /// other active session). The regenerate routes carry a `group`, so they must
     /// authorize against the requested group's session alone; otherwise a request
     /// for group A could regenerate a page for repo B merely because some other
-    /// active session allow-lists B. Normalizes both sides exactly like
-    /// `diffViewerRepoIsAllowed` (standardize + resolve symlinks).
+    /// active session allow-lists B. Paths are compared canonically by the same
+    /// store the token-bound readers use.
     private func diffViewerSessionAllowsRepo(_ session: DiffViewerBranchSession, repoRoot: String) -> Bool {
-        let normalized = URL(fileURLWithPath: repoRoot, isDirectory: true)
-            .standardizedFileURL.resolvingSymlinksInPath().path
-        for allowed in session.allowedRepoRoots {
-            let allowedNormalized = URL(fileURLWithPath: allowed, isDirectory: true)
-                .standardizedFileURL.resolvingSymlinksInPath().path
-            if allowedNormalized == normalized {
-                return true
-            }
-        }
-        return false
+        DiffViewerBranchSessionStore.contains(repoRoot: repoRoot, in: session.allowedRepoRoots)
     }
 
+    /// Whether ANY valid persisted branch session allow-lists `repoRoot`; the
+    /// token-less refs lookup uses it. `DiffViewerBranchSessionStore` applies
+    /// the regular-file, size, and group-name checks the app's bridge applies.
     func diffViewerRepoIsAllowed(_ repoRoot: String, rootDirectory: URL) -> Bool {
-        let normalized = URL(fileURLWithPath: repoRoot, isDirectory: true)
-            .standardizedFileURL.resolvingSymlinksInPath().path
-        guard let entries = try? FileManager.default.contentsOfDirectory(
-            atPath: rootDirectory.path
-        ) else {
-            return false
-        }
-        for entry in entries where entry.hasPrefix(".branch-session-") && entry.hasSuffix(".json") {
-            guard let data = try? Data(contentsOf: rootDirectory.appendingPathComponent(entry, isDirectory: false)),
-                  let session = try? JSONDecoder().decode(DiffViewerBranchSession.self, from: data) else {
-                continue
-            }
-            for allowed in session.allowedRepoRoots {
-                let allowedNormalized = URL(fileURLWithPath: allowed, isDirectory: true)
-                    .standardizedFileURL.resolvingSymlinksInPath().path
-                if allowedNormalized == normalized {
-                    return true
-                }
-            }
-        }
-        return false
+        DiffViewerBranchSessionStore(rootDirectory: rootDirectory).allows(repoRoot: repoRoot)
     }
 
     /// `GET /__cmux_diff_viewer_refs?repo=<root>&token=<t>` -> grouped refs JSON.

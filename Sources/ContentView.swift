@@ -1817,10 +1817,13 @@ struct ContentView: View {
                     showsPanel: filesPanelIsStacked,
                     chromeBackgroundColor: appearance.resolvedChromeBackgroundColor,
                     onHeightCommitted: { height in
+                        // The persisted value is observed by this body, so an
+                        // unchanged height is not written back.
+                        guard fileExplorerState.filesPanelStackedHeight != height else { return }
                         fileExplorerState.filesPanelStackedHeight = height
                     },
-                    list: { gatedSidebar },
-                    panel: { stackedFilesPanel(appearance: appearance) }
+                    list: gatedSidebar,
+                    panel: stackedFilesPanel(appearance: appearance)
                 )
             } else {
                 gatedSidebar
@@ -2202,34 +2205,20 @@ struct ContentView: View {
     /// width; `StackedFilesPanelSplit` applies the height. The header never
     /// sits under the window controls here (the workspace list is above it),
     /// so it stays in one row. The live height is reconciled with the persisted
-    /// value the way the leading panel's width is.
+    /// value by the same `PersistedPanelDimensionReconciler` as the leading
+    /// panel's width.
     private func stackedFilesPanel(appearance: WindowAppearanceSnapshot) -> some View {
         filesPanelContent(appearance: appearance, headerBelowTitlebarStrip: false)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .transaction { $0.animation = nil }
-            .onAppear {
-                let sanitized = FilesPanelStackedLayout.clampedHeight(
-                    fileExplorerState.filesPanelStackedHeight,
-                    availableHeight: .infinity
-                )
-                stackedFilesPanelLayout.height = sanitized
-                if abs(fileExplorerState.filesPanelStackedHeight - sanitized) > 0.5 {
-                    DispatchQueue.main.async {
-                        fileExplorerState.filesPanelStackedHeight = sanitized
-                    }
-                }
-            }
-            .onChange(of: fileExplorerState.filesPanelStackedHeight) { _, newValue in
-                guard stackedFilesPanelLayout.dragStartHeight == nil else { return }
-                let sanitized = FilesPanelStackedLayout.clampedHeight(newValue, availableHeight: .infinity)
-                if abs(newValue - sanitized) > 0.5 {
-                    DispatchQueue.main.async {
-                        fileExplorerState.filesPanelStackedHeight = sanitized
-                    }
-                    return
-                }
-                stackedFilesPanelLayout.height = sanitized
-            }
+            .modifier(PersistedPanelDimensionReconciler(
+                persistedValue: fileExplorerState.filesPanelStackedHeight,
+                clamp: { FilesPanelStackedLayout.clampedHeight($0, availableHeight: .infinity) },
+                isDragging: { stackedFilesPanelLayout.dragStartHeight != nil },
+                liveValue: { stackedFilesPanelLayout.height },
+                apply: { stackedFilesPanelLayout.height = $0 },
+                persist: { fileExplorerState.filesPanelStackedHeight = $0 }
+            ))
     }
 
     private func filesPanel(appearance: WindowAppearanceSnapshot) -> some View {
@@ -2237,26 +2226,14 @@ struct ContentView: View {
         .frame(width: filesPanelWidth)
         .clipped()
         .transaction { $0.animation = nil }
-        .onAppear {
-            let sanitized = normalizedFilesPanelWidth(fileExplorerState.filesPanelWidth)
-            filesPanelWidth = sanitized
-            if abs(fileExplorerState.filesPanelWidth - sanitized) > 0.5 {
-                DispatchQueue.main.async {
-                    fileExplorerState.filesPanelWidth = sanitized
-                }
-            }
-        }
-        .onChange(of: fileExplorerState.filesPanelWidth) { _, newValue in
-            guard filesPanelDragStartWidth == nil else { return }
-            let sanitized = normalizedFilesPanelWidth(newValue)
-            if abs(newValue - sanitized) > 0.5 {
-                DispatchQueue.main.async {
-                    fileExplorerState.filesPanelWidth = sanitized
-                }
-                return
-            }
-            filesPanelWidth = sanitized
-        }
+        .modifier(PersistedPanelDimensionReconciler(
+            persistedValue: fileExplorerState.filesPanelWidth,
+            clamp: { normalizedFilesPanelWidth($0) },
+            isDragging: { filesPanelDragStartWidth != nil },
+            liveValue: { filesPanelWidth },
+            apply: { filesPanelWidth = $0 },
+            persist: { fileExplorerState.filesPanelWidth = $0 }
+        ))
     }
 
     @AppStorage("sidebarBlendMode") private var sidebarBlendMode = SidebarBlendModeOption.withinWindow.rawValue
@@ -2676,10 +2653,8 @@ struct ContentView: View {
     }
 
     private func openFilePreviewFromSidebar(filePath: String) {
-        guard let workspace = tabManager.selectedWorkspace else { return }
-        guard let paneId = workspace.bonsplitController.focusedPaneId ?? workspace.bonsplitController.allPaneIds.first else {
-            return
-        }
+        guard let workspace = tabManager.selectedWorkspace,
+              let paneId = workspace.fileOpenTargetPane else { return }
 
         sidebarSelectionState.selection = .tabs
         FileExplorerPreviewCoordinator(store: fileExplorerStore).open(path: filePath, workspace: workspace,
@@ -2931,11 +2906,7 @@ struct ContentView: View {
             // With `sidebar.filesPanelPlacement` = `stacked` the tree lives
             // inside the workspace sidebar, so "show Files" must also show
             // the sidebar when it is hidden (`FileExplorerState.showFiles`).
-            fileExplorerState.installStackedSidebarHost(
-                ownerId: windowId,
-                isVisible: { sidebarState.isVisible },
-                reveal: { sidebarState.setVisible(true) }
-            )
+            fileExplorerState.stackedSidebarState = sidebarState
             selectedWorkspaceDirectoryObserver.wire(tabManager: tabManager)
             tabManager.applyWindowBackgroundForSelectedTab()
             reconcileMountedWorkspaceIds()
@@ -3781,7 +3752,7 @@ struct ContentView: View {
 
         view = AnyView(view.onDisappear {
             sidebarState.removeVisibilityWillChangeHandler(ownerId: windowId)
-            fileExplorerState.removeStackedSidebarHost(ownerId: windowId)
+            fileExplorerState.detachStackedSidebarState(sidebarState)
             workspaceSwitchPortalSignalRouter.clearSources()
             // The Changes store is only ever driven by `sync(...)`; a window
             // closed in Changes mode would otherwise keep its repository

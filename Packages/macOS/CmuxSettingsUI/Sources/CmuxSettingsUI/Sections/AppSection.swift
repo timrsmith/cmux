@@ -643,7 +643,7 @@ public struct AppSection: View {
             SettingsCardRow(
                 configurationReview: .json("fileEditor.terminalEditorCommand"),
                 String(localized: "settings.fileEditor.terminalEditorCommand", defaultValue: "Terminal Editor"),
-                subtitle: String(localized: "settings.fileEditor.terminalEditorCommand.subtitle", defaultValue: "Command run in a cmux terminal when Terminal Editor is chosen, followed by the file path. Leave empty to use $VISUAL, then $EDITOR, then vi.")
+                subtitle: String(localized: "settings.fileEditor.terminalEditorCommand.subtitle", defaultValue: "Command run in a cmux terminal when Terminal Editor is chosen, followed by the file path. Leave empty to let your login shell use $VISUAL, then $EDITOR, then vi.")
             ) {
                 TextField(
                     String(localized: "settings.fileEditor.terminalEditorCommand.placeholder", defaultValue: "$EDITOR"),

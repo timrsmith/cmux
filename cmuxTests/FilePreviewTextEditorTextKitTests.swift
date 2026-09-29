@@ -53,17 +53,17 @@ struct FilePreviewTextEditorTextKitTests {
             let textView = SavingTextView.makeFilePreviewTextView()
             let initialPointSize = try #require(textView.font?.pointSize)
 
-            let zoomIn = try #require(Self.keyEvent(characters: "=", keyCode: UInt16(kVK_ANSI_Equal)))
+            let zoomIn = try editorKeyEvent("=", code: UInt16(kVK_ANSI_Equal))
             #expect(textView.performKeyEquivalent(with: zoomIn))
             let zoomedPointSize = try #require(textView.font?.pointSize)
             #expect(zoomedPointSize > initialPointSize)
 
-            let reset = try #require(Self.keyEvent(characters: "0", keyCode: UInt16(kVK_ANSI_0)))
+            let reset = try editorKeyEvent("0", code: UInt16(kVK_ANSI_0))
             #expect(textView.performKeyEquivalent(with: reset))
             let resetPointSize = try #require(textView.font?.pointSize)
             #expect(abs(resetPointSize - initialPointSize) < 0.01)
 
-            let zoomOut = try #require(Self.keyEvent(characters: "-", keyCode: UInt16(kVK_ANSI_Minus)))
+            let zoomOut = try editorKeyEvent("-", code: UInt16(kVK_ANSI_Minus))
             #expect(textView.performKeyEquivalent(with: zoomOut))
             let smallerPointSize = try #require(textView.font?.pointSize)
             #expect(smallerPointSize < initialPointSize)
@@ -76,7 +76,7 @@ struct FilePreviewTextEditorTextKitTests {
             let textView = SavingTextView.makeFilePreviewTextView()
             let initialPointSize = try #require(textView.font?.pointSize)
             // kVK_ANSI_RightBracket is the physical key that produces "+" on German/European layouts.
-            let event = try #require(Self.keyEvent(characters: "+", keyCode: UInt16(kVK_ANSI_RightBracket)))
+            let event = try editorKeyEvent("+", code: UInt16(kVK_ANSI_RightBracket))
 
             #expect(textView.performKeyEquivalent(with: event))
             let zoomedPointSize = try #require(textView.font?.pointSize)
@@ -88,39 +88,18 @@ struct FilePreviewTextEditorTextKitTests {
     func editorHandlesChordedZoomKeyEquivalents() throws {
         try withDefaultShortcutSettings {
             KeyboardShortcutSettings.setShortcut(
-                StoredShortcut(
-                    first: ShortcutStroke(
-                        key: "k",
-                        command: false,
-                        shift: false,
-                        option: false,
-                        control: true,
-                        keyCode: UInt16(kVK_ANSI_K)
-                    ),
-                    second: ShortcutStroke(
-                        key: "=",
-                        command: true,
-                        shift: false,
-                        option: false,
-                        control: false,
-                        keyCode: UInt16(kVK_ANSI_Equal)
-                    )
-                ),
+                Self.controlKChord(secondKey: "=", secondKeyCode: UInt16(kVK_ANSI_Equal)),
                 for: .browserZoomIn
             )
 
             let textView = SavingTextView.makeFilePreviewTextView()
             let initialPointSize = try #require(textView.font?.pointSize)
 
-            let prefix = try #require(Self.keyEvent(
-                characters: "k",
-                modifierFlags: [.control],
-                keyCode: UInt16(kVK_ANSI_K)
-            ))
+            let prefix = try editorKeyEvent("k", flags: [.control], code: UInt16(kVK_ANSI_K))
             #expect(textView.performKeyEquivalent(with: prefix))
             #expect(abs((textView.font?.pointSize ?? 0) - initialPointSize) < 0.01)
 
-            let suffix = try #require(Self.keyEvent(characters: "=", keyCode: UInt16(kVK_ANSI_Equal)))
+            let suffix = try editorKeyEvent("=", code: UInt16(kVK_ANSI_Equal))
             #expect(textView.performKeyEquivalent(with: suffix))
             let zoomedPointSize = try #require(textView.font?.pointSize)
             #expect(zoomedPointSize > initialPointSize)
@@ -144,28 +123,45 @@ struct FilePreviewTextEditorTextKitTests {
             textView.panel = panel
             let initialPointSize = try #require(textView.font?.pointSize)
 
-            let zoomPrefix = try #require(Self.keyEvent(
-                characters: "k",
-                modifierFlags: [.control],
-                keyCode: UInt16(kVK_ANSI_K)
-            ))
+            let zoomPrefix = try editorKeyEvent("k", flags: [.control], code: UInt16(kVK_ANSI_K))
             #expect(textView.performKeyEquivalent(with: zoomPrefix))
 
-            let zoomSuffix = try #require(Self.keyEvent(characters: "=", keyCode: UInt16(kVK_ANSI_Equal)))
+            let zoomSuffix = try editorKeyEvent("=", code: UInt16(kVK_ANSI_Equal))
             #expect(textView.performKeyEquivalent(with: zoomSuffix))
             let zoomedPointSize = try #require(textView.font?.pointSize)
             #expect(zoomedPointSize > initialPointSize)
             #expect(panel.saveCount == 0)
 
-            let savePrefix = try #require(Self.keyEvent(
-                characters: "k",
-                modifierFlags: [.control],
-                keyCode: UInt16(kVK_ANSI_K)
-            ))
+            let savePrefix = try editorKeyEvent("k", flags: [.control], code: UInt16(kVK_ANSI_K))
             #expect(textView.performKeyEquivalent(with: savePrefix))
 
-            let saveSuffix = try #require(Self.keyEvent(characters: "s", keyCode: UInt16(kVK_ANSI_S)))
+            let saveSuffix = try editorKeyEvent("s", code: UInt16(kVK_ANSI_S))
             #expect(textView.performKeyEquivalent(with: saveSuffix))
+            #expect(panel.saveCount == 1)
+        }
+    }
+
+    /// A chord whose second stroke has no Command, Control, or Option must
+    /// still complete: the typing-path early exit only applies while no
+    /// prefix is pending.
+    @Test("a pending chord prefix accepts an unmodified second stroke")
+    func chordSecondStrokeWithoutModifiersCompletes() throws {
+        try withDefaultShortcutSettings {
+            KeyboardShortcutSettings.setShortcut(
+                StoredShortcut(key: "k", command: false, shift: false, option: false, control: true, chordKey: "s"),
+                for: .saveFilePreview
+            )
+            let panel = TextEditingPanelSpy()
+            let textView = SavingTextView.makeFilePreviewTextView()
+            textView.panel = panel
+
+            let plain = try editorKeyEvent("s", flags: [], code: UInt16(kVK_ANSI_S))
+            #expect(!textView.performKeyEquivalent(with: plain), "no prefix pending: plain s is typing")
+            #expect(panel.saveCount == 0)
+
+            let prefix = try editorKeyEvent("k", flags: [.control], code: UInt16(kVK_ANSI_K))
+            #expect(textView.performKeyEquivalent(with: prefix))
+            #expect(textView.performKeyEquivalent(with: plain))
             #expect(panel.saveCount == 1)
         }
     }
@@ -197,12 +193,7 @@ struct FilePreviewTextEditorTextKitTests {
             )
             #expect(textView.hasMarkedText())
 
-            let optionSave = try #require(Self.keyEvent(
-                characters: "¥",
-                charactersIgnoringModifiers: "y",
-                modifierFlags: [.option],
-                keyCode: UInt16(kVK_ANSI_Y)
-            ))
+            let optionSave = try editorKeyEvent("y", characters: "¥", flags: [.option], code: UInt16(kVK_ANSI_Y))
             _ = textView.performKeyEquivalent(with: optionSave)
 
             #expect(panel.saveCount == 0)
@@ -221,10 +212,7 @@ struct FilePreviewTextEditorTextKitTests {
                 ),
                 for: .saveFilePreview
             )
-            let commandSave = try #require(Self.keyEvent(
-                characters: "y",
-                keyCode: UInt16(kVK_ANSI_Y)
-            ))
+            let commandSave = try editorKeyEvent("y", code: UInt16(kVK_ANSI_Y))
 
             #expect(textView.performKeyEquivalent(with: commandSave))
             #expect(panel.saveCount == 1)
@@ -239,24 +227,7 @@ struct FilePreviewTextEditorTextKitTests {
             defer { AppDelegate.shared = originalAppDelegate }
 
             KeyboardShortcutSettings.setShortcut(
-                StoredShortcut(
-                    first: ShortcutStroke(
-                        key: "k",
-                        command: false,
-                        shift: false,
-                        option: false,
-                        control: true,
-                        keyCode: UInt16(kVK_ANSI_K)
-                    ),
-                    second: ShortcutStroke(
-                        key: "=",
-                        command: true,
-                        shift: false,
-                        option: false,
-                        control: false,
-                        keyCode: UInt16(kVK_ANSI_Equal)
-                    )
-                ),
+                Self.controlKChord(secondKey: "=", secondKeyCode: UInt16(kVK_ANSI_Equal)),
                 for: .browserZoomIn
             )
 
@@ -272,16 +243,12 @@ struct FilePreviewTextEditorTextKitTests {
             defer { window.orderOut(nil) }
 
             let initialPointSize = try #require(textView.font?.pointSize)
-            let prefix = try #require(Self.keyEvent(
-                characters: "k",
-                modifierFlags: [.control],
-                keyCode: UInt16(kVK_ANSI_K)
-            ))
+            let prefix = try editorKeyEvent("k", flags: [.control], code: UInt16(kVK_ANSI_K))
             #expect(textView.performKeyEquivalent(with: prefix))
 
             textView.removeFromSuperview()
 
-            let suffix = try #require(Self.keyEvent(characters: "=", keyCode: UInt16(kVK_ANSI_Equal)))
+            let suffix = try editorKeyEvent("=", code: UInt16(kVK_ANSI_Equal))
             #expect(!textView.performKeyEquivalent(with: suffix))
             #expect(abs((textView.font?.pointSize ?? 0) - initialPointSize) < 0.01)
         }
@@ -302,43 +269,11 @@ struct FilePreviewTextEditorTextKitTests {
         ) {
             let textView = SavingTextView.makeFilePreviewTextView()
             let initialPointSize = try #require(textView.font?.pointSize)
-            let zoomIn = try #require(Self.keyEvent(characters: "=", keyCode: UInt16(kVK_ANSI_Equal)))
+            let zoomIn = try editorKeyEvent("=", code: UInt16(kVK_ANSI_Equal))
 
             #expect(!textView.performKeyEquivalent(with: zoomIn))
             #expect(abs((textView.font?.pointSize ?? 0) - initialPointSize) < 0.01)
         }
-    }
-
-    private func withDefaultShortcutSettings(_ body: () throws -> Void) rethrows {
-        let originalSettingsFileStore = KeyboardShortcutSettings.installIsolatedTestFileStore(
-            prefix: "cmux-file-preview-text-zoom"
-        )
-        KeyboardShortcutSettings.resetAll()
-        defer {
-            KeyboardShortcutSettings.resetAll()
-            KeyboardShortcutSettings.settingsFileStore = originalSettingsFileStore
-        }
-        try body()
-    }
-
-    private func withShortcutSettingsFile(_ contents: String, _ body: () throws -> Void) throws {
-        let originalSettingsFileStore = KeyboardShortcutSettings.settingsFileStore
-        let settingsFileURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cmux-file-preview-text-zoom-\(UUID().uuidString).json", isDirectory: false)
-        try contents.write(to: settingsFileURL, atomically: true, encoding: .utf8)
-        KeyboardShortcutSettings.settingsFileStore = KeyboardShortcutSettingsFileStore(
-            primaryPath: settingsFileURL.path,
-            fallbackPath: nil,
-            additionalFallbackPaths: [],
-            startWatching: false
-        )
-        KeyboardShortcutSettings.resetAll()
-        defer {
-            KeyboardShortcutSettings.resetAll()
-            KeyboardShortcutSettings.settingsFileStore = originalSettingsFileStore
-            try? FileManager.default.removeItem(at: settingsFileURL)
-        }
-        try body()
     }
 
     private static func controlKChord(secondKey: String, secondKeyCode: UInt16) -> StoredShortcut {
@@ -362,26 +297,6 @@ struct FilePreviewTextEditorTextKitTests {
         )
     }
 
-    private static func keyEvent(
-        characters: String,
-        charactersIgnoringModifiers: String? = nil,
-        modifierFlags: NSEvent.ModifierFlags = [.command],
-        keyCode: UInt16
-    ) -> NSEvent? {
-        NSEvent.keyEvent(
-            with: .keyDown,
-            location: .zero,
-            modifierFlags: modifierFlags,
-            timestamp: ProcessInfo.processInfo.systemUptime,
-            windowNumber: 0,
-            context: nil,
-            characters: characters,
-            charactersIgnoringModifiers: charactersIgnoringModifiers ?? characters,
-            isARepeat: false,
-            keyCode: keyCode
-        )
-    }
-
     /// Cmd+F is cmux's own shortcut, so it never reaches the text view's
     /// responder chain; `TabManager.startSearch()` asks the panel instead.
     @Test("Find… shows the editor's find bar once the editor is in a window")
@@ -395,19 +310,11 @@ struct FilePreviewTextEditorTextKitTests {
         panel.attachTextView(textView)
         #expect(panel.startTextFind() == false, "attached, but not in a window")
 
-        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
-        scrollView.documentView = textView
-        let window = NSWindow(
-            contentRect: scrollView.frame,
-            styleMask: [.titled],
-            backing: .buffered,
-            defer: false
-        )
-        defer { window.close() }
-        window.contentView = scrollView
+        let editor = makeWindowedEditor(hosting: textView)
+        defer { editor.close() }
 
         #expect(panel.startTextFind())
-        #expect(scrollView.isFindBarVisible)
+        #expect(editor.scrollView.isFindBarVisible)
     }
 
     /// AppKit turns prose conveniences on for a fresh NSTextView; every one
@@ -442,29 +349,52 @@ struct FilePreviewTextEditorTextKitTests {
         #expect(panel.startTextFind(replace: true) == false, "attached, but not in a window")
         #expect(panel.performTextFinderAction(.nextMatch) == false)
 
-        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
-        scrollView.documentView = textView
-        let window = NSWindow(
-            contentRect: scrollView.frame,
-            styleMask: [.titled],
-            backing: .buffered,
-            defer: false
-        )
-        defer { window.close() }
-        window.contentView = scrollView
+        let editor = makeWindowedEditor(hosting: textView)
+        defer { editor.close() }
 
         #expect(panel.startTextFind(replace: true))
-        #expect(scrollView.isFindBarVisible)
+        #expect(editor.scrollView.isFindBarVisible)
         textView.setSelectedRange(NSRange(location: 0, length: 5))
         #expect(panel.performTextFinderAction(.setSearchString))
         #expect(panel.performTextFinderAction(.nextMatch))
         #expect(panel.performTextFinderAction(.previousMatch))
         #expect(panel.performTextFinderAction(.hideFindInterface))
-        #expect(!scrollView.isFindBarVisible)
+        #expect(!editor.scrollView.isFindBarVisible)
 
         textView.isEditable = false
         #expect(textView.showFilePreviewFindInterface(replace: true), "a read-only editor still gets plain find")
-        #expect(scrollView.isFindBarVisible)
+        #expect(editor.scrollView.isFindBarVisible)
+        #expect(panel.performTextFinderAction(.hideFindInterface))
+        #expect(textView.performFilePreviewEditorAction(.findAndReplace), "the palette's Find and Replace takes the same path")
+        #expect(editor.scrollView.isFindBarVisible)
+    }
+
+    /// Option-Command-R is an application shortcut: the AppDelegate routes it
+    /// to the focused editor's replace bar, so the editor keeps no candidate
+    /// of its own for it.
+    @Test("Find and Replace reaches the focused editor through the app-level shortcut")
+    func findAndReplaceShortcutRoutesThroughTheAppDelegate() throws {
+        try withDefaultShortcutSettings {
+            let delegate = try #require(AppDelegate.shared)
+            let windowID = delegate.createMainWindow()
+            let window = try #require(delegate.mainWindow(for: windowID))
+            defer { window.close() }
+            let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 240))
+            let textView = SavingTextView.makeFilePreviewTextView()
+            scrollView.documentView = textView
+            window.contentView?.addSubview(scrollView)
+            #expect(window.makeFirstResponder(textView))
+
+            let event = try #require(NSEvent.keyEvent(
+                with: .keyDown, location: .zero, modifierFlags: [.command, .option],
+                timestamp: 0, windowNumber: window.windowNumber, context: nil,
+                characters: "®", charactersIgnoringModifiers: "r", isARepeat: false, keyCode: UInt16(kVK_ANSI_R)
+            ))
+            #expect(!textView.performKeyEquivalent(with: event), "the editor has no candidate for the application shortcut")
+            #expect(!scrollView.isFindBarVisible)
+            #expect(delegate.handleConfiguredShortcutKeyEquivalent(event))
+            #expect(scrollView.isFindBarVisible)
+        }
     }
 
     private final class TextEditingPanelSpy: FilePreviewTextEditingPanel {

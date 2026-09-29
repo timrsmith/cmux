@@ -6,8 +6,13 @@ import SwiftUI
 /// = `stacked`: the workspace list on top, the Files panel below, and a
 /// horizontal divider between them that the user drags to resize.
 ///
-/// The Files height comes from `StackedFilesPanelLayoutModel`, so a divider
-/// drag re-evaluates only this view. The height is re-clamped against the
+/// The Files height comes from `StackedFilesPanelLayoutModel`, which this
+/// view holds UNOBSERVED, like ContentView holds `SidebarLayoutModel`: the
+/// parent builds `list` and `panel` once, and only
+/// `StackedFilesPanelHeightFrameModifier` observes the model, so a divider
+/// drag tick re-applies one frame over the already-built panel instead of
+/// re-running this body (and with it the list diff and the panel's
+/// `onAppear`/`onChange` closures). The height is re-clamped against the
 /// measured sidebar height on every layout pass
 /// (`FilesPanelStackedLayout.clampedHeight`), so a window that gets shorter
 /// after the user resized the split still keeps both regions usable. The
@@ -15,7 +20,9 @@ import SwiftUI
 /// dividers (`SidebarDividerTracker`), whose AppKit cursor rect shows the
 /// vertical resize cursor while hovering.
 struct StackedFilesPanelSplit<List: View, Panel: View>: View {
-    @ObservedObject var layout: StackedFilesPanelLayoutModel
+    /// Deliberately NOT observed; the divider callbacks read and write it
+    /// outside any body, and the frame modifier alone tracks its ticks.
+    let layout: StackedFilesPanelLayoutModel
     /// Whether the Files region is laid out (`FilesPanelStackedLayout.isStacked`).
     /// The split stays mounted with only the list while it is not, so closing
     /// the region or hiding and re-showing the sidebar never changes the
@@ -24,20 +31,19 @@ struct StackedFilesPanelSplit<List: View, Panel: View>: View {
     let chromeBackgroundColor: NSColor
     /// Called with the clamped height when a divider drag ends, for persisting.
     let onHeightCommitted: (CGFloat) -> Void
-    @ViewBuilder let list: () -> List
-    @ViewBuilder let panel: () -> Panel
+    let list: List
+    let panel: Panel
 
     var body: some View {
         GeometryReader { proxy in
             let availableHeight = proxy.size.height
-            let treeHeight = FilesPanelStackedLayout.clampedHeight(layout.height, availableHeight: availableHeight)
             VStack(spacing: 0) {
-                list()
+                list
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 if showsPanel {
-                    panel()
+                    panel
                         .frame(maxWidth: .infinity)
-                        .frame(height: treeHeight, alignment: .topLeading)
+                        .modifier(StackedFilesPanelHeightFrameModifier(layout: layout, availableHeight: availableHeight))
                         .clipped()
                         .overlay(alignment: .top) {
                             WindowChromeBorder(
@@ -82,5 +88,22 @@ struct StackedFilesPanelSplit<List: View, Panel: View>: View {
         .accessibilityElement()
         .accessibilityLabel(String(localized: "filesPanel.stackedDivider.accessibilityLabel", defaultValue: "Resize Files Panel"))
         .accessibilityIdentifier("FilesPanelStackedResizer")
+    }
+}
+
+/// `.frame(height:)` for the stacked Files region from the layout model, the
+/// `SidebarWidthFrameModifier` pattern: the only observer of
+/// `StackedFilesPanelLayoutModel`, so a divider tick re-evaluates just this
+/// frame application over the panel the parent already built.
+struct StackedFilesPanelHeightFrameModifier: ViewModifier {
+    @ObservedObject var layout: StackedFilesPanelLayoutModel
+    /// The sidebar's measured height the tree height is clamped against.
+    let availableHeight: CGFloat
+
+    func body(content: Content) -> some View {
+        content.frame(
+            height: FilesPanelStackedLayout.clampedHeight(layout.height, availableHeight: availableHeight),
+            alignment: .topLeading
+        )
     }
 }
