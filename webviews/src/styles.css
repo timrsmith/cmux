@@ -1669,6 +1669,20 @@ body[data-loading="true"] #status::before {
   overflow-x: clip;
   overflow-y: visible;
 }
+/* The source picker in the header matches the Commit split button: same
+   height, border, radius, and transparent fill, so the row reads as one set
+   of controls rather than a pill beside bordered buttons. */
+#repo-header #source-select {
+  height: 22px;
+  border-color: color-mix(in lab, var(--cmux-diff-fg) 14%, transparent);
+  background-color: transparent;
+  color: color-mix(in lab, var(--cmux-diff-fg) 78%, var(--cmux-diff-bg));
+}
+#repo-header #source-select:hover {
+  border-color: color-mix(in lab, var(--cmux-diff-fg) 14%, transparent);
+  background-color: color-mix(in lab, var(--cmux-diff-fg) 9%, transparent);
+  color: var(--cmux-diff-fg);
+}
 .repo-header-status {
   display: inline-flex;
   flex: 1 1 auto;

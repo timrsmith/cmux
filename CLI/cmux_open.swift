@@ -714,7 +714,7 @@ extension CMUXCLI {
             switch self {
             case .unstaged: return CMUXDiffViewerLocalization.string("diffViewer.source.unstaged", defaultValue: "Unstaged")
             case .staged: return CMUXDiffViewerLocalization.string("diffViewer.source.staged", defaultValue: "Staged")
-            case .branch: return CMUXDiffViewerLocalization.string("diffViewer.source.branch", defaultValue: "Branch")
+            case .branch: return CMUXDiffViewerLocalization.string("diffViewer.source.branch", defaultValue: "Branch vs base")
             case .lastTurn: return CMUXDiffViewerLocalization.string("diffViewer.source.lastTurn", defaultValue: "Last turn")
             }
         }
