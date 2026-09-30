@@ -2190,6 +2190,17 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
             performLiveWidthRemeasure(width: width)
             scheduleWidthRemeasure()
         }
+        let height = containerView?.clipView.bounds.height ?? 0
+        if height != lastViewportHeight {
+            let shrank = height < lastViewportHeight
+            lastViewportHeight = height
+            // A shorter viewport (window resize, or the stacked Files region
+            // growing above the list) slides the rows under the footer
+            // overlay; keep a selected row that was on screen clear of it.
+            if shrank, height > 0 {
+                scrollSelectedRowToVisibleIfNeeded(onlyWhenPartlyOnScreen: true)
+            }
+        }
         recomputeHoveredRow()
         enforceHoverOnVisibleCells()
         updateDropTargets()
@@ -2207,6 +2218,9 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
 
     private let selectionCoalescer = SidebarSelectionCoalescer<ContinuousClock>()
     private var lastMeasuredWidth: CGFloat = 0
+    /// Clip height at the last viewport flush; a drop below it re-checks the
+    /// selected row against the footer inset.
+    private var lastViewportHeight: CGFloat = 0
     private var widthRemeasureTask: Task<Void, Never>?
     private var lastLiveMeasuredWidth: CGFloat = 0
     private var hasLiveMeasuredRows = false
@@ -2839,7 +2853,11 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
         )
     }
 
-    private func scrollSelectedRowToVisibleIfNeeded() {
+    /// - Parameter onlyWhenPartlyOnScreen: Leave a row the user scrolled fully
+    ///   out of view where it is (a viewport resize must not yank the list
+    ///   back to the selection); only a row still partly on screen is kept
+    ///   clear of the insets.
+    private func scrollSelectedRowToVisibleIfNeeded(onlyWhenPartlyOnScreen: Bool = false) {
         guard let container = containerView,
               let selectedScrollTargetWorkspaceId,
               let row = rows.firstIndex(where: { $0.workspaceId == selectedScrollTargetWorkspaceId }) else {
@@ -2855,7 +2873,8 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
             rowRect: table.convert(table.rect(ofRow: row), to: clipView),
             clipBounds: clipView.bounds,
             insets: scrollView.contentInsets,
-            documentHeight: table.frame.height
+            documentHeight: table.frame.height,
+            onlyWhenPartlyOnScreen: onlyWhenPartlyOnScreen
         ) else { return }
         clipView.scroll(to: NSPoint(x: clipView.bounds.origin.x, y: origin))
         scrollView.reflectScrolledClipView(clipView)
@@ -2863,13 +2882,19 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
 
     /// The clip view origin that brings `rowRect` fully between the top and
     /// bottom insets, moving as little as possible, or nil when it already is.
-    /// All rects are in the (flipped) clip view's coordinates.
+    /// All rects are in the (flipped) clip view's coordinates. With
+    /// `onlyWhenPartlyOnScreen`, a row that does not intersect `clipBounds`
+    /// at all is left alone.
     nonisolated static func selectedRowScrollOrigin(
         rowRect: NSRect,
         clipBounds: NSRect,
         insets: NSEdgeInsets,
-        documentHeight: CGFloat
+        documentHeight: CGFloat,
+        onlyWhenPartlyOnScreen: Bool = false
     ) -> CGFloat? {
+        if onlyWhenPartlyOnScreen, !rowRect.intersects(clipBounds) {
+            return nil
+        }
         let unobscuredMinY = clipBounds.minY + insets.top
         let unobscuredMaxY = clipBounds.maxY - insets.bottom
         let target: CGFloat

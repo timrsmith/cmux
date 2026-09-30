@@ -42,6 +42,39 @@ struct SidebarSelectedRowScrollTests {
         #expect(origin(row: 100, height: 600, clipOriginY: 0) == 70)
     }
 
+    /// A viewport that got shorter (window resize, stacked Files region
+    /// growing) re-checks the selection with `onlyWhenPartlyOnScreen`.
+    private func originAfterResize(row minY: CGFloat, clipOriginY: CGFloat, clipHeight: CGFloat) -> CGFloat? {
+        SidebarWorkspaceTableController.selectedRowScrollOrigin(
+            rowRect: NSRect(x: 0, y: minY, width: 240, height: 50),
+            clipBounds: NSRect(x: 0, y: clipOriginY, width: 240, height: clipHeight),
+            insets: insets,
+            documentHeight: documentHeight,
+            onlyWhenPartlyOnScreen: true
+        )
+    }
+
+    @Test
+    func aShorterViewportKeepsASelectedRowThatSlidUnderTheFooterClear() {
+        // The row ended at 350, clear of a 600-tall viewport's footer. The
+        // viewport shrank to 380: the row is still on screen (380 > 300) but
+        // behind the footer (unobscured area now ends at 380 - 58 = 322).
+        #expect(originAfterResize(row: 300, clipOriginY: 0, clipHeight: 380) == 28)
+    }
+
+    @Test
+    func aShorterViewportLeavesARowTheUserScrolledAwayFromAlone() {
+        // Fully below the viewport: the user scrolled elsewhere on purpose.
+        #expect(originAfterResize(row: 700, clipOriginY: 0, clipHeight: 380) == nil)
+        // Fully above it too.
+        #expect(originAfterResize(row: 100, clipOriginY: 400, clipHeight: 380) == nil)
+    }
+
+    @Test
+    func aRowStillBetweenTheInsetsAfterAResizeDoesNotScroll() {
+        #expect(originAfterResize(row: 100, clipOriginY: 0, clipHeight: 380) == nil)
+    }
+
     @Test
     func scrollingStopsAtTheEndsOfTheList() {
         // The last row can go no further than the bottom inset allows.

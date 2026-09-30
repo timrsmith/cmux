@@ -125,55 +125,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "files panel placement file tree explorer left of panes right sidebar leading stacked above workspaces ide layout next to workspace list"
+            "value": "files panel placement file tree explorer left sidebar right sidebar stacked left of panes leading above workspaces ide layout next to workspace list"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dateien Panel Platzierung Dateibaum Explorer links von Bereichen rechte Seitenleiste gestapelt über Arbeitsbereichen IDE Layout Arbeitsbereichsliste"
+            "value": "Dateien Panel Platzierung Dateibaum Explorer linke Seitenleiste rechte Seitenleiste gestapelt links von Bereichen über Arbeitsbereichen IDE Layout Arbeitsbereichsliste"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "fichiers panneau emplacement arborescence explorateur à gauche des volets barre latérale droite empilé au-dessus des espaces de travail disposition IDE liste des espaces de travail"
+            "value": "fichiers panneau emplacement arborescence explorateur barre latérale gauche barre latérale droite empilé à gauche des volets au-dessus des espaces de travail disposition IDE liste des espaces de travail"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "الملفات لوحة الموضع شجرة الملفات المستكشف يسار الأجزاء الشريط الجانبي الأيمن مكدس فوق مساحات العمل تخطيط IDE قائمة مساحات العمل"
+            "value": "الملفات لوحة الموضع شجرة الملفات المستكشف الشريط الجانبي الأيسر الشريط الجانبي الأيمن مكدس يسار الأجزاء فوق مساحات العمل تخطيط IDE قائمة مساحات العمل"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "archivos panel ubicación árbol de archivos explorador izquierda de los paneles barra lateral derecha apilado encima de los espacios de trabajo diseño IDE lista de espacios de trabajo"
+            "value": "archivos panel ubicación árbol de archivos explorador barra lateral izquierda barra lateral derecha apilado izquierda de los paneles encima de los espacios de trabajo diseño IDE lista de espacios de trabajo"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "檔案 面板 位置 檔案樹 瀏覽器 窗格左側 右側邊欄 堆疊 工作區上方 IDE 佈局 工作區列表"
+            "value": "檔案 面板 位置 檔案樹 瀏覽器 左側邊欄 右側邊欄 堆疊 窗格左側 工作區上方 IDE 佈局 工作區列表"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "文件 面板 位置 文件树 浏览器 窗格左侧 右侧边栏 堆叠 工作区上方 IDE 布局 工作区列表"
+            "value": "文件 面板 位置 文件树 浏览器 左侧边栏 右侧边栏 堆叠 窗格左侧 工作区上方 IDE 布局 工作区列表"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "파일 패널 배치 파일 트리 탐색기 패널 왼쪽 오른쪽 사이드바 스택 워크스페이스 위 IDE 레이아웃 워크스페이스 목록"
+            "value": "파일 패널 배치 파일 트리 탐색기 왼쪽 사이드바 오른쪽 사이드바 스택 패널 왼쪽 워크스페이스 위 IDE 레이아웃 워크스페이스 목록"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ファイル パネル 配置 ファイルツリー エクスプローラー ペインの左 右サイドバー 積み重ね ワークスペースの上 IDE レイアウト ワークスペース一覧"
+            "value": "ファイル パネル 配置 ファイルツリー エクスプローラー 左サイドバー 右サイドバー スタック ペインの左 ワークスペースの上 IDE レイアウト ワークスペース一覧"
           }
         }
       }
@@ -2013,55 +2013,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Above Workspaces"
+            "value": "Stacked"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Über Arbeitsbereichen"
+            "value": "Gestapelt"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Au-dessus des espaces de travail"
+            "value": "Empilé"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "أعلى مساحات العمل"
+            "value": "مكدس"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Encima de los espacios de trabajo"
+            "value": "Apilado"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "工作區上方"
+            "value": "堆疊"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "工作区上方"
+            "value": "堆叠"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "작업 공간 위"
+            "value": "스택"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ワークスペースの上"
+            "value": "スタック"
           }
         }
       }
@@ -5730,55 +5730,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "sidebar.filesPanelPlacement files panel placement file tree explorer left of panes right sidebar leading stacked above workspaces ide layout next to workspace list"
+            "value": "sidebar.filesPanelPlacement files panel placement file tree explorer left sidebar right sidebar stacked left of panes leading above workspaces ide layout next to workspace list"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "sidebar.filesPanelPlacement Dateibereich Platzierung Dateibaum Explorer links neben Bereichen rechte Seitenleiste führend gestapelt über Arbeitsbereichen IDE-Layout neben Arbeitsbereichsliste"
+            "value": "sidebar.filesPanelPlacement Dateibereich Platzierung Dateibaum Explorer linke Seitenleiste rechte Seitenleiste gestapelt links neben Bereichen führend über Arbeitsbereichen IDE-Layout neben Arbeitsbereichsliste"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "sidebar.filesPanelPlacement panneau fichiers emplacement arborescence explorateur à gauche des volets barre latérale droite en tête empilé au-dessus des espaces de travail disposition IDE à côté de la liste des espaces de travail"
+            "value": "sidebar.filesPanelPlacement panneau fichiers emplacement arborescence explorateur barre latérale gauche barre latérale droite empilé à gauche des volets en tête au-dessus des espaces de travail disposition IDE à côté de la liste des espaces de travail"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "sidebar.filesPanelPlacement لوحة الملفات موضع شجرة الملفات مستكشف يسار الأجزاء الشريط الجانبي الأيمن بادئ مكدس أعلى مساحات العمل تخطيط IDE بجوار قائمة مساحات العمل"
+            "value": "sidebar.filesPanelPlacement لوحة الملفات موضع شجرة الملفات مستكشف الشريط الجانبي الأيسر الشريط الجانبي الأيمن مكدس يسار الأجزاء بادئ أعلى مساحات العمل تخطيط IDE بجوار قائمة مساحات العمل"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "sidebar.filesPanelPlacement panel de archivos ubicación árbol de archivos explorador a la izquierda de los paneles barra lateral derecha inicial apilado encima de los espacios de trabajo diseño IDE junto a la lista de espacios de trabajo"
+            "value": "sidebar.filesPanelPlacement panel de archivos ubicación árbol de archivos explorador barra lateral izquierda barra lateral derecha apilado a la izquierda de los paneles inicial encima de los espacios de trabajo diseño IDE junto a la lista de espacios de trabajo"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "sidebar.filesPanelPlacement 檔案面板 位置 檔案樹 瀏覽器 窗格左側 右側邊欄 前置 堆疊 工作區上方 IDE 版面 工作區列表旁"
+            "value": "sidebar.filesPanelPlacement 檔案面板 位置 檔案樹 瀏覽器 左側邊欄 右側邊欄 堆疊 窗格左側 前置 工作區上方 IDE 版面 工作區列表旁"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "sidebar.filesPanelPlacement 文件面板 位置 文件树 浏览器 窗格左侧 右侧边栏 前置 堆叠 工作区上方 IDE 布局 工作区列表旁"
+            "value": "sidebar.filesPanelPlacement 文件面板 位置 文件树 浏览器 左侧边栏 右侧边栏 堆叠 窗格左侧 前置 工作区上方 IDE 布局 工作区列表旁"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "sidebar.filesPanelPlacement 파일 패널 배치 파일 트리 탐색기 창 왼쪽 오른쪽 사이드바 선행 스택 작업 공간 위 IDE 레이아웃 작업 공간 목록 옆"
+            "value": "sidebar.filesPanelPlacement 파일 패널 배치 파일 트리 탐색기 왼쪽 사이드바 오른쪽 사이드바 스택 창 왼쪽 선행 작업 공간 위 IDE 레이아웃 작업 공간 목록 옆"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "sidebar.filesPanelPlacement ファイルパネル 配置 ファイルツリー エクスプローラー ペインの左 右サイドバー 先頭 スタック ワークスペースの上 IDE レイアウト ワークスペースリストの横"
+            "value": "sidebar.filesPanelPlacement ファイルパネル 配置 ファイルツリー エクスプローラー 左サイドバー 右サイドバー スタック ペインの左 先頭 ワークスペースの上 IDE レイアウト ワークスペースリストの横"
           }
         }
       }
@@ -5789,55 +5789,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Left of Panes"
+            "value": "Left Sidebar"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Links neben den Bereichen"
+            "value": "Linke Seitenleiste"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "À gauche des volets"
+            "value": "Barre latérale gauche"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "على يسار الأجزاء"
+            "value": "الشريط الجانبي الأيسر"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "A la izquierda de los paneles"
+            "value": "Barra lateral izquierda"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "窗格左側"
+            "value": "左側邊欄"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "窗格左侧"
+            "value": "左侧边栏"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "패널 왼쪽"
+            "value": "왼쪽 사이드바"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ペインの左側"
+            "value": "左サイドバー"
           }
         }
       }
@@ -5848,55 +5848,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "In Right Sidebar"
+            "value": "Right Sidebar"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "In rechter Seitenleiste"
+            "value": "Rechte Seitenleiste"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dans la barre latérale droite"
+            "value": "Barre latérale droite"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "في الشريط الجانبي الأيمن"
+            "value": "الشريط الجانبي الأيمن"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "En la barra lateral derecha"
+            "value": "Barra lateral derecha"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在右側邊欄中"
+            "value": "右側邊欄"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在右侧边栏中"
+            "value": "右侧边栏"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "오른쪽 사이드바에"
+            "value": "오른쪽 사이드바"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "右サイドバー内"
+            "value": "右サイドバー"
           }
         }
       }

@@ -75,16 +75,15 @@ public struct FilesAndEditingSection: View {
                 String(localized: "settings.sidebar.filesPanelPlacement", defaultValue: "Files Panel"),
                 subtitle: String(localized: "settings.sidebar.filesPanelPlacement.subtitle", defaultValue: "Where the file tree lives. Find, Changes, and the other tools stay in the right sidebar.")
             ) {
-                Picker("", selection: Binding(
-                    get: { filesPanelPlacement.current },
-                    set: { filesPanelPlacement.set($0) }
-                )) {
-                    ForEach(FilesPanelPlacement.allCases, id: \.self) { placement in
-                        Label(placement.localizedTitle, systemImage: placement.symbolName).tag(placement)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
+                IconLabeledSegmentedPicker(
+                    options: FilesPanelPlacement.allCases,
+                    selection: Binding(
+                        get: { filesPanelPlacement.current },
+                        set: { filesPanelPlacement.set($0) }
+                    ),
+                    title: { $0.localizedTitle },
+                    symbolName: { $0.symbolName }
+                )
                 .fixedSize()
                 .accessibilityIdentifier("SettingsFilesPanelPlacementPicker")
             }

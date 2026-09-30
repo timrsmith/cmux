@@ -85,7 +85,7 @@ extension Array where Element == CuratedSettingEntry {
                 section: .filesAndEditing,
                 id: "files-panel-placement",
                 title: String(localized: "settings.sidebar.filesPanelPlacement", defaultValue: "Files Panel"),
-                synonyms: "sidebar.filesPanelPlacement " + String(localized: "settings.search.sidebar.filesPanelPlacement", defaultValue: "files panel placement file tree explorer left of panes right sidebar leading stacked above workspaces ide layout next to workspace list")
+                synonyms: "sidebar.filesPanelPlacement " + String(localized: "settings.search.sidebar.filesPanelPlacement", defaultValue: "files panel placement file tree explorer left sidebar right sidebar stacked left of panes leading above workspaces ide layout next to workspace list")
             ),
             .init(section: .filesAndEditing, id: "file-editor-word-wrap", title: String(localized: "settings.app.fileEditorWordWrap", defaultValue: "File Editor Word Wrap"), synonyms: "fileEditor.wordWrap " + String(localized: "settings.search.fileEditor.wordWrap", defaultValue: "file editor word wrap soft wrap reflow lines text horizontal scroll preview")),
             .init(
