@@ -85,6 +85,11 @@ export function codeViewUnsafeCSS(): string {
       -webkit-backdrop-filter: blur(8px) saturate(1.08);
       backdrop-filter: blur(8px) saturate(1.08);
     }
+    /* The App's selection checkbox takes the file-type icon's place after
+       the fold chevron; a rename's arrow (data-rename-icon) stays. */
+    [data-diffs-header] [data-change-icon] {
+      display: none;
+    }
     [data-line-type='change-addition']:where([data-column-number], [data-gutter-buffer]) {
       color: var(--diffs-addition-base);
     }

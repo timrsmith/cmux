@@ -77,6 +77,7 @@ describe("createDiffViewerLabelResolver", () => {
       "forgeNotAuthenticated",
       "forgeUnavailable",
       "moreActions",
+      "moreActionsWithSelection",
       "noRemote",
       "noUpstreamShort",
       "openInCmux",
@@ -109,12 +110,10 @@ describe("createDiffViewerLabelResolver", () => {
       "stageAll",
       "stageAllAndCommit",
       "unstageAll",
-      // Batch actions: the header's Discard all… text, the selection forms
-      // (template plus singular), the confirm, the select-all and the
-      // per-row checkbox names.
+      // Batch actions: the selection forms (template plus singular), the
+      // confirm, the select-all and the per-row checkbox names.
       "clearSelection",
       "confirmDiscardSelected",
-      "discardAllShort",
       "discardSelected",
       "discardSelectedOne",
       "discardSelectedPrompt",

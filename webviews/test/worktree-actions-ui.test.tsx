@@ -804,11 +804,24 @@ function menuAction(document: Document, action: string) {
   );
 }
 
-/** A batch action button in the repository header (whole view or selection). */
+/** Opens the header's "..." menu unless it is open (a click would close it). */
+function openOverflowMenu(document: Document): void {
+  if (document.getElementById("repo-overflow-menu") == null) {
+    click(document.getElementById("repo-overflow-button") as HTMLButtonElement);
+  }
+}
+
+/** A batch action (whole view or selection) of the header's "..." menu, opened if needed. */
 function headerBulkAction(document: Document, action: string) {
+  openOverflowMenu(document);
   return document.querySelector<HTMLButtonElement>(
-    `#repo-header .repo-header-bulk [data-action="${action}"]`,
+    `#repo-overflow-menu [data-action="${action}"]`,
   );
+}
+
+/** The "..." button's selection badge: the count it shows, or null while nothing is checked. */
+function selectionBadge(document: Document): string | null {
+  return document.getElementById("repo-overflow-button")?.getAttribute("data-selection-count") ?? null;
 }
 
 /** The card checkbox for `name` (`Select <name>`), never the header's select-all. */
@@ -826,10 +839,18 @@ function toggleCheckbox(checkbox: HTMLInputElement | null | undefined): void {
   flushSync(() => checkbox?.click());
 }
 
-const headerBulkLabels = (document: Document) =>
-  Array.from(
-    document.querySelectorAll<HTMLButtonElement>("#repo-header .repo-header-bulk button"),
-  ).map((button) => button.textContent?.trim() ?? "");
+/** The batch items of the "..." menu, in order: everything before its first separator. */
+const headerBulkLabels = (document: Document) => {
+  openOverflowMenu(document);
+  const labels: string[] = [];
+  for (const child of Array.from(document.getElementById("repo-overflow-menu")!.children)) {
+    if (child.classList.contains("menu-separator")) {
+      break;
+    }
+    labels.push(child.textContent?.trim() ?? "");
+  }
+  return labels;
+};
 
 test("the repository header shows the repo, branch, streamed totals, and upstream position", async () => {
   const requests: SidecarRequest[] = [];
@@ -1002,20 +1023,22 @@ test("the pull request card renders the status' request and links to it external
   expect(gitlabCard.querySelector(".pull-request-checks")).toBeNull();
 });
 
-test("the header shows the view's batch actions and the menu no longer carries them", async () => {
+test("the header's menu leads with the view's batch actions, and the header row carries none", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderWithStatus(unstagedSource, MOCK_REPOSITORY_STATUS, requests);
-  // Unstaged: Stage all and Discard all…, icon plus text, enabled while no
-  // write is pending, the discard's tooltip naming the full action.
-  expect(headerBulkLabels(document)).toEqual(["Stage all", "Discard all…"]);
+  // Nothing checked: no count on the "..." button, and no action buttons in
+  // the header row itself besides Commit.
+  expect(selectionBadge(document)).toBeNull();
+  expect(document.getElementById("repo-overflow-button")?.getAttribute("aria-label")).toBe("More actions");
+  expect(document.querySelectorAll("#repo-header .repo-header-actions [data-action]")).toHaveLength(0);
+  // Unstaged: Stage all and Discard all changes… (the danger item), icon plus
+  // text, enabled while no write is pending, ahead of the view options.
+  expect(headerBulkLabels(document)).toEqual(["Stage all", "Discard all changes…"]);
   expect(headerBulkAction(document, "unstageAll")).toBeNull();
-  expect(headerBulkAction(document, "discardAll")?.getAttribute("title")).toBe("Discard all changes…");
+  expect(headerBulkAction(document, "discardAll")?.dataset.danger).toBe("true");
+  expect(headerBulkAction(document, "stageAll")?.dataset.danger).toBeUndefined();
   expect(headerBulkAction(document, "stageAll")?.querySelector("svg")).toBeTruthy();
   expect(headerBulkAction(document, "stageAll")?.disabled).toBe(false);
-  // One home: the overflow menu keeps the view options, copy and refresh only.
-  click(document.getElementById("repo-overflow-button") as HTMLButtonElement);
-  expect(menuAction(document, "discardAll")).toBeNull();
-  expect(menuAction(document, "stageAll")).toBeNull();
   expect(menuAction(document, "refresh")).toBeTruthy();
   click(document.getElementById("repo-overflow-button") as HTMLButtonElement);
   expect(document.getElementById("repo-overflow-menu")).toBeNull();
@@ -1025,11 +1048,11 @@ test("the header shows the view's batch actions and the menu no longer carries t
 test("discard all confirms in a header popover and posts worktreeDiscardAll exactly once", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderWithStatus(unstagedSource, MOCK_REPOSITORY_STATUS, requests);
-  expect(headerBulkAction(document, "discardAll")?.getAttribute("aria-expanded")).toBe("false");
   click(headerBulkAction(document, "discardAll"));
-  // Asking is not doing: nothing has been sent, the prompt is shown.
+  // Asking is not doing: nothing has been sent; the menu closed and the
+  // prompt is shown in its place.
   expect(requestsFor(requests, "worktreeDiscardAll")).toHaveLength(0);
-  expect(headerBulkAction(document, "discardAll")?.getAttribute("aria-expanded")).toBe("true");
+  expect(document.getElementById("repo-overflow-menu")).toBeNull();
   expect(document.querySelector("#discard-popover .worktree-confirm-text")?.textContent).toBe(
     "Discard every change in this view? This cannot be undone.",
   );
@@ -1086,8 +1109,8 @@ test("a failed discard all reloads the diff: Git may have restored some paths be
 test("stage all and unstage all post their session command and reopen the diff", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderWithStatus(stagedSource, MOCK_REPOSITORY_STATUS, requests);
-  // Staged: Unstage all and Discard all…; never Stage all.
-  expect(headerBulkLabels(document)).toEqual(["Unstage all", "Discard all…"]);
+  // Staged: Unstage all and Discard all changes…; never Stage all.
+  expect(headerBulkLabels(document)).toEqual(["Unstage all", "Discard all changes…"]);
   expect(headerBulkAction(document, "stageAll")).toBeNull();
   click(headerBulkAction(document, "unstageAll"));
   await waitFor(
@@ -1134,14 +1157,23 @@ test("checking a file card switches the header to the selection and stages exact
   expect(selectAll.checked).toBe(false);
   expect(selectAll.indeterminate).toBe(false);
   expect(selectAll.disabled).toBe(false);
-  expect(headerBulkLabels(document)).toEqual(["Stage all", "Discard all…"]);
+  // The card header reads [fold caret][checkbox][path]: the checkbox took
+  // the slot of the library's file-type icon, right after the caret.
+  expect(story.previousElementSibling?.classList.contains("file-collapse-toggle")).toBe(true);
+  expect(selectionBadge(document)).toBeNull();
+  expect(headerBulkLabels(document)).toEqual(["Stage all", "Discard all changes…"]);
 
-  // One file checked: the header names the selection (singular) and offers
-  // to clear it; the select-all is indeterminate.
+  // One file checked: the menu names the selection (singular) and offers to
+  // clear it, the "..." button wears the count, and the select-all is
+  // indeterminate.
   toggleCheckbox(story);
   await waitFor(() => headerBulkAction(document, "stageFiles") != null, "the selection actions");
   expect(headerBulkLabels(document)).toEqual(["Stage 1 file", "Discard 1 file…", "Clear selection"]);
   expect(headerBulkAction(document, "stageAll")).toBeNull();
+  expect(selectionBadge(document)).toBe("1");
+  expect(document.getElementById("repo-overflow-button")?.getAttribute("aria-label")).toBe(
+    "More actions (1 selected)",
+  );
   expect(cardCheckbox(document, "story.txt")?.checked).toBe(true);
   expect(cardCheckbox(document, "notes.txt")?.checked).toBe(false);
   expect(selectAllCheckbox(document)?.indeterminate).toBe(true);
@@ -1153,6 +1185,7 @@ test("checking a file card switches the header to the selection and stages exact
     () => headerBulkAction(document, "stageFiles")?.textContent?.trim() === "Stage 2 files",
     "two files selected",
   );
+  expect(selectionBadge(document)).toBe("2");
   expect(selectAllCheckbox(document)?.checked).toBe(true);
   expect(selectAllCheckbox(document)?.indeterminate).toBe(false);
   toggleCheckbox(cardCheckbox(document, "notes.txt"));
@@ -1209,8 +1242,9 @@ test("a reload that drops a checked file drops it from the selection", async () 
   expect(requestsFor(requests, "worktreeStageFiles")[0].params.paths).toEqual(["notes.txt"]);
   await waitForReload(document, requests);
   // notes.txt left the view, and with it the selection: the whole-view
-  // actions are back and nothing is checked.
+  // actions are back, the badge is gone and nothing is checked.
   await waitFor(() => headerBulkAction(document, "stageAll") != null, "the whole-view actions");
+  expect(selectionBadge(document)).toBeNull();
   expect(cardCheckbox(document, "notes.txt")).toBeNull();
   expect(cardCheckbox(document, "story.txt")?.checked).toBe(false);
   expect(selectAllCheckbox(document)?.checked).toBe(false);
@@ -1268,10 +1302,13 @@ test("select all checks every listed file, toggles back to none, and discard sel
   });
   expect(document.getElementById("discard-popover")).toBeNull();
   await waitForReload(document, requests);
-  // Clear selection returns to the whole-view actions and unchecks the cards.
+  // Clear selection returns to the whole-view actions, drops the badge and
+  // unchecks the cards.
   await waitFor(() => headerBulkAction(document, "clearSelection") != null, "the selection after reload");
+  expect(selectionBadge(document)).toBe("2");
   click(headerBulkAction(document, "clearSelection"));
   await waitFor(() => headerBulkAction(document, "unstageAll") != null, "the whole-view actions");
+  expect(selectionBadge(document)).toBeNull();
   expect(cardCheckbox(document, "story.txt")?.checked).toBe(false);
   expect(cardCheckbox(document, "notes.txt")?.checked).toBe(false);
   expect(requestsFor(requests, "worktreeDiscardFiles")).toHaveLength(1);
@@ -1938,28 +1975,29 @@ test("the header menu lists the repo actions and every view option, and each opt
   const menu = document.getElementById("repo-overflow-menu")!;
   expect(menu).toBeTruthy();
   expect(document.getElementById("options-menu")).toBeNull();
-  // The view options, a separator, copy/refresh. The batch actions are the
-  // header's own buttons, not menu items.
+  // The batch actions, a separator, the view options, a separator,
+  // copy/refresh: three groups, the actions first.
   for (const text of [
+    "Stage all",
+    "Discard all changes…",
     ...VIEW_OPTION_LABELS,
     "Copy git apply command",
     "Refresh",
   ]) {
     expect(findButton(document, text, "#repo-overflow-menu")).toBeTruthy();
   }
-  for (const text of ["Discard all changes…", "Discard all…", "Stage all"]) {
-    expect(findButton(document, text, "#repo-overflow-menu")).toBeUndefined();
-  }
-  expect(headerBulkLabels(document)).toEqual(["Stage all", "Discard all…"]);
-  expect(menu.querySelectorAll(".menu-separator")).toHaveLength(1);
+  expect(headerBulkLabels(document)).toEqual(["Stage all", "Discard all changes…"]);
+  expect(menu.querySelectorAll(".menu-separator")).toHaveLength(2);
   expect(menu.querySelectorAll(".menu-segment-controls .segment-button")).toHaveLength(3);
   const order = Array.from(menu.children).map((child) =>
     child.classList.contains("menu-separator")
       ? "|"
       : child.textContent?.trim() ?? "",
   );
-  expect(order.indexOf("|")).toBeGreaterThan(order.indexOf("Enable word diffs"));
-  expect(order.indexOf("|")).toBeLessThan(order.indexOf("Refresh"));
+  expect(order.indexOf("|")).toBeGreaterThan(order.indexOf("Discard all changes…"));
+  expect(order.indexOf("|")).toBeLessThan(order.indexOf("Enable word wrap"));
+  expect(order.lastIndexOf("|")).toBeGreaterThan(order.indexOf("Enable word diffs"));
+  expect(order.lastIndexOf("|")).toBeLessThan(order.indexOf("Refresh"));
   // Each option dispatches the same reducer action as the toolbar menu; the
   // page attributes observe the resulting state.
   click(findButton(document, "Switch to split diff", "#repo-overflow-menu"));

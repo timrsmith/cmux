@@ -84,8 +84,9 @@ function stopHeaderToggleKeys(event: React.KeyboardEvent): void {
 }
 
 /**
- * The card's selection checkbox, slotted at the front of the header next to
- * the fold chevron. It mirrors the file list's row checkbox: both toggle
+ * The card's selection checkbox, slotted after the fold chevron where the
+ * library's file-type icon would sit (the code view's CSS hides that icon).
+ * It mirrors the file list's row checkbox: both toggle
  * the same path in the App's selection, and neither navigates. A native
  * checkbox, so the header's own click handling is stopped at it.
  */
