@@ -13,6 +13,15 @@ export type DiffViewerOptions = {
   wordWrap: boolean;
 };
 
+/**
+ * Border-box height of a collapsed-context separator band inside a file
+ * card. `codeViewUnsafeCSS()` sizes `[data-separator='line-info']` to it and
+ * `codeViewOptions` reports it as `itemMetrics.hunkSeparatorHeight`, so
+ * virtualization reserves the rendered height before measuring (Pierre's
+ * default separator is 32px with no borders).
+ */
+export const HUNK_SEPARATOR_HEIGHT = 28;
+
 export function codeViewOptions(
   options: DiffViewerOptions,
   appearance: DiffViewerAppearance,
@@ -21,6 +30,7 @@ export function codeViewOptions(
     // A visible gap between file cards: with hunk action rows at the bottom
     // of each card, a hairline made the row read as the next file's header.
     layout: { paddingTop: 0, gap: 12, paddingBottom: 12 },
+    itemMetrics: { hunkSeparatorHeight: HUNK_SEPARATOR_HEIGHT },
     diffStyle: options.layout,
     diffIndicators: options.diffIndicators,
     overflow: options.wordWrap ? "wrap" : "scroll",
@@ -110,8 +120,21 @@ export function codeViewUnsafeCSS(): string {
         var(--diffs-bg-buffer) 5.656px
       );
     }
+    /* A collapsed-context separator is a band, not text floating between
+       hunks: a faint fill and hairlines in the file card's border tone mark
+       where one hunk ends and the next begins. The first band sits flush
+       under the header and the last a gap above the card edge, so no hairline
+       doubles. HUNK_SEPARATOR_HEIGHT is the band's border-box height. */
     [data-separator='line-info'] {
-      background-color: transparent;
+      box-sizing: border-box;
+      height: ${HUNK_SEPARATOR_HEIGHT}px;
+      border-top: 1px solid var(--cmux-diff-border);
+      border-bottom: 1px solid var(--cmux-diff-border);
+      background-color: color-mix(in lab, var(--cmux-diff-fg) 5%, transparent);
+    }
+    [data-separator='line-info'] [data-separator-content] {
+      justify-content: center;
+      color: var(--cmux-diff-text-muted);
     }
     [data-utility-button] {
       display: inline-flex;

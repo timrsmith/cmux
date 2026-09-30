@@ -1,5 +1,23 @@
 import { expect, test } from "bun:test";
-import { codeViewUnsafeCSS, fileTreeUnsafeCSS, shikiThemeFromGhostty, workerHighlighterOptions } from "../src/pierre-options";
+import {
+  codeViewOptions,
+  codeViewUnsafeCSS,
+  fileTreeUnsafeCSS,
+  HUNK_SEPARATOR_HEIGHT,
+  shikiThemeFromGhostty,
+  workerHighlighterOptions,
+} from "../src/pierre-options";
+
+const VIEWER_OPTIONS = {
+  collapsed: false,
+  diffIndicators: "bars",
+  expandUnchanged: false,
+  layout: "unified",
+  lineNumbers: true,
+  showBackgrounds: true,
+  wordDiffs: false,
+  wordWrap: false,
+} as const;
 
 test("code view CSS keeps Pierre structural surfaces transparent", () => {
   const css = codeViewUnsafeCSS();
@@ -28,7 +46,7 @@ test("code view CSS keeps Pierre structural surfaces transparent", () => {
   expect(css).not.toContain("border-block: 1px solid var(--cmux-diff-border)");
   expect(css).not.toContain("@container sticky-header scroll-state");
   expect(css).toContain("[data-separator='line-info'] {");
-  expect(css).toContain("[data-separator='line-info'] {\n      background-color: transparent;");
+  expect(css).not.toContain("[data-separator='line-info'] {\n      background-color: transparent;");
   expect(css).toContain("[data-separator='line-info'] [data-separator-wrapper]");
   expect(css).toContain("[data-line-type='change-addition']:where([data-column-number], [data-gutter-buffer])");
   expect(css).toContain("[data-line-type='change-deletion']:where([data-column-number], [data-gutter-buffer])");
@@ -36,6 +54,39 @@ test("code view CSS keeps Pierre structural surfaces transparent", () => {
   expect(css).toContain("background-image: repeating-linear-gradient(");
   expect(css).not.toContain("[data-line-type='change-addition'] {");
   expect(css).not.toContain("[data-line-type='change-deletion'] {");
+});
+
+test("collapsed-context separators are a band whose height virtualization reserves", () => {
+  const css = codeViewUnsafeCSS();
+
+  // The band: faint fill, hairlines in the card's border tone, centered muted
+  // text, sized to the height the CodeView metrics reserve.
+  expect(css).toContain(
+    "[data-separator='line-info'] {\n" +
+      "      box-sizing: border-box;\n" +
+      `      height: ${HUNK_SEPARATOR_HEIGHT}px;\n` +
+      "      border-top: 1px solid var(--cmux-diff-border);\n" +
+      "      border-bottom: 1px solid var(--cmux-diff-border);\n" +
+      "      background-color: color-mix(in lab, var(--cmux-diff-fg) 5%, transparent);",
+  );
+  expect(css).toContain(
+    "[data-separator='line-info'] [data-separator-content] {\n" +
+      "      justify-content: center;\n" +
+      "      color: var(--cmux-diff-text-muted);",
+  );
+  // The band's inner surfaces stay transparent so the fill shows through.
+  expect(css).toContain(
+    "[data-separator='line-info'] [data-separator-wrapper],\n" +
+      "    [data-separator='line-info'] [data-separator-content],\n" +
+      "    [data-separator='line-info'] [data-expand-button] {\n" +
+      "      background-color: transparent;",
+  );
+  // First and last bands are not special-cased: no rule shortens them.
+  expect(css).not.toMatch(/\[data-separator-first\]|\[data-separator-last\]/);
+
+  const options = codeViewOptions(VIEWER_OPTIONS, {});
+  expect(options.itemMetrics).toEqual({ hunkSeparatorHeight: HUNK_SEPARATOR_HEIGHT });
+  expect(HUNK_SEPARATOR_HEIGHT).toBe(28);
 });
 
 test("file tree sticky overlays use a non-transparent surface", () => {
@@ -108,16 +159,7 @@ test("Ghostty Shiki theme keeps transparent rendering separate from contrast che
 });
 
 test("worker highlighter options carry preloaded diff languages", () => {
-  const options = workerHighlighterOptions({
-    collapsed: false,
-    diffIndicators: "bars",
-    expandUnchanged: false,
-    layout: "unified",
-    lineNumbers: true,
-    showBackgrounds: true,
-    wordDiffs: false,
-    wordWrap: false,
-  }, {}, ["text", "markdown", "swift"]);
+  const options = workerHighlighterOptions(VIEWER_OPTIONS, {}, ["text", "markdown", "swift"]);
 
   expect(options.langs).toEqual(["text", "markdown", "swift"]);
 });

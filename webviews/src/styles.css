@@ -1482,7 +1482,6 @@ body[data-loading="true"] #status::before {
   justify-content: flex-end;
   gap: 4px;
   padding: 4px 10px;
-  border-top: 1px solid var(--cmux-diff-border);
   font-family: var(--cmux-diff-ui-font-family);
   font-size: calc(var(--cmux-diff-ui-font-size) - 1px);
   color: var(--cmux-diff-text-muted);
