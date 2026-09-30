@@ -103,7 +103,7 @@ const DEFAULT_DIFF_VIEWER_LABELS = {
   reviewChangesRequested: "Changes requested",
   reviewRequired: "Review required",
   revertFile: "Discard changes",
-  revertHunk: "Discard hunk",
+  revertHunk: "Discard",
   revertPrompt: "Discard these changes?",
   selectAllFiles: "Select all files",
   selectFile: "Select {name}",

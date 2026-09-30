@@ -397,7 +397,7 @@ extension CMUXCLI.DiffViewerLabels {
             "reviewChangesRequested": CMUXDiffViewerLocalization.string("diffViewer.reviewChangesRequested", defaultValue: "Changes requested"),
             "reviewRequired": CMUXDiffViewerLocalization.string("diffViewer.reviewRequired", defaultValue: "Review required"),
             "revertFile": CMUXDiffViewerLocalization.string("diffViewer.revertFile", defaultValue: "Discard changes"),
-            "revertHunk": CMUXDiffViewerLocalization.string("diffViewer.revertHunk", defaultValue: "Discard hunk"),
+            "revertHunk": CMUXDiffViewerLocalization.string("diffViewer.revertHunk", defaultValue: "Discard"),
             "revertPrompt": CMUXDiffViewerLocalization.string("diffViewer.revertPrompt", defaultValue: "Discard these changes?"),
             "selectAllFiles": CMUXDiffViewerLocalization.string("diffViewer.selectAllFiles", defaultValue: "Select all files"),
             "selectFile": CMUXDiffViewerLocalization.string("diffViewer.selectFile", defaultValue: "Select {name}"),
