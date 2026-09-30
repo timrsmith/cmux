@@ -999,7 +999,6 @@ export function App({ config, initialStatus }: ConfigProps) {
           externalURL={externalURL}
           label={label}
           onCopyGitApply={copyGitApply}
-          onJump={scrollToItem}
           onReload={reloadPage}
           onSetLayout={setLayout}
           sourceControls={sourceControls}
@@ -1273,7 +1272,6 @@ function Toolbar({
   externalURL,
   label,
   onCopyGitApply,
-  onJump,
   onReload,
   onSetLayout,
   sourceControls,
@@ -1284,7 +1282,6 @@ function Toolbar({
   externalURL: string | null;
   label: DiffViewerLabelResolver;
   onCopyGitApply: () => void;
-  onJump: (itemId: string) => void;
   onReload: () => void;
   onSetLayout: (layout: DiffViewerLayout) => void;
   /** The source/repo/base pickers; the App renders them from exactly one host. */
@@ -1328,19 +1325,6 @@ function Toolbar({
   return (
     <header id="toolbar" ref={toolbarRef}>
       {sourceControls}
-      {/* Small diffs use a native jump select. Large diffs route this control to
-          the virtualized file-tree search so the toolbar never creates one DOM
-          option per file. */}
-      <div className="toolbar-middle flex min-w-0 flex-1 items-center justify-center gap-1.5">
-        <JumpSelect
-          items={state.items}
-          label={label}
-          onJump={onJump}
-          onOpenSearch={() => dispatch({ type: "set-file-search-open", open: true })}
-          searchOpen={state.fileSearchOpen}
-          selectedItemId={state.activeItemId}
-        />
-      </div>
       <div className="toolbar-actions flex items-center gap-1.5">
         {showExternalLink ? (
           <a
@@ -1690,56 +1674,6 @@ function NavigationSelect({
           title={option.message}
         >
           {option.label}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-export function JumpSelect({
-  items,
-  label,
-  onJump,
-  onOpenSearch,
-  searchOpen,
-  selectedItemId,
-}: {
-  items: DiffItem[];
-  label: DiffViewerLabelResolver;
-  onJump: (itemId: string) => void;
-  onOpenSearch: () => void;
-  searchOpen: boolean;
-  selectedItemId: string;
-}) {
-  if (items.length === 0) {
-    return null;
-  }
-  if (items.length > 500) {
-    return (
-      <button
-        id="jump-search-button"
-        type="button"
-        aria-controls="files-sidebar"
-        aria-expanded={searchOpen}
-        aria-label={label("jumpToFile")}
-        title={label("jumpToFile")}
-        onClick={onOpenSearch}
-      >
-        {label("jumpToFile")}
-      </button>
-    );
-  }
-  return (
-    <select
-      id="jump-select"
-      aria-label={label("jumpToFile")}
-      value={selectedItemId}
-      onChange={(event) => onJump(event.currentTarget.value)}
-    >
-      <option value="">{label("jumpToFile")}</option>
-      {items.map((item) => (
-        <option key={item.id} value={item.id}>
-          {fileName(item.fileDiff, label("untitled"))}
         </option>
       ))}
     </select>
@@ -2521,7 +2455,7 @@ function useHostRefresh(refreshRef: React.MutableRefObject<() => boolean>) {
 
 export function closeFileSearch(dispatch: React.Dispatch<AppAction>, targetDocument: Document = document) {
   dispatch({ type: "set-file-search-open", open: false });
-  const trigger = targetDocument.getElementById("jump-search-button") ?? targetDocument.getElementById("jump-select");
+  const trigger = targetDocument.getElementById("file-search-toggle");
   trigger?.focus();
 }
 

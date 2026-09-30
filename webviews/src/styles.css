@@ -104,12 +104,8 @@ body {
      cannot overlay the left cell. The JS priority-overflow keeps the actions
      within budget; this template + `overflow: clip` on the cells is the hard
      no-overlap guarantee that holds even if a measurement is briefly stale. */
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, auto);
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
   align-items: center;
-  /* When the Files sidebar is shown, JumpSelect is not rendered (it duplicates
-     the sidebar's file navigation). Collapse the centered middle track so
-     toolbar-left (source/repo/base) reclaims that space. Declared here for
-     scope; the actual collapse is the body[data-files-hidden="false"] rule. */
   gap: 7px;
   min-height: 32px;
   padding: 3px 4px 3px 8px;
@@ -118,22 +114,7 @@ body {
   color: color-mix(in lab, var(--cmux-diff-fg) 76%, var(--cmux-diff-bg));
   z-index: 50;
 }
-/* Sidebar visible (and wide enough that it is not media-auto-hidden at <=520px):
-   the JumpSelect duplicates the sidebar, so collapse the centered middle track
-   and hide it, letting toolbar-left (source/repo/base) reclaim the space. Below
-   520px the sidebar auto-hides, so JumpSelect must stay (handled by the 520px
-   media block restoring the template + middle cell). The 760px stacked layout
-   re-declares its own template and overrides this for its range. */
-@media (min-width: 521px) {
-  body[data-files-hidden="false"] #toolbar {
-    grid-template-columns: minmax(0, 1fr) minmax(0, auto);
-  }
-  body[data-files-hidden="false"] .toolbar-middle {
-    display: none;
-  }
-}
 .toolbar-left,
-.toolbar-middle,
 .toolbar-actions {
   display: flex;
   align-items: center;
@@ -150,19 +131,13 @@ body {
   overflow-x: clip;
   overflow-y: visible;
 }
-.toolbar-left,
-.toolbar-middle {
-  gap: 6px;
-}
 .toolbar-left {
+  gap: 6px;
   justify-self: stretch;
   /* Container for the base picker's drop-order queries: ahead/behind and the
      reason hide first as this cell narrows, the ref never collapses. */
   container-type: inline-size;
   container-name: toolbar-left;
-}
-.toolbar-middle {
-  justify-content: center;
 }
 .toolbar-actions {
   justify-self: end;
@@ -170,9 +145,7 @@ body {
 }
 #source-select,
 #repo-select,
-#base-select,
-#jump-select,
-#jump-search-button {
+#base-select {
   appearance: none;
   height: 24px;
   min-width: 0;
@@ -212,35 +185,14 @@ body {
 }
 #source-select:hover,
 #repo-select:hover,
-#base-select:hover,
-#jump-select:hover {
-  border-color: color-mix(in lab, var(--cmux-diff-fg) 24%, transparent);
-  background-color: color-mix(in lab, var(--cmux-diff-fg) 10%, transparent);
-}
-#jump-search-button:hover {
+#base-select:hover {
   border-color: color-mix(in lab, var(--cmux-diff-fg) 24%, transparent);
   background-color: color-mix(in lab, var(--cmux-diff-fg) 10%, transparent);
 }
 #source-select[hidden],
 #repo-select[hidden],
-#base-select[hidden],
-#jump-select[hidden] {
+#base-select[hidden] {
   display: none;
-}
-#jump-select {
-  /* Same treatment as the source/repo selects: size to the SELECTED file path
-     rather than stretching to fill the toolbar-middle track. max-width:100%
-     (from the shared rule) caps it at the track so a long path truncates
-     instead of overflowing; min-width keeps the chevron legible. The jump
-     select only appears when the Files sidebar is hidden. */
-  field-sizing: content;
-  min-width: 64px;
-}
-#jump-search-button {
-  min-width: 64px;
-  padding-right: 9px;
-  background-image: none;
-  cursor: pointer;
 }
 #repo-select {
   /* Sized to its selected value like #source-select, with the HIGHEST shrink so
@@ -255,8 +207,6 @@ body {
 #source-select:focus,
 #repo-select:focus,
 #base-select:focus,
-#jump-select:focus,
-#jump-search-button:focus-visible,
 .base-picker-button:focus-visible,
 .base-picker-input:focus-visible,
 .toolbar-icon:focus-visible,
@@ -549,24 +499,6 @@ body {
   letter-spacing: 0.04em;
   color: var(--cmux-diff-accent);
   background: color-mix(in lab, var(--cmux-diff-accent) 16%, transparent);
-}
-@media (max-width: 760px) {
-  #toolbar {
-    grid-template-columns: minmax(0, 1fr) minmax(0, auto);
-    grid-template-areas:
-      "source actions"
-      "jump actions";
-  }
-  .toolbar-left {
-    grid-area: source;
-  }
-  .toolbar-middle {
-    grid-area: jump;
-    justify-content: stretch;
-  }
-  .toolbar-actions {
-    grid-area: actions;
-  }
 }
 .toolbar-icon {
   width: 20px;
