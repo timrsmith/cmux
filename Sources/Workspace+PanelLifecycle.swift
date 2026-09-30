@@ -7,6 +7,12 @@ import Foundation
 import CmuxSidebar
 
 extension Workspace {
+    /// Every panel that closes with this workspace, including its Dock's, in the
+    /// order the unsaved-changes prompt should list them.
+    var closablePanelsIncludingDock: [any Panel] {
+        Array(panels.values) + (_dockSplit.map { Array($0.panels.values) } ?? [])
+    }
+
     private static let structuredAgentHookStatusKeys = AgentHibernationLifecycleStatusKeys.allowedStatusKeys
     private static let managedSubagentEnvironmentKey = "CMUX_AGENT_MANAGED_SUBAGENT"
     private static let truthyStartupEnvironmentValues: Set<String> = ["1", "true", "yes", "on", "enabled"]

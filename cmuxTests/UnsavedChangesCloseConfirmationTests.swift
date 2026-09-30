@@ -14,40 +14,40 @@ import Testing
 struct UnsavedChangesCloseConfirmationTests {
     @Test
     func nothingDirtyProceedsWithoutAsking() async throws {
-        let (panel, url) = try await makeLoadedMarkdownPanel()
+        let (panel, url) = try await UnsavedChangesTestPanels.makeLoadedMarkdownPanel()
         defer { panel.close(); try? FileManager.default.removeItem(at: url) }
         let presenter = RecordingUnsavedChangesPresenter(responses: [.cancel])
         let confirmation = UnsavedChangesCloseConfirmation(presenter: presenter)
 
-        #expect(await confirmation.confirmClose(of: [panel]) == .proceed)
+        #expect(await confirmation.confirmClose(of: [panel]))
         #expect(presenter.prompts.isEmpty)
         #expect(confirmation.unresolvedPanels(in: [panel]).isEmpty)
     }
 
     @Test
     func cancelKeepsTheEditsAndCancelsTheClose() async throws {
-        let (panel, url) = try await makeLoadedMarkdownPanel()
+        let (panel, url) = try await UnsavedChangesTestPanels.makeLoadedMarkdownPanel()
         defer { panel.close(); try? FileManager.default.removeItem(at: url) }
         panel.updateTextContent("# Original\n\nEdited.\n")
         let presenter = RecordingUnsavedChangesPresenter(responses: [.cancel])
         let confirmation = UnsavedChangesCloseConfirmation(presenter: presenter)
 
-        #expect(await confirmation.confirmClose(of: [panel]) == .cancel)
+        #expect(await !confirmation.confirmClose(of: [panel]))
         #expect(presenter.prompts.count == 1)
-        #expect(presenter.prompts.first?.fileNames == [url.lastPathComponent])
+        #expect(presenter.prompts.first?.title.contains(url.lastPathComponent) == true)
         #expect(panel.isDirty)
         #expect(try String(contentsOf: url, encoding: .utf8) == "# Original\n")
     }
 
     @Test
     func dontSaveProceedsWithoutWriting() async throws {
-        let (panel, url) = try await makeLoadedMarkdownPanel()
+        let (panel, url) = try await UnsavedChangesTestPanels.makeLoadedMarkdownPanel()
         defer { panel.close(); try? FileManager.default.removeItem(at: url) }
         panel.updateTextContent("# Original\n\nEdited.\n")
         let presenter = RecordingUnsavedChangesPresenter(responses: [.dontSave])
         let confirmation = UnsavedChangesCloseConfirmation(presenter: presenter)
 
-        #expect(await confirmation.confirmClose(of: [panel]) == .proceed)
+        #expect(await confirmation.confirmClose(of: [panel]))
         #expect(presenter.prompts.count == 1)
         #expect(panel.isDirty)
         #expect(try String(contentsOf: url, encoding: .utf8) == "# Original\n")
@@ -55,19 +55,20 @@ struct UnsavedChangesCloseConfirmationTests {
 
     @Test
     func saveWritesEveryDirtyEditorWithOnePromptThenProceeds() async throws {
-        let (markdown, markdownURL) = try await makeLoadedMarkdownPanel()
+        let (markdown, markdownURL) = try await UnsavedChangesTestPanels.makeLoadedMarkdownPanel()
         defer { markdown.close(); try? FileManager.default.removeItem(at: markdownURL) }
-        let (preview, previewURL) = try await makeLoadedFilePreviewPanel()
+        let (preview, previewURL) = try await UnsavedChangesTestPanels.makeLoadedFilePreviewPanel()
         defer { preview.close(); try? FileManager.default.removeItem(at: previewURL) }
         markdown.updateTextContent("# Saved\n")
         preview.updateTextContent("saved text")
         let presenter = RecordingUnsavedChangesPresenter(responses: [.save])
         let confirmation = UnsavedChangesCloseConfirmation(presenter: presenter)
 
-        #expect(await confirmation.confirmClose(of: [markdown, preview]) == .proceed)
+        #expect(await confirmation.confirmClose(of: [markdown, preview]))
         #expect(presenter.prompts.count == 1)
-        #expect(presenter.prompts.first?.fileNames == [markdownURL.lastPathComponent, previewURL.lastPathComponent])
-        #expect(presenter.prompts.first?.title.contains("2") == true)
+        let prompt = try #require(presenter.prompts.first)
+        #expect(prompt.title.contains("2"))
+        #expect(prompt.details == "• \(markdownURL.lastPathComponent)\n• \(previewURL.lastPathComponent)")
         #expect(!markdown.isDirty)
         #expect(!preview.isDirty)
         #expect(try String(contentsOf: markdownURL, encoding: .utf8) == "# Saved\n")
@@ -76,22 +77,21 @@ struct UnsavedChangesCloseConfirmationTests {
 
     @Test
     func saveFailureShowsTheErrorAndCancelsTheClose() async throws {
-        let url = try UnsavedChangesTestFiles.temporaryTextFile(contents: "original")
-        defer { try? FileManager.default.removeItem(at: url) }
-        let panel = FilePreviewPanel(
-            workspaceId: UUID(),
-            filePath: url.path,
-            startFileWatcher: false,
-            textSaver: { _, _, _ in .failed(fileExists: true) },
-            modeResolver: { _ in .text }
-        )
-        defer { panel.close() }
-        await panel.loadTextContent().value
+        let (panel, url) = try await UnsavedChangesTestPanels.makeLoadedFilePreviewPanel(contents: "original") { path in
+            FilePreviewPanel(
+                workspaceId: UUID(),
+                filePath: path,
+                startFileWatcher: false,
+                textSaver: { _, _, _ in .failed(fileExists: true) },
+                modeResolver: { _ in .text }
+            )
+        }
+        defer { panel.close(); try? FileManager.default.removeItem(at: url) }
         panel.updateTextContent("edited")
         let presenter = RecordingUnsavedChangesPresenter(responses: [.save])
         let confirmation = UnsavedChangesCloseConfirmation(presenter: presenter)
 
-        #expect(await confirmation.confirmClose(of: [panel]) == .cancel)
+        #expect(await !confirmation.confirmClose(of: [panel]))
         #expect(presenter.prompts.count == 1)
         #expect(presenter.saveFailures.count == 1)
         #expect(presenter.saveFailures.first?.contains(url.lastPathComponent) == true)
@@ -100,43 +100,43 @@ struct UnsavedChangesCloseConfirmationTests {
     }
 
     @Test
-    func deferReturnsFalseWhenNothingIsDirtySoTheCallerContinues() async throws {
-        let (panel, url) = try await makeLoadedMarkdownPanel()
+    func gateIsClearWhenNothingIsDirtySoTheCallerContinues() async throws {
+        let (panel, url) = try await UnsavedChangesTestPanels.makeLoadedMarkdownPanel()
         defer { panel.close(); try? FileManager.default.removeItem(at: url) }
         let confirmation = UnsavedChangesCloseConfirmation(presenter: RecordingUnsavedChangesPresenter())
         var retried = false
 
-        #expect(!confirmation.deferCloseIfNeeded(for: [panel], retry: { retried = true }))
+        #expect(confirmation.gate(for: [panel], retry: { retried = true }) == .clear)
         #expect(!retried)
         #expect(confirmation.inFlightResolution == nil)
     }
 
     @Test
-    func deferRetriesWithTheCloseConfirmedThenForgetsTheAnswer() async throws {
-        let (panel, url) = try await makeLoadedMarkdownPanel()
+    func gateRetriesWithTheCloseConfirmedThenForgetsTheAnswer() async throws {
+        let (panel, url) = try await UnsavedChangesTestPanels.makeLoadedMarkdownPanel()
         defer { panel.close(); try? FileManager.default.removeItem(at: url) }
         panel.updateTextContent("# Original\n\nEdited.\n")
         let presenter = RecordingUnsavedChangesPresenter(responses: [.dontSave])
         let confirmation = UnsavedChangesCloseConfirmation(presenter: presenter)
         var retries = 0
-        var closeConfirmedDuringRetry = false
+        var gateDuringRetry = UnsavedChangesCloseConfirmation.Gate.clear
         var unresolvedDuringRetry = 1
 
-        let deferred = confirmation.deferCloseIfNeeded(
+        let gate = confirmation.gate(
             for: [panel],
             retry: {
                 retries += 1
-                closeConfirmedDuringRetry = confirmation.isCloseConfirmed(for: [panel])
+                gateDuringRetry = confirmation.gate(for: [panel], retry: {})
                 unresolvedDuringRetry = confirmation.unresolvedPanels(in: [panel]).count
             },
             onCancel: { Issue.record("Don't Save must not cancel") }
         )
-        #expect(deferred)
+        #expect(gate == .deferred)
         let resolution = try #require(confirmation.inFlightResolution)
         await resolution.value
 
         #expect(retries == 1)
-        #expect(closeConfirmedDuringRetry)
+        #expect(gateDuringRetry == .confirmed)
         #expect(unresolvedDuringRetry == 0)
         #expect(!confirmation.isCloseConfirmed(for: [panel]))
         #expect(confirmation.unresolvedPanels(in: [panel]).count == 1)
@@ -144,8 +144,8 @@ struct UnsavedChangesCloseConfirmationTests {
     }
 
     @Test
-    func deferCancelRunsOnCancelAndNeverRetries() async throws {
-        let (panel, url) = try await makeLoadedMarkdownPanel()
+    func gateCancelRunsOnCancelAndNeverRetries() async throws {
+        let (panel, url) = try await UnsavedChangesTestPanels.makeLoadedMarkdownPanel()
         defer { panel.close(); try? FileManager.default.removeItem(at: url) }
         panel.updateTextContent("# Original\n\nEdited.\n")
         let confirmation = UnsavedChangesCloseConfirmation(
@@ -153,36 +153,15 @@ struct UnsavedChangesCloseConfirmationTests {
         )
         var cancelled = false
 
-        #expect(confirmation.deferCloseIfNeeded(
+        #expect(confirmation.gate(
             for: [panel],
             retry: { Issue.record("Cancel must not retry") },
             onCancel: { cancelled = true }
-        ))
+        ) == .deferred)
         let resolution = try #require(confirmation.inFlightResolution)
         await resolution.value
 
         #expect(cancelled)
         #expect(panel.isDirty)
-    }
-
-    private func makeLoadedMarkdownPanel() async throws -> (MarkdownPanel, URL) {
-        let url = try UnsavedChangesTestFiles.temporaryMarkdownFile(contents: "# Original\n")
-        let panel = MarkdownPanel(workspaceId: UUID(), filePath: url.path)
-        if let load = panel.loadTextContent() {
-            await load.value
-        }
-        return (panel, url)
-    }
-
-    private func makeLoadedFilePreviewPanel() async throws -> (FilePreviewPanel, URL) {
-        let url = try UnsavedChangesTestFiles.temporaryTextFile(contents: "original text")
-        let panel = FilePreviewPanel(
-            workspaceId: UUID(),
-            filePath: url.path,
-            startFileWatcher: false,
-            modeResolver: { _ in .text }
-        )
-        await panel.loadTextContent().value
-        return (panel, url)
     }
 }

@@ -60,12 +60,13 @@ struct SettingsSectionIDTests {
         #expect(destination.anchorID == expected)
     }
 
-    /// Every legacy file-row anchor redirects to a row the search index knows,
-    /// so the redirected scroll has something to land on.
+    /// Every legacy file-row anchor redirects to a row the search index knows
+    /// (its row id still names a curated Files and Editing row), so the
+    /// redirected scroll has something to land on.
     @Test func legacyFileRowAnchorsResolveToIndexedRows() {
         let index = SettingsSearchIndex(catalog: SettingCatalog())
         let indexed = Set(index.entries.map(\.id))
-        for (legacy, _) in SettingsSectionID.legacyFilesAndEditingAnchorIDs {
+        for legacy in SettingsSectionID.legacyFilesAndEditingAnchorIDs {
             let destination = SettingsSectionID.app.navigationDestination(providedAnchor: legacy)
             #expect(indexed.contains(destination.anchorID), "\(legacy) redirects to unknown row \(destination.anchorID)")
         }

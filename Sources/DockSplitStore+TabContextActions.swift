@@ -156,7 +156,7 @@ extension DockSplitStore {
             return true
         }
         // Unsaved editor changes ask first; the batch is re-issued after the answer.
-        if unsavedChangesCloseConfirmation.deferCloseIfNeeded(
+        let gate = unsavedChangesCloseConfirmation.gate(
             for: candidates.compactMap { panels[$0.panelId] },
             retry: { [weak self] in
                 _ = self?.closeDockTabs(
@@ -165,9 +165,8 @@ extension DockSplitStore {
                     confirmationPolicy: confirmationPolicy
                 )
             }
-        ) {
-            return true
-        }
+        )
+        guard gate != .deferred else { return true }
         let needsConfirmation: Bool
         switch confirmationPolicy {
         case .tabsRequiringConfirmation:
@@ -178,18 +177,13 @@ extension DockSplitStore {
             needsConfirmation = true
         }
         // A batch the unsaved-changes prompt already confirmed skips the close warning.
-        let closeConfirmedByUnsavedChangesPrompt = unsavedChangesCloseConfirmation.isCloseConfirmed(
-            forPanelIds: candidates.map(\.panelId)
+        let closeConfirmedByUnsavedChangesPrompt = gate == .confirmed
+        let warningKinds = unsavedChangesCloseConfirmation.closeWarningKinds(
+            forPanelIds: candidates.map(\.panelId),
+            store: CloseTabWarningStore(defaults: manager?.closeTabWarningDefaults ?? .standard),
+            requiresConfirmation: needsConfirmation,
+            source: .shortcut
         )
-        let warningStore = CloseTabWarningStore(
-            defaults: manager?.closeTabWarningDefaults ?? .standard
-        )
-        let warningKinds: CloseWarningKinds = closeConfirmedByUnsavedChangesPrompt
-            ? []
-            : warningStore.warningKinds(
-                requiresConfirmation: needsConfirmation,
-                source: .shortcut
-            )
         if !warningKinds.isEmpty {
             guard let manager else { return false }
             let prompt = CloseOtherTabsConfirmationPrompt(

@@ -156,9 +156,7 @@ enum CommandPaletteSettingsToggleCommands {
             String(localized: "settings.section.automation", defaultValue: "Automation")
         }
         let browser: @Sendable () -> String = { String(localized: "settings.section.browser", defaultValue: "Browser") }
-        let filesAndEditing: @Sendable () -> String = {
-            String(localized: "settings.section.filesAndEditing", defaultValue: "Files and Editing")
-        }
+        let filesAndEditing: @Sendable () -> String = { SettingsSectionID.filesAndEditing.title }
         let browserImport: @Sendable () -> String = {
             String(localized: "settings.section.browserImport", defaultValue: "Browser Import")
         }

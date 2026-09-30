@@ -15,12 +15,15 @@ struct UnsavedChangesPrompt: Equatable, Sendable {
     let message: String
     /// The bullet list of file names, or `nil` for a single file whose name is in the title.
     let details: String?
-    /// The dirty file names in close order.
-    let fileNames: [String]
 }
 
 /// Pure decision for closing panels that may hold unsaved edits: which prompt
 /// (if any) to show and how an answer maps onto the close.
+///
+/// The prompt never offers "Don't ask again": it guards data, not a
+/// preference. Save and Don't Save both confirm the close, so the
+/// `CloseTabWarningStore` prompt ("Close tab?", "Close workspace?", "Close
+/// window?", "Quit cmux?") must not ask a second time; Cancel ends the action.
 ///
 /// Holds no AppKit so it is testable without a window; the alert itself lives
 /// in ``UnsavedChangesAlertPresenter``.
@@ -42,22 +45,6 @@ struct UnsavedChangesClosePlan: Equatable, Sendable {
         self.fileNames = fileNames
     }
 
-    /// Whether the close has anything to ask about.
-    var requiresPrompt: Bool { !fileNames.isEmpty }
-
-    /// The prompt never offers "Don't ask again": it guards data, not a preference.
-    var offersDontAskAgain: Bool { false }
-
-    /// Whether the prompt's answer stands in for the close-warning confirmation
-    /// of the same action.
-    ///
-    /// Save and Don't Save both confirm the close, so the `CloseTabWarningStore`
-    /// prompt ("Close tab?", "Close workspace?", "Close window?", "Quit cmux?")
-    /// must not ask a second time; Cancel ends the action instead.
-    func confirmsClose(for response: UnsavedChangesPromptResponse) -> Bool {
-        outcome(for: response) != .cancel
-    }
-
     /// The prompt for these files, or `nil` when nothing is dirty.
     var prompt: UnsavedChangesPrompt? {
         guard let first = fileNames.first else { return nil }
@@ -75,8 +62,7 @@ struct UnsavedChangesClosePlan: Equatable, Sendable {
                     localized: "dialog.unsavedChanges.message",
                     defaultValue: "Your changes will be lost if you don't save them."
                 ),
-                details: nil,
-                fileNames: fileNames
+                details: nil
             )
         }
         let details = fileNames.map { "• \($0)" }.joined(separator: "\n")
@@ -97,8 +83,7 @@ struct UnsavedChangesClosePlan: Equatable, Sendable {
                 locale: .current,
                 details
             ),
-            details: details,
-            fileNames: fileNames
+            details: details
         )
     }
 

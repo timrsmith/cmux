@@ -1,5 +1,4 @@
 import AppKit
-import Bonsplit
 import Carbon.HIToolbox
 import Foundation
 import Quartz
@@ -12,52 +11,15 @@ import Testing
 #endif
 
 @MainActor
-private final class FilePreviewTabMetadataTestHost: FilePreviewTabMetadataHost {
-    let bonsplitController: BonsplitController
-    let panelId: UUID
-    let tabId: TabID
-
-    init(
-        bonsplitController: BonsplitController,
-        panelId: UUID,
-        tabId: TabID
-    ) {
-        self.bonsplitController = bonsplitController
-        self.panelId = panelId
-        self.tabId = tabId
-    }
-
-    func filePreviewTabId(forPanelId panelId: UUID) -> TabID? {
-        panelId == self.panelId ? tabId : nil
-    }
-
-    func filePreviewTabTitlePresentation(
-        for metadata: FilePreviewTabMetadata,
-        panelId _: UUID,
-        existingTab _: Bonsplit.Tab
-    ) -> (title: String?, hasCustomTitle: Bool?) {
-        (metadata.title, false)
-    }
-}
-
-@MainActor
 @Suite(.serialized)
 struct FilePreviewReviewFeedbackTests {
     @Test
     func tabMetadataBindingReplacesItsHostAndUnbindStopsProjection() async throws {
-        let url = try temporaryTextFile(contents: "original", encoding: .utf8)
-        defer { try? FileManager.default.removeItem(at: url) }
-        let panel = FilePreviewPanel(
-            workspaceId: UUID(),
-            filePath: url.path,
-            startFileWatcher: false,
-            modeResolver: { _ in .text }
-        )
-        defer { panel.close() }
-        await panel.loadTextContent().value
+        let (panel, url) = try await UnsavedChangesTestPanels.makeLoadedFilePreviewPanel(contents: "original")
+        defer { panel.close(); try? FileManager.default.removeItem(at: url) }
 
-        let firstHost = try makeTabMetadataHost(for: panel.id)
-        let secondHost = try makeTabMetadataHost(for: panel.id)
+        let firstHost = try FilePreviewTabMetadataTestHost(panelId: panel.id)
+        let secondHost = try FilePreviewTabMetadataTestHost(panelId: panel.id)
         panel.bindTabMetadata(to: firstHost)
         panel.bindTabMetadata(to: secondHost)
         panel.updateTextContent("edited")
@@ -380,8 +342,8 @@ struct FilePreviewReviewFeedbackTests {
 
     @Test
     func fileOpenHonorsExplicitPaneDestinationInsteadOfReusingExistingPreview() throws {
-        let originalURL = try temporaryTextFile(contents: "original", encoding: .utf8)
-        let placeholderURL = try temporaryTextFile(contents: "placeholder", encoding: .utf8)
+        let originalURL = try UnsavedChangesTestFiles.temporaryTextFile(contents: "original")
+        let placeholderURL = try UnsavedChangesTestFiles.temporaryTextFile(contents: "placeholder")
         defer {
             try? FileManager.default.removeItem(at: originalURL)
             try? FileManager.default.removeItem(at: placeholderURL)
@@ -428,32 +390,6 @@ struct FilePreviewReviewFeedbackTests {
         #expect(
             workspace.bonsplitController.tabs(inPane: targetPane).count
                 == startingTargetTabs + 1
-        )
-    }
-
-    private func temporaryTextFile(contents: String, encoding: String.Encoding) throws -> URL {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension("txt")
-        try contents.write(to: url, atomically: true, encoding: encoding)
-        return url
-    }
-
-    private func makeTabMetadataHost(
-        for panelId: UUID
-    ) throws -> FilePreviewTabMetadataTestHost {
-        let controller = BonsplitController()
-        let paneId = try #require(controller.allPaneIds.first)
-        let tabId = try #require(
-            controller.createTab(
-                title: "Unbound preview",
-                inPane: paneId
-            )
-        )
-        return FilePreviewTabMetadataTestHost(
-            bonsplitController: controller,
-            panelId: panelId,
-            tabId: tabId
         )
     }
 

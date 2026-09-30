@@ -344,8 +344,7 @@ final class DockSplitStore: BonsplitDelegate, FilePreviewTabMetadataHost {
             resumeIntentRecorder: agentChatResumeIntentRecorder
         )
         self.terminalWorkingDirectoryResolver = terminalWorkingDirectoryResolver
-        self.unsavedChangesCloseConfirmation = unsavedChangesCloseConfirmation
-            ?? UnsavedChangesCloseConfirmation(presenter: UnsavedChangesAlertPresenter())
+        self.unsavedChangesCloseConfirmation = unsavedChangesCloseConfirmation ?? UnsavedChangesCloseConfirmation()
         self.closedItemHistoryStore =
             closedItemHistoryStore
             ?? ClosedItemHistoryStore(

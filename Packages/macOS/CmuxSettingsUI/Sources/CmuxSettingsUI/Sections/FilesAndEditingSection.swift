@@ -67,7 +67,6 @@ public struct FilesAndEditingSection: View {
 
     /// Where the tree lives, where its files open, and the terminal editor
     /// that Terminal Editor runs.
-    @ViewBuilder
     private var filesPanelCard: some View {
         SettingsCard {
             SettingsCardRow(
@@ -124,67 +123,51 @@ public struct FilesAndEditingSection: View {
     }
 
     /// The built-in file editor's display options.
-    @ViewBuilder
     private var fileEditorCard: some View {
         SettingsCard {
-            SettingsCardRow(
-                configurationReview: .json("fileEditor.wordWrap"),
+            toggleRow(
+                path: "fileEditor.wordWrap",
                 String(localized: "settings.app.fileEditorWordWrap", defaultValue: "File Editor Word Wrap"),
-                subtitle: String(localized: "settings.app.fileEditorWordWrap.subtitle", defaultValue: "Wrap long lines at the editor's right edge instead of scrolling horizontally. Applies to the plain-text file editor.")
-            ) {
-                Toggle("", isOn: Binding(get: { wordWrap.current }, set: { wordWrap.set($0) }))
-                    .labelsHidden()
-                    .controlSize(.small)
-                    .accessibilityIdentifier("SettingsFileEditorWordWrapToggle")
-            }
+                subtitle: String(localized: "settings.app.fileEditorWordWrap.subtitle", defaultValue: "Wrap long lines at the editor's right edge instead of scrolling horizontally. Applies to the plain-text file editor."),
+                model: wordWrap,
+                accessibilityIdentifier: "SettingsFileEditorWordWrapToggle"
+            )
             SettingsCardDivider()
 
-            SettingsCardRow(
-                configurationReview: .json("fileEditor.syntaxHighlighting"),
+            toggleRow(
+                path: "fileEditor.syntaxHighlighting",
                 String(localized: "settings.app.fileEditorSyntaxHighlighting", defaultValue: "File Editor Syntax Highlighting"),
-                subtitle: String(localized: "settings.app.fileEditorSyntaxHighlighting.subtitle", defaultValue: "Color keywords, strings, and other tokens in the built-in file editor.")
-            ) {
-                Toggle("", isOn: Binding(get: { syntaxHighlighting.current }, set: { syntaxHighlighting.set($0) }))
-                    .labelsHidden()
-                    .controlSize(.small)
-                    .accessibilityIdentifier("SettingsFileEditorSyntaxHighlightingToggle")
-            }
+                subtitle: String(localized: "settings.app.fileEditorSyntaxHighlighting.subtitle", defaultValue: "Color keywords, strings, and other tokens in the built-in file editor."),
+                model: syntaxHighlighting,
+                accessibilityIdentifier: "SettingsFileEditorSyntaxHighlightingToggle"
+            )
             SettingsCardDivider()
 
-            SettingsCardRow(
-                configurationReview: .json("fileEditor.lineNumbers"),
+            toggleRow(
+                path: "fileEditor.lineNumbers",
                 String(localized: "settings.app.fileEditorLineNumbers", defaultValue: "File Editor Line Numbers"),
-                subtitle: String(localized: "settings.app.fileEditorLineNumbers.subtitle", defaultValue: "Show a line-number gutter beside the built-in file editor.")
-            ) {
-                Toggle("", isOn: Binding(get: { lineNumbers.current }, set: { lineNumbers.set($0) }))
-                    .labelsHidden()
-                    .controlSize(.small)
-                    .accessibilityIdentifier("SettingsFileEditorLineNumbersToggle")
-            }
+                subtitle: String(localized: "settings.app.fileEditorLineNumbers.subtitle", defaultValue: "Show a line-number gutter beside the built-in file editor."),
+                model: lineNumbers,
+                accessibilityIdentifier: "SettingsFileEditorLineNumbersToggle"
+            )
             SettingsCardDivider()
 
-            SettingsCardRow(
-                configurationReview: .json("fileEditor.indentGuides"),
+            toggleRow(
+                path: "fileEditor.indentGuides",
                 String(localized: "settings.app.fileEditorIndentGuides", defaultValue: "File Editor Indent Guides"),
-                subtitle: String(localized: "settings.app.fileEditorIndentGuides.subtitle", defaultValue: "Draw vertical guides at indent columns in the built-in file editor.")
-            ) {
-                Toggle("", isOn: Binding(get: { indentGuides.current }, set: { indentGuides.set($0) }))
-                    .labelsHidden()
-                    .controlSize(.small)
-                    .accessibilityIdentifier("SettingsFileEditorIndentGuidesToggle")
-            }
+                subtitle: String(localized: "settings.app.fileEditorIndentGuides.subtitle", defaultValue: "Draw vertical guides at indent columns in the built-in file editor."),
+                model: indentGuides,
+                accessibilityIdentifier: "SettingsFileEditorIndentGuidesToggle"
+            )
             SettingsCardDivider()
 
-            SettingsCardRow(
-                configurationReview: .json("fileEditor.currentLineHighlight"),
+            toggleRow(
+                path: "fileEditor.currentLineHighlight",
                 String(localized: "settings.app.fileEditorCurrentLineHighlight", defaultValue: "File Editor Current Line Highlight"),
-                subtitle: String(localized: "settings.app.fileEditorCurrentLineHighlight.subtitle", defaultValue: "Highlight the line that contains the caret when nothing is selected.")
-            ) {
-                Toggle("", isOn: Binding(get: { currentLineHighlight.current }, set: { currentLineHighlight.set($0) }))
-                    .labelsHidden()
-                    .controlSize(.small)
-                    .accessibilityIdentifier("SettingsFileEditorCurrentLineHighlightToggle")
-            }
+                subtitle: String(localized: "settings.app.fileEditorCurrentLineHighlight.subtitle", defaultValue: "Highlight the line that contains the caret when nothing is selected."),
+                model: currentLineHighlight,
+                accessibilityIdentifier: "SettingsFileEditorCurrentLineHighlightToggle"
+            )
             SettingsCardDivider()
 
             SettingsCardRow(
@@ -207,6 +190,23 @@ public struct FilesAndEditingSection: View {
                 )
                 .accessibilityIdentifier("SettingsFileEditorTabWidthStepper")
             }
+        }
+    }
+
+    /// A row with one small toggle bound to `model`, the shape every file
+    /// editor display option but Tab Width takes.
+    private func toggleRow(
+        path: String,
+        _ title: String,
+        subtitle: String,
+        model: DefaultsValueModel<Bool>,
+        accessibilityIdentifier: String
+    ) -> some View {
+        SettingsCardRow(configurationReview: .json(path), title, subtitle: subtitle) {
+            Toggle("", isOn: Binding(get: { model.current }, set: { model.set($0) }))
+                .labelsHidden()
+                .controlSize(.small)
+                .accessibilityIdentifier(accessibilityIdentifier)
         }
     }
 }

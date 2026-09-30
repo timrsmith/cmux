@@ -1943,7 +1943,6 @@ struct ContentView: View {
                 StackedFilesPanelSplit(
                     layout: stackedFilesPanelLayout,
                     showsPanel: filesPanelIsStacked,
-                    topChromeHeight: MinimalModeChromeMetrics.titlebarHeight,
                     chromeBackgroundColor: appearance.resolvedChromeBackgroundColor,
                     onHeightCommitted: { height in
                         // The persisted value is observed by this body, so an
@@ -1951,7 +1950,7 @@ struct ContentView: View {
                         guard fileExplorerState.filesPanelStackedHeight != height else { return }
                         fileExplorerState.filesPanelStackedHeight = height
                     },
-                    topChrome: stackedSidebarTopChrome(),
+                    topChrome: { stackedSidebarTopChrome() },
                     panel: stackedFilesPanel(appearance: appearance),
                     list: gatedSidebar
                 )
@@ -2336,15 +2335,12 @@ struct ContentView: View {
     /// Files region by `StackedFilesPanelSplit` so the tree starts under the
     /// window controls instead of behind them.
     private func stackedSidebarTopChrome() -> some View {
-        let topPadding = observedWindow.map { minimalModeSidebarTitlebarControlsTopInset(in: $0) }
-            ?? MinimalModeSidebarTitlebarControlsMetrics.topInset
-        return SidebarTitlebarChromeStrip(
-            height: MinimalModeChromeMetrics.titlebarHeight,
+        SidebarTitlebarChromeStrip(
             controls: .workspaceSidebar(
                 unreadModel: sidebarUnread,
                 layoutModel: titlebarControlsLayoutModel,
                 leadingInset: CGFloat(titlebarDebugChromeSnapshot.leftControlsLeadingInset),
-                topPadding: topPadding,
+                topPadding: MinimalModeSidebarTitlebarControlsOverlay.topPadding(in: observedWindow),
                 tabManager: tabManager,
                 onToggleSidebar: { sidebarState.toggle() },
                 onNewTab: {
@@ -11984,9 +11980,6 @@ struct VerticalTabsSidebar: View, Equatable {
     let tabRowSpacing: CGFloat = 2
     private static let extensionSidebarObservationCoalesceInterval: DispatchQueue.SchedulerTimeType.Stride = .milliseconds(40)
     private static let extensionSidebarDisclosureAnimation = Animation.easeInOut(duration: 0.18)
-    private var sidebarTitlebarInteractionHeight: CGFloat {
-        MinimalModeChromeMetrics.titlebarHeight
-    }
 
     /// Adapter binding for extension sidebar drop delegates that still expect
     /// `@Binding<UUID?>`. Reads resolve from the retained native session rather
@@ -12131,13 +12124,6 @@ struct VerticalTabsSidebar: View, Equatable {
         )
     }
 
-    private var minimalModeSidebarTitlebarControlsTopPadding: CGFloat {
-        guard let observedWindow else {
-            return MinimalModeSidebarTitlebarControlsMetrics.topInset
-        }
-        return minimalModeSidebarTitlebarControlsTopInset(in: observedWindow)
-    }
-
     private var showsSidebarNotificationMessage: Bool {
         tabItemSettingsStore.snapshot.showsNotificationMessage
     }
@@ -12147,16 +12133,24 @@ struct VerticalTabsSidebar: View, Equatable {
         return KeyboardShortcutSettings.shortcut(for: .selectWorkspaceByNumber)
     }
 
-    private func minimalModeSidebarTitlebarControlsOverlay() -> some View {
+    private func minimalModeSidebarTitlebarControlsOverlay() -> MinimalModeSidebarTitlebarControlsOverlay {
         MinimalModeSidebarTitlebarControlsOverlay.workspaceSidebar(
             unreadModel: sidebarUnread,
             layoutModel: titlebarControlsLayoutModel,
             leadingInset: CGFloat(titlebarDebugChromeSnapshot.leftControlsLeadingInset),
-            topPadding: minimalModeSidebarTitlebarControlsTopPadding,
+            topPadding: MinimalModeSidebarTitlebarControlsOverlay.topPadding(in: observedWindow),
             tabManager: tabManager,
             onToggleSidebar: onToggleSidebar,
             onNewTab: onNewTab
         )
+    }
+
+    /// The titlebar strip this list draws over its top while it hosts the
+    /// chrome: the draggable, double-clickable band and the minimal-mode
+    /// toolbar buttons, the same view `StackedFilesPanelSplit` shows above
+    /// the tree when the list does not.
+    private func sidebarTitlebarChromeStrip() -> some View {
+        SidebarTitlebarChromeStrip(controls: minimalModeSidebarTitlebarControlsOverlay())
     }
 
     struct WorkspaceListRenderContext {
@@ -12597,16 +12591,7 @@ struct VerticalTabsSidebar: View, Equatable {
                 )
             )
             .overlay(alignment: .top) {
-                // The sidebar top strip remains draggable and handles
-                // double-clicks with the standard titlebar action.
-                if hostsTitlebarChrome {
-                    WindowDragHandleView()
-                        .frame(height: sidebarTitlebarInteractionHeight)
-                        .background(TitlebarDoubleClickMonitorView())
-                }
-            }
-            .overlay(alignment: .topLeading) {
-                if hostsTitlebarChrome { minimalModeSidebarTitlebarControlsOverlay() }
+                if hostsTitlebarChrome { sidebarTitlebarChromeStrip() }
             }
             .overlay(alignment: .top) {
                 workspaceReorderDropOverlay(
@@ -12801,16 +12786,7 @@ struct VerticalTabsSidebar: View, Equatable {
                 )
             )
             .overlay(alignment: .top) {
-                if isPresented, hostsTitlebarChrome {
-                    // The sidebar top strip remains draggable and handles
-                    // double-clicks with the standard titlebar action.
-                    WindowDragHandleView()
-                        .frame(height: sidebarTitlebarInteractionHeight)
-                        .background(TitlebarDoubleClickMonitorView())
-                }
-            }
-            .overlay(alignment: .topLeading) {
-                if isPresented, hostsTitlebarChrome { minimalModeSidebarTitlebarControlsOverlay() }
+                if isPresented, hostsTitlebarChrome { sidebarTitlebarChromeStrip() }
             }
             .background(Color.clear)
             .onChange(of: selectedWorkspaceId) { _, _ in
@@ -13509,12 +13485,7 @@ struct VerticalTabsSidebar: View, Equatable {
                 )
             )
             .overlay(alignment: .top) {
-                WindowDragHandleView()
-                    .frame(height: sidebarTitlebarInteractionHeight)
-                    .background(TitlebarDoubleClickMonitorView())
-            }
-            .overlay(alignment: .topLeading) {
-                minimalModeSidebarTitlebarControlsOverlay()
+                sidebarTitlebarChromeStrip()
             }
             .background(Color.clear)
             .modifier(ClearScrollBackground())

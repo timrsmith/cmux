@@ -11,6 +11,8 @@ protocol FilePreviewTextEditingPanel: AnyObject {
     var textContentRevision: Int { get }
     /// The editor view attached through `attachTextView`, while it is alive.
     var textView: NSTextView? { get }
+    /// The most recent `saveTextContent()` write, while it is alive.
+    var latestTextSaveTask: Task<Void, Never>? { get }
 
     func attachTextView(_ textView: NSTextView)
     func retryPendingFocus()

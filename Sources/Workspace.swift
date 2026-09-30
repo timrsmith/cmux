@@ -4051,8 +4051,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         self.settings = settings
         self.managedDevicePolicy = managedDevicePolicy
         self.closeTabWarningDefaults = closeTabWarningDefaults
-        self.unsavedChangesCloseConfirmation = unsavedChangesCloseConfirmation
-            ?? UnsavedChangesCloseConfirmation(presenter: UnsavedChangesAlertPresenter())
+        self.unsavedChangesCloseConfirmation = unsavedChangesCloseConfirmation ?? UnsavedChangesCloseConfirmation()
         self.agentSessionAutoResumeDefaults = agentSessionAutoResumeDefaults
         self.agentChatResumeIntentRecorder = agentChatResumeIntentRecorder
         self.restorableAgentIndexProvider = resolvedRestorableAgentIndexProvider
@@ -14150,15 +14149,21 @@ extension Workspace: BonsplitDelegate {
         if let panelId = panelIdFromSurfaceId(tab.id),
            let panel = panels[panelId] {
             let tabId = tab.id
-            let deferred = unsavedChangesCloseConfirmation.deferCloseIfNeeded(
+            let gate = unsavedChangesCloseConfirmation.gate(
                 for: [panel],
                 retry: { [weak self] in
                     guard let self, self.panelIdFromSurfaceId(tabId) == panelId else { return }
-                    if let tabCloseButtonClose {
-                        self.tabStripCloseButtonByTabId[tabId] = tabCloseButtonClose
-                    }
-                    if explicitlyMarkedClose {
-                        self.explicitUserCloseTabIds.insert(tabId)
+                    // Re-mark the close the way it first arrived so the
+                    // re-entered request reads the same source.
+                    switch tabCloseButtonClose {
+                    case true?:
+                        self.markTabCloseButtonClose(surfaceId: tabId)
+                    case false?:
+                        self.markTabStripMiddleClickClose(surfaceId: tabId)
+                    case nil:
+                        if explicitlyMarkedClose {
+                            self.markExplicitClose(surfaceId: tabId)
+                        }
                     }
                     _ = self.bonsplitController.closeTab(tabId)
                 },
@@ -14166,7 +14171,7 @@ extension Workspace: BonsplitDelegate {
                     self?.clearCloseHistoryEligibility(tabId: tabId, panelId: panelId)
                 }
             )
-            if deferred {
+            if gate == .deferred {
                 clearStagedClosedBrowserRestoreSnapshot(for: tab.id)
                 return false
             }
@@ -14195,12 +14200,12 @@ extension Workspace: BonsplitDelegate {
         // this gating on the second pass.
         let confirmationSource: CloseTabCloseSource = tabCloseButtonClose == true ? .tabCloseButton : .shortcut
         // A close the unsaved-changes prompt already confirmed skips the close warning.
-        let warningKinds: CloseWarningKinds = unsavedChangesCloseConfirmation.isCloseConfirmed(forPanelIds: [panelId])
-            ? []
-            : CloseTabWarningStore(defaults: closeTabWarningDefaults).warningKinds(
-                requiresConfirmation: panelNeedsConfirmClose(panelId: panelId),
-                source: confirmationSource
-            )
+        let warningKinds = unsavedChangesCloseConfirmation.closeWarningKinds(
+            forPanelIds: [panelId],
+            store: CloseTabWarningStore(defaults: closeTabWarningDefaults),
+            requiresConfirmation: panelNeedsConfirmClose(panelId: panelId),
+            source: confirmationSource
+        )
         if !warningKinds.isEmpty {
             clearStagedClosedBrowserRestoreSnapshot(for: tab.id)
             if pendingCloseConfirmTabIds.contains(tab.id) {
@@ -14612,19 +14617,20 @@ extension Workspace: BonsplitDelegate {
                   let panelId = panelIdFromSurfaceId(tab.id) else { return nil }
             return panels[panelId]
         }
-        if unsavedChangesCloseConfirmation.deferCloseIfNeeded(
+        if unsavedChangesCloseConfirmation.gate(
             for: closingPanels,
             retry: { [weak self] in _ = self?.bonsplitController.closePane(pane) }
-        ) {
+        ) == .deferred {
             pendingPaneClosePanelIds.removeValue(forKey: pane.id)
             pendingPaneCloseHistoryEntries.removeValue(forKey: pane.id)
             return false
         }
-        // Check if any panel in this pane needs close confirmation
+        // Check if any panel in this pane needs close confirmation; a panel
+        // the unsaved-changes prompt already answered for does not.
         for tab in tabs {
             if forceCloseTabIds.contains(tab.id) { continue }
             if let panelId = panelIdFromSurfaceId(tab.id),
-               !unsavedChangesCloseConfirmation.isCloseConfirmed(forPanelIds: [panelId]),
+               !unsavedChangesCloseConfirmation.isCloseConfirmed(forPanelId: panelId),
                CloseTabWarningStore(defaults: closeTabWarningDefaults).shouldConfirmClose(
                    requiresConfirmation: panelNeedsConfirmClose(panelId: panelId),
                    source: .shortcut

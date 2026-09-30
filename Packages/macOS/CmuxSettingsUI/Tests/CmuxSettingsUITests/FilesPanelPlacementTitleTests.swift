@@ -22,13 +22,6 @@ struct FilesPanelPlacementTitleTests {
         #expect(FilesPanelPlacement.stacked.localizedTitle == "Stacked")
     }
 
-    @Test("every placement has its own non-empty symbol")
-    func symbolsAreDistinctAndPresent() {
-        let symbols = FilesPanelPlacement.allCases.map(\.symbolName)
-        #expect(symbols.allSatisfy { !$0.isEmpty })
-        #expect(Set(symbols).count == FilesPanelPlacement.allCases.count)
-    }
-
     @Test("each symbol fills the part of the rectangle where the tree sits")
     func symbolsPictureThePlacement() {
         #expect(FilesPanelPlacement.rightSidebar.symbolName == "rectangle.trailinghalf.inset.filled")

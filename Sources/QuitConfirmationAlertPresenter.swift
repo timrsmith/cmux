@@ -159,23 +159,8 @@ extension AppDelegate {
             return true
         }
 
-        var visitedManagers = Set<ObjectIdentifier>()
-
-        func managerHasDirtyWorkspace(_ manager: TabManager?) -> Bool {
-            guard let manager else { return false }
-            let managerId = ObjectIdentifier(manager)
-            guard visitedManagers.insert(managerId).inserted else { return false }
-            return manager.tabs.contains(where: { $0.needsConfirmClose() })
+        return quitCandidateTabManagers().contains { manager in
+            manager.tabs.contains(where: { $0.needsConfirmClose() })
         }
-
-        if mainWindowContexts.values.contains(where: { managerHasDirtyWorkspace($0.tabManager) }) {
-            return true
-        }
-        if managerHasDirtyWorkspace(tabManager) {
-            return true
-        }
-        // Quit confirmation is a lifecycle/data-safety check, so it must include
-        // windowless recoverable owners that UI-routing snapshots intentionally hide.
-        return mainWindowSessionPersistenceRoutes().contains { managerHasDirtyWorkspace($0.tabManager) }
     }
 }

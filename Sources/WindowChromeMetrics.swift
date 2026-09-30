@@ -104,19 +104,16 @@ struct SidebarWorkspaceScrollInsets: Equatable {
         bottom: SidebarWorkspaceListMetrics.bottomScrimHeight
     )
 
-    /// The workspace list stacked under the Files region
-    /// (`sidebar.filesPanelPlacement` = `stacked`): the titlebar strip is
-    /// drawn above the tree, so the list starts right under the divider and
-    /// only its row padding separates the first row from it.
-    static let workspaceListBelowStackedFiles = SidebarWorkspaceScrollInsets(
-        top: 0,
-        bottom: SidebarWorkspaceListMetrics.bottomScrimHeight
-    )
-
     /// The insets for a list that draws the titlebar strip over its top
-    /// (`hostsTitlebarChrome`) or sits under the stacked Files region.
+    /// (`hostsTitlebarChrome`) or sits under the stacked Files region
+    /// (`sidebar.filesPanelPlacement` = `stacked`): there the strip is drawn
+    /// above the tree, so the list starts right under the divider and only
+    /// its row padding separates the first row from it.
     static func workspaceList(hostsTitlebarChrome: Bool) -> SidebarWorkspaceScrollInsets {
-        hostsTitlebarChrome ? workspaceList : workspaceListBelowStackedFiles
+        SidebarWorkspaceScrollInsets(
+            top: hostsTitlebarChrome ? SidebarWorkspaceListMetrics.scrollTopInset : 0,
+            bottom: SidebarWorkspaceListMetrics.bottomScrimHeight
+        )
     }
 
     let top: CGFloat

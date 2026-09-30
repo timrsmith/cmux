@@ -31,19 +31,58 @@ final class RecordingUnsavedChangesPresenter: UnsavedChangesPromptPresenting {
 }
 
 enum UnsavedChangesTestFiles {
-    static func temporaryMarkdownFile(contents: String) throws -> URL {
+    /// A new file in the temporary directory holding `contents`; the caller removes it.
+    static func temporaryFile(extension fileExtension: String, contents: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension("md")
+            .appendingPathExtension(fileExtension)
         try contents.write(to: url, atomically: true, encoding: .utf8)
         return url
     }
 
+    static func temporaryMarkdownFile(contents: String) throws -> URL {
+        try temporaryFile(extension: "md", contents: contents)
+    }
+
     static func temporaryTextFile(contents: String) throws -> URL {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension("txt")
-        try contents.write(to: url, atomically: true, encoding: .utf8)
-        return url
+        try temporaryFile(extension: "txt", contents: contents)
+    }
+}
+
+/// Text editors opened on a fresh temporary file with their buffer loaded, the
+/// state a visible editor is in by the time a close is requested.
+@MainActor
+enum UnsavedChangesTestPanels {
+    /// A Markdown editor on a new file holding `contents`. `open` builds the
+    /// panel for the file's path: a standalone panel by default, or one a
+    /// workspace owns when the caller opens it there.
+    static func makeLoadedMarkdownPanel(
+        contents: String = "# Original\n",
+        open: ((String) throws -> MarkdownPanel)? = nil
+    ) async throws -> (panel: MarkdownPanel, url: URL) {
+        let url = try UnsavedChangesTestFiles.temporaryMarkdownFile(contents: contents)
+        let panel = try open?(url.path) ?? MarkdownPanel(workspaceId: UUID(), filePath: url.path)
+        if let load = panel.loadTextContent() {
+            await load.value
+        }
+        return (panel, url)
+    }
+
+    /// A native text editor on a new file holding `contents`, without a file
+    /// watcher. `open` builds the panel for the file's path when a test needs
+    /// its own saver or loader.
+    static func makeLoadedFilePreviewPanel(
+        contents: String = "original text",
+        open: ((String) throws -> FilePreviewPanel)? = nil
+    ) async throws -> (panel: FilePreviewPanel, url: URL) {
+        let url = try UnsavedChangesTestFiles.temporaryTextFile(contents: contents)
+        let panel = try open?(url.path) ?? FilePreviewPanel(
+            workspaceId: UUID(),
+            filePath: url.path,
+            startFileWatcher: false,
+            modeResolver: { _ in .text }
+        )
+        await panel.loadTextContent().value
+        return (panel, url)
     }
 }
