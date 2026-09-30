@@ -179,7 +179,11 @@ final class FileExplorerState: ObservableObject {
     /// pre-panel behavior. Focus is the `MainWindowFocusController`'s job,
     /// which calls this before focusing the registered `.files` host.
     func showFiles(defaults: UserDefaults = .standard) {
-        switch Self.filesPanelPlacement(defaults: defaults) {
+        showFiles(placement: Self.filesPanelPlacement(defaults: defaults), defaults: defaults)
+    }
+
+    private func showFiles(placement: FilesPanelPlacement, defaults: UserDefaults) {
+        switch placement {
         case .leading:
             setFilesPanelVisible(true)
         case .stacked:
@@ -189,6 +193,26 @@ final class FileExplorerState: ObservableObject {
             setVisible(true)
             setMode(.files, defaults: defaults)
         }
+    }
+
+    /// Carries "Files is showing" across a placement change so the tree does
+    /// not vanish when the user moves it. A tree that was on screen under
+    /// `previous` is shown under `next`; one that was hidden stays hidden. When
+    /// the tree leaves the right sidebar, a right sidebar that was showing only
+    /// the Files tab closes, since the tab it showed no longer exists there.
+    /// Called from the window when `sidebar.filesPanelPlacement` changes.
+    func applyPlacementChange(
+        from previous: FilesPanelPlacement,
+        to next: FilesPanelPlacement,
+        defaults: UserDefaults = .standard
+    ) {
+        guard previous != next else { return }
+        let wasShown = filesAreShown(placement: previous)
+        if previous == .rightSidebar, next.isDetachedFromRightSidebar, mode == .files {
+            setVisible(false)
+        }
+        guard wasShown else { return }
+        showFiles(placement: next, defaults: defaults)
     }
 
     /// Hides the file tree wherever it lives: closes the leading panel or the
@@ -207,7 +231,11 @@ final class FileExplorerState: ObservableObject {
     /// stacked Files region is on screen only while the workspace sidebar that
     /// hosts it is shown.
     func filesAreShown(defaults: UserDefaults = .standard) -> Bool {
-        switch Self.filesPanelPlacement(defaults: defaults) {
+        filesAreShown(placement: Self.filesPanelPlacement(defaults: defaults))
+    }
+
+    private func filesAreShown(placement: FilesPanelPlacement) -> Bool {
+        switch placement {
         case .leading:
             return filesPanelVisible
         case .stacked:
