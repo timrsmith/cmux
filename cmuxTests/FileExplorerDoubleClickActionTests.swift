@@ -8,12 +8,13 @@ import Testing
 @testable import cmux
 #endif
 
-/// Pure-logic coverage for the file explorer double-click action setting
-/// (`fileExplorer.doubleClickAction`). Verifies parse/validation (unknown
-/// values fall back to `preview`), UserDefaults round-tripping, the mapping
-/// from the configured action to the concrete open behavior, and the silent
-/// migration of the retired external-editor values (`defaultEditor`,
-/// `preferredEditor`) to `preview`.
+/// The app's reading of the file explorer double-click action setting
+/// (`fileExplorer.doubleClickAction`): the parse wrapper's fallback to
+/// `preview` for unknown values, UserDefaults round-tripping through the
+/// catalog key, and the silent migration of the retired external-editor
+/// values (`defaultEditor`, `preferredEditor`) from UserDefaults and from
+/// cmux.json. The enum itself (cases, raw values, key id, legacy decode) is
+/// covered by the CmuxSettings package suite of the same name.
 ///
 /// The NSOutlineView / NSTableView gesture wiring itself (doubleAction targets)
 /// is AppKit-bound and not cleanly unit-testable; it is exercised manually and
@@ -33,8 +34,9 @@ import Testing
     }
 
     @Test func parsesEachKnownRawValue() {
-        #expect(FileExplorerDoubleClickActionSettings.action(forRawValue: "preview") == .preview)
-        #expect(FileExplorerDoubleClickActionSettings.action(forRawValue: "terminalEditor") == .terminalEditor)
+        for action in FileExplorerDoubleClickAction.allCases {
+            #expect(FileExplorerDoubleClickActionSettings.action(forRawValue: action.rawValue) == action)
+        }
     }
 
     @Test func nilRawValueFallsBackToPreview() {
@@ -50,16 +52,11 @@ import Testing
         }
     }
 
-    @Test func rawValuesMatchConfigSchema() {
-        #expect(FileExplorerDoubleClickAction.preview.rawValue == "preview")
-        #expect(FileExplorerDoubleClickAction.terminalEditor.rawValue == "terminalEditor")
-    }
-
-    @Test func storageKeyIsTheCatalogKey() {
+    /// The app's key and default are the catalog key's, so the Settings
+    /// window and the file open path never disagree.
+    @Test func storageMirrorsTheCatalogKey() {
         let key = FileExplorerCatalogSection().doubleClickAction
-        #expect(key.id == "fileExplorer.doubleClickAction")
         #expect(FileExplorerDoubleClickActionSettings.key == key.userDefaultsKey)
-        #expect(FileExplorerDoubleClickActionSettings.key == "fileExplorerDoubleClickAction")
         #expect(FileExplorerDoubleClickActionSettings.defaultValue == key.defaultValue)
     }
 
@@ -88,35 +85,12 @@ import Testing
         #expect(FileExplorerDoubleClickActionSettings.resolvedAction(defaults: defaults) == .preview)
     }
 
-    // MARK: - Action resolution
-
-    @Test func eachChoiceMapsToItsOwnActivation() {
-        #expect(FileExplorerDoubleClickActionSettings.fileActivation(action: .preview) == .preview)
-        #expect(FileExplorerDoubleClickActionSettings.fileActivation(action: .terminalEditor) == .terminalEditor)
-    }
-
-    // MARK: - The shared open path's resolution (Workspace.openFile reads this)
-
-    @Test func resolvedFileActivationDefaultsToPreview() {
-        #expect(FileExplorerDoubleClickActionSettings.resolvedFileActivation(defaults: makeDefaults()) == .preview)
-    }
-
-    @Test func resolvedFileActivationHonorsTheStoredTerminalEditorChoice() {
-        let defaults = makeDefaults()
-        FileExplorerDoubleClickActionSettings.setAction(.terminalEditor, defaults: defaults, notificationCenter: NotificationCenter())
-        #expect(FileExplorerDoubleClickActionSettings.resolvedFileActivation(defaults: defaults) == .terminalEditor)
-    }
-
     // MARK: - Migration from the removed external choices
 
     /// The choices that opened a file outside cmux (`defaultEditor`,
     /// `preferredEditor`) are gone; the native editor offers Open With and
     /// Open Externally itself. A value stored by an earlier build must keep
     /// working silently as the native editor.
-    @Test func onlyTheInCmuxChoicesRemain() {
-        #expect(FileExplorerDoubleClickAction.allCases == [.preview, .terminalEditor])
-    }
-
     @Test(arguments: ["defaultEditor", "preferredEditor"])
     func legacyExternalRawValuesResolveToPreview(raw: String) {
         #expect(FileExplorerDoubleClickActionSettings.action(forRawValue: raw) == .preview)
@@ -124,7 +98,6 @@ import Testing
         let defaults = makeDefaults()
         defaults.set(raw, forKey: FileExplorerDoubleClickActionSettings.key)
         #expect(FileExplorerDoubleClickActionSettings.resolvedAction(defaults: defaults) == .preview)
-        #expect(FileExplorerDoubleClickActionSettings.resolvedFileActivation(defaults: defaults) == .preview)
     }
 
     @MainActor

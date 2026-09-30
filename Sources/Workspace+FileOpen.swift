@@ -19,16 +19,18 @@ extension Workspace {
     }
 
     /// Opens `path` with focus according to `activation`, which defaults to
-    /// the stored choice. Pass `.preview` to force the native editor (a caller
-    /// that shows a downloaded copy, for example). Returns whether something
-    /// was opened or focused.
+    /// the stored `fileExplorer.doubleClickAction`. Pass `.preview` to force
+    /// the native editor (a caller that shows a downloaded copy, for example).
+    /// Neither choice falls back: the terminal editor's command resolver
+    /// always yields an editor (`vi` at worst). Returns whether something was
+    /// opened or focused.
     @discardableResult
     func openFile(
         _ path: String,
         inPane pane: PaneID,
-        activation: FileExplorerFileActivation? = nil
+        activation: FileExplorerDoubleClickAction? = nil
     ) -> Bool {
-        switch activation ?? FileExplorerDoubleClickActionSettings.resolvedFileActivation() {
+        switch activation ?? FileExplorerDoubleClickActionSettings.resolvedAction() {
         case .preview:
             return !openFileSurfaces(
                 inPane: pane,
@@ -47,7 +49,7 @@ extension Workspace {
     @discardableResult
     func openFileInFocusedPane(
         _ path: String,
-        activation: FileExplorerFileActivation? = nil
+        activation: FileExplorerDoubleClickAction? = nil
     ) -> Bool {
         guard let pane = fileOpenTargetPane else { return false }
         return openFile(path, inPane: pane, activation: activation)

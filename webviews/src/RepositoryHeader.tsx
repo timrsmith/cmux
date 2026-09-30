@@ -3,11 +3,10 @@ import type {
   PullRequestSummary,
   RepositoryStatus,
 } from "./diff/generated/protocol";
-import { Icon, type IconName } from "./icons";
+import { Icon } from "./icons";
 import {
   formatCountLabel,
   formatLabel,
-  type CountLabelKey,
   type DiffViewerLabelResolver,
 } from "./labels";
 import { MenuButton } from "./ViewOptionsMenu";
@@ -21,17 +20,17 @@ import {
   type WorktreeNotice,
 } from "./WorktreeActions";
 import {
-  bulkActionsForSource,
   forgeActionAvailability,
   forgeActionHintKey,
   pullRequestLabelKeys,
-  selectionActionsForSource,
-  type BulkWriteAction,
+  writeActionId,
+  writeVerbsForSource,
   type CommitAvailability,
   type PullRequestDraft,
   type RepositoryHeaderModel,
-  type SelectionWriteAction,
   type WritableDiffSource,
+  type WriteVerb,
+  type WriteVerbDescriptor,
 } from "./worktree-actions";
 
 /**
@@ -73,41 +72,12 @@ export type PullRequestControl = {
 export type SelectionControl = {
   /** How many of the view's files are checked; zero shows the "all" actions. */
   count: number;
-  onAction: (action: SelectionWriteAction) => void;
+  onAction: (verb: WriteVerb) => void;
   onClear: () => void;
 };
 
-type OpenMenu = "commit" | "discard" | "overflow" | null;
-
-/** A whole-view action or its selection-scoped counterpart; the keys are disjoint. */
-type BatchAction = BulkWriteAction | SelectionWriteAction;
-
-const ACTION_ICON: Record<BatchAction, IconName> = {
-  discardAll: "trash",
-  discardFiles: "trash",
-  stageAll: "stage",
-  stageFiles: "stage",
-  unstageAll: "unstage",
-  unstageFiles: "unstage",
-};
-
-/** The `{count}` label of each selection action; `formatCountLabel` picks the singular. */
-const SELECTION_LABEL_KEY: Record<SelectionWriteAction, CountLabelKey> = {
-  discardFiles: "discardSelected",
-  stageFiles: "stageSelected",
-  unstageFiles: "unstageSelected",
-};
-
-function isSelectionAction(
-  action: BatchAction,
-): action is SelectionWriteAction {
-  return action in SELECTION_LABEL_KEY;
-}
-
-/** Discard asks first: its menu item opens the confirmation popover instead of running. */
-function isDiscard(action: BatchAction): boolean {
-  return action === "discardAll" || action === "discardFiles";
-}
+/** The open menu, or the verb whose confirmation popover replaced the menu. */
+type OpenMenu = "commit" | "overflow" | { confirm: WriteVerbDescriptor } | null;
 
 export function RepositoryHeader({
   commit,
@@ -135,7 +105,7 @@ export function RepositoryHeader({
   label: DiffViewerLabelResolver;
   model: RepositoryHeaderModel;
   notice: WorktreeNotice | null;
-  onBulkAction: (action: BulkWriteAction) => void;
+  onBulkAction: (verb: WriteVerb) => void;
   onCopyGitApply: () => void;
   onNoticeExpire: (token: number) => void;
   onPush: () => void;
@@ -168,7 +138,7 @@ export function RepositoryHeader({
   const availability = forgeActionAvailability(status);
   const hostKind = status?.hostKind ?? null;
   const requestKeys = pullRequestLabelKeys(hostKind);
-  const toggleMenu = (menu: Exclude<OpenMenu, null>) => {
+  const toggleMenu = (menu: "commit" | "overflow") => {
     setOpenMenu((current) => (current === menu ? null : menu));
   };
   const runFromMenu = (action: () => void) => {
@@ -178,19 +148,23 @@ export function RepositoryHeader({
   const pushHint = forgeActionHintKey(availability.push);
   const requestHint = forgeActionHintKey(availability.createPullRequest);
   const selecting = selection.count > 0;
-  // The batch actions: the whole view while nothing is checked, the checked
-  // files otherwise. Discard asks first, in a popover under the header.
-  const batchActions: BatchAction[] = selecting
-    ? selectionActionsForSource(source)
-    : bulkActionsForSource(source);
-  const batchActionLabel = (action: BatchAction) =>
-    isSelectionAction(action)
-      ? formatCountLabel(label, SELECTION_LABEL_KEY[action], selection.count)
-      : label(action);
-  const runBatchAction = (action: BatchAction) =>
-    isSelectionAction(action)
-      ? selection.onAction(action)
-      : onBulkAction(action);
+  // The batch actions: the view's verbs over the whole view while nothing is
+  // checked, over the checked files otherwise. A verb that confirms asks
+  // first, in a popover under the header.
+  const scope = selecting ? "selected" : "all";
+  const verbs = writeVerbsForSource(source);
+  const verbLabel = (descriptor: WriteVerbDescriptor) =>
+    selecting
+      ? formatCountLabel(label, descriptor.label.selected, selection.count)
+      : label(descriptor.label.all);
+  const runVerb = (descriptor: WriteVerbDescriptor) =>
+    selecting
+      ? selection.onAction(descriptor.verb)
+      : onBulkAction(descriptor.verb);
+  const confirming =
+    openMenu != null && typeof openMenu === "object"
+      ? openMenu.confirm
+      : null;
   const moreActions = selecting
     ? formatLabel(label("moreActionsWithSelection"), { count: selection.count })
     : label("moreActions");
@@ -321,23 +295,15 @@ export function RepositoryHeader({
           <Icon name="dots" />
         </button>
       </div>
-      {openMenu === "discard" ? (
+      {confirming?.confirm ? (
         <div id="discard-popover" className="repo-menu repo-menu-confirm">
           <InlineConfirmation
             cancelLabel={label("cancel")}
-            confirmLabel={label(
-              selecting ? "confirmDiscardSelected" : "confirmDiscardAll",
-            )}
+            confirmLabel={label(confirming.confirm[scope].button)}
             onCancel={closeMenus}
-            onConfirm={() =>
-              runFromMenu(() =>
-                runBatchAction(selecting ? "discardFiles" : "discardAll"),
-              )
-            }
+            onConfirm={() => runFromMenu(() => runVerb(confirming))}
             pending={pending}
-            prompt={label(
-              selecting ? "discardSelectedPrompt" : "discardAllPrompt",
-            )}
+            prompt={label(confirming.confirm[scope].prompt)}
           />
         </div>
       ) : null}
@@ -364,21 +330,21 @@ export function RepositoryHeader({
       ) : null}
       {openMenu === "overflow" ? (
         <div id="repo-overflow-menu" className="repo-menu">
-          {/* The batch actions first (a discard swaps this menu for its
-              confirmation popover), then the view options, which stay open
-              on toggle like the toolbar menu does, then copy and refresh. */}
-          {batchActions.map((action) => (
+          {/* The batch actions first (a confirming verb swaps this menu for
+              its confirmation popover), then the view options, which stay
+              open on toggle like the toolbar menu does, then copy and refresh. */}
+          {verbs.map((descriptor) => (
             <MenuButton
-              key={action}
-              action={action}
-              danger={isDiscard(action)}
+              key={descriptor.verb}
+              action={writeActionId(descriptor.verb, scope)}
+              danger={descriptor.confirm != null}
               disabled={pending}
-              icon={ACTION_ICON[action]}
-              label={batchActionLabel(action)}
+              icon={descriptor.icon}
+              label={verbLabel(descriptor)}
               onClick={() =>
-                isDiscard(action)
-                  ? toggleMenu("discard")
-                  : runFromMenu(() => runBatchAction(action))
+                descriptor.confirm
+                  ? setOpenMenu({ confirm: descriptor })
+                  : runFromMenu(() => runVerb(descriptor))
               }
             />
           ))}

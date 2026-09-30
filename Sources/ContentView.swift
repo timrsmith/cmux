@@ -2317,9 +2317,11 @@ struct ContentView: View {
             onOpenFilePreview: { filePath in
                 openFilePreviewFromSidebar(filePath: filePath)
             },
-            onShowChanges: {
-                handleCommandPaletteRightSidebarMode(.changes, observedWindow: nil)
-            },
+            // Offered only while the Changes tab is visible; the right
+            // sidebar's own Files tab passes nothing (Changes is a neighbour).
+            onShowChanges: RightSidebarMode.visibleModes().contains(.changes)
+                ? { handleCommandPaletteRightSidebarMode(.changes, observedWindow: nil) }
+                : nil,
             onOpenAsPane: {
                 openRightSidebarToolPane(.files)
             },

@@ -5,6 +5,7 @@ import { App } from "../src/App";
 import { createDiffViewerLabelResolver } from "../src/labels";
 import { createDiffViewerStatus } from "../src/status";
 import { FileWriteActions, HunkWriteActions } from "../src/WorktreeActions";
+import { writeVerbsForSource } from "../src/worktree-actions";
 import {
   click,
   emptyFetch,
@@ -88,24 +89,30 @@ const PICKER_OPTIONS = {
   ],
 };
 
+type RenderOptions = {
+  /** Answers every patch fetch; by default the `patch` (or nothing). */
+  fetch?: () => Response;
+  /** Adds to the page payload (picker options, for instance). */
+  payloadExtras?: Record<string, unknown>;
+  /** The diff every patch fetch streams; empty means an empty diff. */
+  patch?: string;
+};
+
+/** Every patch fetch streams `patch`, or the empty diff for `""`. */
+const patchFetch = (patch: string) =>
+  patch === "" ? emptyFetch : () => new Response(patch, { status: 200 });
+
 /**
  * Mounts the App on a typed WebKit session against `mock`. With a `patch`,
  * every patch fetch streams it and the render waits for its file header
  * actions; otherwise the diff is empty and the render waits for that.
- * `payloadExtras` adds to the page payload (picker options, for instance).
  */
 async function renderApp(
   source: any,
   mock: ReturnType<typeof sidecarMock>,
-  patch = "",
-  payloadExtras: Record<string, unknown> = {},
-  fetchImpl?: () => Response,
+  { fetch, patch = "", payloadExtras = {} }: RenderOptions = {},
 ) {
-  const dom = mountDom(
-    viewerURL,
-    fetchImpl ??
-      (patch === "" ? emptyFetch : () => new Response(patch, { status: 200 })),
-  );
+  const dom = mountDom(viewerURL, fetch ?? patchFetch(patch));
   (dom.window as any).webkit = { messageHandlers: { cmuxDiff: mock } };
   render(
     <App
@@ -167,24 +174,24 @@ async function waitForReload(document: Document, requests: SidecarRequest[]) {
   );
 }
 
-test("file header actions render per source kind and confirm before reverting", () => {
+test("file header actions render per source kind and confirm before discarding", () => {
   const unstagedMarkup = renderToStaticMarkup(
     <FileWriteActions
-      actions={["stageFile", "revertFile"]}
       label={label}
       onAction={() => {}}
       pending={false}
+      verbs={writeVerbsForSource(unstagedSource as any)}
     />,
   );
   expect(unstagedMarkup).toContain('data-action="stageFile"');
-  expect(unstagedMarkup).toContain('data-action="revertFile"');
+  expect(unstagedMarkup).toContain('data-action="discardFile"');
   expect(unstagedMarkup).not.toContain('data-action="unstageFile"');
   const stagedMarkup = renderToStaticMarkup(
     <FileWriteActions
-      actions={["unstageFile", "revertFile"]}
       label={label}
       onAction={() => {}}
       pending={false}
+      verbs={writeVerbsForSource(stagedSource as any)}
     />,
   );
   expect(stagedMarkup).toContain('data-action="unstageFile"');
@@ -192,10 +199,10 @@ test("file header actions render per source kind and confirm before reverting", 
   expect(
     renderToStaticMarkup(
       <FileWriteActions
-        actions={[]}
         label={label}
         onAction={() => {}}
         pending={false}
+        verbs={[]}
       />,
     ),
   ).toBe("");
@@ -204,30 +211,30 @@ test("file header actions render per source kind and confirm before reverting", 
   const actions: string[] = [];
   render(
     <FileWriteActions
-      actions={["stageFile", "revertFile"]}
       label={label}
-      onAction={(action) => actions.push(action)}
+      onAction={(verb) => actions.push(verb)}
       pending={false}
+      verbs={writeVerbsForSource(unstagedSource as any)}
     />,
   );
   const document = dom.window.document;
   click(document.querySelector<HTMLButtonElement>('[data-action="stageFile"]'));
-  expect(actions).toEqual(["stageFile"]);
+  expect(actions).toEqual(["stage"]);
   click(
-    document.querySelector<HTMLButtonElement>('[data-action="revertFile"]'),
+    document.querySelector<HTMLButtonElement>('[data-action="discardFile"]'),
   );
   // Discard asks first; nothing has been sent yet.
-  expect(actions).toEqual(["stageFile"]);
+  expect(actions).toEqual(["stage"]);
   expect(document.querySelector(".worktree-confirm-text")?.textContent).toBe(
     "Discard these changes?",
   );
   click(findButton(document, "Cancel"));
   expect(document.querySelector(".worktree-confirm")).toBeNull();
   click(
-    document.querySelector<HTMLButtonElement>('[data-action="revertFile"]'),
+    document.querySelector<HTMLButtonElement>('[data-action="discardFile"]'),
   );
   click(findButton(document, "Discard"));
-  expect(actions).toEqual(["stageFile", "revertFile"]);
+  expect(actions).toEqual(["stage", "discard"]);
 });
 
 test("header action cluster stops the header toggle but lets other keys reach the document", () => {
@@ -237,10 +244,10 @@ test("header action cluster stops the header toggle but lets other keys reach th
     // oxlint-disable-next-line jsx-a11y/no-static-element-interactions
     <div onKeyDown={(event) => seen.push(event.key)}>
       <FileWriteActions
-        actions={["stageFile", "revertFile"]}
         label={label}
         onAction={() => {}}
         pending={false}
+        verbs={writeVerbsForSource(unstagedSource as any)}
       />
     </div>,
   );
@@ -261,24 +268,24 @@ test("header action cluster stops the header toggle but lets other keys reach th
   expect(seen).toEqual(["Escape", "f"]);
 });
 
-test("hunk action row confirms a revert and disables while a write is pending", () => {
+test("hunk action row confirms a discard and disables while a write is pending", () => {
   const dom = mountDom();
-  let reverts = 0;
+  let discards = 0;
   render(
     <HunkWriteActions
       label={label}
-      onRevert={() => {
-        reverts += 1;
+      onDiscard={() => {
+        discards += 1;
       }}
       pending={false}
     />,
   );
   const document = dom.window.document;
   click(document.querySelector<HTMLButtonElement>(".worktree-hunk-button"));
-  expect(reverts).toBe(0);
+  expect(discards).toBe(0);
   click(findButton(document, "Discard"));
-  expect(reverts).toBe(1);
-  rerender(<HunkWriteActions label={label} onRevert={() => {}} pending />);
+  expect(discards).toBe(1);
+  rerender(<HunkWriteActions label={label} onDiscard={() => {}} pending />);
   expect(
     document.querySelector<HTMLButtonElement>(".worktree-hunk-button")
       ?.disabled,
@@ -531,7 +538,7 @@ test("header Stage sends worktreeStageFiles for the streamed file and reopens th
   const document = await renderApp(
     unstagedSource,
     sidecarMock(requests, ["worktree.write"]),
-    ONE_FILE_PATCH,
+    { patch: ONE_FILE_PATCH },
   );
   expect(document.querySelectorAll(".worktree-hunk-button")).toHaveLength(1);
   click(headerAction(document, "stageFile"));
@@ -563,9 +570,9 @@ test("header Discard confirms first, then sends worktreeDiscardFiles", async () 
   const document = await renderApp(
     unstagedSource,
     sidecarMock(requests, ["worktree.write"]),
-    ONE_FILE_PATCH,
+    { patch: ONE_FILE_PATCH },
   );
-  click(headerAction(document, "revertFile"));
+  click(headerAction(document, "discardFile"));
   expect(requestsFor(requests, "worktreeDiscardFiles")).toHaveLength(0);
   expect(document.querySelector(".worktree-confirm-text")?.textContent).toBe(
     "Discard these changes?",
@@ -589,7 +596,7 @@ test("hunk row Discard sends worktreeDiscardHunk with the hunk's header ranges",
   const document = await renderApp(
     stagedSource,
     sidecarMock(requests, ["worktree.write"]),
-    ONE_FILE_PATCH,
+    { patch: ONE_FILE_PATCH },
   );
   click(document.querySelector<HTMLButtonElement>(".worktree-hunk-button"));
   expect(requestsFor(requests, "worktreeDiscardHunk")).toHaveLength(0);
@@ -628,7 +635,7 @@ test("staleHunk and partialRevert show their notice and reopen the session", asy
         worktreeDiscardHunk: (request) =>
           failureResponse(request, code, message),
       }),
-      ONE_FILE_PATCH,
+      { patch: ONE_FILE_PATCH },
     );
     click(document.querySelector<HTMLButtonElement>(".worktree-hunk-button"));
     click(findButton(document, "Discard", ".worktree-hunk-actions"));
@@ -672,7 +679,7 @@ test("a second click while a write is pending is ignored, and the actions wait f
       return sessionOpenedResponse(request);
     },
   });
-  const document = await renderApp(stagedSource, mock, ONE_FILE_PATCH);
+  const document = await renderApp(stagedSource, mock, { patch: ONE_FILE_PATCH });
   const commitButton = document.getElementById(
     "commit-button",
   ) as HTMLButtonElement;
@@ -733,7 +740,7 @@ test("collapse all keeps files collapsed through a write action reload", async (
   const document = await renderApp(
     unstagedSource,
     sidecarMock(requests, ["worktree.write"]),
-    ONE_FILE_PATCH,
+    { patch: ONE_FILE_PATCH },
   );
   await waitFor(() => renderedCodeBlocks(document) === 1, "the file's code");
   await openOptionsMenu(document);
@@ -741,7 +748,7 @@ test("collapse all keeps files collapsed through a write action reload", async (
   // A collapsed file keeps its header (and header actions) but renders no
   // code.
   await waitFor(() => renderedCodeBlocks(document) === 0, "the file to collapse");
-  // Open in cmux, copy path, stage, revert.
+  // Open in cmux, copy path, stage, discard.
   expect(document.querySelectorAll(".worktree-action")).toHaveLength(4);
   click(headerAction(document, "stageFile"));
   await waitForReload(document, requests);
@@ -756,15 +763,22 @@ test("collapse all keeps files collapsed through a write action reload", async (
 
 // MARK: Repository header, split button, pull requests, bulk actions
 
-/** Mounts a working-tree view whose status answers with `status`. */
+/**
+ * Mounts a working-tree view whose status answers with `status`, streaming
+ * `ONE_FILE_PATCH` unless the options say otherwise; `overrides` shape the
+ * other sidecar answers.
+ */
 async function renderWithStatus(
   source: any,
   status: Record<string, unknown>,
   requests: SidecarRequest[],
-  overrides: Record<string, (request: SidecarRequest) => unknown> = {},
-  payloadExtras: Record<string, unknown> = {},
-  patch = ONE_FILE_PATCH,
-  fetchImpl?: () => Response,
+  {
+    overrides = {},
+    patch = ONE_FILE_PATCH,
+    ...options
+  }: RenderOptions & {
+    overrides?: Record<string, (request: SidecarRequest) => unknown>;
+  } = {},
 ) {
   const document = await renderApp(
     source,
@@ -772,9 +786,7 @@ async function renderWithStatus(
       worktreeRepositoryStatus: (request) => repositoryStatusResponse(request, status),
       ...overrides,
     }),
-    patch,
-    payloadExtras,
-    fetchImpl,
+    { patch, ...options },
   );
   await waitFor(
     () => document.querySelector(".repo-header-branch") != null,
@@ -880,9 +892,8 @@ test("the header shows the host's ~-abbreviated repository label from the payloa
   // guess from the path's shape.
   const requests: SidecarRequest[] = [];
   const homeSource = { kind: "unstaged", repoRoot: "/srv/home/dev/widgets" };
-  const document = await renderWithStatus(homeSource, MOCK_REPOSITORY_STATUS, requests, {}, {
-    repoRoot: "/srv/home/dev/widgets",
-    repoLabel: "~/widgets",
+  const document = await renderWithStatus(homeSource, MOCK_REPOSITORY_STATUS, requests, {
+    payloadExtras: { repoRoot: "/srv/home/dev/widgets", repoLabel: "~/widgets" },
   });
   expect(document.querySelector(".repo-header-repo")?.textContent).toBe("~/widgets");
   expect(document.querySelector(".repo-header-title")?.getAttribute("title")).toBe(
@@ -1084,8 +1095,10 @@ test("discard all confirms in a header popover and posts worktreeDiscardAll exac
 test("a failed discard all reloads the diff: Git may have restored some paths before giving up", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderWithStatus(unstagedSource, MOCK_REPOSITORY_STATUS, requests, {
-    worktreeDiscardAll: (request) =>
-      failureResponse(request, "worktreeWriteFailed", "Could not update the working tree", true),
+    overrides: {
+      worktreeDiscardAll: (request) =>
+        failureResponse(request, "worktreeWriteFailed", "Could not update the working tree", true),
+    },
   });
   click(headerBulkAction(document, "discardAll"));
   click(document.querySelector<HTMLButtonElement>('#discard-popover [data-action="confirm"]'));
@@ -1145,9 +1158,7 @@ test("checking a file card switches the header to the selection and stages exact
     unstagedSource,
     MOCK_REPOSITORY_STATUS,
     requests,
-    {},
-    {},
-    TWO_FILE_PATCH,
+    { patch: TWO_FILE_PATCH },
   );
   await waitFor(() => cardCheckbox(document, "notes.txt") != null, "both cards");
   const story = cardCheckbox(document, "story.txt")!;
@@ -1224,12 +1235,11 @@ test("a reload that drops a checked file drops it from the selection", async () 
     unstagedSource,
     MOCK_REPOSITORY_STATUS,
     requests,
-    {},
-    {},
-    TWO_FILE_PATCH,
-    () => {
-      fetches += 1;
-      return new Response(fetches === 1 ? TWO_FILE_PATCH : ONE_FILE_PATCH, { status: 200 });
+    {
+      fetch: () => {
+        fetches += 1;
+        return new Response(fetches === 1 ? TWO_FILE_PATCH : ONE_FILE_PATCH, { status: 200 });
+      },
     },
   );
   await waitFor(() => cardCheckbox(document, "notes.txt") != null, "both cards");
@@ -1258,9 +1268,7 @@ test("select all checks every listed file, toggles back to none, and discard sel
     stagedSource,
     MOCK_REPOSITORY_STATUS,
     requests,
-    {},
-    {},
-    TWO_FILE_PATCH,
+    { patch: TWO_FILE_PATCH },
   );
   await waitFor(() => cardCheckbox(document, "notes.txt") != null, "both cards");
   toggleCheckbox(selectAllCheckbox(document));
@@ -1321,8 +1329,7 @@ test("switching the view clears the selection", async () => {
     unstagedSource,
     MOCK_REPOSITORY_STATUS,
     requests,
-    {},
-    PICKER_OPTIONS,
+    { payloadExtras: PICKER_OPTIONS },
   );
   toggleCheckbox(cardCheckbox(document, "story.txt"));
   await waitFor(() => headerBulkAction(document, "stageFiles") != null, "the selection actions");
@@ -1340,9 +1347,7 @@ test("the file list's rows carry the checkbox lane, and clicking it toggles the 
     unstagedSource,
     MOCK_REPOSITORY_STATUS,
     requests,
-    {},
-    {},
-    TWO_FILE_PATCH,
+    { patch: TWO_FILE_PATCH },
   );
   await waitFor(() => cardCheckbox(document, "notes.txt") != null, "both cards");
   const shadow = document.querySelector("file-tree-container")?.shadowRoot ?? null;
@@ -1413,12 +1418,14 @@ test("push posts worktreePush with setUpstream, reports the result, and refreshe
 test("push failures show the localized reason with the remote's last line", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderWithStatus(stagedSource, MOCK_GITHUB_STATUS, requests, {
-    worktreePush: (request) =>
-      failureResponse(
-        request,
-        "pushRejected",
-        "The remote rejected the push: ! [rejected] main -> main (fetch first)",
-      ),
+    overrides: {
+      worktreePush: (request) =>
+        failureResponse(
+          request,
+          "pushRejected",
+          "The remote rejected the push: ! [rejected] main -> main (fetch first)",
+        ),
+    },
   });
   click(document.getElementById("commit-menu-button") as HTMLButtonElement);
   click(menuAction(document, "push"));
@@ -1494,8 +1501,10 @@ test("creating a pull request validates the title, posts the draft, and shows th
 test("a forge that is not signed in shows the guidance notice for create", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderWithStatus(stagedSource, MOCK_GITHUB_STATUS, requests, {
-    worktreeCreatePullRequest: (request) =>
-      failureResponse(request, "forgeNotAuthenticated", "The forge command-line tool is not signed in"),
+    overrides: {
+      worktreeCreatePullRequest: (request) =>
+        failureResponse(request, "forgeNotAuthenticated", "The forge command-line tool is not signed in"),
+    },
   });
   click(document.getElementById("commit-menu-button") as HTMLButtonElement);
   click(menuAction(document, "createPullRequest"));
@@ -1577,7 +1586,9 @@ test("file cards offer open in cmux (host action) and copy path", async () => {
 test("open in cmux failures surface as a notice", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderWithStatus(unstagedSource, MOCK_REPOSITORY_STATUS, requests, {
-    hostOpenFile: (request) => failureResponse(request, "notAllowed", "Diff sidecar request was rejected"),
+    overrides: {
+      hostOpenFile: (request) => failureResponse(request, "notAllowed", "Diff sidecar request was rejected"),
+    },
   });
   click(headerAction(document, "openInCmux"));
   await waitFor(
@@ -1622,8 +1633,7 @@ test("a working-tree view hosts the source and repo pickers in the repository he
   const document = await renderApp(
     unstagedSource,
     sidecarMock(requests, ["worktree.write"]),
-    ONE_FILE_PATCH,
-    PICKER_OPTIONS,
+    { patch: ONE_FILE_PATCH, payloadExtras: PICKER_OPTIONS },
   );
   await waitFor(
     () => Boolean(document.getElementById("repo-header")),
@@ -1661,8 +1671,7 @@ test("a patch session keeps the pickers in the toolbar and renders no repository
   const document = await renderApp(
     { kind: "patch", path: "/last-turn.patch" },
     sidecarMock(requests, ["worktree.write"]),
-    "",
-    PICKER_OPTIONS,
+    { payloadExtras: PICKER_OPTIONS },
   );
   await waitFor(
     () => requests.some((request) => request.method === "protocolHandshake"),
@@ -1723,7 +1732,7 @@ test("a file card folds from its header chevron and unfolds again", async () => 
   const document = await renderApp(
     unstagedSource,
     sidecarMock(requests, ["worktree.write"]),
-    ONE_FILE_PATCH,
+    { patch: ONE_FILE_PATCH },
   );
   await waitFor(() => renderedCodeBlocks(document) === 1, "the file's code");
   const [card] = cards(document);
@@ -1753,7 +1762,7 @@ test("collapse all then a per-file expand reopens only that card, and both survi
   const document = await renderApp(
     unstagedSource,
     sidecarMock(requests, ["worktree.write"]),
-    TWO_FILE_PATCH,
+    { patch: TWO_FILE_PATCH },
   );
   await waitFor(() => renderedCodeBlocks(document) === 2, "both files' code");
   expect(cards(document)).toHaveLength(2);
@@ -1822,8 +1831,7 @@ test("the header names a single repository as text and offers the picker only wi
   const singleDocument = await renderApp(
     { kind: "unstaged", repoRoot: "/Users/dev/src/widgets" },
     sidecarMock(single, ["worktree.write"]),
-    ONE_FILE_PATCH,
-    SINGLE_REPO_OPTIONS,
+    { patch: ONE_FILE_PATCH, payloadExtras: SINGLE_REPO_OPTIONS },
   );
   await waitFor(
     () => singleDocument.querySelector(".repo-header-branch") != null,
@@ -1846,8 +1854,7 @@ test("the header names a single repository as text and offers the picker only wi
   const multiDocument = await renderApp(
     unstagedSource,
     sidecarMock(multi, ["worktree.write"]),
-    ONE_FILE_PATCH,
-    PICKER_OPTIONS,
+    { patch: ONE_FILE_PATCH, payloadExtras: PICKER_OPTIONS },
   );
   await waitFor(
     () => multiDocument.querySelector(".repo-header-branch") != null,
@@ -1867,8 +1874,7 @@ test("the toolbar fallback also renders the repo picker only with two or more re
   const singleDocument = await renderApp(
     branchSource,
     sidecarMock(single, ["worktree.write"]),
-    "",
-    SINGLE_REPO_OPTIONS,
+    { payloadExtras: SINGLE_REPO_OPTIONS },
   );
   expect(singleDocument.getElementById("repo-header")).toBeNull();
   expect(singleDocument.getElementById("toolbar")).toBeTruthy();
@@ -1879,8 +1885,7 @@ test("the toolbar fallback also renders the repo picker only with two or more re
   const multiDocument = await renderApp(
     branchSource,
     sidecarMock(multi, ["worktree.write"]),
-    "",
-    PICKER_OPTIONS,
+    { payloadExtras: PICKER_OPTIONS },
   );
   expect(multiDocument.getElementById("repo-header")).toBeNull();
   expect(multiDocument.querySelector("#toolbar #repo-select")).toBeTruthy();
@@ -1927,7 +1932,7 @@ test("window.cmuxDiffViewer.refresh() is refused while a write is pending", asyn
   const document = await renderApp(
     unstagedSource,
     sidecarMock(requests, ["worktree.write"]),
-    ONE_FILE_PATCH,
+    { patch: ONE_FILE_PATCH },
   );
   click(headerAction(document, "stageFile"));
   expect(document.defaultView!.cmuxDiffViewer?.refresh()).toBe(false);
@@ -1941,8 +1946,7 @@ test("a patch session has no in-place refresh", async () => {
   const document = await renderApp(
     { kind: "patch", path: "/last-turn.patch" },
     sidecarMock(requests, ["worktree.write"]),
-    "",
-    PICKER_OPTIONS,
+    { payloadExtras: PICKER_OPTIONS },
   );
   expect(document.defaultView!.cmuxDiffViewer?.refresh() ?? false).toBe(false);
   await new Promise((resolve) => setTimeout(resolve, 20));
@@ -2044,8 +2048,7 @@ test("a patch session keeps the toolbar's own options menu with the same view op
   const document = await renderApp(
     { kind: "patch", path: "/last-turn.patch" },
     sidecarMock(requests, ["worktree.write"]),
-    "",
-    PICKER_OPTIONS,
+    { payloadExtras: PICKER_OPTIONS },
   );
   await openOptionsMenu(document);
   const menu = document.getElementById("options-menu")!;

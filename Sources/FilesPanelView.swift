@@ -25,9 +25,12 @@ struct FilesPanelView: View {
     let headerBelowTitlebarStrip: Bool
     let windowAppearance: WindowAppearanceSnapshot
     let onOpenFilePreview: (String) -> Void
-    /// Shows the right sidebar on its Changes tab; the same action the
-    /// Changes shortcut and the command palette run.
-    let onShowChanges: () -> Void
+    /// Shows the right sidebar on its Changes tab (the same action the
+    /// Changes shortcut and the command palette run), or `nil` to leave the
+    /// item out of the header menu while that tab is hidden. With the tree
+    /// docked outside the sidebar the two are no longer a tab switch apart,
+    /// so the menu is how the tree reaches Changes.
+    let onShowChanges: (() -> Void)?
     let onOpenAsPane: () -> Void
     let onClose: () -> Void
 

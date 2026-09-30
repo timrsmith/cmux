@@ -22,7 +22,6 @@ export type IconName =
   | "pullRequest"
   | "push"
   | "refresh"
-  | "revert"
   | "search"
   | "sidebarCollapse"
   | "split"
@@ -89,8 +88,6 @@ function IconPaths({ name }: { name: IconName }) {
     return <><path d="M10 16V6" /><path d="m6.5 9.5 3.5-3.5 3.5 3.5" /><path d="M4 3.5h12" /></>;
   case "refresh":
     return <><path d="M16 8a6 6 0 0 0-10.3-3.7L4 6" /><path d="M4 3v3h3" /><path d="M4 12a6 6 0 0 0 10.3 3.7L16 14" /><path d="M16 17v-3h-3" /></>;
-  case "revert":
-    return <><path d="M4 8h8a4 4 0 0 1 0 8H7" /><path d="m7 5-3 3 3 3" /></>;
   case "search":
     return <><circle cx="8.5" cy="8.5" r="4.5" /><path d="m12 12 4 4" /></>;
   case "stage":
