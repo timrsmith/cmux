@@ -75,6 +75,10 @@ struct DiffViewerWriteActionsTests {
         for method in ["worktreeStageFiles", "worktreeUnstageFiles", "worktreeDiscardFiles"] {
             #expect(DiffSidecarRequestPolicy.writeMethods.contains(method), "\(method) is a selection write")
         }
+        // The hunk row: discard in the Unstaged view, unstage in the Staged view.
+        for method in ["worktreeDiscardHunk", "worktreeUnstageHunk"] {
+            #expect(DiffSidecarRequestPolicy.writeMethods.contains(method), "\(method) is a hunk write")
+        }
         #expect(DiffSidecarRequestPolicy.readMethods.contains("worktreeRepositoryStatus"))
         #expect(DiffSidecarRequestPolicy.hostMethods == ["hostOpenFile"])
         let open = body("hostOpenFile", params: ["path": "src/main.swift"])
@@ -259,6 +263,30 @@ struct DiffViewerWriteActionsTests {
             #expect(rejection(body(method, token: nil, params: params), frameToken: frameToken, panelAssociated: true) == .tokenMismatch, "\(method)")
             #expect(rejection(body(method, params: params), frameToken: nil, panelAssociated: true) == .tokenMismatch, "\(method)")
             // A near-miss name is not a known method.
+            #expect(rejection(body(method.lowercased(), params: params), frameToken: frameToken, panelAssociated: true) == .unknownMethod, "\(method)")
+        }
+    }
+
+    /// The Staged view's hunk row unstages (`worktreeUnstageHunk`, index
+    /// only) where the Unstaged view's discards (`worktreeDiscardHunk`). Both
+    /// take the write gate: the frame's token and a live workspace
+    /// association; the sidecar re-checks the source kind against the method.
+    @Test
+    func hunkWriteMethodsAreGatedLikeEveryWrite() {
+        let otherToken = "fedcba9876543210"
+        let hunk: [String: Any] = ["oldStart": 1, "oldCount": 3, "newStart": 1, "newCount": 3]
+        for (method, kind) in [("worktreeDiscardHunk", "unstaged"), ("worktreeUnstageHunk", "staged")] {
+            let params: [String: Any] = [
+                "sessionId": "01234567-89ab-cdef-0123-456789abcdef",
+                "source": ["kind": kind, "repoRoot": "/tmp/repo"],
+                "path": "story.txt",
+                "hunk": hunk,
+            ]
+            #expect(rejection(body(method, params: params), frameToken: frameToken, panelAssociated: true) == nil, "\(method)")
+            #expect(rejection(body(method, params: params), frameToken: frameToken, panelAssociated: false) == .unassociatedPanel, "\(method)")
+            #expect(rejection(body(method, token: otherToken, params: params), frameToken: frameToken, panelAssociated: true) == .tokenMismatch, "\(method)")
+            #expect(rejection(body(method, token: nil, params: params), frameToken: frameToken, panelAssociated: true) == .tokenMismatch, "\(method)")
+            #expect(rejection(body(method, params: params), frameToken: nil, panelAssociated: true) == .tokenMismatch, "\(method)")
             #expect(rejection(body(method.lowercased(), params: params), frameToken: frameToken, panelAssociated: true) == .unknownMethod, "\(method)")
         }
     }

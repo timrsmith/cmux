@@ -2,12 +2,19 @@
 //!
 //! Every command re-derives its inputs on the sidecar side: paths are
 //! validated as repository-relative and must already be known to Git (in the
-//! index, or for an unstage or staged discard also in HEAD), hunks are re-read
-//! from `git diff` and matched by header before `git apply -R` runs, and
-//! nothing supplied by the page is ever passed to Git as patch text.
-//! Authorization requires a valid capability token, a repository in that
-//! token's allow-list, and an open session owned by the token whose
-//! repository and source kind are the ones being mutated.
+//! index, or for an unstage also in HEAD), hunks are re-read from `git diff`
+//! and matched by header before `git apply -R` runs, and nothing supplied by
+//! the page is ever passed to Git as patch text. Authorization requires a
+//! valid capability token, a repository in that token's allow-list, and an
+//! open session owned by the token whose repository and source kind are the
+//! ones being mutated.
+//!
+//! The Staged view only unstages. A discard acts on the working tree, which
+//! that view never shows (an unstaged edit in the same file would go with
+//! it), so `worktreeDiscardHunk`, `worktreeDiscardFiles` and
+//! `worktreeDiscardAll` refuse a `staged` source with `notAllowed` before
+//! anything runs, whatever page sent them; the Staged view's hunk row is
+//! `worktreeUnstageHunk`, which changes the index alone.
 //!
 //! A discard never destroys content that exists in no Git object: untracked
 //! files are refused (a `git diff` session never lists them), and so are
@@ -81,9 +88,6 @@ pub(crate) enum WriteError {
     InvalidMessage,
     StaleHunk,
     Conflict,
-    /// A staged revert changed the index but could not finish in the working
-    /// tree; the page must reload to show the resulting split state.
-    PartialRevert,
     NothingToCommit,
     CommitFailed,
     /// Git refused the commit and said why (typically a hook); the detail is
@@ -122,7 +126,6 @@ impl WriteError {
             Self::InvalidMessage => "invalidMessage",
             Self::StaleHunk => "staleHunk",
             Self::Conflict => "conflict",
-            Self::PartialRevert => "partialRevert",
             Self::NothingToCommit => "nothingToCommit",
             Self::CommitFailed | Self::CommitRejected(_) => "commitFailed",
             Self::DetachedHead => "detachedHead",
@@ -150,9 +153,6 @@ impl WriteError {
             Self::InvalidMessage => "Commit message is empty or too long".into(),
             Self::StaleHunk => "The hunk no longer matches the working tree".into(),
             Self::Conflict => "The change could not be applied cleanly".into(),
-            Self::PartialRevert => {
-                "The change was unstaged but could not be removed from the working tree".into()
-            }
             Self::NothingToCommit => "There are no staged changes to commit".into(),
             Self::CommitFailed => "Git could not create the commit".into(),
             Self::CommitRejected(detail) => {
@@ -187,7 +187,7 @@ impl WriteError {
 /// the diff the page rendered. The flag is set once a mutating child has been
 /// spawned (Git may have changed some paths before exiting non-zero for
 /// another) and for the errors that mean the diff changed under the page
-/// (`StaleHunk`, `Conflict`, `PartialRevert`); the page reloads on it.
+/// (`StaleHunk`, `Conflict`); the page reloads on it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WriteFailure {
     pub(crate) error: WriteError,
@@ -196,10 +196,7 @@ pub(crate) struct WriteFailure {
 
 impl From<WriteError> for WriteFailure {
     fn from(error: WriteError) -> Self {
-        let state_may_have_changed = matches!(
-            error,
-            WriteError::StaleHunk | WriteError::Conflict | WriteError::PartialRevert
-        );
+        let state_may_have_changed = matches!(error, WriteError::StaleHunk | WriteError::Conflict);
         Self {
             error,
             state_may_have_changed,
@@ -223,7 +220,7 @@ struct Target {
 }
 
 /// The per-path write actions (`worktreeStageFiles`, `worktreeUnstageFiles`,
-/// `worktreeDiscardFiles`).
+/// `worktreeDiscardFiles`). Only an `unstaged` session discards.
 #[derive(Clone, Copy)]
 pub(crate) enum FileOp {
     Discard,
@@ -233,12 +230,16 @@ pub(crate) enum FileOp {
 
 /// A selection of files (one file is a one-element selection), acted on with
 /// one Git invocation per step. Every path is validated before anything runs,
-/// so a refused path leaves the repository untouched.
+/// so a refused path leaves the repository untouched, and a discard from a
+/// staged source is refused before Git is consulted at all.
 pub(crate) async fn files_op(
     state: &AppState,
     request: &WorktreeFilesRequest,
     op: FileOp,
 ) -> Result<DiffResult, WriteFailure> {
+    if matches!(op, FileOp::Discard) {
+        require_source_kind(&request.source, DiffSourceKind::Unstaged)?;
+    }
     let _permit = permit(state)?;
     let target = authorize(
         state,
@@ -287,10 +288,27 @@ async fn apply_file_op(target: &Target, paths: &[String], op: FileOp) -> Result<
     }
 }
 
+/// Refuses a command whose source is not the view it belongs to. Discards act
+/// on the working tree, which the Staged view never shows, so a `staged`
+/// source never discards; the Unstaged view has nothing in the index to take
+/// back, so an `unstaged` source never unstages a hunk. Either way the answer
+/// is `NotAllowed` before Git is consulted, whatever page sent the request.
+fn require_source_kind(source: &DiffSource, kind: DiffSourceKind) -> Result<(), WriteError> {
+    if source.kind() == kind {
+        Ok(())
+    } else {
+        Err(WriteError::NotAllowed)
+    }
+}
+
+/// Reverts one hunk of one file in the working tree: the Unstaged view's hunk
+/// row. The hunk is re-read from the session's own diff, so a hunk the file no
+/// longer carries is `StaleHunk`, and one Git cannot reverse is `Conflict`.
 pub(crate) async fn discard_hunk(
     state: &AppState,
     request: &WorktreeHunkRequest,
 ) -> Result<DiffResult, WriteFailure> {
+    require_source_kind(&request.source, DiffSourceKind::Unstaged)?;
     let _permit = permit(state)?;
     let target = authorize(
         state,
@@ -299,20 +317,82 @@ pub(crate) async fn discard_hunk(
         &request.source,
     )
     .await?;
+    let (path, previous_path) = hunk_paths(request)?;
+    protected_entries(&target.repo, &[path.to_owned()])
+        .await?
+        .refuse_any()?;
+    let reverse_patch = hunk_reverse_patch(&target, path, previous_path, request.hunk).await?;
+    if apply_patch(
+        &target.repo,
+        &["apply", "-R", "--whitespace=nowarn"],
+        &reverse_patch,
+    )
+    .await?
+    {
+        Ok(mutated(&request.source))
+    } else {
+        Err(WriteError::Conflict.into())
+    }
+}
+
+/// Takes one hunk of one file out of the index (`git apply -R --cached`) and
+/// leaves the working tree exactly as it is: the Staged view's hunk row. The
+/// hunk is re-read from `git diff --cached`, so a hunk the index no longer
+/// holds is `StaleHunk`, and an index Git cannot update (a held lock, a hunk
+/// that no longer reverses cleanly) is `Conflict`.
+pub(crate) async fn unstage_hunk(
+    state: &AppState,
+    request: &WorktreeHunkRequest,
+) -> Result<DiffResult, WriteFailure> {
+    require_source_kind(&request.source, DiffSourceKind::Staged)?;
+    let _permit = permit(state)?;
+    let target = authorize(
+        state,
+        &request.session_id,
+        &request.capability_token,
+        &request.source,
+    )
+    .await?;
+    let (path, previous_path) = hunk_paths(request)?;
+    let reverse_patch = hunk_reverse_patch(&target, path, previous_path, request.hunk).await?;
+    if apply_patch(
+        &target.repo,
+        &["apply", "-R", "--whitespace=nowarn", "--cached"],
+        &reverse_patch,
+    )
+    .await?
+    {
+        Ok(mutated(&request.source))
+    } else {
+        Err(WriteError::Conflict.into())
+    }
+}
+
+/// The validated path of a hunk request and, for a rename, its origin.
+fn hunk_paths(request: &WorktreeHunkRequest) -> Result<(&str, Option<&str>), WriteError> {
     let path = validate_repo_relative_path(&request.path)?;
     let previous_path = request
         .previous_path
         .as_deref()
         .map(validate_repo_relative_path)
         .transpose()?;
-    protected_entries(&target.repo, &[path.to_owned()])
-        .await?
-        .refuse_any()?;
-    // Re-read the file's diff the way the session patch was produced (default
-    // rename detection, so a staged rename with edits still finds its hunks),
-    // with the prefixes pinned so `diff.noprefix` or `diff.mnemonicPrefix`
-    // cannot produce a header `git apply -R` misreads. A rename needs both
-    // names in the pathspec or Git sees a plain addition.
+    Ok((path, previous_path))
+}
+
+/// The reverse patch of one hunk of `path`, re-read from the target's own
+/// diff (the working tree against the index, or `--cached` for a staged
+/// target) the way the session patch was produced: default rename detection,
+/// so a staged rename with edits still finds its hunks, and the prefixes
+/// pinned so `diff.noprefix` or `diff.mnemonicPrefix` cannot produce a header
+/// `git apply -R` misreads. A rename needs both names in the pathspec or Git
+/// sees a plain addition. `StaleHunk` when no hunk of `path` has `hunk`'s
+/// header.
+async fn hunk_reverse_patch(
+    target: &Target,
+    path: &str,
+    previous_path: Option<&str>,
+    hunk: HunkRef,
+) -> Result<Vec<u8>, WriteError> {
     let mut arguments = vec![
         "diff",
         "--no-ext-diff",
@@ -340,39 +420,9 @@ pub(crate) async fn discard_hunk(
     .await
     .map_err(|()| WriteError::Failed)?;
     if !status.success() {
-        return Err(WriteError::Failed.into());
+        return Err(WriteError::Failed);
     }
-    let reverse_patch =
-        select_hunk_patch(&diff, request.hunk, path).ok_or(WriteError::StaleHunk)?;
-    let apply = ["apply", "-R", "--whitespace=nowarn"];
-    if !target.staged {
-        return if apply_patch(&target.repo, &apply, &reverse_patch).await? {
-            Ok(mutated(&request.source))
-        } else {
-            Err(WriteError::Conflict.into())
-        };
-    }
-    // Discarding a staged hunk means "unstage it and discard it": first the
-    // index, then the working tree when it still carries the same change.
-    // `--index` would refuse whenever the two differ at all, which is the
-    // partially staged file this action exists for.
-    if !apply_patch(
-        &target.repo,
-        &["apply", "-R", "--whitespace=nowarn", "--cached"],
-        &reverse_patch,
-    )
-    .await?
-    {
-        return Err(WriteError::Conflict.into());
-    }
-    if apply_patch(&target.repo, &apply, &reverse_patch)
-        .await
-        .map_err(WriteFailure::after_write)?
-    {
-        Ok(mutated(&request.source))
-    } else {
-        Err(WriteError::PartialRevert.into())
-    }
+    select_hunk_patch(&diff, hunk, path).ok_or(WriteError::StaleHunk)
 }
 
 pub(crate) async fn commit(
@@ -480,18 +530,18 @@ fn last_stderr_line(stderr: &[u8]) -> Option<String> {
 
 // MARK: Bulk actions
 
-/// Discards every change the session shows. An unstaged session restores
-/// the index copy of each path `git diff` lists (tracked files only, so an
-/// untracked file is never touched and `git clean` never runs), leaving out
+/// Discards every change an unstaged session shows: the index copy of each
+/// path `git diff` lists is restored (tracked files only, so an untracked
+/// file is never touched and `git clean` never runs), leaving out
 /// intent-to-add entries (listed as `A`, whose content the index does not
 /// hold) and unmerged paths (listed as `M` next to their `U`, and refused by
-/// `git restore` for the whole batch); a staged session restores HEAD's copy
-/// of the paths HEAD knows and removes the ones staged as new, a rename being
-/// one of each, and leaves unmerged entries alone.
+/// `git restore` for the whole batch). A staged source is refused before
+/// anything runs: the Staged view only unstages.
 pub(crate) async fn discard_all(
     state: &AppState,
     request: &WorktreeSessionRequest,
 ) -> Result<DiffResult, WriteFailure> {
+    require_source_kind(&request.source, DiffSourceKind::Unstaged)?;
     let _permit = permit(state)?;
     let target = authorize(
         state,
@@ -500,49 +550,25 @@ pub(crate) async fn discard_all(
         &request.source,
     )
     .await?;
-    if !target.staged {
-        let changed = listed_paths(
-            &target.repo,
-            &[
-                "diff",
-                "--name-only",
-                "-z",
-                "--no-renames",
-                "--diff-filter=CDMRT",
-            ],
-            &[],
-            MAX_PATH_LISTING_BYTES,
-        )
-        .await?;
-        let unmerged = unmerged_paths(&target.repo, &[]).await?;
-        let paths: Vec<String> = changed
-            .into_iter()
-            .filter(|path| !unmerged.contains(path))
-            .collect();
-        run_over_paths(&target.repo, &["restore", "--worktree"], &paths).await?;
-        return Ok(mutated(&request.source));
-    }
-    let listed = listing(
+    let changed = listed_paths(
         &target.repo,
-        &["diff", "--cached", "--name-status", "-z"],
+        &[
+            "diff",
+            "--name-only",
+            "-z",
+            "--no-renames",
+            "--diff-filter=CDMRT",
+        ],
         &[],
         MAX_PATH_LISTING_BYTES,
     )
     .await?;
-    let (in_head, added) = partition_staged_entries(&parse_name_status_z(&listed));
-    run_over_paths(
-        &target.repo,
-        &["restore", "--staged", "--worktree", "--source=HEAD"],
-        &in_head,
-    )
-    .await?;
-    run_over_paths(
-        &target.repo,
-        &["rm", "-f", "-q", "--ignore-unmatch"],
-        &added,
-    )
-    .await
-    .map_err(|failure| removal_failure(failure, !in_head.is_empty()))?;
+    let unmerged = unmerged_paths(&target.repo, &[]).await?;
+    let paths: Vec<String> = changed
+        .into_iter()
+        .filter(|path| !unmerged.contains(path))
+        .collect();
+    run_over_paths(&target.repo, &["restore", "--worktree"], &paths).await?;
     Ok(mutated(&request.source))
 }
 
@@ -610,17 +636,6 @@ async fn run_mutating(
     }
 }
 
-/// The error for a failed removal of the paths staged as new: the generic
-/// failure when nothing else ran, `PartialRevert` once HEAD's paths were
-/// already restored (a half-reverted rename).
-fn removal_failure(failure: WriteFailure, restored_any: bool) -> WriteFailure {
-    if restored_any {
-        WriteFailure::after_write(WriteError::PartialRevert)
-    } else {
-        failure
-    }
-}
-
 async fn head_exists(repo: &Path) -> Result<bool, WriteError> {
     Ok(git_status(
         repo,
@@ -630,64 +645,6 @@ async fn head_exists(repo: &Path) -> Result<bool, WriteError> {
     )
     .await?
     .success())
-}
-
-/// One entry of `git diff --name-status -z`: the status letter and its
-/// path(s) (two for a rename or copy: source, then destination).
-#[derive(Debug, Eq, PartialEq)]
-pub(crate) struct NameStatusEntry {
-    pub(crate) status: u8,
-    pub(crate) paths: Vec<String>,
-}
-
-/// Parses `--name-status -z` output: `<status>[score]\0<path>\0`, with a
-/// second path for `R` and `C`. Anything malformed ends the parse.
-pub(crate) fn parse_name_status_z(output: &[u8]) -> Vec<NameStatusEntry> {
-    let mut fields = output
-        .split(|byte| *byte == 0)
-        .map(|field| String::from_utf8_lossy(field).into_owned());
-    let mut entries = Vec::new();
-    while let Some(status) = fields.next() {
-        let Some(&letter) = status.as_bytes().first() else {
-            break;
-        };
-        let Some(path) = fields.next().filter(|path| !path.is_empty()) else {
-            break;
-        };
-        let mut paths = vec![path];
-        if letter == b'R' || letter == b'C' {
-            let Some(destination) = fields.next().filter(|path| !path.is_empty()) else {
-                break;
-            };
-            paths.push(destination);
-        }
-        entries.push(NameStatusEntry {
-            status: letter,
-            paths,
-        });
-    }
-    entries
-}
-
-/// Splits staged entries into paths HEAD knows (restored from HEAD) and
-/// paths staged as new (removed). A rename or copy contributes its source
-/// to the first and its destination to the second. Unmerged and unknown
-/// entries are left alone.
-pub(crate) fn partition_staged_entries(entries: &[NameStatusEntry]) -> (Vec<String>, Vec<String>) {
-    let mut in_head = Vec::new();
-    let mut added = Vec::new();
-    for entry in entries {
-        match (entry.status, entry.paths.as_slice()) {
-            (b'A', [path]) => added.push(path.clone()),
-            (b'M' | b'D' | b'T', [path]) => in_head.push(path.clone()),
-            (b'R' | b'C', [source, destination]) => {
-                in_head.push(source.clone());
-                added.push(destination.clone());
-            }
-            _ => {}
-        }
-    }
-    (in_head, added)
 }
 
 /// Runs a mutating command over `paths`, fed NUL-delimited on stdin as
@@ -1491,9 +1448,9 @@ fn require_all(paths: &[String], known: &HashSet<String>) -> Result<(), WriteErr
     }
 }
 
-/// Discards the changes to `paths`. An unstaged session restores the index
-/// copy of index-tracked files; a staged session restores the HEAD copy of
-/// files HEAD knows and removes files staged as new.
+/// Discards the changes to `paths` in an unstaged session: the index copy of
+/// each index-tracked file is restored (`git restore --worktree`). The Staged
+/// view only unstages, so [`files_op`] never gets here with a staged target.
 ///
 /// A path Git knows nothing about is refused. A `git diff` session never
 /// lists untracked files, so such a path can only come from the page, and
@@ -1505,30 +1462,8 @@ fn require_all(paths: &[String], known: &HashSet<String>) -> Result<(), WriteErr
 async fn discard_paths(target: &Target, paths: &[String]) -> Result<(), WriteFailure> {
     protected_entries(&target.repo, paths).await?.refuse_any()?;
     let in_index = index_paths(&target.repo, paths).await?;
-    if !target.staged {
-        require_all(paths, &in_index)?;
-        return run_over_paths(&target.repo, &["restore", "--worktree"], paths).await;
-    }
-    let head = head_paths(&target.repo, paths).await?;
-    let (in_head, added): (Vec<String>, Vec<String>) =
-        paths.iter().cloned().partition(|path| head.contains(path));
-    require_all(&added, &in_index)?;
-    run_over_paths(
-        &target.repo,
-        &["restore", "--staged", "--worktree", "--source=HEAD"],
-        &in_head,
-    )
-    .await?;
-    // A file staged as new has no HEAD version to restore; discarding it
-    // removes the index entry and the working-tree copy. Once the restore
-    // above has run, a failure here leaves a half-discarded rename.
-    run_over_paths(
-        &target.repo,
-        &["rm", "-f", "-q", "--ignore-unmatch"],
-        &added,
-    )
-    .await
-    .map_err(|failure| removal_failure(failure, !in_head.is_empty()))
+    require_all(paths, &in_index)?;
+    run_over_paths(&target.repo, &["restore", "--worktree"], paths).await
 }
 
 /// The subset of `paths` that are index entries.
@@ -1623,29 +1558,6 @@ pub(crate) fn parse_ls_files_stage_z(output: &[u8]) -> HashSet<String> {
         .filter(|path| !path.is_empty())
         .map(str::to_owned)
         .collect()
-}
-
-/// The subset of `paths` that are blobs in HEAD's tree (`-r`, so a directory
-/// lists its files and never itself). An unborn branch has no HEAD tree, so
-/// nothing is in it.
-async fn head_paths(repo: &Path, paths: &[String]) -> Result<HashSet<String>, WriteError> {
-    let listed = listed_paths(
-        repo,
-        &["ls-tree", "-r", "-z", "--name-only", "HEAD"],
-        paths,
-        MAX_STATUS_OUTPUT_BYTES,
-    )
-    .await;
-    match listed {
-        Ok(listed) => Ok(listed),
-        Err(error) => {
-            if head_exists(repo).await? {
-                Err(error)
-            } else {
-                Ok(HashSet::new())
-            }
-        }
-    }
 }
 
 /// The subset of `paths` that are index entries or blobs in HEAD's tree, from
@@ -1948,12 +1860,12 @@ async fn git_status(
 mod tests {
     use super::{
         BranchConfig, ForgeCliKind, HunkRef, MAX_BATCH_PATHS, MAX_LISTING_PATHSPEC_BYTES,
-        NameStatusEntry, ProtectedEntries, WriteError, WriteFailure, batch_paths, commit_rejection,
+        ProtectedEntries, WriteError, WriteFailure, batch_paths, commit_rejection,
         header_names_path, mentions_authentication, parse_branch_config, parse_hunk_header,
-        parse_ls_files_stage_z, parse_name_status_z, partition_staged_entries, pathspec_chunks,
-        pull_request_create_command, pull_request_create_failure, push_rejection, regex_literal,
-        select_hunk_patch, unquote_c_style, validate_pull_request_body,
-        validate_pull_request_title, validate_ref_name, validate_repo_relative_path,
+        parse_ls_files_stage_z, pathspec_chunks, pull_request_create_command,
+        pull_request_create_failure, push_rejection, regex_literal, select_hunk_patch,
+        unquote_c_style, validate_pull_request_body, validate_pull_request_title,
+        validate_ref_name, validate_repo_relative_path,
     };
 
     #[test]
@@ -2062,11 +1974,7 @@ mod tests {
 
     #[test]
     fn write_failures_flag_a_diff_that_changed_under_the_page() {
-        for changed in [
-            WriteError::StaleHunk,
-            WriteError::Conflict,
-            WriteError::PartialRevert,
-        ] {
+        for changed in [WriteError::StaleHunk, WriteError::Conflict] {
             assert!(WriteFailure::from(changed).state_may_have_changed);
         }
         for current in [
@@ -2121,29 +2029,6 @@ mod tests {
             push_default: None,
         };
         assert_eq!(triangular.push_remote_name(), "fork");
-    }
-
-    #[test]
-    fn name_status_listings_parse_renames_and_partition_by_head_membership() {
-        let output = b"M\0story.txt\0A\0new.txt\0R087\0old.txt\0renamed.txt\0D\0gone.txt\0U\0conflict.txt\0T\0link\0";
-        let entries = parse_name_status_z(output);
-        assert_eq!(
-            entries[2],
-            NameStatusEntry {
-                status: b'R',
-                paths: vec!["old.txt".to_owned(), "renamed.txt".to_owned()],
-            }
-        );
-        assert_eq!(entries.len(), 6);
-        let (in_head, added) = partition_staged_entries(&entries);
-        assert_eq!(in_head, ["story.txt", "old.txt", "gone.txt", "link"]);
-        assert_eq!(added, ["new.txt", "renamed.txt"]);
-        // A truncated record ends the parse instead of inventing a path.
-        assert_eq!(
-            parse_name_status_z(b"M\0story.txt\0R100\0old.txt\0").len(),
-            1
-        );
-        assert!(parse_name_status_z(b"").is_empty());
     }
 
     #[test]

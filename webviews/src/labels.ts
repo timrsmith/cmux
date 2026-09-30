@@ -115,6 +115,7 @@ const DEFAULT_DIFF_VIEWER_LABELS = {
   stageSelectedOne: "Stage 1 file",
   unstageAll: "Unstage all",
   unstageFile: "Unstage file",
+  unstageHunk: "Unstage",
   unstageSelected: "Unstage {count} files",
   unstageSelectedOne: "Unstage 1 file",
   worktreeConflict:

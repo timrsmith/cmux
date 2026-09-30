@@ -5,7 +5,7 @@ import { App } from "../src/App";
 import { createDiffViewerLabelResolver } from "../src/labels";
 import { createDiffViewerStatus } from "../src/status";
 import { FileWriteActions, HunkWriteActions } from "../src/WorktreeActions";
-import { writeVerbsForSource } from "../src/worktree-actions";
+import { hunkVerbForSource, writeVerbsForSource } from "../src/worktree-actions";
 import {
   click,
   emptyFetch,
@@ -215,6 +215,8 @@ test("file header actions render per source kind and confirm before discarding",
   );
   expect(stagedMarkup).toContain('data-action="unstageFile"');
   expect(stagedMarkup).not.toContain('data-action="stageFile"');
+  // The Staged view only unstages: no Discard button, nothing to confirm.
+  expect(stagedMarkup).not.toContain('data-action="discardFile"');
   expect(
     renderToStaticMarkup(
       <FileWriteActions
@@ -287,28 +289,49 @@ test("header action cluster stops the header toggle but lets other keys reach th
   expect(seen).toEqual(["Escape", "f"]);
 });
 
-test("hunk action row confirms a discard and disables while a write is pending", () => {
+test("hunk action row confirms a discard, unstages without asking, and disables while a write is pending", () => {
   const dom = mountDom();
-  let discards = 0;
+  const discard = hunkVerbForSource(unstagedSource as any)!;
+  const unstage = hunkVerbForSource(stagedSource as any)!;
+  let actions = 0;
   render(
     <HunkWriteActions
       label={label}
-      onDiscard={() => {
-        discards += 1;
+      onAction={() => {
+        actions += 1;
       }}
       pending={false}
+      verb={discard}
     />,
   );
   const document = dom.window.document;
+  expect(document.querySelector(".worktree-hunk-button span")?.textContent).toBe("Discard");
   click(document.querySelector<HTMLButtonElement>(".worktree-hunk-button"));
-  expect(discards).toBe(0);
+  expect(actions).toBe(0);
   click(findButton(document, "Discard"));
-  expect(discards).toBe(1);
-  rerender(<HunkWriteActions label={label} onDiscard={() => {}} pending />);
+  expect(actions).toBe(1);
+  rerender(<HunkWriteActions label={label} onAction={() => {}} pending verb={discard} />);
   expect(
     document.querySelector<HTMLButtonElement>(".worktree-hunk-button")
       ?.disabled,
   ).toBe(true);
+  // The Staged view's row reads Unstage and acts at once: no confirmation,
+  // no danger styling, since nothing it does touches the working tree.
+  rerender(
+    <HunkWriteActions
+      label={label}
+      onAction={() => {
+        actions += 1;
+      }}
+      pending={false}
+      verb={unstage}
+    />,
+  );
+  expect(document.querySelector(".worktree-hunk-button span")?.textContent).toBe("Unstage");
+  click(document.querySelector<HTMLButtonElement>(".worktree-hunk-button"));
+  expect(actions).toBe(2);
+  expect(document.querySelector(".worktree-confirm")).toBeNull();
+  expect(document.querySelector(".worktree-confirm-danger")).toBeNull();
 });
 
 test("the header commit button renders for both working-tree views and never for branch or read-only sidecars", async () => {
@@ -613,10 +636,10 @@ test("header Discard confirms first, then sends worktreeDiscardFiles", async () 
   await waitForReload(document, requests);
 });
 
-test("hunk row Discard sends worktreeDiscardHunk with the hunk's header ranges", async () => {
+test("hunk row Discard (unstaged view) confirms first, then sends worktreeDiscardHunk with the hunk's header ranges", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderApp(
-    stagedSource,
+    unstagedSource,
     sidecarMock(requests, ["worktree.write"]),
     { patch: TWO_HUNK_PATCH },
   );
@@ -636,10 +659,40 @@ test("hunk row Discard sends worktreeDiscardHunk with the hunk's header ranges",
   expect(requestsFor(requests, "worktreeDiscardHunk")[0].params).toEqual({
     sessionId,
     capabilityToken: token,
+    source: unstagedSource,
+    path: "story.txt",
+    hunk: TWO_HUNK_HUNKS[1],
+  });
+  await waitForReload(document, requests);
+});
+
+test("the Staged view's hunk row reads Unstage and sends worktreeUnstageHunk without asking; nothing there discards", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderApp(
+    stagedSource,
+    sidecarMock(requests, ["worktree.write"]),
+    { patch: TWO_HUNK_PATCH },
+  );
+  const rows = document.querySelectorAll<HTMLButtonElement>(".worktree-hunk-button");
+  expect(rows).toHaveLength(2);
+  expect(Array.from(rows, (row) => row.querySelector("span")?.textContent)).toEqual(["Unstage", "Unstage"]);
+  // The card offers Unstage alone: no Discard, so nothing to confirm.
+  expect(headerAction(document, "unstageFile")).toBeTruthy();
+  expect(headerAction(document, "discardFile")).toBeNull();
+  click(rows[1]);
+  expect(document.querySelector(".worktree-confirm")).toBeNull();
+  await waitFor(
+    () => requestsFor(requests, "worktreeUnstageHunk").length === 1,
+    "the hunk unstage request",
+  );
+  expect(requestsFor(requests, "worktreeUnstageHunk")[0].params).toEqual({
+    sessionId,
+    capabilityToken: token,
     source: stagedSource,
     path: "story.txt",
     hunk: TWO_HUNK_HUNKS[1],
   });
+  expect(requestsFor(requests, "worktreeDiscardHunk")).toHaveLength(0);
   await waitForReload(document, requests);
 });
 
@@ -658,7 +711,7 @@ test("staleHunk and partialRevert show their notice and reopen the session", asy
   ]) {
     const requests: SidecarRequest[] = [];
     const document = await renderApp(
-      stagedSource,
+      unstagedSource,
       sidecarMock(requests, ["worktree.write"], {
         worktreeDiscardHunk: (request) =>
           failureResponse(request, code, message),
@@ -1153,9 +1206,12 @@ test("a failed discard all reloads the diff: Git may have restored some paths be
 test("stage all and unstage all post their session command and reopen the diff", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderWithStatus(stagedSource, MOCK_REPOSITORY_STATUS, requests);
-  // Staged: Unstage all and Discard all changes…; never Stage all.
-  expect(headerBulkLabels(document)).toEqual(["Unstage all", "Discard all changes…"]);
+  // Staged: Unstage all alone; never Stage all, and never Discard (nothing
+  // in this view touches the working tree), so no danger item either.
+  expect(headerBulkLabels(document)).toEqual(["Unstage all"]);
   expect(headerBulkAction(document, "stageAll")).toBeNull();
+  expect(headerBulkAction(document, "discardAll")).toBeNull();
+  expect(document.querySelector('#repo-overflow-menu [data-danger="true"]')).toBeNull();
   click(headerBulkAction(document, "unstageAll"));
   await waitFor(
     () => requestsFor(requests, "worktreeUnstageAll").length === 1,
@@ -1297,7 +1353,7 @@ test("a reload that drops a checked file drops it from the selection", async () 
 test("select all checks every listed file, toggles back to none, and discard selected confirms before posting worktreeDiscardFiles", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderWithStatus(
-    stagedSource,
+    unstagedSource,
     MOCK_REPOSITORY_STATUS,
     requests,
     { patch: TWO_FILE_PATCH },
@@ -1305,20 +1361,20 @@ test("select all checks every listed file, toggles back to none, and discard sel
   await waitFor(() => cardCheckbox(document, "notes.txt") != null, "both cards");
   toggleCheckbox(selectAllCheckbox(document));
   await waitFor(
-    () => headerBulkAction(document, "unstageFiles")?.textContent?.trim() === "Unstage 2 files",
+    () => headerBulkAction(document, "stageFiles")?.textContent?.trim() === "Stage 2 files",
     "both files selected",
   );
-  expect(headerBulkLabels(document)).toEqual(["Unstage 2 files", "Discard 2 files…", "Clear selection"]);
+  expect(headerBulkLabels(document)).toEqual(["Stage 2 files", "Discard 2 files…", "Clear selection"]);
   expect(cardCheckbox(document, "story.txt")?.getAttribute("aria-checked")).toBe("true");
   expect(cardCheckbox(document, "notes.txt")?.getAttribute("aria-checked")).toBe("true");
   // Checked select-all clears; from indeterminate it clears too.
   toggleCheckbox(selectAllCheckbox(document));
-  await waitFor(() => headerBulkAction(document, "unstageAll") != null, "nothing selected");
+  await waitFor(() => headerBulkAction(document, "stageAll") != null, "nothing selected");
   expect(cardCheckbox(document, "story.txt")?.getAttribute("aria-checked")).toBe("false");
   toggleCheckbox(cardCheckbox(document, "story.txt"));
   await waitFor(() => selectAllCheckbox(document)?.getAttribute("aria-checked") === "mixed", "indeterminate");
   toggleCheckbox(selectAllCheckbox(document));
-  await waitFor(() => headerBulkAction(document, "unstageAll") != null, "cleared from indeterminate");
+  await waitFor(() => headerBulkAction(document, "stageAll") != null, "cleared from indeterminate");
   // Select all again and discard the selection: the prompt names the
   // selection, the confirm too; the request carries both paths in diff order.
   toggleCheckbox(selectAllCheckbox(document));
@@ -1338,7 +1394,7 @@ test("select all checks every listed file, toggles back to none, and discard sel
   expect(requestsFor(requests, "worktreeDiscardFiles")[0].params).toEqual({
     sessionId,
     capabilityToken: token,
-    source: stagedSource,
+    source: unstagedSource,
     paths: ["story.txt", "notes.txt"],
   });
   expect(document.getElementById("discard-popover")).toBeNull();
@@ -1348,11 +1404,45 @@ test("select all checks every listed file, toggles back to none, and discard sel
   await waitFor(() => headerBulkAction(document, "clearSelection") != null, "the selection after reload");
   expect(selectionBadge(document)).toBe("2");
   click(headerBulkAction(document, "clearSelection"));
-  await waitFor(() => headerBulkAction(document, "unstageAll") != null, "the whole-view actions");
+  await waitFor(() => headerBulkAction(document, "stageAll") != null, "the whole-view actions");
   expect(selectionBadge(document)).toBeNull();
   expect(cardCheckbox(document, "story.txt")?.getAttribute("aria-checked")).toBe("false");
   expect(cardCheckbox(document, "notes.txt")?.getAttribute("aria-checked")).toBe("false");
   expect(requestsFor(requests, "worktreeDiscardFiles")).toHaveLength(1);
+});
+
+test("the Staged view's selection offers Unstage N files and Clear selection only, and unstages without asking", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(
+    stagedSource,
+    MOCK_REPOSITORY_STATUS,
+    requests,
+    { patch: TWO_FILE_PATCH },
+  );
+  await waitFor(() => cardCheckbox(document, "notes.txt") != null, "both cards");
+  toggleCheckbox(selectAllCheckbox(document));
+  await waitFor(
+    () => headerBulkAction(document, "unstageFiles")?.textContent?.trim() === "Unstage 2 files",
+    "both files selected",
+  );
+  expect(headerBulkLabels(document)).toEqual(["Unstage 2 files", "Clear selection"]);
+  expect(headerBulkAction(document, "discardFiles")).toBeNull();
+  expect(document.querySelector('#repo-overflow-menu [data-danger="true"]')).toBeNull();
+  click(headerBulkAction(document, "unstageFiles"));
+  // No confirmation popover: the request is on its way.
+  expect(document.getElementById("discard-popover")).toBeNull();
+  await waitFor(
+    () => requestsFor(requests, "worktreeUnstageFiles").length === 1,
+    "the unstage-files request",
+  );
+  expect(requestsFor(requests, "worktreeUnstageFiles")[0].params).toEqual({
+    sessionId,
+    capabilityToken: token,
+    source: stagedSource,
+    paths: ["story.txt", "notes.txt"],
+  });
+  expect(requestsFor(requests, "worktreeDiscardFiles")).toHaveLength(0);
+  await waitForReload(document, requests);
 });
 
 /** A file row of the file list, inside the tree's shadow root. */

@@ -10,7 +10,6 @@ import {
   type DiffViewerLabelResolver,
 } from "./labels";
 import {
-  WRITE_VERBS,
   externalPullRequestURL,
   pullRequestLabelKeys,
   pullRequestStateLabelKey,
@@ -20,6 +19,7 @@ import {
   writeActionId,
   type CommitAvailability,
   type CommitMessageValidation,
+  type HunkVerbDescriptor,
   type PullRequestDraft,
   type PullRequestValidation,
   type WriteVerb,
@@ -245,18 +245,22 @@ function WorktreeActionButton({
 }
 
 /**
- * The Discard row under one hunk. It renders only for files with two or more
- * hunks (see `hunkActionTargets`): a single hunk is already covered by the
- * file header's Discard, so it gets no row.
+ * The action row under one hunk: Discard (confirming first) in the Unstaged
+ * view, Unstage (at once, index only) in the Staged view, per `verb`
+ * (`hunkVerbForSource`). It renders only for files with two or more hunks
+ * (see `hunkActionTargets`): a single hunk is already covered by the file
+ * header's action, so it gets no row.
  */
 export function HunkWriteActions({
   label,
-  onDiscard,
+  onAction,
   pending,
+  verb,
 }: {
   label: DiffViewerLabelResolver;
-  onDiscard: () => void;
+  onAction: () => void;
   pending: boolean;
+  verb: HunkVerbDescriptor;
 }) {
   const [confirming, setConfirming] = useState(false);
   return (
@@ -264,16 +268,16 @@ export function HunkWriteActions({
       className="worktree-hunk-actions"
       data-pending={pending ? "true" : "false"}
     >
-      {confirming ? (
+      {confirming && verb.confirm ? (
         <InlineConfirmation
-          confirmLabel={label("confirmRevert")}
+          confirmLabel={label(verb.confirm.button)}
           onCancel={() => setConfirming(false)}
           onConfirm={() => {
             setConfirming(false);
-            onDiscard();
+            onAction();
           }}
           pending={pending}
-          prompt={label("revertPrompt")}
+          prompt={label(verb.confirm.prompt)}
           cancelLabel={label("cancel")}
         />
       ) : (
@@ -281,12 +285,12 @@ export function HunkWriteActions({
           type="button"
           className="worktree-hunk-button"
           disabled={pending}
-          title={label("revertHunk")}
-          onClick={() => setConfirming(true)}
+          title={label(verb.label)}
+          onClick={() => (verb.confirm ? setConfirming(true) : onAction())}
         >
-          {/* The same glyph as every other discard. */}
-          <Icon name={WRITE_VERBS.discard.icon} />
-          <span>{label("revertHunk")}</span>
+          {/* The same glyph as the verb's other scopes. */}
+          <Icon name={verb.icon} />
+          <span>{label(verb.label)}</span>
         </button>
       )}
     </div>

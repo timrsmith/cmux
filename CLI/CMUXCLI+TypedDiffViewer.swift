@@ -409,6 +409,7 @@ extension CMUXCLI.DiffViewerLabels {
             "stageSelectedOne": CMUXDiffViewerLocalization.string("diffViewer.stageSelectedOne", defaultValue: "Stage 1 file"),
             "unstageAll": CMUXDiffViewerLocalization.string("diffViewer.unstageAll", defaultValue: "Unstage all"),
             "unstageFile": CMUXDiffViewerLocalization.string("diffViewer.unstageFile", defaultValue: "Unstage file"),
+            "unstageHunk": CMUXDiffViewerLocalization.string("diffViewer.unstageHunk", defaultValue: "Unstage"),
             "unstageSelected": CMUXDiffViewerLocalization.string("diffViewer.unstageSelected", defaultValue: "Unstage {count} files"),
             "unstageSelectedOne": CMUXDiffViewerLocalization.string("diffViewer.unstageSelectedOne", defaultValue: "Unstage 1 file"),
             "worktreeConflict": CMUXDiffViewerLocalization.string("diffViewer.worktreeConflict", defaultValue: "The change could not be applied cleanly. The diff was reloaded."),

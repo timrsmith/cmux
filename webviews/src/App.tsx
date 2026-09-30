@@ -93,6 +93,7 @@ import {
   buildPushRequest,
   buildRepositoryStatusRequest,
   commitAvailability,
+  hunkVerbForSource,
   payloadRepoLabel,
   repositoryHeaderModel,
   selectedFileTargets,
@@ -824,7 +825,8 @@ export function App({ config, initialStatus }: ConfigProps) {
     }
     void runWorktreeWrite(buildFilesRequest(verb, session, writeSource, [target]), writeSource);
   };
-  const onHunkDiscard = (item: DiffItem, hunk: HunkRef) => {
+  // A hunk row: discard (Unstaged view) or unstage (Staged view) that hunk.
+  const onHunkAction = (item: DiffItem, hunk: HunkRef) => {
     const target = worktreeFileTarget(item.fileDiff);
     const session = writeSession();
     if (!writeSource || !session || !target) {
@@ -975,11 +977,16 @@ export function App({ config, initialStatus }: ConfigProps) {
   const renderCommentAnnotation = (annotation: CommentAnnotation, item: DiffItem) => {
     const metadata = annotation.metadata;
     if (metadata.kind === "hunkActions") {
+      const verb = hunkVerbForSource(writeSource);
+      if (verb == null) {
+        return null;
+      }
       return (
         <HunkWriteActions
           label={label}
-          onDiscard={() => onHunkDiscard(item, metadata.hunk)}
+          onAction={() => onHunkAction(item, metadata.hunk)}
           pending={pendingWrite}
+          verb={verb}
         />
       );
     }

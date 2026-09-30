@@ -38,10 +38,12 @@ import {
  * (passed in by the App, which renders them from exactly one host), then
  * `<branch> · N files +A -D · position`, and on the right the primary split
  * button (Commit, with Push and Create PR/MR in its menu), the files-list
- * toggle, and the view's one "..." menu: the batch actions first (Stage all /
- * Unstage all and Discard all changes…, or, while files are checked, Stage N
- * files / Discard N files… and Clear selection; the "..." button wears the
- * count), then every view option the toolbar menu offers (shared
+ * toggle, and the view's one "..." menu: the batch actions first (Stage all
+ * and Discard all changes… in the Unstaged view, Unstage all alone in the
+ * Staged view, which never touches the working tree; while files are
+ * checked, Stage N files / Discard N files… or Unstage N files, and Clear
+ * selection; the "..." button wears the count), then every view option the
+ * toolbar menu offers (shared
  * `ViewOptionsMenuItems`), then copy and refresh. This header
  * is the view's only top row; the toolbar does not render alongside it. When
  * the payload offers no repo select, the plain abbreviated repo label

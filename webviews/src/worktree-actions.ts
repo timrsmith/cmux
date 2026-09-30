@@ -1,8 +1,9 @@
 // Pure decision and request-building layer for the diff viewer's write
-// actions (stage / unstage / discard, per file, selection or view; discard
-// hunk; commit; push; pull requests). The React layer only renders what these helpers
-// return, so visibility by source kind, hunk identification, forge
-// availability, and the request envelopes are unit-testable without a DOM.
+// actions (stage / unstage / discard, per file, selection or view; discard or
+// unstage a hunk; commit; push; pull requests). The React layer only renders
+// what these helpers return, so visibility by source kind, hunk
+// identification, forge availability, and the request envelopes are
+// unit-testable without a DOM.
 
 import type { FileDiffMetadata, Hunk } from "@pierre/diffs";
 import type { DiffCommand, HostCommand } from "./diff/transport";
@@ -195,13 +196,16 @@ export function worktreeWriteAvailable(
 }
 
 const UNSTAGED_VERBS = [WRITE_VERBS.stage, WRITE_VERBS.discard];
-const STAGED_VERBS = [WRITE_VERBS.unstage, WRITE_VERBS.discard];
+const STAGED_VERBS = [WRITE_VERBS.unstage];
 const NO_VERBS: WriteVerbDescriptor[] = [];
 
 /**
- * The write verbs a view offers, in render order, at every scope: stage
- * (working tree) or unstage (index), then discard, which confirms first.
- * Both working-tree views can discard; a staged discard restores HEAD's copy.
+ * The write verbs a view offers, in render order, at every scope. The
+ * Unstaged view stages, then discards (which confirms first). The Staged view
+ * only unstages: a discard acts on the working tree, which that view never
+ * shows (an unstaged edit in the same file would go with it), so nothing it
+ * offers touches the disk; the flow is unstage, then discard from the
+ * Unstaged view. The sidecar refuses a staged discard as well.
  */
 export function writeVerbsForSource(
   source: DiffSource | null | undefined,
@@ -213,6 +217,53 @@ export function writeVerbsForSource(
       return STAGED_VERBS;
     default:
       return NO_VERBS;
+  }
+}
+
+/**
+ * The hunk row's verb: what the one row under a hunk does. The Unstaged
+ * view's row discards the hunk from the working tree and confirms first; the
+ * Staged view's row takes it out of the index at once, since that touches
+ * nothing on disk.
+ */
+export type HunkVerbDescriptor = {
+  verb: Extract<WriteVerb, "discard" | "unstage">;
+  method: "worktreeDiscardHunk" | "worktreeUnstageHunk";
+  icon: IconName;
+  /** The row's button. */
+  label: DiffViewerLabelKey;
+  /** Set for a verb that asks first; its confirm renders as the danger button. */
+  confirm: { button: DiffViewerLabelKey; prompt: DiffViewerLabelKey } | null;
+};
+
+export const HUNK_VERBS: Record<HunkVerbDescriptor["verb"], HunkVerbDescriptor> = {
+  discard: {
+    verb: "discard",
+    method: "worktreeDiscardHunk",
+    icon: WRITE_VERBS.discard.icon,
+    label: "revertHunk",
+    confirm: { button: "confirmRevert", prompt: "revertPrompt" },
+  },
+  unstage: {
+    verb: "unstage",
+    method: "worktreeUnstageHunk",
+    icon: WRITE_VERBS.unstage.icon,
+    label: "unstageHunk",
+    confirm: null,
+  },
+};
+
+/** The hunk row a view renders, or `null` for a view without write actions. */
+export function hunkVerbForSource(
+  source: DiffSource | null | undefined,
+): HunkVerbDescriptor | null {
+  switch (writableDiffSource(source)?.kind) {
+    case "unstaged":
+      return HUNK_VERBS.discard;
+    case "staged":
+      return HUNK_VERBS.unstage;
+    default:
+      return null;
   }
 }
 
@@ -297,9 +348,9 @@ const hunkActionTargetsByFileDiff = new WeakMap<object, HunkActionTarget[]>();
 
 /**
  * Hunks eligible for action rows. A file needs two or more hunks to get rows:
- * for a single hunk the file header's Discard already covers the whole
- * change, so a row would duplicate it. Past the per-file cap there are no
- * rows either.
+ * for a single hunk the file header's action (Discard or Unstage) already
+ * covers the whole change, so a row would duplicate it. Past the per-file cap
+ * there are no rows either.
  */
 export function hunkActionTargets(
   fileDiff: WorktreeFileDiff | null | undefined,
@@ -415,9 +466,10 @@ export function buildFilesRequest(
 }
 
 /**
- * The rename origin rides along so the sidecar re-reads a staged rename with
- * both names in scope; without it Git would see a plain addition and the
- * hunk would never match.
+ * The hunk row's request: a discard in the Unstaged view, an unstage in the
+ * Staged view (`hunkVerbForSource`). The rename origin rides along so the
+ * sidecar re-reads a staged rename with both names in scope; without it Git
+ * would see a plain addition and the hunk would never match.
  */
 export function buildHunkRequest(
   session: WorktreeSession,
@@ -435,7 +487,9 @@ export function buildHunkRequest(
   if (target.previousPath != null) {
     params.previousPath = target.previousPath;
   }
-  return { method: "worktreeDiscardHunk", params };
+  // A writable source always has a hunk verb; the fallback only types it.
+  const { method } = hunkVerbForSource(source) ?? HUNK_VERBS.discard;
+  return { method, params };
 }
 
 /**
