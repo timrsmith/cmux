@@ -1,66 +1,7 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "filesPanel.showChanges.tooltip": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show Changes"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Änderungen anzeigen"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Afficher les modifications"
-          }
-        },
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "إظهار التغييرات"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostrar cambios"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "顯示變更"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "显示更改"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "변경 사항 표시"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "変更を表示"
-          }
-        }
-      }
-    },
-    "filesPanel.showChanges.accessibilityLabel": {
+    "filesPanel.header.showChanges": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -8033,7 +7974,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Revert hunk"
+            "value": "Discard hunk"
           }
         },
         "de": {
@@ -8045,43 +7986,43 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Annuler le bloc"
+            "value": "Abandonner le bloc"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "التراجع عن المقطع"
+            "value": "تجاهل المقطع"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Revertir fragmento"
+            "value": "Descartar fragmento"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "還原區塊"
+            "value": "捨棄區塊"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "还原代码块"
+            "value": "放弃代码块"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "헝크 되돌리기"
+            "value": "헝크 버리기"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ハンクを元に戻す"
+            "value": "ハンクを破棄"
           }
         }
       }
@@ -8092,7 +8033,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Revert changes"
+            "value": "Discard changes"
           }
         },
         "de": {
@@ -8104,43 +8045,43 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Annuler les modifications"
+            "value": "Abandonner les modifications"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "التراجع عن التغييرات"
+            "value": "تجاهل التغييرات"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Revertir cambios"
+            "value": "Descartar cambios"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "還原變更"
+            "value": "捨棄變更"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "还原更改"
+            "value": "放弃更改"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "변경 사항 되돌리기"
+            "value": "변경 사항 버리기"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "変更を元に戻す"
+            "value": "変更を破棄"
           }
         }
       }
@@ -8269,7 +8210,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Revert"
+            "value": "Discard"
           }
         },
         "de": {
@@ -8281,43 +8222,43 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Annuler les modifications"
+            "value": "Abandonner"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "تراجع"
+            "value": "تجاهل"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Revertir"
+            "value": "Descartar"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "還原"
+            "value": "捨棄"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "还原"
+            "value": "放弃"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "되돌리기"
+            "value": "버리기"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "元に戻す"
+            "value": "破棄"
           }
         }
       }
@@ -209252,131 +209193,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "指標樣式"
-          }
-        }
-      }
-    },
-    "diffViewer.jumpToFile": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "الانتقال إلى ملف"
-          }
-        },
-        "bs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jump to file"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jump to file"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zu Datei springen"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jump to file"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ir al archivo"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aller au fichier"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jump to file"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ファイルへ移動"
-          }
-        },
-        "km": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jump to file"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "파일로 이동"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jump to file"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jump to file"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jump to file"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jump to file"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jump to file"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jump to file"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jump to file"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "跳转到文件"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "跳至檔案"
           }
         }
       }

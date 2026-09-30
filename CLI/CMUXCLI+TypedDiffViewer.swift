@@ -316,8 +316,8 @@ extension CMUXCLI {
 }
 
 extension CMUXCLI.DiffViewerLabels {
-    /// Labels for the diff viewer's working-tree write actions (revert, stage,
-    /// unstage, revert hunk, commit), the repository header with its push /
+    /// Labels for the diff viewer's working-tree write actions (discard, stage,
+    /// unstage, discard hunk, commit), the repository header with its push /
     /// pull request actions, and the per-file open / copy utilities. Keys
     /// mirror `webviews/src/labels.ts`; the existing `commit` label stays the
     /// "Commit N" series prefix.
@@ -340,7 +340,7 @@ extension CMUXCLI.DiffViewerLabels {
             "commitSubmit": CMUXDiffViewerLocalization.string("diffViewer.commitSubmit", defaultValue: "Commit"),
             "committed": CMUXDiffViewerLocalization.string("diffViewer.committed", defaultValue: "Committed {commit}"),
             "confirmDiscardAll": CMUXDiffViewerLocalization.string("diffViewer.confirmDiscardAll", defaultValue: "Discard all"),
-            "confirmRevert": CMUXDiffViewerLocalization.string("diffViewer.confirmRevert", defaultValue: "Revert"),
+            "confirmRevert": CMUXDiffViewerLocalization.string("diffViewer.confirmRevert", defaultValue: "Discard"),
             "copiedPath": CMUXDiffViewerLocalization.string("diffViewer.copiedPath", defaultValue: "Copied path"),
             "copyPath": CMUXDiffViewerLocalization.string("diffViewer.copyPath", defaultValue: "Copy path"),
             "copyPathFailed": CMUXDiffViewerLocalization.string("diffViewer.copyPathFailed", defaultValue: "Could not copy path."),
@@ -390,8 +390,8 @@ extension CMUXCLI.DiffViewerLabels {
             "reviewApproved": CMUXDiffViewerLocalization.string("diffViewer.reviewApproved", defaultValue: "Approved"),
             "reviewChangesRequested": CMUXDiffViewerLocalization.string("diffViewer.reviewChangesRequested", defaultValue: "Changes requested"),
             "reviewRequired": CMUXDiffViewerLocalization.string("diffViewer.reviewRequired", defaultValue: "Review required"),
-            "revertFile": CMUXDiffViewerLocalization.string("diffViewer.revertFile", defaultValue: "Revert changes"),
-            "revertHunk": CMUXDiffViewerLocalization.string("diffViewer.revertHunk", defaultValue: "Revert hunk"),
+            "revertFile": CMUXDiffViewerLocalization.string("diffViewer.revertFile", defaultValue: "Discard changes"),
+            "revertHunk": CMUXDiffViewerLocalization.string("diffViewer.revertHunk", defaultValue: "Discard hunk"),
             "revertPrompt": CMUXDiffViewerLocalization.string("diffViewer.revertPrompt", defaultValue: "Discard these changes?"),
             "stageAll": CMUXDiffViewerLocalization.string("diffViewer.stageAll", defaultValue: "Stage all"),
             "stageAllAndCommit": CMUXDiffViewerLocalization.string("diffViewer.stageAllAndCommit", defaultValue: "Stage all and commit"),

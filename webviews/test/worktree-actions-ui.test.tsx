@@ -214,7 +214,7 @@ test("file header actions render per source kind and confirm before reverting", 
   click(
     document.querySelector<HTMLButtonElement>('[data-action="revertFile"]'),
   );
-  // Revert asks first; nothing has been sent yet.
+  // Discard asks first; nothing has been sent yet.
   expect(actions).toEqual(["stageFile"]);
   expect(document.querySelector(".worktree-confirm-text")?.textContent).toBe(
     "Discard these changes?",
@@ -224,7 +224,7 @@ test("file header actions render per source kind and confirm before reverting", 
   click(
     document.querySelector<HTMLButtonElement>('[data-action="revertFile"]'),
   );
-  click(findButton(document, "Revert"));
+  click(findButton(document, "Discard"));
   expect(actions).toEqual(["stageFile", "revertFile"]);
 });
 
@@ -274,7 +274,7 @@ test("hunk action row confirms a revert and disables while a write is pending", 
   const document = dom.window.document;
   click(document.querySelector<HTMLButtonElement>(".worktree-hunk-button"));
   expect(reverts).toBe(0);
-  click(findButton(document, "Revert"));
+  click(findButton(document, "Discard"));
   expect(reverts).toBe(1);
   rerender(<HunkWriteActions label={label} onRevert={() => {}} pending />);
   expect(
@@ -556,7 +556,7 @@ test("header Stage sends worktreeStageFile for the streamed file and reopens the
   expect(document.getElementById("worktree-notice")).toBeNull();
 });
 
-test("header Revert confirms first, then sends worktreeRevertFile", async () => {
+test("header Discard confirms first, then sends worktreeRevertFile", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderApp(
     unstagedSource,
@@ -568,7 +568,7 @@ test("header Revert confirms first, then sends worktreeRevertFile", async () => 
   expect(document.querySelector(".worktree-confirm-text")?.textContent).toBe(
     "Discard these changes?",
   );
-  click(findButton(document, "Revert", ".worktree-file-actions"));
+  click(findButton(document, "Discard", ".worktree-file-actions"));
   await waitFor(
     () => requestsFor(requests, "worktreeRevertFile").length === 1,
     "the revert request",
@@ -582,7 +582,7 @@ test("header Revert confirms first, then sends worktreeRevertFile", async () => 
   await waitForReload(document, requests);
 });
 
-test("hunk row Revert sends worktreeRevertHunk with the hunk's header ranges", async () => {
+test("hunk row Discard sends worktreeRevertHunk with the hunk's header ranges", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderApp(
     stagedSource,
@@ -591,7 +591,7 @@ test("hunk row Revert sends worktreeRevertHunk with the hunk's header ranges", a
   );
   click(document.querySelector<HTMLButtonElement>(".worktree-hunk-button"));
   expect(requestsFor(requests, "worktreeRevertHunk")).toHaveLength(0);
-  click(findButton(document, "Revert", ".worktree-hunk-actions"));
+  click(findButton(document, "Discard", ".worktree-hunk-actions"));
   await waitFor(
     () => requestsFor(requests, "worktreeRevertHunk").length === 1,
     "the hunk revert request",
@@ -629,7 +629,7 @@ test("staleHunk and partialRevert show their notice and reopen the session", asy
       ONE_FILE_PATCH,
     );
     click(document.querySelector<HTMLButtonElement>(".worktree-hunk-button"));
-    click(findButton(document, "Revert", ".worktree-hunk-actions"));
+    click(findButton(document, "Discard", ".worktree-hunk-actions"));
     await waitFor(
       () => document.getElementById("worktree-notice")?.textContent === notice,
       `the ${code} notice`,
@@ -1299,11 +1299,9 @@ test("a working-tree view hosts the source and repo pickers in the repository he
     "the repository header",
   );
   const header = document.getElementById("repo-header")!;
-  // The header is the view's only top row: no toolbar, no jump select, and
-  // exactly one copy of the pickers, in the header.
+  // The header is the view's only top row: no toolbar, and exactly one copy
+  // of the pickers, in the header.
   expect(document.getElementById("toolbar")).toBeNull();
-  expect(document.getElementById("jump-select")).toBeNull();
-  expect(document.getElementById("jump-search-button")).toBeNull();
   expect(document.querySelectorAll("#source-select")).toHaveLength(1);
   expect(header.querySelector("#source-select")).toBeTruthy();
   expect(header.querySelector("#repo-select")).toBeTruthy();
@@ -1348,6 +1346,11 @@ test("a patch session keeps the pickers in the toolbar and renders no repository
   expect(document.querySelectorAll("#source-select")).toHaveLength(1);
   // Patch sessions have no repository to pick.
   expect(document.getElementById("repo-select")).toBeNull();
+  // The file list column owns file navigation; the toolbar carries no
+  // jump-to-file control of its own.
+  expect(
+    toolbar.querySelector(".toolbar-middle, #jump-select, #jump-search-button"),
+  ).toBeNull();
 });
 
 /**

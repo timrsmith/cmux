@@ -33,12 +33,16 @@ describe("app shell grid", () => {
     expect(css).not.toMatch(/#app\s*>\s*#[\w-]+\s*\{[^}]*grid-row/s);
   });
 
-  test("the toolbar keeps its two-row stacking at narrow widths for the sessions that render it", () => {
-    const narrow = /@media \(max-width: 760px\) \{([\s\S]*?)\n\}/.exec(
-      css,
-    )?.[1];
-    expect(narrow).toBeDefined();
-    expect(narrow).toMatch(/\n\s*#toolbar\s*\{[^}]*grid-template-areas:/s);
+  test("the toolbar is a single row of pickers and actions with no file-jump track", () => {
+    // The file list column owns file navigation, so the toolbar has only the
+    // pickers (left) and the actions (right). A middle track, or a
+    // narrow-width second row for it, would bring back the jump-to-file
+    // control the sidebar already replaces.
+    expect(declaration("#toolbar", "grid-template-columns")).toBe(
+      "minmax(0, 1fr) minmax(0, auto)",
+    );
+    expect(css).not.toMatch(/#toolbar\s*\{[^}]*grid-template-areas/s);
+    expect(css).not.toMatch(/\.toolbar-middle|#jump-select|#jump-search-button/);
   });
 
   test("the repository header summary never wraps and sheds detail by priority", () => {
