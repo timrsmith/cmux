@@ -29,7 +29,7 @@ final class FileExplorerState: ObservableObject {
     }
 
     /// Whether the detached files panel (the file tree docked between the
-    /// workspace sidebar and the panes with `leading`, or stacked under the
+    /// workspace sidebar and the panes with `leading`, or stacked above the
     /// workspace list with `stacked`) is shown. Only laid out while
     /// `sidebar.filesPanelPlacement` is one of those; the value is kept across
     /// placement changes so switching back and forth restores the panel.
@@ -41,7 +41,7 @@ final class FileExplorerState: ObservableObject {
     @Published var filesPanelWidth: CGFloat {
         didSet { UserDefaults.standard.set(Double(filesPanelWidth), forKey: Self.filesPanelWidthKey) }
     }
-    /// Persisted height of the Files region stacked under the workspace list
+    /// Persisted height of the Files region stacked above the workspace list
     /// (`filesPanel.stackedHeight`). Clamped against the live sidebar height
     /// by `FilesPanelStackedLayout` when laid out.
     @Published var filesPanelStackedHeight: CGFloat {

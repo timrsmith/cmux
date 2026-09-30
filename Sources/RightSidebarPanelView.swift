@@ -126,7 +126,7 @@ struct RightSidebarPanelView: View {
 
     /// Modes that can be right-sidebar tabs: the feature-available modes,
     /// minus Files while the file tree is docked as its own leading panel or
-    /// stacked under the workspace list.
+    /// stacked above the workspace list.
     private var featureAvailableModes: [RightSidebarMode] {
         _ = managedPolicyRevision
         let modes = RightSidebarMode.availableModes(

@@ -2,7 +2,7 @@ import Combine
 import CoreGraphics
 import Foundation
 
-/// Live height of the Files region stacked under the workspace list
+/// Live height of the Files region stacked above the workspace list
 /// (`sidebar.filesPanelPlacement` = `stacked`), owned outside ContentView's
 /// state for the same reason as `SidebarLayoutModel`: a divider drag must
 /// re-evaluate only the frame that applies the height

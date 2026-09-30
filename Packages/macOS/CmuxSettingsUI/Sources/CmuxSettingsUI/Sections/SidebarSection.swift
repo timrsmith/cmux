@@ -239,7 +239,7 @@ public struct SidebarSection: View {
             SettingsCardRow(
                 configurationReview: .json("sidebar.filesPanelPlacement"),
                 String(localized: "settings.sidebar.filesPanelPlacement", defaultValue: "Files Panel"),
-                subtitle: String(localized: "settings.sidebar.filesPanelPlacement.subtitle", defaultValue: "Show the file tree as a tab of the right sidebar, as its own panel between the workspace sidebar and the panes, or below the workspace list inside the sidebar. Find, Changes, and the other tools stay in the right sidebar.")
+                subtitle: String(localized: "settings.sidebar.filesPanelPlacement.subtitle", defaultValue: "Show the file tree as a tab of the right sidebar, as its own panel between the workspace sidebar and the panes, or above the workspace list inside the sidebar. Find, Changes, and the other tools stay in the right sidebar.")
             ) {
                 Picker("", selection: Binding(
                     get: { filesPanelPlacement.current },

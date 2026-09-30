@@ -201,6 +201,27 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
             detachController(from: abandonedSourceTable)
         }
     }
+    /// The strips above the first and below the last row (the titlebar strip
+    /// the list scrolls under, or none while the Files region is stacked
+    /// above it, and the footer). `SidebarWorkspaceTableView` sets them.
+    private(set) var scrollInsets: SidebarWorkspaceScrollInsets = .workspaceList
+
+    func setScrollInsets(_ insets: SidebarWorkspaceScrollInsets) {
+        guard insets != scrollInsets else { return }
+        scrollInsets = insets
+        guard let scrollView = containerView?.scrollView else { return }
+        applyScrollInsets(insets, to: scrollView)
+    }
+
+    private func applyScrollInsets(_ insets: SidebarWorkspaceScrollInsets, to scrollView: NSScrollView) {
+        scrollView.contentInsets = NSEdgeInsets(
+            top: insets.top + SidebarWorkspaceListMetrics.rowVerticalPadding,
+            left: 0,
+            bottom: insets.bottom + SidebarWorkspaceListMetrics.rowVerticalPadding,
+            right: 0
+        )
+    }
+
     func makeContainerView() -> SidebarWorkspaceTableContainerView {
         let container = SidebarWorkspaceTableContainerView()
         containerView = container
@@ -250,14 +271,7 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
         scrollView.automaticallyAdjustsContentInsets = false
         scrollView.contentView.drawsBackground = false
         scrollView.contentView.postsBoundsChangedNotifications = true
-        scrollView.contentInsets = NSEdgeInsets(
-            top: SidebarWorkspaceScrollInsets.workspaceList.top
-                + SidebarWorkspaceListMetrics.rowVerticalPadding,
-            left: 0,
-            bottom: SidebarWorkspaceScrollInsets.workspaceList.bottom
-                + SidebarWorkspaceListMetrics.rowVerticalPadding,
-            right: 0
-        )
+        applyScrollInsets(scrollInsets, to: scrollView)
         scrollView.applySidebarOverlayScrollerConfiguration()
 
         container.reorderDropView.registerForDraggedTypes([
@@ -3057,7 +3071,7 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
             ).minY - 1
         } else {
             y = container.bounds.height
-                - SidebarWorkspaceScrollInsets.workspaceList.top
+                - scrollInsets.top
                 - SidebarWorkspaceListMetrics.rowVerticalPadding
         }
         let leadingIndent: CGFloat = {

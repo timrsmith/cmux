@@ -16,4 +16,9 @@ struct FilesPanelPlacementTitleTests {
     func defaultTitle() {
         #expect(FilesPanelPlacement.rightSidebar.localizedTitle == "In Right Sidebar")
     }
+
+    @Test("the stacked placement names the tree's position above the workspace list")
+    func stackedTitle() {
+        #expect(FilesPanelPlacement.stacked.localizedTitle == "Above Workspaces")
+    }
 }

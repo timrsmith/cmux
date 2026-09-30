@@ -220,6 +220,10 @@ struct CMUXInstalledExtensionSidebarHostView: View {
     let unreadSource: SidebarUnreadModel
     var actionHandler: @MainActor (CmuxSidebarAction) -> CmuxSidebarActionResult
     var onUseDefaultSidebar: @MainActor () -> Void = {}
+    /// Space above the extension header for the sidebar's titlebar strip;
+    /// zero while the Files region is stacked above the list and the strip
+    /// is drawn above the tree instead.
+    var topInset: CGFloat = SidebarWorkspaceScrollInsets.workspaceList.top
 
     @State private var identity: AppExtensionIdentity?
     @State private var enabledIdentities: [AppExtensionIdentity] = []
@@ -501,7 +505,7 @@ struct CMUXInstalledExtensionSidebarHostView: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.top, SidebarWorkspaceScrollInsets.workspaceList.top + 8)
+        .padding(.top, topInset + 8)
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(TitlebarControlAnchorView { browserAnchorView = $0 })
