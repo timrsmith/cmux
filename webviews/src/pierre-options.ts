@@ -18,7 +18,9 @@ export function codeViewOptions(
   appearance: DiffViewerAppearance,
 ): CodeViewOptions<any> {
   return {
-    layout: { paddingTop: 0, gap: 1, paddingBottom: 0 },
+    // A visible gap between file cards: with hunk action rows at the bottom
+    // of each card, a hairline made the row read as the next file's header.
+    layout: { paddingTop: 0, gap: 12, paddingBottom: 12 },
     diffStyle: options.layout,
     diffIndicators: options.diffIndicators,
     overflow: options.wordWrap ? "wrap" : "scroll",

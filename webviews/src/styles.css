@@ -943,6 +943,12 @@ body[data-loading="false"]:not([data-status-only="true"]) #loading-layer {
   display: block;
   overflow: clip;
   contain: layout paint style;
+  /* Each file is its own card: the border closes the card under its last
+     hunk's action row, so a Discard button is never mistaken for the next
+     file's header. Borders count toward the measured item height; margins
+     would not, so the gap between cards is the CodeView layout gap. */
+  border: 1px solid var(--cmux-diff-border);
+  border-radius: 8px;
 }
 /* Per-file diff header at small widths: the @pierre/diffs header is a flex
    space-between of the file-path side (`[data-header-content]`, already
@@ -1673,7 +1679,8 @@ svg[data-icon-fill] {
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
-  padding: 2px 10px;
+  padding: 4px 10px;
+  border-top: 1px solid var(--cmux-diff-border);
   font-family: var(--cmux-diff-ui-font-family);
   font-size: calc(var(--cmux-diff-ui-font-size) - 1px);
   color: var(--cmux-diff-text-muted);

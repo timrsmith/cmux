@@ -8682,55 +8682,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Discard hunk"
+            "value": "Discard"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hunk verwerfen"
+            "value": "Verwerfen"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abandonner le bloc"
+            "value": "Abandonner"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "تجاهل المقطع"
+            "value": "تجاهل"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Descartar fragmento"
+            "value": "Descartar"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "捨棄區塊"
+            "value": "捨棄"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "放弃代码块"
+            "value": "放弃"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "헝크 버리기"
+            "value": "버리기"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ハンクを破棄"
+            "value": "破棄"
           }
         }
       }
