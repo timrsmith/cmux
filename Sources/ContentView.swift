@@ -984,7 +984,7 @@ struct ContentView: View {
     /// is the persisted value it is reconciled with, like `fileExplorerWidth`.
     @State private var filesPanelWidth: CGFloat = FilesPanelPlacementLayout.defaultWidth
     @State private var filesPanelDragStartWidth: CGFloat?
-    /// Live height of the Files region stacked under the workspace list
+    /// Live height of the Files region stacked above the workspace list
     /// (`sidebar.filesPanelPlacement` = `stacked`), deliberately NOT observed
     /// here: divider ticks re-evaluate only `StackedFilesPanelSplit`.
     /// `fileExplorerState.filesPanelStackedHeight` is the persisted value.
@@ -1776,6 +1776,10 @@ struct ContentView: View {
             sessionIndexStore: sessionIndexStore,
             featureFlags: featureFlags,
             isPresented: sidebarState.isVisible,
+            // While the tree is stacked above the list, the split draws the
+            // titlebar strip (`stackedSidebarTopChrome`) and the list starts
+            // under the divider instead of under the window controls.
+            hostsTitlebarChrome: !filesPanelIsStacked,
             sidebarUnread: sidebarUnread,
             titlebarControlsLayoutModel: titlebarControlsLayoutModel,
             windowId: windowId,
@@ -1805,16 +1809,18 @@ struct ContentView: View {
         }
         return Group {
             if filesPanelPlacement == .stacked {
-                // `sidebar.filesPanelPlacement` = `stacked`: the workspace list
-                // on top, the file tree below it, split by a draggable
-                // horizontal divider (`FilesPanelStackedLayout`). The split
-                // hosts the gated sidebar value as-is, so the gate still skips
-                // parent-driven re-evaluations of the list, and it stays
-                // mounted while the region is closed or the sidebar hidden so
-                // the list keeps its identity; only the placement swaps it.
+                // `sidebar.filesPanelPlacement` = `stacked`: the sidebar's
+                // titlebar strip on top, the file tree under it, then the
+                // workspace list, split by a draggable horizontal divider
+                // (`FilesPanelStackedLayout`). The split hosts the gated
+                // sidebar value as-is, so the gate still skips parent-driven
+                // re-evaluations of the list, and it stays mounted while the
+                // region is closed or the sidebar hidden so the list keeps
+                // its identity; only the placement swaps it.
                 StackedFilesPanelSplit(
                     layout: stackedFilesPanelLayout,
                     showsPanel: filesPanelIsStacked,
+                    topChromeHeight: MinimalModeChromeMetrics.titlebarHeight,
                     chromeBackgroundColor: appearance.resolvedChromeBackgroundColor,
                     onHeightCommitted: { height in
                         // The persisted value is observed by this body, so an
@@ -1822,8 +1828,9 @@ struct ContentView: View {
                         guard fileExplorerState.filesPanelStackedHeight != height else { return }
                         fileExplorerState.filesPanelStackedHeight = height
                     },
-                    list: gatedSidebar,
-                    panel: stackedFilesPanel(appearance: appearance)
+                    topChrome: stackedSidebarTopChrome(),
+                    panel: stackedFilesPanel(appearance: appearance),
+                    list: gatedSidebar
                 )
             } else {
                 gatedSidebar
@@ -1999,7 +2006,7 @@ struct ContentView: View {
         )
     }
 
-    /// Whether the file tree is laid out under the workspace list inside the
+    /// Whether the file tree is laid out above the workspace list inside the
     /// workspace sidebar: `sidebar.filesPanelPlacement` is `stacked`, the
     /// user has not closed it, and the sidebar that hosts it is shown.
     private var filesPanelIsStacked: Bool {
@@ -2201,12 +2208,39 @@ struct ContentView: View {
         )
     }
 
-    /// The file tree stacked under the workspace list. It fills the sidebar's
+    /// The sidebar's titlebar strip while the tree is stacked: the same
+    /// draggable band and minimal-mode toolbar buttons `VerticalTabsSidebar`
+    /// draws over its list when it hosts the chrome itself, placed above the
+    /// Files region by `StackedFilesPanelSplit` so the tree starts under the
+    /// window controls instead of behind them.
+    private func stackedSidebarTopChrome() -> some View {
+        let topPadding = observedWindow.map { minimalModeSidebarTitlebarControlsTopInset(in: $0) }
+            ?? MinimalModeSidebarTitlebarControlsMetrics.topInset
+        return SidebarTitlebarChromeStrip(
+            height: MinimalModeChromeMetrics.titlebarHeight,
+            controls: .workspaceSidebar(
+                unreadModel: sidebarUnread,
+                layoutModel: titlebarControlsLayoutModel,
+                leadingInset: CGFloat(titlebarDebugChromeSnapshot.leftControlsLeadingInset),
+                topPadding: topPadding,
+                tabManager: tabManager,
+                onToggleSidebar: { sidebarState.toggle() },
+                onNewTab: {
+                    AppDelegate.shared?.performNewWorkspaceAction(
+                        tabManager: tabManager,
+                        debugSource: "titlebar.hiddenNewWorkspace"
+                    )
+                }
+            )
+        )
+    }
+
+    /// The file tree stacked above the workspace list. It fills the sidebar's
     /// width; `StackedFilesPanelSplit` applies the height. The header never
-    /// sits under the window controls here (the workspace list is above it),
-    /// so it stays in one row. The live height is reconciled with the persisted
-    /// value by the same `PersistedPanelDimensionReconciler` as the leading
-    /// panel's width.
+    /// sits under the window controls here (the sidebar's titlebar strip is
+    /// above it), so it stays in one row. The live height is reconciled with
+    /// the persisted value by the same `PersistedPanelDimensionReconciler` as
+    /// the leading panel's width.
     private func stackedFilesPanel(appearance: WindowAppearanceSnapshot) -> some View {
         filesPanelContent(appearance: appearance, headerBelowTitlebarStrip: false)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -11645,6 +11679,7 @@ struct VerticalTabsSidebar: View, Equatable {
             && lhs.sidebarUnread === rhs.sidebarUnread
             && lhs.titlebarControlsLayoutModel === rhs.titlebarControlsLayoutModel
             && lhs.isPresented == rhs.isPresented
+            && lhs.hostsTitlebarChrome == rhs.hostsTitlebarChrome
             && lhs.chromeBackgroundColor.isEqual(rhs.chromeBackgroundColor)
     }
 
@@ -11653,6 +11688,12 @@ struct VerticalTabsSidebar: View, Equatable {
     let sessionIndexStore: SessionIndexStore
     var featureFlags: CmuxFeatureFlags = .shared
     var isPresented: Bool = true
+    /// Whether this view draws the titlebar strip (the draggable band under
+    /// the window controls and the minimal-mode toolbar buttons) over the top
+    /// of its list, with the list's first row inset below it. False while the
+    /// Files region is stacked above the list: `StackedFilesPanelSplit` then
+    /// shows the strip above the tree and the list starts under the divider.
+    var hostsTitlebarChrome: Bool = true
     let sidebarUnread: SidebarUnreadModel
     let titlebarControlsLayoutModel: TitlebarControlsLayoutModel
     let windowId: UUID
@@ -11967,7 +12008,14 @@ struct VerticalTabsSidebar: View, Equatable {
     }
 
     private var sidebarTopScrimHeight: CGFloat {
-        SidebarWorkspaceListMetrics.topScrimHeight
+        hostsTitlebarChrome
+            ? SidebarWorkspaceListMetrics.topScrimHeight
+            : SidebarWorkspaceListMetrics.detachedTopScrimHeight
+    }
+
+    /// The strips above the first and below the last workspace row.
+    private var workspaceScrollInsets: SidebarWorkspaceScrollInsets {
+        .workspaceList(hostsTitlebarChrome: hostsTitlebarChrome)
     }
 
     private var sidebarBottomScrimHeight: CGFloat {
@@ -12006,29 +12054,14 @@ struct VerticalTabsSidebar: View, Equatable {
     }
 
     private func minimalModeSidebarTitlebarControlsOverlay() -> some View {
-        MinimalModeSidebarTitlebarControlsOverlay(
+        MinimalModeSidebarTitlebarControlsOverlay.workspaceSidebar(
             unreadModel: sidebarUnread,
             layoutModel: titlebarControlsLayoutModel,
             leadingInset: CGFloat(titlebarDebugChromeSnapshot.leftControlsLeadingInset),
             topPadding: minimalModeSidebarTitlebarControlsTopPadding,
+            tabManager: tabManager,
             onToggleSidebar: onToggleSidebar,
-            onToggleNotifications: { anchorView in
-                AppDelegate.shared?.toggleNotificationsPopover(
-                    animated: true,
-                    anchorView: anchorView
-                )
-            },
-            onNewTab: onNewTab,
-            onFocusHistoryBack: {
-                if !tabManager.navigateBack() {
-                    NSSound.beep()
-                }
-            },
-            onFocusHistoryForward: {
-                if !tabManager.navigateForward() {
-                    NSSound.beep()
-                }
-            }
+            onNewTab: onNewTab
         )
     }
 
@@ -12431,7 +12464,7 @@ struct VerticalTabsSidebar: View, Equatable {
         renderContext: WorkspaceListRenderContext,
         unreadSnapshot: SidebarUnreadSnapshot
     ) -> some View {
-        let scrollInsets = SidebarWorkspaceScrollInsets.workspaceList
+        let scrollInsets = workspaceScrollInsets
         return GeometryReader { viewport in
             // Keep viewport geometry as a downward-only layout input. Writing
             // this value into @State from onGeometryChange feeds an
@@ -12474,12 +12507,14 @@ struct VerticalTabsSidebar: View, Equatable {
             .overlay(alignment: .top) {
                 // The sidebar top strip remains draggable and handles
                 // double-clicks with the standard titlebar action.
-                WindowDragHandleView()
-                    .frame(height: sidebarTitlebarInteractionHeight)
-                    .background(TitlebarDoubleClickMonitorView())
+                if hostsTitlebarChrome {
+                    WindowDragHandleView()
+                        .frame(height: sidebarTitlebarInteractionHeight)
+                        .background(TitlebarDoubleClickMonitorView())
+                }
             }
             .overlay(alignment: .topLeading) {
-                minimalModeSidebarTitlebarControlsOverlay()
+                if hostsTitlebarChrome { minimalModeSidebarTitlebarControlsOverlay() }
             }
             .overlay(alignment: .top) {
                 workspaceReorderDropOverlay(
@@ -12663,6 +12698,7 @@ struct VerticalTabsSidebar: View, Equatable {
             selectedScrollTargetWorkspaceId: selectedScrollTargetWorkspaceId,
             isPresented: isPresented,
             unreadSource: sidebarUnread,
+            scrollInsets: workspaceScrollInsets,
             onDeferredClickAwaitingApply: { appKitTableApplyRequestToken &+= 1 }
         )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -12673,7 +12709,7 @@ struct VerticalTabsSidebar: View, Equatable {
                 )
             )
             .overlay(alignment: .top) {
-                if isPresented {
+                if isPresented, hostsTitlebarChrome {
                     // The sidebar top strip remains draggable and handles
                     // double-clicks with the standard titlebar action.
                     WindowDragHandleView()
@@ -12682,7 +12718,7 @@ struct VerticalTabsSidebar: View, Equatable {
                 }
             }
             .overlay(alignment: .topLeading) {
-                if isPresented { minimalModeSidebarTitlebarControlsOverlay() }
+                if isPresented, hostsTitlebarChrome { minimalModeSidebarTitlebarControlsOverlay() }
             }
             .background(Color.clear)
             .onChange(of: selectedWorkspaceId) { _, _ in
@@ -13252,7 +13288,8 @@ struct VerticalTabsSidebar: View, Equatable {
                 actionHandler: { handleCMUXSidebarExtensionAction($0) },
                 onUseDefaultSidebar: {
                     CmuxExtensionSidebarSelection.setProviderId(CmuxSidebarProviderDescriptor.defaultWorkspacesID)
-                }
+                },
+                topInset: workspaceScrollInsets.top
             )
             .onReceive(extensionSidebarImmediateObservationPublisher) { _ in
                 refreshExtensionSidebarSnapshot()
@@ -13297,8 +13334,8 @@ struct VerticalTabsSidebar: View, Equatable {
                         ),
                         dispatch: makeCmuxSidebarActionDispatch(),
                         contentInsets: CustomSidebarContentInsets(
-                            top: SidebarWorkspaceScrollInsets.workspaceList.top,
-                            bottom: SidebarWorkspaceScrollInsets.workspaceList.bottom
+                            top: workspaceScrollInsets.top,
+                            bottom: workspaceScrollInsets.bottom
                         ),
                         rendersInProcess: inMemoryTemplatePreview != nil || customSidebarRenderer == .inProcess,
                         client: $sidebarRenderWorkerClient

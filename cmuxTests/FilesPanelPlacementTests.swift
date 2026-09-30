@@ -148,23 +148,49 @@ final class FilesPanelPlacementTests: XCTestCase {
         for placement in [FilesPanelPlacement.rightSidebar, .leading] {
             XCTAssertFalse(
                 FilesPanelStackedLayout.isStacked(placement: placement, isFilesPanelVisible: true, isLeadingSidebarVisible: true),
-                "\(placement) never stacks the tree under the list"
+                "\(placement) never stacks the tree above the list"
             )
         }
     }
 
-    func testDraggingTheStackedDividerDownShrinksTheTree() {
-        // The tree is below the divider: a downward drag grows the list.
+    func testDraggingTheStackedDividerDownGrowsTheTree() {
+        // The tree is above the divider: a downward drag grows the tree and
+        // shrinks the list; an upward drag does the opposite.
         XCTAssertEqual(
             FilesPanelStackedLayout.draggedHeight(startHeight: 320, translation: 40),
-            280,
+            360,
             accuracy: 0.001
         )
         XCTAssertEqual(
             FilesPanelStackedLayout.draggedHeight(startHeight: 320, translation: -40),
-            360,
+            280,
             accuracy: 0.001
         )
+    }
+
+    func testStackedRegionsExcludeTheTitlebarStripAboveTheTree() {
+        // The sidebar's titlebar strip (window controls, toolbar buttons) sits
+        // above the tree and belongs to neither region, so the two share the
+        // sidebar height minus that strip.
+        XCTAssertEqual(
+            FilesPanelStackedLayout.regionsHeight(sidebarHeight: 800, topChromeHeight: 38),
+            762,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            FilesPanelStackedLayout.regionsHeight(sidebarHeight: 20, topChromeHeight: 38),
+            0,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            FilesPanelStackedLayout.regionsHeight(sidebarHeight: 800, topChromeHeight: -5),
+            800,
+            accuracy: 0.001
+        )
+        // An unmeasured sidebar stays unmeasured, so `clampedHeight` keeps
+        // applying only the tree's floor.
+        XCTAssertTrue(FilesPanelStackedLayout.regionsHeight(sidebarHeight: .infinity, topChromeHeight: 38).isInfinite)
+        XCTAssertTrue(FilesPanelStackedLayout.regionsHeight(sidebarHeight: .nan, topChromeHeight: 38).isNaN)
     }
 
     func testStackedHeightKeepsBothRegionsUsable() {
@@ -172,7 +198,7 @@ final class FilesPanelPlacementTests: XCTestCase {
         XCTAssertEqual(FilesPanelStackedLayout.minimumListHeight, 120)
         XCTAssertEqual(FilesPanelStackedLayout.minimumTreeHeight, 160)
         // Inside the window: the tree never drops under its floor, and the
-        // list always keeps its minimum above the divider.
+        // list always keeps its minimum below the divider.
         XCTAssertEqual(FilesPanelStackedLayout.clampedHeight(90, availableHeight: 800), 160, accuracy: 0.001)
         XCTAssertEqual(FilesPanelStackedLayout.clampedHeight(750, availableHeight: 800), 680, accuracy: 0.001)
         XCTAssertEqual(FilesPanelStackedLayout.clampedHeight(333, availableHeight: 800), 333, accuracy: 0.001)
@@ -201,9 +227,10 @@ final class FilesPanelPlacementTests: XCTestCase {
     }
 
     func testStackedPlacementCedesNoLeadingTitlebarStripAndKeepsTheHeaderInOneRow() {
-        // Nothing new sits under the window controls: the workspace list is
-        // above the tree, so the band behaves exactly as with the right-sidebar
-        // placement and the panel header never needs its own row.
+        // Nothing new sits under the window controls: the sidebar's own
+        // titlebar strip stays above the tree, so the band behaves exactly as
+        // with the right-sidebar placement and the panel header never needs
+        // its own row.
         for filesPanelVisible in [true, false] {
             let insets = FilesPanelPlacementLayout.titlebarBandInsets(
                 placement: .stacked,

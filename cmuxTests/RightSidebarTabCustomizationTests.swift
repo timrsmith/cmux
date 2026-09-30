@@ -317,7 +317,7 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
         XCTAssertEqual(
             RightSidebarMode.visibleModes(defaults: defaults),
             [.find, .sessions, .feed, .dock, .machines, .changes],
-            "the tree under the workspace list is not a right-sidebar tab"
+            "the tree above the workspace list is not a right-sidebar tab"
         )
         XCTAssertEqual(
             RightSidebarMode.positionalShortcutModes(defaults: defaults),

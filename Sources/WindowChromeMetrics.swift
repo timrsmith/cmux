@@ -94,6 +94,12 @@ enum SidebarWorkspaceListMetrics {
     static var scrollTopInset: CGFloat {
         max(0, firstRowTopOffset - rowVerticalPadding)
     }
+
+    /// The top fade of the list when it does not draw the titlebar strip
+    /// (stacked under the Files region): only the padding gap above the first
+    /// row, so a row scrolled up to the divider fades out over that gap while
+    /// the resting first row stays fully opaque.
+    static let detachedTopScrimHeight: CGFloat = rowVerticalPadding
 }
 
 struct SidebarWorkspaceScrollInsets: Equatable {
@@ -101,6 +107,21 @@ struct SidebarWorkspaceScrollInsets: Equatable {
         top: SidebarWorkspaceListMetrics.scrollTopInset,
         bottom: SidebarWorkspaceListMetrics.bottomScrimHeight
     )
+
+    /// The workspace list stacked under the Files region
+    /// (`sidebar.filesPanelPlacement` = `stacked`): the titlebar strip is
+    /// drawn above the tree, so the list starts right under the divider and
+    /// only its row padding separates the first row from it.
+    static let workspaceListBelowStackedFiles = SidebarWorkspaceScrollInsets(
+        top: 0,
+        bottom: SidebarWorkspaceListMetrics.bottomScrimHeight
+    )
+
+    /// The insets for a list that draws the titlebar strip over its top
+    /// (`hostsTitlebarChrome`) or sits under the stacked Files region.
+    static func workspaceList(hostsTitlebarChrome: Bool) -> SidebarWorkspaceScrollInsets {
+        hostsTitlebarChrome ? workspaceList : workspaceListBelowStackedFiles
+    }
 
     let top: CGFloat
     let bottom: CGFloat

@@ -7,7 +7,7 @@ public extension FilesPanelPlacement {
     /// identically.
     ///
     /// - Returns: A localized title such as "In Right Sidebar", "Left of
-    ///   Panes", or "Below Workspaces".
+    ///   Panes", or "Above Workspaces".
     var localizedTitle: String {
         switch self {
         case .rightSidebar:
@@ -15,7 +15,7 @@ public extension FilesPanelPlacement {
         case .leading:
             return String(localized: "settings.sidebar.filesPanelPlacement.leading", defaultValue: "Left of Panes")
         case .stacked:
-            return String(localized: "settings.sidebar.filesPanelPlacement.stacked", defaultValue: "Below Workspaces")
+            return String(localized: "settings.sidebar.filesPanelPlacement.stacked", defaultValue: "Above Workspaces")
         }
     }
 }
