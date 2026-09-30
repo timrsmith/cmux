@@ -81,30 +81,49 @@ function stopHeaderToggleKeys(event: React.KeyboardEvent): void {
 }
 
 /**
- * The card's selection checkbox, slotted after the fold chevron where the
- * library's file-type icon would sit (the code view's CSS hides that icon).
- * It mirrors the file list's row checkbox: both toggle
- * the same path in the App's selection, and neither navigates. A native
- * checkbox, so the header's own click handling is stopped at it.
+ * A selection checkbox as the viewer's standard icon button (the same shape
+ * as the fold chevron), with checkbox semantics: `role="checkbox"` and
+ * `aria-checked`, `"mixed"` for a select-all over a partial selection. The
+ * card's copy sits after the fold chevron where the library's file-type icon
+ * would sit (the code view's CSS hides that icon) and mirrors the file
+ * list's row checkbox: both toggle the same path in the App's selection, and
+ * neither navigates, so the header's own click handling is stopped at it.
+ * Space and Enter toggle it the way they activate any button.
  */
-export function FileSelectCheckbox({ checked, label, onToggle }: {
-  checked: boolean;
+export function FileSelectCheckbox({ checked, disabled, id, label, onToggle }: {
+  checked: boolean | "mixed";
+  disabled?: boolean;
+  id?: string;
   /** The accessible name, already naming the file ("Select story.txt"). */
   label: string;
   onToggle: () => void;
 }) {
+  const icon =
+    checked === "mixed"
+      ? "checkboxMixed"
+      : checked
+        ? "checkboxChecked"
+        : "checkboxEmpty";
   return (
-    <input
-      type="checkbox"
-      className="file-select-checkbox"
+    // A button, not an input: the viewer draws the state itself so it reads
+    // the same in every WebKit theme and under the hover pill.
+    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
+    <button type="button" role="checkbox"
+      id={id}
+      className="file-select-toggle"
+      aria-checked={checked}
       aria-label={label}
       title={label}
-      checked={checked}
-      onChange={onToggle}
-      onClick={stopHeaderPropagation}
+      disabled={disabled}
+      onClick={(event) => {
+        stopHeaderPropagation(event);
+        onToggle();
+      }}
       onPointerDown={stopHeaderPropagation}
       onKeyDown={stopHeaderToggleKeys}
-    />
+    >
+      <Icon name={icon} />
+    </button>
   );
 }
 

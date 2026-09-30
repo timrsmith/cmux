@@ -2401,21 +2401,13 @@ function FilesSidebar({
       <div id="files-header">
         <span id="files-title">
           {selectable ? (
-            <input
+            <FileSelectCheckbox
               id="files-select-all"
-              type="checkbox"
-              className="file-select-checkbox"
-              aria-label={label("selectAllFiles")}
-              title={label("selectAllFiles")}
-              checked={allState === "all"}
+              checked={allState === "all" ? true : allState === "some" ? "mixed" : false}
               disabled={visiblePaths.length === 0}
-              ref={(node) => {
-                if (node) {
-                  node.indeterminate = allState === "some";
-                }
-              }}
+              label={label("selectAllFiles")}
               // Unchecked selects everything visible; some or all selected clears.
-              onChange={() => dispatch({ type: "select-paths", paths: visiblePaths, selected: allState === "none" })}
+              onToggle={() => dispatch({ type: "select-paths", paths: visiblePaths, selected: allState === "none" })}
             />
           ) : null}
           <span>{label("files")}</span>

@@ -7,6 +7,9 @@ export type IconName =
   | "bars"
   | "branch"
   | "check"
+  | "checkboxChecked"
+  | "checkboxEmpty"
+  | "checkboxMixed"
   | "chevronDown"
   | "chevronUp"
   | "classic"
@@ -93,6 +96,15 @@ function StrokeIconPaths({ name }: { name: IconName }) {
     return <><path d="M5 4v12" /><path d="M9 6v8" /><path d="M13 8v4" /></>;
   case "branch":
     return <><circle cx="6" cy="5" r="2" /><circle cx="6" cy="15" r="2" /><circle cx="14" cy="7" r="2" /><path d="M6 7v6" /><path d="M14 9c0 3-8 2-8 4" /></>;
+  // The selection checkbox states, drawn with the file list lane's geometry
+  // (`file-tree-selection.ts`). A checked or mixed box fills its rect and
+  // draws the mark in the page color (`.file-select-toggle` styles the parts).
+  case "checkboxEmpty":
+    return <rect x="4" y="4" width="12" height="12" rx="2.5" />;
+  case "checkboxChecked":
+    return <><rect x="4" y="4" width="12" height="12" rx="2.5" data-checkbox-fill="true" /><path d="m7 10.2 2.2 2.2L13.3 8" data-checkbox-mark="true" /></>;
+  case "checkboxMixed":
+    return <><rect x="4" y="4" width="12" height="12" rx="2.5" data-checkbox-fill="true" /><path d="M7.2 10h5.6" data-checkbox-mark="true" /></>;
   case "open":
     return <><rect x="3.5" y="4" width="13" height="12" rx="2" /><path d="M8 4v12" /><path d="m11 8 2.5 2-2.5 2" /></>;
   case "pullRequest":
