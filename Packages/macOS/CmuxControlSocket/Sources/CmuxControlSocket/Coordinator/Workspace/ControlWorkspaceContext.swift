@@ -68,15 +68,18 @@ public protocol ControlWorkspaceContext: AnyObject {
     ) -> ControlWorkspaceRoutedResolution
 
     /// Closes a workspace for `workspace.close`, honoring the pinned-protection
-    /// guard.
+    /// guard and, unless `force`, refusing when an editor would lose unsaved
+    /// edits.
     ///
     /// - Parameters:
     ///   - routing: The routing selectors used for TabManager resolution.
     ///   - workspaceID: The workspace to close.
+    ///   - force: Whether to discard unsaved edits instead of refusing.
     /// - Returns: The close resolution.
     func controlCloseWorkspace(
         routing: ControlRoutingSelectors,
-        workspaceID: UUID
+        workspaceID: UUID,
+        force: Bool
     ) -> ControlWorkspaceCloseResolution
 
     /// Moves a workspace to another window for `workspace.move_to_window`.

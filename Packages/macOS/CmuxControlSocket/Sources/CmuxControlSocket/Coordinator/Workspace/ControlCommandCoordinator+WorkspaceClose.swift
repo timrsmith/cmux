@@ -1,7 +1,8 @@
 internal import Foundation
 
 extension ControlCommandCoordinator {
-    /// `workspace.close` — close a workspace by id.
+    /// `workspace.close` — close a workspace by id. A workspace holding an
+    /// editor with unsaved edits is refused unless `force` is passed.
     func workspaceClose(_ params: [String: JSONValue]) -> ControlCallResult {
         let routing = routingSelectors(params)
         // Legacy resolved the TabManager BEFORE param validation, so unresolvable
@@ -14,7 +15,8 @@ extension ControlCommandCoordinator {
         }
         let resolution = context?.controlCloseWorkspace(
             routing: routing,
-            workspaceID: workspaceID
+            workspaceID: workspaceID,
+            force: bool(params, "force") ?? false
         ) ?? .tabManagerUnavailable
         switch resolution {
         case .tabManagerUnavailable:
@@ -41,6 +43,13 @@ extension ControlCommandCoordinator {
                 "workspace_id": .string(workspaceID.uuidString),
                 "workspace_ref": ref(.workspace, workspaceID),
             ]))
+        case .unsavedChanges(let windowID, let refusal):
+            return refusal.errorResult([
+                "window_id": orNull(windowID?.uuidString),
+                "window_ref": ref(.window, windowID),
+                "workspace_id": .string(workspaceID.uuidString),
+                "workspace_ref": ref(.workspace, workspaceID),
+            ])
         case .resolved(let windowID):
             return .ok(.object([
                 "window_id": orNull(windowID?.uuidString),

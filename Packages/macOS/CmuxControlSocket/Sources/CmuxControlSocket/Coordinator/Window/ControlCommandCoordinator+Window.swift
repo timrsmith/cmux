@@ -151,14 +151,22 @@ extension ControlCommandCoordinator {
         guard let windowID = uuid(params, "window_id") else {
             return .err(code: "invalid_params", message: "Missing or invalid window_id", data: nil)
         }
-        let ok = context?.controlCloseWindow(id: windowID) ?? false
-        let identity: JSONValue = .object([
+        let resolution = context?.controlCloseWindow(
+            id: windowID,
+            force: bool(params, "force") ?? false
+        ) ?? .notFound
+        let identity: [String: JSONValue] = [
             "window_id": .string(windowID.uuidString),
             "window_ref": ref(.window, windowID),
-        ])
-        return ok
-            ? .ok(identity)
-            : .err(code: "not_found", message: "Window not found", data: identity)
+        ]
+        switch resolution {
+        case .closed:
+            return .ok(.object(identity))
+        case .notFound:
+            return .err(code: "not_found", message: "Window not found", data: .object(identity))
+        case .unsavedChanges(let refusal):
+            return refusal.errorResult(identity)
+        }
     }
 
     /// `window.displays` — every connected display.

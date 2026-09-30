@@ -96,6 +96,9 @@ public enum ControlTabActionResolution: Sendable, Equatable {
     case createFailed
     /// Browser duplication failed.
     case duplicateFailed
+    /// A batch close (`close_left` / `close_right` / `close_others`) would
+    /// discard an editor's unsaved edits; nothing was closed.
+    case unsavedChanges(ControlUnsavedChangesRefusal)
     /// A fully-shaped result bridged from the still-app-side
     /// move-to-new-workspace family (`move_to_new_workspace` /
     /// `detach_to_workspace` / `detach_to_new_workspace`).

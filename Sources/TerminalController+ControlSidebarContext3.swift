@@ -316,7 +316,12 @@ extension TerminalController {
             return .lastSurface
         }
 
-        // Socket commands must be non-interactive: bypass close-confirmation gating.
+        // Socket commands are non-interactive: no close-confirmation prompt, and
+        // no unsaved-changes prompt. Unsaved edits refuse instead (this legacy
+        // verb has no force flag; `close-surface --force` discards them).
+        if let refusal = tab.unsavedChangesRefusal(forClosingPanel: targetSurfaceId) {
+            return .unsavedChanges(refusal.controlRefusal)
+        }
         guard controlSidebarCloseSurfaceRecordingHistory(in: tab, surfaceId: targetSurfaceId, force: true) else {
             return .closeFailed
         }

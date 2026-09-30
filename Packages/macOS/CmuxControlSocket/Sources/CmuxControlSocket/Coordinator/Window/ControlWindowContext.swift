@@ -35,11 +35,14 @@ public protocol ControlWindowContext: AnyObject {
     /// - Returns: The new window's id, or `nil` if creation failed.
     func controlCreateWindowAndActivate() -> UUID?
 
-    /// Closes the window with the given id for `window.close`.
+    /// Closes the window with the given id for `window.close`, refusing unless
+    /// `force` when an editor in it would lose unsaved edits.
     ///
-    /// - Parameter id: The window to close.
-    /// - Returns: Whether a matching window was found and closed.
-    func controlCloseWindow(id: UUID) -> Bool
+    /// - Parameters:
+    ///   - id: The window to close.
+    ///   - force: Whether to discard unsaved edits instead of refusing.
+    /// - Returns: The close resolution.
+    func controlCloseWindow(id: UUID, force: Bool) -> ControlWindowCloseResolution
 
     /// Snapshots every connected display for `window.displays`, in screen order.
     func controlAvailableDisplays() -> [ControlDisplayInfo]

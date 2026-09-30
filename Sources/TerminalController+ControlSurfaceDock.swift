@@ -350,7 +350,8 @@ extension TerminalController {
         routing: ControlRoutingSelectors,
         surfaceID: UUID?,
         hasSurfaceIDParam: Bool,
-        tabManager: TabManager
+        tabManager: TabManager,
+        force: Bool
     ) -> ControlSurfaceCloseResolution? {
         guard let windowDock = windowDockForRouting(routing, tabManager: tabManager) else { return nil }
         let resolved = resolvedWindowDockSurfaceId(
@@ -367,6 +368,11 @@ extension TerminalController {
         }
         guard windowDock.containsPanel(surfaceId) else {
             return .closeFailed(surfaceId)
+        }
+        if !force,
+           let panel = windowDock.panels[surfaceId],
+           let refusal = windowDock.unsavedChangesCloseConfirmation.refusal(forClosing: [panel]) {
+            return .unsavedChanges(surfaceID: surfaceId, refusal: refusal.controlRefusal)
         }
         guard windowDock.closePanel(surfaceId, force: true) else {
             return .closeFailed(surfaceId)

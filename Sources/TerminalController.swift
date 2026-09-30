@@ -5018,8 +5018,21 @@ class TerminalController {
 
             let windowId = v2ResolveWindowId(tabManager: tabManager)
 
+            /// Closes every candidate but the acted-on workspace. A batch that
+            /// would discard an editor's unsaved edits is refused whole (there is
+            /// no force flag on workspace actions): `result` carries the error
+            /// and `nil` comes back.
             @MainActor
-            func closeWorkspaces(_ workspaces: [Workspace]) -> Int {
+            func closeWorkspaces(_ workspaces: [Workspace]) -> Int? {
+                let closing = workspaces.filter { $0.id != workspace.id }
+                if let refusal = tabManager.unsavedChangesRefusal(forClosing: closing) {
+                    result = refusal.v2Error(message: refusal.commandLineMessage, identity: [
+                        "action": action,
+                        "workspace_id": workspace.id.uuidString,
+                        "workspace_ref": v2Ref(kind: .workspace, uuid: workspace.id),
+                    ])
+                    return nil
+                }
                 var closed = 0
                 // Drain non-anchor members before group anchors so a range close
                 // that targets a group promotes at most once per group instead of
@@ -5100,7 +5113,7 @@ class TerminalController {
 
             case "close_others":
                 let candidates = tabManager.tabs.filter { $0.id != workspace.id && !$0.isPinned }
-                let closed = closeWorkspaces(candidates)
+                guard let closed = closeWorkspaces(candidates) else { return }
                 finish(["closed": closed])
 
             case "close_above":
@@ -5109,7 +5122,7 @@ class TerminalController {
                     return
                 }
                 let candidates = Array(tabManager.tabs.prefix(index)).filter { !$0.isPinned }
-                let closed = closeWorkspaces(candidates)
+                guard let closed = closeWorkspaces(candidates) else { return }
                 finish(["closed": closed])
 
             case "close_below":
@@ -5123,7 +5136,7 @@ class TerminalController {
                 } else {
                     candidates = []
                 }
-                let closed = closeWorkspaces(candidates)
+                guard let closed = closeWorkspaces(candidates) else { return }
                 finish(["closed": closed])
 
             case "mark_read":
@@ -12774,11 +12787,22 @@ class TerminalController {
         return "OK \(Int(size.width)) \(Int(size.height))"
     }
 
+    /// Legacy `close_window <id> [force]`: without `force`, a window holding
+    /// an editor with unsaved edits is refused (`cmux close-window --force`
+    /// appends the token).
     private func closeWindow(_ arg: String) -> String {
-        let trimmed = arg.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let windowId = UUID(uuidString: trimmed) else { return "ERROR: Invalid window id" }
-        let ok = v2MainSync { AppDelegate.shared?.closeMainWindow(windowId: windowId) ?? false }
-        return ok ? "OK" : "ERROR: Window not found"
+        let parts = arg.split(separator: " ").map(String.init)
+        guard let first = parts.first, let windowId = UUID(uuidString: first) else { return "ERROR: Invalid window id" }
+        let force = parts.dropFirst().contains("force")
+        let resolution = v2MainSync { controlCloseWindow(id: windowId, force: force) }
+        switch resolution {
+        case .closed:
+            return "OK"
+        case .notFound:
+            return "ERROR: Window not found"
+        case .unsavedChanges(let refusal):
+            return "ERROR: \(refusal.message)"
+        }
     }
 
     private func moveWorkspaceToWindow(_ args: String) -> String {
@@ -14096,8 +14120,17 @@ class TerminalController {
                     result = "ERROR: \(workspaceCloseProtectedMessage())"
                     return
                 }
-                let closeFailure = String(localized: "cli.socket.error.workspaceNotClosed", defaultValue: "Workspace not closed")
-                result = tabManager.closeWorkspaceNonInteractively(tab) ? "OK" : "ERROR: \(closeFailure)"
+                // The legacy verb has no force flag: unsaved edits refuse the
+                // close; `workspace.close` with `force` discards them.
+                switch tabManager.closeWorkspaceNonInteractively(tab, force: false) {
+                case .closed:
+                    result = "OK"
+                case .refused(let refusal):
+                    result = "ERROR: \(refusal.commandLineMessage)"
+                case .failed:
+                    let closeFailure = String(localized: "cli.socket.error.workspaceNotClosed", defaultValue: "Workspace not closed")
+                    result = "ERROR: \(closeFailure)"
+                }
             }
         }
         return result

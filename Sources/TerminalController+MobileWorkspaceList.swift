@@ -353,6 +353,18 @@ extension TerminalController {
                 )
                 return
             }
+            // The phone cannot answer the Save / Don't Save prompt, so a
+            // workspace holding an editor with unsaved edits is refused the same
+            // way a pinned one is; the row's error names the file.
+            if let refusal = tabManager.unsavedChangesRefusal(forClosing: [workspace]) {
+                result = refusal.v2Error(message: refusal.message, identity: [
+                    "workspace_id": workspaceID.uuidString,
+                    "workspace_ref": v2Ref(kind: .workspace, uuid: workspaceID),
+                    "window_id": v2OrNull(windowID?.uuidString),
+                    "window_ref": v2Ref(kind: .window, uuid: windowID),
+                ])
+                return
+            }
             tabManager.closeWorkspace(workspace)
             result = .ok([
                 "closed": true,

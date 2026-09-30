@@ -256,6 +256,8 @@ extension ControlCommandCoordinator {
             return "ERROR: Surface not found"
         case .lastSurface:
             return "ERROR: Cannot close the last surface"
+        case .unsavedChanges(let refusal):
+            return "ERROR: \(refusal.message)"
         case .closed:
             return "OK"
         }

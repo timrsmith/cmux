@@ -77,8 +77,17 @@ extension TerminalController: ControlWindowContext {
         return windowId
     }
 
-    func controlCloseWindow(id: UUID) -> Bool {
-        AppDelegate.shared?.closeMainWindow(windowId: id) ?? false
+    func controlCloseWindow(id: UUID, force: Bool) -> ControlWindowCloseResolution {
+        guard let appDelegate = AppDelegate.shared else { return .notFound }
+        // Closing the window closes every workspace in it, its Docks and the
+        // window Dock; unless forced, an editor with unsaved edits anywhere in
+        // there refuses the whole close.
+        if !force,
+           let tabManager = appDelegate.tabManagerFor(windowId: id),
+           let refusal = tabManager.unsavedChangesRefusal(forClosing: tabManager.tabs) {
+            return .unsavedChanges(refusal.controlRefusal)
+        }
+        return appDelegate.closeMainWindow(windowId: id) ? .closed : .notFound
     }
 
     func controlAvailableDisplays() -> [ControlDisplayInfo] {

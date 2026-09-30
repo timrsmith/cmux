@@ -13,6 +13,33 @@ extension Workspace {
         Array(panels.values) + (_dockSplit.map { Array($0.panels.values) } ?? [])
     }
 
+    /// The refusal a non-interactive close of the main or Dock panels `panelIds`
+    /// must return, or `nil` when none of them holds unsaved edits. Ids that
+    /// match no panel are ignored.
+    func unsavedChangesRefusal(forClosingPanels panelIds: [UUID]) -> UnsavedChangesCloseRefusal? {
+        let candidates = panelIds.compactMap { panels[$0] ?? _dockSplit?.panels[$0] }
+        return unsavedChangesCloseConfirmation.refusal(forClosing: candidates)
+    }
+
+    /// Single-panel form of ``unsavedChangesRefusal(forClosingPanels:)``.
+    func unsavedChangesRefusal(forClosingPanel panelId: UUID) -> UnsavedChangesCloseRefusal? {
+        unsavedChangesRefusal(forClosingPanels: [panelId])
+    }
+
+    /// The automation form of ``requestNonInteractiveCloseTabRecordingHistory(_:)``:
+    /// refuses instead of discarding an editor's unsaved edits unless `force`.
+    func requestNonInteractiveCloseTabRecordingHistory(
+        _ tabId: TabID,
+        force: Bool
+    ) -> NonInteractiveCloseOutcome {
+        if !force,
+           let panelId = panelIdFromSurfaceId(tabId),
+           let refusal = unsavedChangesRefusal(forClosingPanel: panelId) {
+            return .refused(refusal)
+        }
+        return requestNonInteractiveCloseTabRecordingHistory(tabId) ? .closed : .failed
+    }
+
     private static let structuredAgentHookStatusKeys = AgentHibernationLifecycleStatusKeys.allowedStatusKeys
     private static let managedSubagentEnvironmentKey = "CMUX_AGENT_MANAGED_SUBAGENT"
     private static let truthyStartupEnvironmentValues: Set<String> = ["1", "true", "yes", "on", "enabled"]

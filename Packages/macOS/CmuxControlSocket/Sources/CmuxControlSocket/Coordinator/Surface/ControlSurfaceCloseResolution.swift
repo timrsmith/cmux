@@ -4,7 +4,9 @@ public import Foundation
 /// and the closed identity.
 ///
 /// The coordinator signals `unavailable`; the app resolves the workspace and
-/// surface, force-closes it (the socket API is non-interactive), and returns this.
+/// surface, closes it without any interactive prompt (refusing with
+/// ``unsavedChanges(surfaceID:refusal:)`` when edits would be lost and `force`
+/// was not passed), and returns this.
 public enum ControlSurfaceCloseResolution: Sendable, Equatable {
     /// No TabManager resolved (legacy `unavailable` / "TabManager not available").
     case tabManagerUnavailable
@@ -25,6 +27,9 @@ public enum ControlSurfaceCloseResolution: Sendable, Equatable {
     /// The close call failed (legacy `internal_error` / "Failed to close surface",
     /// `data: {"surface_id": …}`). Carries the surface id.
     case closeFailed(UUID)
+    /// The surface is an editor with unsaved edits and `force` was not passed;
+    /// nothing was closed.
+    case unsavedChanges(surfaceID: UUID, refusal: ControlUnsavedChangesRefusal)
     /// The surface was closed. Carries the echoed identity.
     case closed(windowID: UUID?, workspaceID: UUID, surfaceID: UUID)
 }

@@ -12,4 +12,7 @@ public enum ControlSidebarCloseSurfaceResolution: Sendable, Equatable {
     case closed
     /// The close call returned failure.
     case closeFailed
+    /// Refused: the surface is an editor with unsaved edits (the legacy command
+    /// has no force flag).
+    case unsavedChanges(ControlUnsavedChangesRefusal)
 }

@@ -38,6 +38,9 @@ import Testing
         #expect(filter.isExpectedCLIProtocolOutcomeCode("invalid_params"))
         #expect(filter.isExpectedCLIProtocolOutcomeCode(" not_found "))
         #expect(filter.isExpectedCLIProtocolOutcomeCode("protected"))
+        // A close the app refused because an editor has unsaved changes is the
+        // caller's cue to save or pass --force, not an app failure.
+        #expect(filter.isExpectedCLIProtocolOutcomeCode("unsaved_changes"))
         // A terminal that is hibernated or still starting has no readable
         // text; that is routine surface state (Sentry CMUXTERM-MACOS-3JFD).
         #expect(filter.isExpectedCLIProtocolOutcomeCode("surface_unavailable"))

@@ -625,7 +625,8 @@ extension ControlCommandCoordinator {
 
     // MARK: - close
 
-    /// `surface.close` — force-close a surface.
+    /// `surface.close` — close a surface without any interactive prompt. An
+    /// editor with unsaved edits is refused unless `force` is passed.
     func surfaceClose(_ params: [String: JSONValue]) -> ControlCallResult {
         let routing = routingSelectors(params)
         guard let context, context.controlSurfaceRoutingResolvesTabManager(routing: routing) else {
@@ -644,7 +645,8 @@ extension ControlCommandCoordinator {
         let resolution = context.controlSurfaceClose(
             routing: routing,
             surfaceID: surfaceID,
-            hasSurfaceIDParam: hasSurfaceIDParam
+            hasSurfaceIDParam: hasSurfaceIDParam,
+            force: bool(params, "force") ?? false
         )
         switch resolution {
         case .tabManagerUnavailable:
@@ -669,6 +671,11 @@ extension ControlCommandCoordinator {
                 message: "Failed to close surface",
                 data: .object(["surface_id": .string(id.uuidString)])
             )
+        case .unsavedChanges(let id, let refusal):
+            return refusal.errorResult([
+                "surface_id": .string(id.uuidString),
+                "surface_ref": targetSurfaceRef.map(JSONValue.string) ?? ref(.surface, id),
+            ])
         case .closed(let windowID, let workspaceID, let closedSurfaceID):
             let closedSurfaceRef = closedSurfaceID == targetSurfaceID ? targetSurfaceRef.map(JSONValue.string) : nil
             return .ok(.object([

@@ -45,7 +45,7 @@ final class FakeSurfaceControlCommandContext: ControlCommandContext {
     }
     func controlFocusWindow(id: UUID) -> Bool { false }
     func controlCreateWindowAndActivate() -> UUID? { nil }
-    func controlCloseWindow(id: UUID) -> Bool { false }
+    func controlCloseWindow(id: UUID, force: Bool) -> ControlWindowCloseResolution { .notFound }
     func controlAvailableDisplays() -> [ControlDisplayInfo] { [] }
     func controlWindowExists(id: UUID) -> Bool { false }
     func controlMoveWindow(id: UUID, toDisplayMatching query: String) -> String? { nil }
@@ -54,11 +54,14 @@ final class FakeSurfaceControlCommandContext: ControlCommandContext {
     func controlSurfaceList(routing: ControlRoutingSelectors) -> ControlSurfaceListSnapshot? {
         surfaceListSnapshot
     }
+    var closeForce: Bool?
     func controlSurfaceClose(
         routing: ControlRoutingSelectors,
         surfaceID: UUID?,
-        hasSurfaceIDParam: Bool
+        hasSurfaceIDParam: Bool,
+        force: Bool
     ) -> ControlSurfaceCloseResolution {
+        closeForce = force
         onSurfaceClose?()
         return closeResolution
     }

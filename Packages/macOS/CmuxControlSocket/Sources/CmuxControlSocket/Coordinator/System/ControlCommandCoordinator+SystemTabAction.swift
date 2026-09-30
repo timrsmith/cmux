@@ -90,6 +90,8 @@ extension ControlCommandCoordinator {
             return .err(code: "internal_error", message: "Failed to create tab", data: nil)
         case .duplicateFailed:
             return .err(code: "internal_error", message: "Failed to duplicate tab", data: nil)
+        case .unsavedChanges(let refusal):
+            return refusal.errorResult()
         case .bridged(let result):
             return result
         case .completed(let outcome):

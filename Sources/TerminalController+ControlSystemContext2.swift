@@ -112,7 +112,18 @@ extension TerminalController {
             return max(rawTarget, pinnedCount)
         }
 
-        func closeTabs(_ tabIds: [TabID]) -> (closed: Int, skippedPinned: Int) {
+        /// Closes `tabIds` in order, skipping pinned tabs. A batch that would
+        /// discard an editor's unsaved edits is refused whole: automation cannot
+        /// answer the prompt and there is no force flag on tab actions.
+        func closeTabs(_ tabIds: [TabID]) -> ControlTabActionResolution {
+            let closingPanelIds = tabIds.compactMap { tabId -> UUID? in
+                guard let panelId = workspace.panelIdFromSurfaceId(tabId),
+                      !workspace.isPanelPinned(panelId) else { return nil }
+                return panelId
+            }
+            if let refusal = workspace.unsavedChangesRefusal(forClosingPanels: closingPanelIds) {
+                return .unsavedChanges(refusal.controlRefusal)
+            }
             var closed = 0
             var skippedPinned = 0
             for tabId in tabIds {
@@ -128,7 +139,7 @@ extension TerminalController {
                     closed += 1
                 }
             }
-            return (closed, skippedPinned)
+            return finish(.closed(closed: closed, skippedPinned: skippedPinned))
         }
 
         switch action {
@@ -280,8 +291,7 @@ extension TerminalController {
                 return .tabNotFoundInPane
             }
             let targetIds = Array(tabs.prefix(index).map(\.id))
-            let closeResult = closeTabs(targetIds)
-            return finish(.closed(closed: closeResult.closed, skippedPinned: closeResult.skippedPinned))
+            return closeTabs(targetIds)
 
         case "close_right", "close_to_right":
             guard let anchorTabId = workspace.surfaceIdFromPanelId(panelId),
@@ -293,8 +303,7 @@ extension TerminalController {
                 return .tabNotFoundInPane
             }
             let targetIds = (index + 1 < tabs.count) ? Array(tabs.suffix(from: index + 1).map(\.id)) : []
-            let closeResult = closeTabs(targetIds)
-            return finish(.closed(closed: closeResult.closed, skippedPinned: closeResult.skippedPinned))
+            return closeTabs(targetIds)
 
         case "close_others", "close_other_tabs":
             guard let anchorTabId = workspace.surfaceIdFromPanelId(panelId),
@@ -304,8 +313,7 @@ extension TerminalController {
             let targetIds = workspace.bonsplitController.tabs(inPane: paneId)
                 .map(\.id)
                 .filter { $0 != anchorTabId }
-            let closeResult = closeTabs(targetIds)
-            return finish(.closed(closed: closeResult.closed, skippedPinned: closeResult.skippedPinned))
+            return closeTabs(targetIds)
 
         default:
             return .unknownAction
