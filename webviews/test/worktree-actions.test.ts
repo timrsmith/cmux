@@ -329,28 +329,27 @@ describe("hunk references", () => {
 });
 
 describe("request envelopes", () => {
-  test("file requests map the header action onto the sidecar method", () => {
+  test("file requests are one-element selection requests, rename origin included", () => {
     expect(
       buildFileRequest("stageFile", session, unstaged, { path: "src/a.ts" }),
     ).toEqual({
-      method: "worktreeStageFile",
-      params: { ...session, source: unstaged, path: "src/a.ts" },
+      method: "worktreeStageFiles",
+      params: { ...session, source: unstaged, paths: ["src/a.ts"] },
     });
     expect(
       buildFileRequest("unstageFile", session, staged, { path: "src/a.ts" }),
-    ).toMatchObject({ method: "worktreeUnstageFile" });
+    ).toMatchObject({ method: "worktreeUnstageFiles" });
     expect(
       buildFileRequest("revertFile", session, staged, {
         path: "new.ts",
         previousPath: "old.ts",
       }),
     ).toEqual({
-      method: "worktreeRevertFile",
+      method: "worktreeDiscardFiles",
       params: {
         ...session,
         source: staged,
-        path: "new.ts",
-        previousPath: "old.ts",
+        paths: ["new.ts", "old.ts"],
       },
     });
   });
@@ -360,7 +359,7 @@ describe("request envelopes", () => {
     expect(
       buildHunkRequest(session, unstaged, { path: "src/a.ts" }, hunk),
     ).toEqual({
-      method: "worktreeRevertHunk",
+      method: "worktreeDiscardHunk",
       params: { ...session, source: unstaged, path: "src/a.ts", hunk },
     });
     // A staged rename carries its origin so the sidecar re-reads both names.
@@ -372,7 +371,7 @@ describe("request envelopes", () => {
         hunk,
       ),
     ).toEqual({
-      method: "worktreeRevertHunk",
+      method: "worktreeDiscardHunk",
       params: {
         ...session,
         source: staged,
@@ -551,7 +550,7 @@ describe("bulk, push, status, and pull request envelopes", () => {
         params: { ...session, source: staged, paths: ["src/a.ts", "src/new.ts", "src/old.ts", "src/b.ts"] },
       });
     }
-    // The envelope never carries the single-file `path` / `previousPath` keys.
+    // The envelope carries `paths` only, never a `path` / `previousPath` pair.
     const envelope = buildFilesRequest("stageFiles", session, unstaged, targets) as { params: object };
     expect(Object.keys(envelope.params).sort()).toEqual(["capabilityToken", "paths", "sessionId", "source"]);
   });

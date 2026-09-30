@@ -22,13 +22,10 @@ pub enum DiffCommand {
     SessionClose(SessionRequest),
     BranchList(BranchListRequest),
     BranchChange(BranchChangeRequest),
-    WorktreeRevertFile(WorktreeFileRequest),
-    WorktreeStageFile(WorktreeFileRequest),
-    WorktreeUnstageFile(WorktreeFileRequest),
     WorktreeStageFiles(WorktreeFilesRequest),
     WorktreeUnstageFiles(WorktreeFilesRequest),
     WorktreeDiscardFiles(WorktreeFilesRequest),
-    WorktreeRevertHunk(WorktreeHunkRequest),
+    WorktreeDiscardHunk(WorktreeHunkRequest),
     WorktreeCommit(WorktreeCommitRequest),
     WorktreeDiscardAll(WorktreeSessionRequest),
     WorktreeStageAll(WorktreeSessionRequest),
@@ -57,13 +54,10 @@ impl DiffCommand {
             | Self::BranchList(_)
             | Self::BranchChange(_)
             | Self::WorktreeRepositoryStatus(_) => false,
-            Self::WorktreeRevertFile(_)
-            | Self::WorktreeStageFile(_)
-            | Self::WorktreeUnstageFile(_)
-            | Self::WorktreeStageFiles(_)
+            Self::WorktreeStageFiles(_)
             | Self::WorktreeUnstageFiles(_)
             | Self::WorktreeDiscardFiles(_)
-            | Self::WorktreeRevertHunk(_)
+            | Self::WorktreeDiscardHunk(_)
             | Self::WorktreeCommit(_)
             | Self::WorktreeDiscardAll(_)
             | Self::WorktreeStageAll(_)
@@ -159,27 +153,10 @@ pub struct SessionRequest {
     pub capability_token: String,
 }
 
-/// Targets one file of an open `unstaged` or `staged` session for a
-/// working-tree or index mutation. `path` (and the optional rename origin
-/// `previous_path`) are repository-relative and validated by the sidecar.
-#[derive(Clone, Debug, Deserialize, Serialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "protocol.ts")]
-pub struct WorktreeFileRequest {
-    pub session_id: String,
-    pub capability_token: String,
-    pub source: DiffSource,
-    pub path: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional)]
-    pub previous_path: Option<String>,
-}
-
-/// Targets several files of an open `unstaged` or `staged` session for one
-/// Git invocation (stage, unstage, or discard a selection). `paths` are
-/// repository-relative and validated by the sidecar; a rename contributes
-/// both of its names, exactly as the single-file request carries
-/// `previous_path`. An empty list is refused.
+/// Targets the files of an open `unstaged` or `staged` session for one Git
+/// invocation (stage, unstage, or discard a selection; a single file is a
+/// one-element list). `paths` are repository-relative and validated by the
+/// sidecar; a rename contributes both of its names. An empty list is refused.
 #[derive(Clone, Debug, Deserialize, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "protocol.ts")]

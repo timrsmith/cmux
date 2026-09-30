@@ -49,7 +49,7 @@ use crate::protocol::{
     DiffSource, DiffSourceKind, NavigationResult, OpenSessionRequest, RpcTransport, SessionOpened,
     SessionRequest, handshake,
 };
-use crate::worktree;
+use crate::worktree::{self, FileOp};
 #[cfg(feature = "http-server")]
 use crate::{HTTP_PROTOCOL_VERSION, health_response};
 
@@ -582,34 +582,10 @@ async fn handle_protocol_request(
         }
         // Every `DiffCommand::is_worktree_write` variant; the loopback HTTP
         // and WebSocket routes reject those before reaching this function.
-        DiffCommand::WorktreeRevertFile(params) => {
-            worktree_response(
-                request.id,
-                worktree::revert_file(state, &params),
-                SESSION_OPEN_TIMEOUT,
-            )
-            .await
-        }
-        DiffCommand::WorktreeStageFile(params) => {
-            worktree_response(
-                request.id,
-                worktree::stage_file(state, &params),
-                SESSION_OPEN_TIMEOUT,
-            )
-            .await
-        }
-        DiffCommand::WorktreeUnstageFile(params) => {
-            worktree_response(
-                request.id,
-                worktree::unstage_file(state, &params),
-                SESSION_OPEN_TIMEOUT,
-            )
-            .await
-        }
         DiffCommand::WorktreeStageFiles(params) => {
             worktree_response(
                 request.id,
-                worktree::stage_files(state, &params),
+                worktree::files_op(state, &params, FileOp::Stage),
                 SESSION_OPEN_TIMEOUT,
             )
             .await
@@ -617,7 +593,7 @@ async fn handle_protocol_request(
         DiffCommand::WorktreeUnstageFiles(params) => {
             worktree_response(
                 request.id,
-                worktree::unstage_files(state, &params),
+                worktree::files_op(state, &params, FileOp::Unstage),
                 SESSION_OPEN_TIMEOUT,
             )
             .await
@@ -625,15 +601,15 @@ async fn handle_protocol_request(
         DiffCommand::WorktreeDiscardFiles(params) => {
             worktree_response(
                 request.id,
-                worktree::discard_files(state, &params),
+                worktree::files_op(state, &params, FileOp::Discard),
                 SESSION_OPEN_TIMEOUT,
             )
             .await
         }
-        DiffCommand::WorktreeRevertHunk(params) => {
+        DiffCommand::WorktreeDiscardHunk(params) => {
             worktree_response(
                 request.id,
-                worktree::revert_hunk(state, &params),
+                worktree::discard_hunk(state, &params),
                 SESSION_OPEN_TIMEOUT,
             )
             .await

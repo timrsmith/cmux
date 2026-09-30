@@ -1,6 +1,6 @@
 // Pure decision and request-building layer for the diff viewer's write
-// actions (revert / stage / unstage / revert hunk / commit / bulk actions /
-// push / pull requests). The React layer only renders what these helpers
+// actions (stage / unstage / discard, per file, selection or view; discard
+// hunk; commit; push; pull requests). The React layer only renders what these helpers
 // return, so visibility by source kind, hunk identification, forge
 // availability, and the request envelopes are unit-testable without a DOM.
 
@@ -14,7 +14,6 @@ import type {
   RepositoryStatus,
   WorktreeCommitRequest,
   WorktreeCreatePullRequestRequest,
-  WorktreeFileRequest,
   WorktreeFilesRequest,
   WorktreeHunkRequest,
   WorktreePushRequest,
@@ -111,13 +110,11 @@ export type HunkActionTarget = {
   anchor: HunkActionAnchor;
 };
 
-const FILE_ACTION_METHOD: Record<
-  FileWriteAction,
-  "worktreeRevertFile" | "worktreeStageFile" | "worktreeUnstageFile"
-> = {
-  revertFile: "worktreeRevertFile",
-  stageFile: "worktreeStageFile",
-  unstageFile: "worktreeUnstageFile",
+/** The per-file button's request is the selection request for that one file. */
+const FILE_ACTION_SELECTION: Record<FileWriteAction, SelectionWriteAction> = {
+  revertFile: "discardFiles",
+  stageFile: "stageFiles",
+  unstageFile: "unstageFiles",
 };
 
 const BULK_ACTION_METHOD: Record<
@@ -356,22 +353,16 @@ function isHunkRanges(value: unknown): value is PierreHunkRanges {
   );
 }
 
+/** One file's stage / unstage / discard: a one-element selection request. */
 export function buildFileRequest(
   action: FileWriteAction,
   session: WorktreeSession,
   source: WritableDiffSource,
   target: WorktreeFileTarget,
 ): DiffCommand {
-  const params: WorktreeFileRequest = {
-    sessionId: session.sessionId,
-    capabilityToken: session.capabilityToken,
-    source,
-    path: target.path,
-  };
-  if (target.previousPath != null) {
-    params.previousPath = target.previousPath;
-  }
-  return { method: FILE_ACTION_METHOD[action], params };
+  return buildFilesRequest(FILE_ACTION_SELECTION[action], session, source, [
+    target,
+  ]);
 }
 
 /**
@@ -398,8 +389,8 @@ export function selectedFileTargets(
 
 /**
  * The paths a selection request names: each target's path, then its rename
- * origin when it has one (the single-file request's `previousPath`), without
- * duplicates. The sidecar validates each and refuses the batch on any bad one.
+ * origin when it has one, without duplicates. The sidecar validates each and
+ * refuses the batch on any bad one.
  */
 export function selectionPaths(targets: readonly WorktreeFileTarget[]): string[] {
   const paths: string[] = [];
@@ -452,7 +443,7 @@ export function buildHunkRequest(
   if (target.previousPath != null) {
     params.previousPath = target.previousPath;
   }
-  return { method: "worktreeRevertHunk", params };
+  return { method: "worktreeDiscardHunk", params };
 }
 
 /**

@@ -526,7 +526,7 @@ test("a failed write shows the localized sidecar error and keeps the session", a
   ).toBe(false);
 });
 
-test("header Stage sends worktreeStageFile for the streamed file and reopens the session", async () => {
+test("header Stage sends worktreeStageFiles for the streamed file and reopens the session", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderApp(
     unstagedSource,
@@ -536,14 +536,14 @@ test("header Stage sends worktreeStageFile for the streamed file and reopens the
   expect(document.querySelectorAll(".worktree-hunk-button")).toHaveLength(1);
   click(headerAction(document, "stageFile"));
   await waitFor(
-    () => requestsFor(requests, "worktreeStageFile").length === 1,
+    () => requestsFor(requests, "worktreeStageFiles").length === 1,
     "the stage request",
   );
-  expect(requestsFor(requests, "worktreeStageFile")[0].params).toEqual({
+  expect(requestsFor(requests, "worktreeStageFiles")[0].params).toEqual({
     sessionId,
     capabilityToken: token,
     source: unstagedSource,
-    path: "story.txt",
+    paths: ["story.txt"],
   });
   await waitForReload(document, requests);
   expect(requestsFor(requests, "sessionOpen")[1].params.source).toEqual(
@@ -558,7 +558,7 @@ test("header Stage sends worktreeStageFile for the streamed file and reopens the
   expect(document.getElementById("worktree-notice")).toBeNull();
 });
 
-test("header Discard confirms first, then sends worktreeRevertFile", async () => {
+test("header Discard confirms first, then sends worktreeDiscardFiles", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderApp(
     unstagedSource,
@@ -566,25 +566,25 @@ test("header Discard confirms first, then sends worktreeRevertFile", async () =>
     ONE_FILE_PATCH,
   );
   click(headerAction(document, "revertFile"));
-  expect(requestsFor(requests, "worktreeRevertFile")).toHaveLength(0);
+  expect(requestsFor(requests, "worktreeDiscardFiles")).toHaveLength(0);
   expect(document.querySelector(".worktree-confirm-text")?.textContent).toBe(
     "Discard these changes?",
   );
   click(findButton(document, "Discard", ".worktree-file-actions"));
   await waitFor(
-    () => requestsFor(requests, "worktreeRevertFile").length === 1,
-    "the revert request",
+    () => requestsFor(requests, "worktreeDiscardFiles").length === 1,
+    "the discard request",
   );
-  expect(requestsFor(requests, "worktreeRevertFile")[0].params).toEqual({
+  expect(requestsFor(requests, "worktreeDiscardFiles")[0].params).toEqual({
     sessionId,
     capabilityToken: token,
     source: unstagedSource,
-    path: "story.txt",
+    paths: ["story.txt"],
   });
   await waitForReload(document, requests);
 });
 
-test("hunk row Discard sends worktreeRevertHunk with the hunk's header ranges", async () => {
+test("hunk row Discard sends worktreeDiscardHunk with the hunk's header ranges", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderApp(
     stagedSource,
@@ -592,13 +592,13 @@ test("hunk row Discard sends worktreeRevertHunk with the hunk's header ranges", 
     ONE_FILE_PATCH,
   );
   click(document.querySelector<HTMLButtonElement>(".worktree-hunk-button"));
-  expect(requestsFor(requests, "worktreeRevertHunk")).toHaveLength(0);
+  expect(requestsFor(requests, "worktreeDiscardHunk")).toHaveLength(0);
   click(findButton(document, "Discard", ".worktree-hunk-actions"));
   await waitFor(
-    () => requestsFor(requests, "worktreeRevertHunk").length === 1,
-    "the hunk revert request",
+    () => requestsFor(requests, "worktreeDiscardHunk").length === 1,
+    "the hunk discard request",
   );
-  expect(requestsFor(requests, "worktreeRevertHunk")[0].params).toEqual({
+  expect(requestsFor(requests, "worktreeDiscardHunk")[0].params).toEqual({
     sessionId,
     capabilityToken: token,
     source: stagedSource,
@@ -625,7 +625,7 @@ test("staleHunk and partialRevert show their notice and reopen the session", asy
     const document = await renderApp(
       stagedSource,
       sidecarMock(requests, ["worktree.write"], {
-        worktreeRevertHunk: (request) =>
+        worktreeDiscardHunk: (request) =>
           failureResponse(request, code, message),
       }),
       ONE_FILE_PATCH,
@@ -649,7 +649,7 @@ test("a second click while a write is pending is ignored, and the actions wait f
   let releaseWrite: (() => void) | undefined;
   let releaseReopen: (() => void) | undefined;
   const mock = sidecarMock(requests, ["worktree.write"], {
-    worktreeUnstageFile: async (request) => {
+    worktreeUnstageFiles: async (request) => {
       await new Promise<void>((resolve) => {
         releaseWrite = resolve;
       });
@@ -679,7 +679,7 @@ test("a second click while a write is pending is ignored, and the actions wait f
   await waitFor(() => !commitButton.disabled, "the commit button to enable");
   click(headerAction(document, "unstageFile"));
   await waitFor(
-    () => requestsFor(requests, "worktreeUnstageFile").length === 1,
+    () => requestsFor(requests, "worktreeUnstageFiles").length === 1,
     "the unstage request",
   );
   // While the write is in flight every action is disabled and a repeated
@@ -693,7 +693,7 @@ test("a second click while a write is pending is ignored, and the actions wait f
   ).toBe(true);
   expect(commitButton.disabled).toBe(true);
   headerAction(document, "unstageFile")?.click();
-  expect(requestsFor(requests, "worktreeUnstageFile")).toHaveLength(1);
+  expect(requestsFor(requests, "worktreeUnstageFiles")).toHaveLength(1);
   // The write finishes, but the reopened session has not answered yet: the
   // toolbar commit action (the one still rendered) stays disabled.
   releaseWrite?.();
@@ -716,7 +716,7 @@ test("a second click while a write is pending is ignored, and the actions wait f
     "the reloaded header actions",
     3000,
   );
-  expect(requestsFor(requests, "worktreeUnstageFile")).toHaveLength(1);
+  expect(requestsFor(requests, "worktreeUnstageFiles")).toHaveLength(1);
 });
 
 /** Rendered code blocks across every file's shadow root; a collapsed file has none. */
@@ -1203,16 +1203,17 @@ test("checking a file card switches the header to the selection and stages exact
     source: unstagedSource,
     paths: ["story.txt"],
   });
-  expect(requestsFor(requests, "worktreeStageFile")).toHaveLength(0);
   await waitForReload(document, requests);
   // The mock streams the same two files back, so story.txt is still in the
   // view: a path that survives a reload stays checked.
   await waitFor(() => cardCheckbox(document, "story.txt") != null, "the reloaded cards");
   expect(cardCheckbox(document, "story.txt")?.checked).toBe(true);
   expect(headerBulkLabels(document)).toEqual(["Stage 1 file", "Discard 1 file…", "Clear selection"]);
-  // Per-file buttons keep working alongside the selection.
+  // Per-file buttons keep working alongside the selection: the same list
+  // request, naming that card's file only.
   click(headerAction(document, "stageFile"));
-  await waitFor(() => requestsFor(requests, "worktreeStageFile").length === 1, "the per-file stage request");
+  await waitFor(() => requestsFor(requests, "worktreeStageFiles").length === 2, "the per-file stage request");
+  expect(requestsFor(requests, "worktreeStageFiles")[1].params.paths).toEqual(["story.txt"]);
 });
 
 test("a reload that drops a checked file drops it from the selection", async () => {

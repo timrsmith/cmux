@@ -239,13 +239,13 @@ struct DiffViewerWriteActionsTests {
         ) == .tokenMismatch)
     }
 
-    /// The selection (batch) methods take the same gate as their single-file
-    /// counterparts: the frame's token and a live workspace association. The
-    /// policy forwards the `paths` list as posted; the sidecar validates each
-    /// entry against the session's repository, so an unmapped repository or
-    /// a path outside it is refused there, never admitted here on its own.
+    /// The per-path methods take the same gate as every other write: the
+    /// frame's token and a live workspace association. The policy forwards
+    /// the `paths` list as posted; the sidecar validates each entry against
+    /// the session's repository, so an unmapped repository or a path outside
+    /// it is refused there, never admitted here on its own.
     @Test
-    func selectionWriteMethodsAreGatedLikeSingleFileWrites() {
+    func pathListWriteMethodsAreGatedLikeEveryWrite() {
         let otherToken = "fedcba9876543210"
         for method in ["worktreeStageFiles", "worktreeUnstageFiles", "worktreeDiscardFiles"] {
             let params: [String: Any] = [
@@ -298,10 +298,10 @@ struct DiffViewerWriteActionsTests {
         #expect(lookups == 0)
 
         // A write with a mismatched token is refused before the lookup too.
-        #expect(countingRejection(body("worktreeStageFile", token: nil, params: ["path": "a"]), frameToken: frameToken) == .tokenMismatch)
+        #expect(countingRejection(body("worktreeStageFiles", token: nil, params: ["paths": ["a"]]), frameToken: frameToken) == .tokenMismatch)
         #expect(lookups == 0)
 
-        #expect(countingRejection(body("worktreeStageFile", params: ["path": "a"]), frameToken: frameToken) == nil)
+        #expect(countingRejection(body("worktreeStageFiles", params: ["paths": ["a"]]), frameToken: frameToken) == nil)
         #expect(lookups == 1)
     }
 
@@ -328,7 +328,7 @@ struct DiffViewerWriteActionsTests {
         let webView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
         #expect(!DiffCommentsBridge.isPanelAssociatedWebView(webView))
 
-        let stage = body("worktreeStageFile", params: ["path": "story.txt"])
+        let stage = body("worktreeStageFiles", params: ["paths": ["story.txt"]])
         let isAssociated: () -> Bool = { DiffCommentsBridge.isPanelAssociatedWebView(webView) }
 
         DiffCommentsBridge.associateHostOwned(workspaceId: workspace.id, with: webView)
