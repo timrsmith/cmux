@@ -2176,7 +2176,7 @@
         },
         "fileExplorer": {
           "description": "إعدادات مستكشف الملفات (شجرة الملفات) في الشريط الجانبي الأيمن.",
-          "doubleClickAction": "ما الذي يفتحه تفعيل ملف: النقر المزدوج أو Return في مستكشف الملفات، ومعاينة الملف في الشريط الجانبي الأيمن، و«فتح في cmux» في عارض الفروق. يفتح `preview` محرر cmux المدمج (السلوك الافتراضي والسابق). يفتح `terminalEditor` طرفية داخل cmux تشغّل `fileEditor.terminalEditorCommand` (وإلا `$VISUAL` ثم `$EDITOR` ثم `vi`) على الملف. يفتح `defaultEditor` بتطبيق macOS الافتراضي لنوع الملف. يفتح `preferredEditor` بأمر `app.preferredEditor` ويعود إلى التطبيق الافتراضي عند عدم تعيينه. ينطبق على الملفات فقط؛ المجلدات تتوسع/تنطوي دائمًا، ومستكشفات الملفات غير المحلية (البعيدة) تفتح معاينة cmux دائمًا."
+          "doubleClickAction": "ما الذي يفتحه تفعيل ملف: النقر المزدوج أو Return في مستكشف الملفات، ومعاينة الملف في الشريط الجانبي الأيمن، و«فتح في cmux» في عارض الفروق. يفتح `preview` محرر cmux المدمج (السلوك الافتراضي والسابق). يفتح `terminalEditor` طرفية داخل cmux تشغّل `fileEditor.terminalEditorCommand` (وإلا `$VISUAL` ثم `$EDITOR` ثم `vi`) على الملف. القيم الأقدم `defaultEditor` و`preferredEditor` تفتح المحرر المدمج. ينطبق على الملفات فقط؛ المجلدات تتوسع/تنطوي دائمًا، ومستكشفات الملفات غير المحلية (البعيدة) تفتح معاينة cmux دائمًا."
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."

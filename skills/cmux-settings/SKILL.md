@@ -68,7 +68,7 @@ Examples:
 ```bash
 cmux-settings set markdown.fontSize 16
 cmux-settings set fileEditor.wordWrap true
-cmux-settings set fileExplorer.doubleClickAction '"preferredEditor"'
+cmux-settings set fileExplorer.doubleClickAction '"terminalEditor"'
 cmux-settings set diffViewer.defaultLayout '"split"'
 ```
 

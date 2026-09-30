@@ -2177,7 +2177,7 @@
         },
         "fileExplorer": {
           "description": "การตั้งค่าตัวสำรวจไฟล์ (แผนผังไฟล์) ในแถบด้านขวา",
-          "doubleClickAction": "สิ่งที่เปิดเมื่อเปิดใช้งานไฟล์: ดับเบิลคลิกหรือ Return ในตัวสำรวจไฟล์ ตัวอย่างไฟล์ในแถบด้านข้างขวา และ “เปิดใน cmux” ในตัวดู diff `preview` เปิดด้วยตัวแก้ไขในตัวของ cmux (ค่าเริ่มต้นและพฤติกรรมเดิม) `terminalEditor` เปิดเทอร์มินัลใน cmux ที่รัน `fileEditor.terminalEditorCommand` (มิฉะนั้นใช้ `$VISUAL`, `$EDITOR`, `vi`) กับไฟล์นั้น `defaultEditor` เปิดด้วยแอปเริ่มต้นของ macOS สำหรับชนิดไฟล์ `preferredEditor` เปิดด้วยคำสั่ง `app.preferredEditor` และกลับไปใช้แอปเริ่มต้นเมื่อไม่ได้ตั้งค่า ใช้กับไฟล์เท่านั้น ไดเรกทอรีจะขยาย/ยุบเสมอ และตัวสำรวจไฟล์ที่ไม่ใช่ในเครื่อง (ระยะไกล) จะเปิดตัวอย่างของ cmux เสมอ"
+          "doubleClickAction": "สิ่งที่เปิดเมื่อเปิดใช้งานไฟล์: ดับเบิลคลิกหรือ Return ในตัวสำรวจไฟล์ ตัวอย่างไฟล์ในแถบด้านข้างขวา และ “เปิดใน cmux” ในตัวดู diff `preview` เปิดด้วยตัวแก้ไขในตัวของ cmux (ค่าเริ่มต้นและพฤติกรรมเดิม) `terminalEditor` เปิดเทอร์มินัลใน cmux ที่รัน `fileEditor.terminalEditorCommand` (มิฉะนั้นใช้ `$VISUAL`, `$EDITOR`, `vi`) กับไฟล์นั้น ค่าเดิม `defaultEditor` และ `preferredEditor` จะเปิดด้วยตัวแก้ไขในตัว ใช้กับไฟล์เท่านั้น ไดเรกทอรีจะขยาย/ยุบเสมอ และตัวสำรวจไฟล์ที่ไม่ใช่ในเครื่อง (ระยะไกล) จะเปิดตัวอย่างของ cmux เสมอ"
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."

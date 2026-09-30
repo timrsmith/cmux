@@ -2176,7 +2176,7 @@
         },
         "fileExplorer": {
           "description": "右側邊欄檔案瀏覽器（檔案樹）設定。",
-          "doubleClickAction": "啟用檔案時開啟的內容：檔案總管中的雙擊或 Return、右側邊欄的檔案預覽，以及 diff 檢視器中的「在 cmux 中開啟」。`preview` 以內建的 cmux 編輯器開啟（預設且沿用的行為）。`terminalEditor` 在 cmux 中開啟一個終端機，對該檔案執行 `fileEditor.terminalEditorCommand`（否則依序為 `$VISUAL`、`$EDITOR`、`vi`）。`defaultEditor` 以該檔案類型的 macOS 預設 App 開啟。`preferredEditor` 以 `app.preferredEditor` 命令開啟，未設定時回退至預設 App。僅適用於檔案；目錄一律展開/收合，非本機（遠端）檔案總管一律開啟 cmux 預覽。"
+          "doubleClickAction": "啟用檔案時開啟的內容：檔案總管中的雙擊或 Return、右側邊欄的檔案預覽，以及 diff 檢視器中的「在 cmux 中開啟」。`preview` 以內建的 cmux 編輯器開啟（預設且沿用的行為）。`terminalEditor` 在 cmux 中開啟一個終端機，對該檔案執行 `fileEditor.terminalEditorCommand`（否則依序為 `$VISUAL`、`$EDITOR`、`vi`）。舊的 `defaultEditor` 與 `preferredEditor` 值會以內建編輯器開啟。僅適用於檔案；目錄一律展開/收合，非本機（遠端）檔案總管一律開啟 cmux 預覽。"
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."

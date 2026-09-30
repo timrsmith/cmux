@@ -257,7 +257,7 @@ File tree routing for file previews, from Settings > Files and Editing.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `fileExplorer.doubleClickAction` | `"preview"` or `"terminalEditor"` or `"defaultEditor"` or `"preferredEditor"` | `"preview"` | What activating a file in the file tree, the right sidebar, or a diff viewer opens. `preview` is the built-in cmux editor; `terminalEditor` runs `fileEditor.terminalEditorCommand` (else `$VISUAL`, `$EDITOR`, `vi`) in a cmux terminal; the other choices use the macOS default app or `app.preferredEditor`. |
+| `fileExplorer.doubleClickAction` | `"preview"` or `"terminalEditor"` | `"preview"` | What activating a file in the file tree, the right sidebar, or a diff viewer opens. `preview` is the built-in cmux editor; `terminalEditor` runs `fileEditor.terminalEditorCommand` (else `$VISUAL`, `$EDITOR`, `vi`) in a cmux terminal. Older `defaultEditor` and `preferredEditor` values open the native editor. |
 
 ## diffViewer
 

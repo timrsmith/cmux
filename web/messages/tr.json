@@ -2176,7 +2176,7 @@
         },
         "fileExplorer": {
           "description": "Sağ kenar çubuğundaki dosya gezgini (dosya ağacı) ayarları.",
-          "doubleClickAction": "Bir dosyayı etkinleştirmenin ne açtığı: dosya gezgininde çift tıklama veya Return, sağ kenar çubuğundaki dosya önizlemesi ve diff görüntüleyicideki “cmux'ta Aç”. `preview` yerleşik cmux düzenleyicisini açar (varsayılan ve önceki davranış). `terminalEditor` cmux içinde `fileEditor.terminalEditorCommand` (yoksa `$VISUAL`, `$EDITOR`, `vi`) komutunu dosyayla çalıştıran bir terminal açar. `defaultEditor` dosya türü için macOS varsayılan uygulamasıyla açar. `preferredEditor` `app.preferredEditor` komutuyla açar; ayarlanmamışsa varsayılan uygulamaya döner. Yalnızca dosyalar için geçerlidir; dizinler her zaman genişler/daralır ve yerel olmayan (uzak) dosya gezginleri her zaman cmux önizlemesini açar."
+          "doubleClickAction": "Bir dosyayı etkinleştirmenin ne açtığı: dosya gezgininde çift tıklama veya Return, sağ kenar çubuğundaki dosya önizlemesi ve diff görüntüleyicideki “cmux'ta Aç”. `preview` yerleşik cmux düzenleyicisini açar (varsayılan ve önceki davranış). `terminalEditor` cmux içinde `fileEditor.terminalEditorCommand` (yoksa `$VISUAL`, `$EDITOR`, `vi`) komutunu dosyayla çalıştıran bir terminal açar. Eski `defaultEditor` ve `preferredEditor` değerleri yerleşik düzenleyiciyi açar. Yalnızca dosyalar için geçerlidir; dizinler her zaman genişler/daralır ve yerel olmayan (uzak) dosya gezginleri her zaman cmux önizlemesini açar."
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."

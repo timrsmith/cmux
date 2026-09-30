@@ -2176,7 +2176,7 @@
         },
         "fileExplorer": {
           "description": "Postavke istraživača datoteka (stabla datoteka) u desnoj bočnoj traci.",
-          "doubleClickAction": "Šta otvara aktiviranje datoteke: dvoklik ili Return u pregledniku datoteka, pregled datoteke u desnoj bočnoj traci i „Otvori u cmux“ u prikazu razlika. `preview` otvara ugrađeni cmux uređivač (zadano i dosadašnje ponašanje). `terminalEditor` otvara terminal u cmux-u koji pokreće `fileEditor.terminalEditorCommand` (inače `$VISUAL`, `$EDITOR`, `vi`) nad datotekom. `defaultEditor` otvara zadanom macOS aplikacijom za tip datoteke. `preferredEditor` otvara naredbom `app.preferredEditor`, a ako nije postavljena, zadanom aplikacijom. Odnosi se samo na datoteke; direktoriji se uvijek šire/skupljaju, a nelokalni (udaljeni) preglednici uvijek otvaraju cmux pregled."
+          "doubleClickAction": "Šta otvara aktiviranje datoteke: dvoklik ili Return u pregledniku datoteka, pregled datoteke u desnoj bočnoj traci i „Otvori u cmux“ u prikazu razlika. `preview` otvara ugrađeni cmux uređivač (zadano i dosadašnje ponašanje). `terminalEditor` otvara terminal u cmux-u koji pokreće `fileEditor.terminalEditorCommand` (inače `$VISUAL`, `$EDITOR`, `vi`) nad datotekom. Starije vrijednosti `defaultEditor` i `preferredEditor` otvaraju ugrađeni uređivač. Odnosi se samo na datoteke; direktoriji se uvijek šire/skupljaju, a nelokalni (udaljeni) preglednici uvijek otvaraju cmux pregled."
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."

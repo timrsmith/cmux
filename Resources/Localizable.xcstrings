@@ -1655,124 +1655,6 @@
         }
       }
     },
-    "settings.fileExplorer.doubleClickAction.defaultEditor": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Default App"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Standard-App"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App par défaut"
-          }
-        },
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "التطبيق الافتراضي"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App predeterminada"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "預設 App"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "默认 App"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "기본 앱"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "デフォルトのApp"
-          }
-        }
-      }
-    },
-    "settings.fileExplorer.doubleClickAction.preferredEditor": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preferred Editor App"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bevorzugte Editor-App"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App d'éditeur préférée"
-          }
-        },
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "تطبيق المحرر المفضل"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App de editor preferida"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "偏好的編輯器 App"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "首选编辑器 App"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "선호하는 편집기 앱"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "優先エディタApp"
-          }
-        }
-      }
-    },
     "settings.fileExplorer.doubleClickAction": {
       "extractionState": "manual",
       "localizations": {
@@ -2074,55 +1956,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "file tree files panel double click open native editor terminal editor default app preferred editor preview"
+            "value": "file tree files panel double click open native editor terminal editor preview"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "dateibaum dateien panel doppelklick öffnen integrierter editor terminal-editor standard-app bevorzugter editor vorschau"
+            "value": "dateibaum dateien panel doppelklick öffnen integrierter editor terminal-editor vorschau"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "arborescence fichiers panneau double clic ouvrir éditeur intégré éditeur de terminal app par défaut éditeur préféré aperçu"
+            "value": "arborescence fichiers panneau double clic ouvrir éditeur intégré éditeur de terminal aperçu"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "شجرة الملفات لوحة الملفات نقر مزدوج فتح المحرر المدمج محرر الطرفية التطبيق الافتراضي المحرر المفضل معاينة"
+            "value": "شجرة الملفات لوحة الملفات نقر مزدوج فتح المحرر المدمج محرر الطرفية معاينة"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "árbol de archivos panel de archivos doble clic abrir editor integrado editor de terminal app predeterminada editor preferido vista previa"
+            "value": "árbol de archivos panel de archivos doble clic abrir editor integrado editor de terminal vista previa"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "檔案樹 檔案面板 連按兩下 開啟 內建編輯器 終端機編輯器 預設 App 偏好的編輯器 預覽"
+            "value": "檔案樹 檔案面板 連按兩下 開啟 內建編輯器 終端機編輯器 預覽"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "文件树 文件面板 双击 打开 内置编辑器 终端编辑器 默认 App 首选编辑器 预览"
+            "value": "文件树 文件面板 双击 打开 内置编辑器 终端编辑器 预览"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "파일 트리 파일 패널 더블 클릭 열기 기본 편집기 터미널 편집기 기본 앱 선호하는 편집기 미리보기"
+            "value": "파일 트리 파일 패널 더블 클릭 열기 기본 편집기 터미널 편집기 미리보기"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ファイルツリー ファイルパネル ダブルクリック 開く 内蔵エディタ ターミナルエディタ デフォルトのApp 優先エディタ プレビュー"
+            "value": "ファイルツリー ファイルパネル ダブルクリック 開く 内蔵エディタ ターミナルエディタ プレビュー"
           }
         }
       }
@@ -2192,55 +2074,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "fileExplorer.doubleClickAction file tree files panel double click open native editor terminal editor default app preferred editor preview"
+            "value": "fileExplorer.doubleClickAction file tree files panel double click open native editor terminal editor preview"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "fileExplorer.doubleClickAction dateibaum dateien panel doppelklick öffnen integrierter editor terminal-editor standard-app bevorzugter editor vorschau"
+            "value": "fileExplorer.doubleClickAction dateibaum dateien panel doppelklick öffnen integrierter editor terminal-editor vorschau"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "fileExplorer.doubleClickAction arborescence fichiers panneau double clic ouvrir éditeur intégré éditeur de terminal app par défaut éditeur préféré aperçu"
+            "value": "fileExplorer.doubleClickAction arborescence fichiers panneau double clic ouvrir éditeur intégré éditeur de terminal aperçu"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "fileExplorer.doubleClickAction شجرة الملفات لوحة الملفات نقر مزدوج فتح المحرر المدمج محرر الطرفية التطبيق الافتراضي المحرر المفضل معاينة"
+            "value": "fileExplorer.doubleClickAction شجرة الملفات لوحة الملفات نقر مزدوج فتح المحرر المدمج محرر الطرفية معاينة"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "fileExplorer.doubleClickAction árbol de archivos panel de archivos doble clic abrir editor integrado editor de terminal app predeterminada editor preferido vista previa"
+            "value": "fileExplorer.doubleClickAction árbol de archivos panel de archivos doble clic abrir editor integrado editor de terminal vista previa"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "fileExplorer.doubleClickAction 檔案樹 檔案面板 連按兩下 開啟 內建編輯器 終端機編輯器 預設 App 偏好的編輯器 預覽"
+            "value": "fileExplorer.doubleClickAction 檔案樹 檔案面板 連按兩下 開啟 內建編輯器 終端機編輯器 預覽"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "fileExplorer.doubleClickAction 文件树 文件面板 双击 打开 内置编辑器 终端编辑器 默认 App 首选编辑器 预览"
+            "value": "fileExplorer.doubleClickAction 文件树 文件面板 双击 打开 内置编辑器 终端编辑器 预览"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "fileExplorer.doubleClickAction 파일 트리 파일 패널 더블 클릭 열기 기본 편집기 터미널 편집기 기본 앱 선호하는 편집기 미리보기"
+            "value": "fileExplorer.doubleClickAction 파일 트리 파일 패널 더블 클릭 열기 기본 편집기 터미널 편집기 미리보기"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "fileExplorer.doubleClickAction ファイルツリー ファイルパネル ダブルクリック 開く 内蔵エディタ ターミナルエディタ デフォルトのApp 優先エディタ プレビュー"
+            "value": "fileExplorer.doubleClickAction ファイルツリー ファイルパネル ダブルクリック 開く 内蔵エディタ ターミナルエディタ プレビュー"
           }
         }
       }

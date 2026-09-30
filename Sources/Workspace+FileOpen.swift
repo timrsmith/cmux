@@ -9,7 +9,8 @@ import Foundation
 /// here. The native editor lands in the focused pane (or the first), reusing
 /// an existing preview of the file and duplicating it only when that preview
 /// is the focused tab; the terminal editor opens a new terminal surface in
-/// that same pane; the two external choices leave cmux.
+/// that same pane. Both keep the file inside cmux: the native editor's header
+/// offers Open With and Open Externally for the files it cannot edit.
 extension Workspace {
     /// The pane such an open targets: the focused pane, or the first when
     /// nothing is focused; `nil` in a workspace without panes.
@@ -38,11 +39,6 @@ extension Workspace {
             ).isEmpty
         case .terminalEditor:
             return openFileInTerminalEditor(path, inPane: pane)
-        case .defaultEditor:
-            return FileExternalOpenAction.openDefault(fileURL: URL(fileURLWithPath: path))
-        case .preferredEditor:
-            PreferredEditorService(defaults: .standard).open(URL(fileURLWithPath: path))
-            return true
         }
     }
 

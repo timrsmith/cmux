@@ -467,8 +467,8 @@ Chooses what opens when a file is activated: a double-click or Return in the fil
 
 - `preview` (default): the built-in cmux editor, in the focused pane. An open editor for the file is reused.
 - `terminalEditor`: a new terminal surface in the focused pane, started in the file's directory, running `<editor> '<absolute path>'` through your login shell. The editor is `fileEditor.terminalEditorCommand` when set, else `$VISUAL`, else `$EDITOR` as seen by the cmux process, else `vi`. Values are trimmed and blank values are skipped. The command may carry arguments (`"emacs -nw"`); the quoted file path is appended last.
-- `defaultEditor`: the macOS default app for the file type, the same as the tree's "Open in <App>" context menu item.
-- `preferredEditor`: the `app.preferredEditor` command, the same as Cmd-clicking a path in a terminal. Falls back to `defaultEditor` when that command is empty.
+
+Both choices keep the file inside cmux; the native editor's header offers Open With, Open Externally, and Reveal in Finder for files it cannot edit. Older configs that still say `defaultEditor` or `preferredEditor` open the native editor, without a validation warning. Cmd-clicking a path in a terminal is unrelated and still uses `app.preferredEditor`.
 
 Change it from **Settings > Files and Editing > Open Files From Tree In**, next to the Terminal Editor command and the file editor's display options. The Files header's "…" menu opens that section through its "Files and Editing Settings…" item.
 

@@ -2176,7 +2176,7 @@
         },
         "fileExplorer": {
           "description": "Configurações do explorador de arquivos (árvore de arquivos) na barra lateral direita.",
-          "doubleClickAction": "O que a ativação de um arquivo abre: clique duplo ou Return no explorador de arquivos, a pré-visualização da barra lateral direita e “Abrir no cmux” do visualizador de diff. `preview` abre o editor integrado do cmux (comportamento padrão e histórico). `terminalEditor` abre um terminal no cmux executando `fileEditor.terminalEditorCommand` (senão `$VISUAL`, `$EDITOR`, `vi`) no arquivo. `defaultEditor` abre com o app padrão do macOS para o tipo de arquivo. `preferredEditor` abre com o comando `app.preferredEditor`, recorrendo ao app padrão quando nenhum está definido. Aplica-se apenas a arquivos; diretórios sempre expandem/recolhem e exploradores não locais (remotos) sempre abrem a pré-visualização do cmux."
+          "doubleClickAction": "O que a ativação de um arquivo abre: clique duplo ou Return no explorador de arquivos, a pré-visualização da barra lateral direita e “Abrir no cmux” do visualizador de diff. `preview` abre o editor integrado do cmux (comportamento padrão e histórico). `terminalEditor` abre um terminal no cmux executando `fileEditor.terminalEditorCommand` (senão `$VISUAL`, `$EDITOR`, `vi`) no arquivo. Os valores antigos `defaultEditor` e `preferredEditor` abrem o editor integrado. Aplica-se apenas a arquivos; diretórios sempre expandem/recolhem e exploradores não locais (remotos) sempre abrem a pré-visualização do cmux."
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."
