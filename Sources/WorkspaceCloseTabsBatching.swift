@@ -58,30 +58,25 @@ extension Workspace {
         guard !candidates.isEmpty else { return }
 
         // Unsaved editor changes ask first; the batch is re-issued after the answer.
-        if unsavedChangesCloseConfirmation.deferCloseIfNeeded(
-            for: candidates.compactMap { candidate in candidate.panelId.flatMap { panels[$0] } },
+        let panelIds = candidates.compactMap(\.panelId)
+        let gate = unsavedChangesCloseConfirmation.gate(
+            for: panelIds.compactMap { panels[$0] },
             retry: { [weak self] in self?.closeTabsFromContextMenu(tabIds, skipPinned: skipPinned) }
-        ) {
-            return
-        }
+        )
+        guard gate != .deferred else { return }
 
-        let needsConfirmation = candidates.contains { candidate in
-            guard let panelId = candidate.panelId else { return false }
-            return panelNeedsConfirmClose(panelId: panelId)
-        }
+        let needsConfirmation = panelIds.contains { panelNeedsConfirmClose(panelId: $0) }
 
         // A batch the unsaved-changes prompt already confirmed skips the close warning.
-        let closeConfirmedByUnsavedChangesPrompt = unsavedChangesCloseConfirmation.isCloseConfirmed(
-            forPanelIds: candidates.compactMap(\.panelId)
-        )
-        let warningKinds: CloseWarningKinds = closeConfirmedByUnsavedChangesPrompt
-            ? []
-            : CloseTabWarningStore(
+        let closeConfirmedByUnsavedChangesPrompt = gate == .confirmed
+        let warningKinds = unsavedChangesCloseConfirmation.closeWarningKinds(
+            forPanelIds: panelIds,
+            store: CloseTabWarningStore(
                 defaults: confirmationManager?.closeTabWarningDefaults ?? closeTabWarningDefaults
-            ).warningKindsIncludingSafety(
-                requiresConfirmation: needsConfirmation,
-                source: .shortcut
-            )
+            ),
+            requiresConfirmation: needsConfirmation,
+            source: .shortcut
+        )
         if !warningKinds.isEmpty {
             guard let confirmationManager else { return }
             let prompt = CloseOtherTabsConfirmationPrompt(

@@ -11,12 +11,18 @@ import Foundation
 protocol TabMetadataPublishingPanel: Panel {
     /// The one container currently projecting this panel's tab metadata.
     var tabMetadataHost: (any FilePreviewTabMetadataHost)? { get set }
-
-    /// One consistent snapshot of the panel's tab-facing state.
-    var currentTabMetadata: FilePreviewTabMetadata { get }
 }
 
 extension TabMetadataPublishingPanel {
+    /// One consistent snapshot of the panel's tab-facing state.
+    var currentTabMetadata: FilePreviewTabMetadata {
+        FilePreviewTabMetadata(
+            title: displayTitle,
+            displayIcon: displayIcon,
+            isDirty: isDirty
+        )
+    }
+
     /// Replaces the current container binding and immediately projects current state.
     func bindTabMetadata(to host: any FilePreviewTabMetadataHost) {
         tabMetadataHost = host

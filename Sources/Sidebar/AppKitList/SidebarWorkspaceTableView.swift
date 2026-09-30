@@ -25,8 +25,9 @@ struct SidebarWorkspaceTableView: NSViewRepresentable {
     let isPresented: Bool
     let unreadSource: SidebarUnreadModel
     /// The strips above the first and below the last row; `.workspaceList`
-    /// scrolls under the titlebar strip, `.workspaceListBelowStackedFiles`
-    /// starts right under the stacked Files divider.
+    /// scrolls under the titlebar strip,
+    /// `.workspaceList(hostsTitlebarChrome: false)` starts right under the
+    /// stacked Files divider.
     var scrollInsets: SidebarWorkspaceScrollInsets = .workspaceList
     /// Invoked when a completed row click parks awaiting live actions; the
     /// owner must invalidate itself so this view re-applies (issue #9690).

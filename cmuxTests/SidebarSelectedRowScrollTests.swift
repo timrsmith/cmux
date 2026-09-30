@@ -42,8 +42,9 @@ struct SidebarSelectedRowScrollTests {
         #expect(origin(row: 100, height: 600, clipOriginY: 0) == 70)
     }
 
-    /// A viewport that got shorter (window resize, stacked Files region
-    /// growing) re-checks the selection with `onlyWhenPartlyOnScreen`.
+    /// A viewport whose height or insets changed (window resize, the stacked
+    /// Files region growing or shrinking, the titlebar strip moving above the
+    /// tree) re-checks the selection with `onlyWhenPartlyOnScreen`.
     private func originAfterResize(row minY: CGFloat, clipOriginY: CGFloat, clipHeight: CGFloat) -> CGFloat? {
         SidebarWorkspaceTableController.selectedRowScrollOrigin(
             rowRect: NSRect(x: 0, y: minY, width: 240, height: 50),

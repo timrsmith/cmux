@@ -8,17 +8,25 @@ extension AppDelegate {
             + (context.existingWindowDock().map { Array($0.panels.values) } ?? [])
     }
 
-    /// Every panel the app would discard on quit. Mirrors
-    /// `hasQuitConfirmationDirtyWorkspaces()`, including windowless recoverable
-    /// owners that UI routing hides.
+    /// Every panel the app would discard on quit, window Docks first. Mirrors
+    /// `hasQuitConfirmationDirtyWorkspaces()`.
     func unsavedChangesCandidatePanelsForQuit() -> [any Panel] {
+        existingWindowDocks.flatMap { Array($0.panels.values) }
+            + quitCandidateTabManagers().flatMap { $0.tabs.flatMap(\.closablePanelsIncludingDock) }
+    }
+
+    /// Every workspace owner the app discards on quit, each once: the window
+    /// managers, the primary manager and the windowless recoverable owners that
+    /// UI routing hides but a lifecycle/data-safety check must include. Window
+    /// Docks are not managers; callers count `existingWindowDocks` themselves.
+    func quitCandidateTabManagers() -> [TabManager] {
         var visitedManagers = Set<ObjectIdentifier>()
-        var panels: [any Panel] = existingWindowDocks.flatMap { Array($0.panels.values) }
+        var managers: [TabManager] = []
 
         func collect(_ manager: TabManager?) {
             guard let manager,
                   visitedManagers.insert(ObjectIdentifier(manager)).inserted else { return }
-            panels += manager.tabs.flatMap(\.closablePanelsIncludingDock)
+            managers.append(manager)
         }
 
         for context in mainWindowContexts.values {
@@ -28,6 +36,6 @@ extension AppDelegate {
         for route in mainWindowSessionPersistenceRoutes() {
             collect(route.tabManager)
         }
-        return panels
+        return managers
     }
 }

@@ -401,6 +401,7 @@ struct FilePreviewTextEditorTextKitTests {
         var textContent = ""
         var saveCount = 0
         weak var textView: NSTextView?
+        var latestTextSaveTask: Task<Void, Never>? { nil }
 
         func attachTextView(_ textView: NSTextView) {
             self.textView = textView

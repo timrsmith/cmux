@@ -18,11 +18,12 @@ import SwiftUI
 ///
 /// The Files height comes from `StackedFilesPanelLayoutModel`, which this
 /// view holds UNOBSERVED, like ContentView holds `SidebarLayoutModel`: the
-/// parent builds `topChrome`, `panel`, and `list` once, and only
-/// `StackedFilesPanelHeightFrameModifier` observes the model, so a divider
-/// drag tick re-applies one frame over the already-built panel instead of
-/// re-running this body (and with it the list diff and the panel's
-/// `onAppear`/`onChange` closures). The height is re-clamped against the
+/// parent builds `panel` and `list` once (and `topChrome` only while the
+/// region is shown), and only `StackedFilesPanelHeightFrameModifier`
+/// observes the model, so a divider drag tick re-applies one frame over the
+/// already-built panel instead of re-running this body (and with it the list
+/// diff and the panel's `onAppear`/`onChange` closures). The height is
+/// re-clamped against the
 /// measured sidebar height on every layout pass
 /// (`FilesPanelStackedLayout.clampedHeight`), so a window that gets shorter
 /// after the user resized the split still keeps both regions usable. The
@@ -38,14 +39,14 @@ struct StackedFilesPanelSplit<TopChrome: View, Panel: View, List: View>: View {
     /// the region or hiding and re-showing the sidebar never changes the
     /// list's view identity (the AppKit table must not cold-start).
     let showsPanel: Bool
-    /// Height of `topChrome`, the sidebar's titlebar strip; excluded from the
-    /// height the two regions share (`FilesPanelStackedLayout.regionsHeight`).
-    let topChromeHeight: CGFloat
     let chromeBackgroundColor: NSColor
     /// Called with the clamped height when a divider drag ends, for persisting.
     let onHeightCommitted: (CGFloat) -> Void
-    /// The sidebar's titlebar strip, shown above the tree while it is stacked.
-    let topChrome: TopChrome
+    /// The sidebar's titlebar strip (`SidebarTitlebarChromeStrip.height`
+    /// tall), shown above the tree while it is stacked. Built only then, so
+    /// the parent's window-frame walk for the controls' position is skipped
+    /// while the region is closed.
+    @ViewBuilder let topChrome: () -> TopChrome
     let panel: Panel
     let list: List
 
@@ -53,13 +54,13 @@ struct StackedFilesPanelSplit<TopChrome: View, Panel: View, List: View>: View {
         GeometryReader { proxy in
             let regionsHeight = FilesPanelStackedLayout.regionsHeight(
                 sidebarHeight: proxy.size.height,
-                topChromeHeight: topChromeHeight
+                topChromeHeight: SidebarTitlebarChromeStrip.height
             )
             VStack(spacing: 0) {
                 if showsPanel {
-                    topChrome
+                    topChrome()
                         .frame(maxWidth: .infinity)
-                        .frame(height: topChromeHeight)
+                        .frame(height: SidebarTitlebarChromeStrip.height)
                     panel
                         .frame(maxWidth: .infinity)
                         .modifier(StackedFilesPanelHeightFrameModifier(layout: layout, availableHeight: regionsHeight))
@@ -69,15 +70,14 @@ struct StackedFilesPanelSplit<TopChrome: View, Panel: View, List: View>: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .overlay(alignment: .top) {
                         if showsPanel {
-                            WindowChromeBorder(
-                                orientation: .horizontal,
-                                backgroundColor: chromeBackgroundColor
-                            )
-                        }
-                    }
-                    .overlay(alignment: .top) {
-                        if showsPanel {
-                            divider(availableHeight: regionsHeight)
+                            // The border under the tree, with the drag band over it.
+                            ZStack(alignment: .top) {
+                                WindowChromeBorder(
+                                    orientation: .horizontal,
+                                    backgroundColor: chromeBackgroundColor
+                                )
+                                divider(availableHeight: regionsHeight)
+                            }
                         }
                     }
             }

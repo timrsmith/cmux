@@ -38,6 +38,18 @@ struct MinimalModeSidebarTitlebarControlsOverlay: View {
 }
 
 extension MinimalModeSidebarTitlebarControlsOverlay {
+    /// The top padding that keeps the controls level with the traffic
+    /// lights of `window`, or the default inset before a window is attached.
+    /// `ContentView` and `VerticalTabsSidebar` both compute it from the
+    /// window they observe, so both strips place the controls the same way.
+    @MainActor
+    static func topPadding(in window: NSWindow?) -> CGFloat {
+        guard let window else {
+            return MinimalModeSidebarTitlebarControlsMetrics.topInset
+        }
+        return minimalModeSidebarTitlebarControlsTopInset(in: window)
+    }
+
     /// The overlay as the workspace sidebar wires it (notifications popover,
     /// focus history back and forward), shared by the strip
     /// `VerticalTabsSidebar` draws over its list and the strip
@@ -80,23 +92,28 @@ extension MinimalModeSidebarTitlebarControlsOverlay {
     }
 }
 
-/// The workspace sidebar's titlebar strip on its own: the draggable,
-/// double-clickable band under the window controls with the minimal-mode
-/// toolbar buttons over its leading edge. `VerticalTabsSidebar` draws the same
-/// two layers over the top of its list; this stand-alone strip sits above the
-/// Files region while the tree is stacked (`StackedFilesPanelSplit`), so the
-/// list below it can drop its own copy.
+/// The titlebar strip: the draggable, double-clickable band under the window
+/// controls, with the minimal-mode toolbar buttons over its leading edge when
+/// the strip has `controls`. `VerticalTabsSidebar` draws it over the top of
+/// its list, `StackedFilesPanelSplit` shows it above the Files region while
+/// the tree is stacked (so the list below drops its own copy), and
+/// `FilesPanelView` shows it without controls above its header when the
+/// leading panel sits under the window controls.
 struct SidebarTitlebarChromeStrip: View {
-    let height: CGFloat
-    let controls: MinimalModeSidebarTitlebarControlsOverlay
+    /// The strip's height, the app titlebar height every host lays out with.
+    static let height: CGFloat = MinimalModeChromeMetrics.titlebarHeight
+
+    var controls: MinimalModeSidebarTitlebarControlsOverlay? = nil
 
     var body: some View {
         WindowDragHandleView()
             .frame(maxWidth: .infinity)
-            .frame(height: height)
+            .frame(height: Self.height)
             .background(TitlebarDoubleClickMonitorView())
             .overlay(alignment: .topLeading) {
-                controls
+                if let controls {
+                    controls
+                }
             }
     }
 }

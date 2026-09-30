@@ -116,7 +116,7 @@ struct UnsavedChangesCloseEntryPointTests {
         await fixture.awaitResolution()
 
         #expect(fixture.presenter.prompts.count == 1)
-        #expect(fixture.presenter.prompts.first?.fileNames.count == 2)
+        #expect(fixture.presenter.prompts.first?.details?.components(separatedBy: "\n").count == 2)
         #expect(fixture.closeWarningPrompts == 0)
         #expect(fixture.workspace.panelIdFromSurfaceId(first.tabId) == nil)
         #expect(fixture.workspace.panelIdFromSurfaceId(second.tabId) == nil)
@@ -190,15 +190,9 @@ struct UnsavedChangesCloseEntryPointTests {
 
         func openDirtyMarkdown(in target: Workspace? = nil) async throws -> Editor {
             let workspace = target ?? self.workspace
-            let url = try UnsavedChangesTestFiles.temporaryMarkdownFile(contents: "# Original\n")
             let paneId = try #require(workspace.bonsplitController.allPaneIds.first)
-            let panel = try #require(workspace.newMarkdownSurface(
-                inPane: paneId,
-                filePath: url.path,
-                focus: false
-            ))
-            if let load = panel.loadTextContent() {
-                await load.value
+            let (panel, url) = try await UnsavedChangesTestPanels.makeLoadedMarkdownPanel { path in
+                try #require(workspace.newMarkdownSurface(inPane: paneId, filePath: path, focus: false))
             }
             panel.updateTextContent(Self.editedContents)
             let tabId = try #require(workspace.surfaceIdFromPanelId(panel.id))

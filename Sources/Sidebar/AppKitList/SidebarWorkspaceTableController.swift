@@ -36,6 +36,11 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
     private var contextMenuRowId: SidebarWorkspaceRenderItemID?
     private var workspaceIds: [UUID] = []
     private var selectedScrollTargetWorkspaceId: UUID?
+    /// The row of `selectedScrollTargetWorkspaceId`, reconciled with each
+    /// apply so a viewport tick never scans the rows for it; read through
+    /// `selectedScrollTargetRowIndex()`, which re-derives it if the rows
+    /// moved under it.
+    private var selectedScrollTargetRow: Int?
     private var isPresentationActive = true
     private var structuralUpdateDepth = 0
     private var deferredPumpHeightRowIds: Set<SidebarWorkspaceRenderItemID> = []
@@ -211,6 +216,12 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
         scrollInsets = insets
         guard let scrollView = containerView?.scrollView else { return }
         applyScrollInsets(insets, to: scrollView)
+        // A top inset flipping between the titlebar strip and none (the Files
+        // region stacking above the list) obscures rows the way a viewport
+        // resize does; keep a selected row that is on screen clear of it.
+        if isPresentationActive {
+            scrollSelectedRowToVisibleIfNeeded(onlyWhenPartlyOnScreen: true)
+        }
     }
 
     private func applyScrollInsets(_ insets: SidebarWorkspaceScrollInsets, to scrollView: NSScrollView) {
@@ -387,6 +398,7 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
             rows.removeAll(keepingCapacity: false)
             workspaceIds.removeAll(keepingCapacity: false)
             selectedScrollTargetWorkspaceId = nil
+            selectedScrollTargetRow = nil
             hoveredRowId = nil
             contextMenuRowId = nil
         }
@@ -581,6 +593,7 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
         }
         workspaceIds = liveWorkspaceIds
         selectedScrollTargetWorkspaceId = nil
+        selectedScrollTargetRow = nil
         hoveredRowId = nil
         contextMenuRowId = nil
         optimisticallyPaintedRowIds.removeAll(keepingCapacity: true)
@@ -959,6 +972,9 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
         workspaceIds = nextWorkspaceIds
         let selectionTargetChanged = self.selectedScrollTargetWorkspaceId != selectedScrollTargetWorkspaceId
         self.selectedScrollTargetWorkspaceId = selectedScrollTargetWorkspaceId
+        selectedScrollTargetRow = selectedScrollTargetWorkspaceId.flatMap { targetId in
+            rows.firstIndex { $0.workspaceId == targetId }
+        }
         // A drop in this window must not move the viewport: the pointer's
         // release position IS the user's context. The selected-scroll policy
         // cannot tell a local drag reorder from an external index change, so
@@ -1611,6 +1627,7 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
         rows.removeAll(keepingCapacity: false)
         workspaceIds.removeAll(keepingCapacity: false)
         selectedScrollTargetWorkspaceId = nil
+        selectedScrollTargetRow = nil
         hoveredRowId = nil
         contextMenuRowId = nil
         actions = nil
@@ -2192,12 +2209,12 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
         }
         let height = containerView?.clipView.bounds.height ?? 0
         if height != lastViewportHeight {
-            let shrank = height < lastViewportHeight
             lastViewportHeight = height
-            // A shorter viewport (window resize, or the stacked Files region
-            // growing above the list) slides the rows under the footer
-            // overlay; keep a selected row that was on screen clear of it.
-            if shrank, height > 0 {
+            // A viewport of another height (window resize, the stacked Files
+            // region growing or shrinking above the list) moves the footer
+            // overlay across the rows; keep a selected row that is on screen
+            // clear of it.
+            if height > 0 {
                 scrollSelectedRowToVisibleIfNeeded(onlyWhenPartlyOnScreen: true)
             }
         }
@@ -2218,8 +2235,8 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
 
     private let selectionCoalescer = SidebarSelectionCoalescer<ContinuousClock>()
     private var lastMeasuredWidth: CGFloat = 0
-    /// Clip height at the last viewport flush; a drop below it re-checks the
-    /// selected row against the footer inset.
+    /// Clip height at the last viewport flush; a change re-checks the
+    /// selected row against the insets.
     private var lastViewportHeight: CGFloat = 0
     private var widthRemeasureTask: Task<Void, Never>?
     private var lastLiveMeasuredWidth: CGFloat = 0
@@ -2858,14 +2875,16 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
     ///   back to the selection); only a row still partly on screen is kept
     ///   clear of the insets.
     private func scrollSelectedRowToVisibleIfNeeded(onlyWhenPartlyOnScreen: Bool = false) {
-        guard let container = containerView,
-              let selectedScrollTargetWorkspaceId,
-              let row = rows.firstIndex(where: { $0.workspaceId == selectedScrollTargetWorkspaceId }) else {
-            return
-        }
+        guard let container = containerView, let row = selectedScrollTargetRowIndex() else { return }
         let table = container.tableView
         let scrollView = container.scrollView
         let clipView = scrollView.contentView
+        if onlyWhenPartlyOnScreen {
+            // `rows(in:)` bisects the row geometry, so a selection scrolled
+            // fully off screen costs no row rect or conversion per tick.
+            let visibleRows = table.rows(in: table.convert(clipView.bounds, from: clipView))
+            guard NSLocationInRange(row, visibleRows) else { return }
+        }
         // `visibleRect` and `scrollRowToVisible` count the strips under the
         // content insets (the titlebar scrim and the footer) as visible, so a
         // selected row pushed down by a reorder could stay behind the footer.
@@ -2878,6 +2897,20 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
         ) else { return }
         clipView.scroll(to: NSPoint(x: clipView.bounds.origin.x, y: origin))
         scrollView.reflectScrolledClipView(clipView)
+    }
+
+    /// The row of `selectedScrollTargetWorkspaceId`: the index reconciled at
+    /// apply time when the rows still match it, else re-derived (a hidden
+    /// presentation prune filters `rows` without an apply).
+    private func selectedScrollTargetRowIndex() -> Int? {
+        guard let selectedScrollTargetWorkspaceId else { return nil }
+        if let row = selectedScrollTargetRow, rows.indices.contains(row),
+           rows[row].workspaceId == selectedScrollTargetWorkspaceId {
+            return row
+        }
+        let row = rows.firstIndex { $0.workspaceId == selectedScrollTargetWorkspaceId }
+        selectedScrollTargetRow = row
+        return row
     }
 
     /// The clip view origin that brings `rowRect` fully between the top and

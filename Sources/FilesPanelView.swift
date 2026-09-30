@@ -61,11 +61,8 @@ struct FilesPanelView: View {
     /// header buttons and the panel keeps the width the user chose. It drags
     /// the window and handles titlebar double-click like the header does.
     private var titlebarStrip: some View {
-        WindowDragHandleView()
-            .frame(maxWidth: .infinity)
-            .frame(height: titlebarHeight)
+        SidebarTitlebarChromeStrip()
             .contentShape(Rectangle())
-            .background(TitlebarDoubleClickMonitorView())
             .accessibilityHidden(true)
     }
 

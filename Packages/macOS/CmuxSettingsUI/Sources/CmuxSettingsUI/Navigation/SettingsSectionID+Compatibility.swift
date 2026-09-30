@@ -10,20 +10,22 @@ extension SettingsSectionID {
         "setting:mobile:computers"
     ]
 
-    /// Row ids of the settings that moved into Files and Editing, keyed by
-    /// the anchor they had under App (the file editor rows, Open Files From
-    /// Tree In, Terminal Editor) or Sidebar (Files Panel). Persisted
-    /// navigation targets and older callers still send the old anchors.
-    static let legacyFilesAndEditingAnchorIDs: [String: String] = [
-        "setting:app:file-editor-word-wrap": "file-editor-word-wrap",
-        "setting:app:file-editor-syntax-highlighting": "file-editor-syntax-highlighting",
-        "setting:app:file-editor-line-numbers": "file-editor-line-numbers",
-        "setting:app:file-editor-indent-guides": "file-editor-indent-guides",
-        "setting:app:file-editor-current-line-highlight": "file-editor-current-line-highlight",
-        "setting:app:file-editor-tab-width": "file-editor-tab-width",
-        "setting:app:file-explorer-double-click-action": "file-explorer-double-click-action",
-        "setting:app:file-editor-terminal-editor-command": "file-editor-terminal-editor-command",
-        "setting:sidebarAppearance:files-panel-placement": "files-panel-placement"
+    /// The anchors the settings that moved into Files and Editing had under
+    /// App (the file editor rows, Open Files From Tree In, Terminal Editor)
+    /// or Sidebar (Files Panel). Persisted navigation targets and older
+    /// callers still send them. Row ids are unique across sections
+    /// (``SettingsSearchIndex`` keys every row `setting:<section>:<rowId>`),
+    /// so the redirect keeps the anchor's row id and swaps in the section.
+    static let legacyFilesAndEditingAnchorIDs: Set<String> = [
+        "setting:app:file-editor-word-wrap",
+        "setting:app:file-editor-syntax-highlighting",
+        "setting:app:file-editor-line-numbers",
+        "setting:app:file-editor-indent-guides",
+        "setting:app:file-editor-current-line-highlight",
+        "setting:app:file-editor-tab-width",
+        "setting:app:file-explorer-double-click-action",
+        "setting:app:file-editor-terminal-editor-command",
+        "setting:sidebarAppearance:files-panel-placement"
     ]
 
     /// The section a navigation request for this id selects, and the anchor
@@ -39,7 +41,8 @@ extension SettingsSectionID {
         if let providedAnchor, Self.legacyDevicesAnchorIDs.contains(providedAnchor) {
             return (.computers, "section:\(Self.computers.rawValue)")
         }
-        if let providedAnchor, let rowID = Self.legacyFilesAndEditingAnchorIDs[providedAnchor] {
+        if let providedAnchor, Self.legacyFilesAndEditingAnchorIDs.contains(providedAnchor),
+           let rowID = providedAnchor.split(separator: ":").last {
             return (.filesAndEditing, "setting:\(Self.filesAndEditing.rawValue):\(rowID)")
         }
         return (self, providedAnchor ?? "section:\(rawValue)")
