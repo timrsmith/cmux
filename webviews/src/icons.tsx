@@ -4,6 +4,9 @@ export type IconName =
   | "bars"
   | "branch"
   | "check"
+  | "checkboxChecked"
+  | "checkboxEmpty"
+  | "checkboxMixed"
   | "chevronDown"
   | "chevronUp"
   | "classic"
@@ -52,6 +55,15 @@ function IconPaths({ name }: { name: IconName }) {
     return <><circle cx="6" cy="5" r="2" /><circle cx="6" cy="15" r="2" /><circle cx="14" cy="7" r="2" /><path d="M6 7v6" /><path d="M14 9c0 3-8 2-8 4" /></>;
   case "check":
     return <path d="M4 10.5 8 14l8-9" />;
+  // The selection checkbox states, drawn with the file list lane's geometry
+  // (`file-tree-selection.ts`). A checked or mixed box fills its rect and
+  // draws the mark in the page color (`.file-select-toggle` styles the parts).
+  case "checkboxEmpty":
+    return <rect x="4" y="4" width="12" height="12" rx="2.5" />;
+  case "checkboxChecked":
+    return <><rect x="4" y="4" width="12" height="12" rx="2.5" data-checkbox-fill="true" /><path d="m7 10.2 2.2 2.2L13.3 8" data-checkbox-mark="true" /></>;
+  case "checkboxMixed":
+    return <><rect x="4" y="4" width="12" height="12" rx="2.5" data-checkbox-fill="true" /><path d="M7.2 10h5.6" data-checkbox-mark="true" /></>;
   case "chevronDown":
     return <path d="M5.5 7.5 10 12l4.5-4.5" />;
   case "chevronUp":

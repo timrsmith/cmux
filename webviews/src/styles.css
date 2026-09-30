@@ -1325,18 +1325,22 @@ body[data-loading="true"] #status::before {
    styles do not cross shadow boundaries), so the TS module is their single
    source. */
 
-/* Per-file fold chevron, slotted first in the card header, before the
-   selection checkbox (`.file-select-checkbox`, in the change icon's place).
-   Its state is the item's controlled `collapsed`; the chevron points down on
-   an open card and turns to the right when the card is folded. */
-.file-collapse-toggle {
+/* The card header's two small icon buttons, one shape: the fold chevron,
+   slotted first, and the selection checkbox after it (`.file-select-toggle`,
+   in the change icon's place; the file list header's select-all is the same
+   control). The chevron's state is the item's controlled `collapsed`: it
+   points down on an open card and turns to the right when the card is
+   folded. The checkbox draws its state itself (`checkbox*` icons): a checked
+   or mixed box fills its rect in the button's color and draws the mark in
+   the page color, so it reads the same at rest and under the hover pill. */
+.file-collapse-toggle,
+.file-select-toggle {
   width: 18px;
   height: 18px;
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  margin-left: -4px;
   padding: 0;
   border: 1px solid transparent;
   border-radius: 5px;
@@ -1344,7 +1348,11 @@ body[data-loading="true"] #status::before {
   color: var(--cmux-diff-text-muted);
   cursor: pointer;
 }
-.file-collapse-toggle svg {
+.file-collapse-toggle {
+  margin-left: -4px;
+}
+.file-collapse-toggle svg,
+.file-select-toggle svg {
   width: 13px;
   height: 13px;
   display: block;
@@ -1358,21 +1366,39 @@ body[data-loading="true"] #status::before {
 .file-collapse-toggle[aria-expanded="false"] svg {
   transform: rotate(-90deg);
 }
-.file-collapse-toggle:hover {
+.file-select-toggle svg [data-checkbox-fill] {
+  fill: currentcolor;
+}
+.file-select-toggle svg [data-checkbox-mark] {
+  stroke: var(--cmux-diff-bg);
+  stroke-width: 1.6;
+}
+.file-select-toggle[aria-checked="true"],
+.file-select-toggle[aria-checked="mixed"] {
+  color: var(--cmux-diff-fg);
+}
+.file-collapse-toggle:hover,
+.file-select-toggle:hover:not(:disabled) {
   border-color: color-mix(in lab, var(--cmux-diff-fg) 14%, transparent);
   background: var(--cmux-diff-hover-bg);
   color: var(--cmux-diff-fg);
 }
-.file-collapse-toggle:focus-visible {
+.file-collapse-toggle:focus-visible,
+.file-select-toggle:focus-visible {
   outline: 2px solid color-mix(in lab, var(--cmux-diff-fg) 36%, transparent);
   outline-offset: 1px;
 }
+.file-select-toggle:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 @media (prefers-reduced-motion: reduce) {
-  .file-collapse-toggle svg {
+  .file-collapse-toggle svg,
+  .file-select-toggle svg {
     transition: none;
   }
 }
-/* Working-tree write actions (revert / stage / unstage / revert hunk / commit) */
+/* Working-tree write actions (stage / unstage / discard, discard hunk, commit) */
 .worktree-file-actions {
   display: inline-flex;
   align-items: center;
@@ -1763,55 +1789,6 @@ body[data-loading="true"] #status::before {
   line-height: 14px;
   text-align: center;
   pointer-events: none;
-}
-/* Selection checkboxes: the file list header's select-all and each card's,
-   which sits after the fold chevron in the slot of the library's file-type
-   icon (hidden by the code view's CSS). Drawn here rather than by the
-   platform, so every WebKit theme shows the same crisp square as the file
-   list's lane (`file-tree-selection.ts`): the checked fill is the lane's
-   stroke tone and the mark is the lane's check path, in the scheme's page
-   color (the mark is an image, so it cannot read the theme's variables). */
-.file-select-checkbox {
-  --file-select-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='4 4 12 12'%3E%3Cpath d='m7 10.2 2.2 2.2L13.3 8' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  --file-select-dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='4 4 12 12'%3E%3Cpath d='M7.2 10h5.6' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
-  width: 14px;
-  height: 14px;
-  flex: 0 0 auto;
-  margin: 0;
-  appearance: none;
-  border: 1px solid color-mix(in lab, var(--cmux-diff-fg) 40%, transparent);
-  border-radius: 3px;
-  background: transparent center / 12px 12px no-repeat;
-  cursor: pointer;
-}
-@media (prefers-color-scheme: dark) {
-  .file-select-checkbox {
-    --file-select-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='4 4 12 12'%3E%3Cpath d='m7 10.2 2.2 2.2L13.3 8' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    --file-select-dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='4 4 12 12'%3E%3Cpath d='M7.2 10h5.6' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
-  }
-}
-.file-select-checkbox:hover:not(:disabled) {
-  border-color: color-mix(in lab, var(--cmux-diff-fg) 60%, transparent);
-  background-color: var(--cmux-diff-hover-bg);
-}
-.file-select-checkbox:checked,
-.file-select-checkbox:indeterminate {
-  border-color: transparent;
-  background-color: color-mix(in lab, var(--cmux-diff-fg) 70%, var(--cmux-diff-bg));
-}
-.file-select-checkbox:checked {
-  background-image: var(--file-select-check);
-}
-.file-select-checkbox:indeterminate {
-  background-image: var(--file-select-dash);
-}
-.file-select-checkbox:focus-visible {
-  outline: 2px solid color-mix(in lab, var(--cmux-diff-fg) 36%, transparent);
-  outline-offset: 1px;
-}
-.file-select-checkbox:disabled {
-  opacity: 0.45;
-  cursor: default;
 }
 .file-tree-host {
   height: 100%;

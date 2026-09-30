@@ -838,15 +838,15 @@ function selectionBadge(document: Document): string | null {
 
 /** The card checkbox for `name` (`Select <name>`), never the header's select-all. */
 function cardCheckbox(document: Document, name: string) {
-  return document.querySelector<HTMLInputElement>(`.file-select-checkbox[aria-label="Select ${name}"]`);
+  return document.querySelector<HTMLButtonElement>(`.file-select-toggle[aria-label="Select ${name}"]`);
 }
 
 function selectAllCheckbox(document: Document) {
-  return document.getElementById("files-select-all") as HTMLInputElement | null;
+  return document.getElementById("files-select-all") as HTMLButtonElement | null;
 }
 
-/** Toggles a checkbox the way a user does: the click flips it and fires change. */
-function toggleCheckbox(checkbox: HTMLInputElement | null | undefined): void {
+/** Toggles a checkbox the way a user does: one click; the state is its `aria-checked`. */
+function toggleCheckbox(checkbox: HTMLButtonElement | null | undefined): void {
   expect(checkbox).toBeTruthy();
   flushSync(() => checkbox?.click());
 }
@@ -1164,9 +1164,11 @@ test("checking a file card switches the header to the selection and stages exact
   const story = cardCheckbox(document, "story.txt")!;
   const notes = cardCheckbox(document, "notes.txt")!;
   const selectAll = selectAllCheckbox(document)!;
-  expect(story.checked).toBe(false);
-  expect(selectAll.checked).toBe(false);
-  expect(selectAll.indeterminate).toBe(false);
+  // Checkbox semantics on the app's standard icon button.
+  expect(story.getAttribute("role")).toBe("checkbox");
+  expect(story.getAttribute("aria-checked")).toBe("false");
+  expect(selectAll.getAttribute("role")).toBe("checkbox");
+  expect(selectAll.getAttribute("aria-checked")).toBe("false");
   expect(selectAll.disabled).toBe(false);
   // The card header reads [fold caret][checkbox][path]: the checkbox took
   // the slot of the library's file-type icon, right after the caret.
@@ -1185,10 +1187,9 @@ test("checking a file card switches the header to the selection and stages exact
   expect(document.getElementById("repo-overflow-button")?.getAttribute("aria-label")).toBe(
     "More actions (1 selected)",
   );
-  expect(cardCheckbox(document, "story.txt")?.checked).toBe(true);
-  expect(cardCheckbox(document, "notes.txt")?.checked).toBe(false);
-  expect(selectAllCheckbox(document)?.indeterminate).toBe(true);
-  expect(selectAllCheckbox(document)?.checked).toBe(false);
+  expect(cardCheckbox(document, "story.txt")?.getAttribute("aria-checked")).toBe("true");
+  expect(cardCheckbox(document, "notes.txt")?.getAttribute("aria-checked")).toBe("false");
+  expect(selectAllCheckbox(document)?.getAttribute("aria-checked")).toBe("mixed");
 
   // Both: plural, select-all checked. Unchecking one goes back to the singular.
   toggleCheckbox(notes);
@@ -1197,8 +1198,8 @@ test("checking a file card switches the header to the selection and stages exact
     "two files selected",
   );
   expect(selectionBadge(document)).toBe("2");
-  expect(selectAllCheckbox(document)?.checked).toBe(true);
-  expect(selectAllCheckbox(document)?.indeterminate).toBe(false);
+  expect(selectAllCheckbox(document)?.getAttribute("aria-checked")).toBe("true");
+  expect(selectAllCheckbox(document)?.getAttribute("aria-checked")).not.toBe("mixed");
   toggleCheckbox(cardCheckbox(document, "notes.txt"));
   await waitFor(
     () => headerBulkAction(document, "stageFiles")?.textContent?.trim() === "Stage 1 file",
@@ -1218,7 +1219,7 @@ test("checking a file card switches the header to the selection and stages exact
   // The mock streams the same two files back, so story.txt is still in the
   // view: a path that survives a reload stays checked.
   await waitFor(() => cardCheckbox(document, "story.txt") != null, "the reloaded cards");
-  expect(cardCheckbox(document, "story.txt")?.checked).toBe(true);
+  expect(cardCheckbox(document, "story.txt")?.getAttribute("aria-checked")).toBe("true");
   expect(headerBulkLabels(document)).toEqual(["Stage 1 file", "Discard 1 file…", "Clear selection"]);
   // Per-file buttons keep working alongside the selection: the same list
   // request, naming that card's file only.
@@ -1257,9 +1258,9 @@ test("a reload that drops a checked file drops it from the selection", async () 
   await waitFor(() => headerBulkAction(document, "stageAll") != null, "the whole-view actions");
   expect(selectionBadge(document)).toBeNull();
   expect(cardCheckbox(document, "notes.txt")).toBeNull();
-  expect(cardCheckbox(document, "story.txt")?.checked).toBe(false);
-  expect(selectAllCheckbox(document)?.checked).toBe(false);
-  expect(selectAllCheckbox(document)?.indeterminate).toBe(false);
+  expect(cardCheckbox(document, "story.txt")?.getAttribute("aria-checked")).toBe("false");
+  expect(selectAllCheckbox(document)?.getAttribute("aria-checked")).toBe("false");
+  expect(selectAllCheckbox(document)?.getAttribute("aria-checked")).not.toBe("mixed");
 });
 
 test("select all checks every listed file, toggles back to none, and discard selected confirms before posting worktreeDiscardFiles", async () => {
@@ -1277,14 +1278,14 @@ test("select all checks every listed file, toggles back to none, and discard sel
     "both files selected",
   );
   expect(headerBulkLabels(document)).toEqual(["Unstage 2 files", "Discard 2 files…", "Clear selection"]);
-  expect(cardCheckbox(document, "story.txt")?.checked).toBe(true);
-  expect(cardCheckbox(document, "notes.txt")?.checked).toBe(true);
+  expect(cardCheckbox(document, "story.txt")?.getAttribute("aria-checked")).toBe("true");
+  expect(cardCheckbox(document, "notes.txt")?.getAttribute("aria-checked")).toBe("true");
   // Checked select-all clears; from indeterminate it clears too.
   toggleCheckbox(selectAllCheckbox(document));
   await waitFor(() => headerBulkAction(document, "unstageAll") != null, "nothing selected");
-  expect(cardCheckbox(document, "story.txt")?.checked).toBe(false);
+  expect(cardCheckbox(document, "story.txt")?.getAttribute("aria-checked")).toBe("false");
   toggleCheckbox(cardCheckbox(document, "story.txt"));
-  await waitFor(() => selectAllCheckbox(document)?.indeterminate === true, "indeterminate");
+  await waitFor(() => selectAllCheckbox(document)?.getAttribute("aria-checked") === "mixed", "indeterminate");
   toggleCheckbox(selectAllCheckbox(document));
   await waitFor(() => headerBulkAction(document, "unstageAll") != null, "cleared from indeterminate");
   // Select all again and discard the selection: the prompt names the
@@ -1318,8 +1319,8 @@ test("select all checks every listed file, toggles back to none, and discard sel
   click(headerBulkAction(document, "clearSelection"));
   await waitFor(() => headerBulkAction(document, "unstageAll") != null, "the whole-view actions");
   expect(selectionBadge(document)).toBeNull();
-  expect(cardCheckbox(document, "story.txt")?.checked).toBe(false);
-  expect(cardCheckbox(document, "notes.txt")?.checked).toBe(false);
+  expect(cardCheckbox(document, "story.txt")?.getAttribute("aria-checked")).toBe("false");
+  expect(cardCheckbox(document, "notes.txt")?.getAttribute("aria-checked")).toBe("false");
   expect(requestsFor(requests, "worktreeDiscardFiles")).toHaveLength(1);
 });
 
@@ -1338,7 +1339,7 @@ test("switching the view clears the selection", async () => {
   await waitFor(() => headerBulkAction(document, "unstageAll") != null, "the staged view's actions");
   expect(headerBulkAction(document, "unstageFiles")).toBeNull();
   await waitFor(() => cardCheckbox(document, "story.txt") != null, "the staged view's card");
-  expect(cardCheckbox(document, "story.txt")?.checked).toBe(false);
+  expect(cardCheckbox(document, "story.txt")?.getAttribute("aria-checked")).toBe("false");
 });
 
 test("the file list's rows carry the checkbox lane, and clicking it toggles the selection without navigating", async () => {
@@ -1365,7 +1366,7 @@ test("the file list's rows carry the checkbox lane, and clicking it toggles the 
     lane.dispatchEvent(new window.MouseEvent("click", { bubbles: true, composed: true, cancelable: true }));
   });
   await waitFor(() => headerBulkAction(document, "stageFiles") != null, "the selection actions");
-  expect(cardCheckbox(document, "notes.txt")?.checked).toBe(true);
+  expect(cardCheckbox(document, "notes.txt")?.getAttribute("aria-checked")).toBe("true");
   expect(headerBulkLabels(document)[0]).toBe("Stage 1 file");
   // The row was not selected for navigation by that click.
   expect(document.documentElement.dataset.activeFile).toBe(activeBefore);
@@ -1383,7 +1384,7 @@ test("the file list's rows carry the checkbox lane, and clicking it toggles the 
     );
   });
   await waitFor(() => headerBulkAction(document, "stageAll") != null, "nothing selected");
-  expect(cardCheckbox(document, "notes.txt")?.checked).toBe(false);
+  expect(cardCheckbox(document, "notes.txt")?.getAttribute("aria-checked")).toBe("false");
   expect(sessionOpens(requests)).toBe(1);
 });
 
