@@ -2,7 +2,7 @@
 //!
 //! Every command re-derives its inputs on the sidecar side: paths are
 //! validated as repository-relative and must already be known to Git (in the
-//! index, or for an unstage or staged revert also in HEAD), hunks are re-read
+//! index, or for an unstage or staged discard also in HEAD), hunks are re-read
 //! from `git diff` and matched by header before `git apply -R` runs, and
 //! nothing supplied by the page is ever passed to Git as patch text.
 //! Authorization requires a valid capability token, a repository in that
@@ -21,8 +21,8 @@ use crate::manifest::valid_token;
 use crate::protocol::{
     CommitResult, DiffResult, DiffSource, DiffSourceKind, ForgeCliKind, ForgeCliStatus, HunkRef,
     PullRequestCreated, PushResult, RepositoryHostKind, RepositoryStatus, WorktreeCommitRequest,
-    WorktreeCreatePullRequestRequest, WorktreeFileRequest, WorktreeFilesRequest,
-    WorktreeHunkRequest, WorktreeMutated, WorktreePushRequest, WorktreeSessionRequest,
+    WorktreeCreatePullRequestRequest, WorktreeFilesRequest, WorktreeHunkRequest, WorktreeMutated,
+    WorktreePushRequest, WorktreeSessionRequest,
 };
 use crate::server::{
     AppState, authorize_canonical_repo_for_token, manifest_files, read_session_owner,
@@ -208,78 +208,19 @@ struct Target {
     staged: bool,
 }
 
+/// The per-path write actions (`worktreeStageFiles`, `worktreeUnstageFiles`,
+/// `worktreeDiscardFiles`).
 #[derive(Clone, Copy)]
-enum FileOp {
-    Revert,
+pub(crate) enum FileOp {
+    Discard,
     Stage,
     Unstage,
 }
 
-pub(crate) async fn revert_file(
-    state: &AppState,
-    request: &WorktreeFileRequest,
-) -> Result<DiffResult, WriteFailure> {
-    file_op(state, request, FileOp::Revert).await
-}
-
-pub(crate) async fn stage_file(
-    state: &AppState,
-    request: &WorktreeFileRequest,
-) -> Result<DiffResult, WriteFailure> {
-    file_op(state, request, FileOp::Stage).await
-}
-
-pub(crate) async fn unstage_file(
-    state: &AppState,
-    request: &WorktreeFileRequest,
-) -> Result<DiffResult, WriteFailure> {
-    file_op(state, request, FileOp::Unstage).await
-}
-
-/// One file: the single-file request is the batch of that file's path(s).
-async fn file_op(
-    state: &AppState,
-    request: &WorktreeFileRequest,
-    op: FileOp,
-) -> Result<DiffResult, WriteFailure> {
-    let _permit = permit(state)?;
-    let target = authorize(
-        state,
-        &request.session_id,
-        &request.capability_token,
-        &request.source,
-    )
-    .await?;
-    let paths = file_paths(request)?;
-    apply_file_op(&target, &paths, op).await?;
-    Ok(mutated(&request.source))
-}
-
-pub(crate) async fn stage_files(
-    state: &AppState,
-    request: &WorktreeFilesRequest,
-) -> Result<DiffResult, WriteFailure> {
-    files_op(state, request, FileOp::Stage).await
-}
-
-pub(crate) async fn unstage_files(
-    state: &AppState,
-    request: &WorktreeFilesRequest,
-) -> Result<DiffResult, WriteFailure> {
-    files_op(state, request, FileOp::Unstage).await
-}
-
-pub(crate) async fn discard_files(
-    state: &AppState,
-    request: &WorktreeFilesRequest,
-) -> Result<DiffResult, WriteFailure> {
-    files_op(state, request, FileOp::Revert).await
-}
-
-/// A selection of files, acted on with one Git invocation per step (the same
-/// steps the single-file action takes). Every path is validated before
-/// anything runs, so a refused path leaves the repository untouched.
-async fn files_op(
+/// A selection of files (one file is a one-element selection), acted on with
+/// one Git invocation per step. Every path is validated before anything runs,
+/// so a refused path leaves the repository untouched.
+pub(crate) async fn files_op(
     state: &AppState,
     request: &WorktreeFilesRequest,
     op: FileOp,
@@ -297,10 +238,10 @@ async fn files_op(
     Ok(mutated(&request.source))
 }
 
-/// The shared core of the per-file and per-selection actions. Every path
-/// must already be known to Git (see each arm); a `git diff` session lists
-/// tracked files only, so an unknown path can only come from the page and is
-/// refused before any Git child runs.
+/// The core of the per-path actions. Every path must already be known to
+/// Git (see each arm); a `git diff` session lists tracked files only, so an
+/// unknown path can only come from the page and is refused before any Git
+/// child runs.
 async fn apply_file_op(target: &Target, paths: &[String], op: FileOp) -> Result<(), WriteFailure> {
     match op {
         FileOp::Stage => {
@@ -313,16 +254,15 @@ async fn apply_file_op(target: &Target, paths: &[String], op: FileOp) -> Result<
         FileOp::Unstage => {
             // A staged deletion has no index entry but is in HEAD, which is
             // where `restore --staged` takes it from.
-            let mut known = index_paths(&target.repo, paths).await?;
-            known.extend(head_paths(&target.repo, paths).await?);
+            let known = index_or_head_paths(&target.repo, paths).await?;
             require_all(paths, &known)?;
             run_over_paths(&target.repo, &["restore", "--staged"], paths).await
         }
-        FileOp::Revert => revert_paths(target, paths).await,
+        FileOp::Discard => discard_paths(target, paths).await,
     }
 }
 
-pub(crate) async fn revert_hunk(
+pub(crate) async fn discard_hunk(
     state: &AppState,
     request: &WorktreeHunkRequest,
 ) -> Result<DiffResult, WriteFailure> {
@@ -384,7 +324,7 @@ pub(crate) async fn revert_hunk(
             Err(WriteError::Conflict.into())
         };
     }
-    // Reverting a staged hunk means "unstage it and discard it": first the
+    // Discarding a staged hunk means "unstage it and discard it": first the
     // index, then the working tree when it still carries the same change.
     // `--index` would refuse whenever the two differ at all, which is the
     // partially staged file this action exists for.
@@ -1467,18 +1407,7 @@ async fn session_owned_by(
         .is_some_and(|file| file.remote_url.is_none())
 }
 
-fn file_paths(request: &WorktreeFileRequest) -> Result<Vec<String>, WriteError> {
-    let mut paths = vec![validate_repo_relative_path(&request.path)?.to_owned()];
-    if let Some(previous) = &request.previous_path {
-        let previous = validate_repo_relative_path(previous)?;
-        if previous != request.path {
-            paths.push(previous.to_owned());
-        }
-    }
-    Ok(paths)
-}
-
-/// The paths of a selection action: each validated like a single-file path,
+/// The paths of a selection action: each validated as repository-relative,
 /// duplicates dropped (first occurrence kept), never empty, and bounded to
 /// [`MAX_BATCH_PATHS`]. A refused path refuses the whole batch, before any
 /// Git child runs.
@@ -1535,7 +1464,7 @@ fn require_all(paths: &[String], known: &HashSet<String>) -> Result<(), WriteErr
 /// lists untracked files, so such a path can only come from the page, and
 /// honoring it (with `git clean`) would delete an arbitrary untracked file.
 /// Listings match whole blobs only, so a directory name is never "known".
-async fn revert_paths(target: &Target, paths: &[String]) -> Result<(), WriteFailure> {
+async fn discard_paths(target: &Target, paths: &[String]) -> Result<(), WriteFailure> {
     let in_index = index_paths(&target.repo, paths).await?;
     if !target.staged {
         require_all(paths, &in_index)?;
@@ -1553,7 +1482,7 @@ async fn revert_paths(target: &Target, paths: &[String]) -> Result<(), WriteFail
     .await?;
     // A file staged as new has no HEAD version to restore; discarding it
     // removes the index entry and the working-tree copy. Once the restore
-    // above has run, a failure here leaves a half-reverted rename.
+    // above has run, a failure here leaves a half-discarded rename.
     run_over_paths(
         &target.repo,
         &["rm", "-f", "-q", "--ignore-unmatch"],
@@ -1572,28 +1501,43 @@ async fn index_paths(repo: &Path, paths: &[String]) -> Result<HashSet<String>, W
 /// lists its files and never itself). An unborn branch has no HEAD tree, so
 /// nothing is in it.
 async fn head_paths(repo: &Path, paths: &[String]) -> Result<HashSet<String>, WriteError> {
-    match listed_paths(
+    let listed = listed_paths(
         repo,
         &["ls-tree", "-r", "-z", "--name-only", "HEAD"],
         paths,
         MAX_STATUS_OUTPUT_BYTES,
     )
-    .await
-    {
+    .await;
+    match listed {
         Ok(listed) => Ok(listed),
         Err(error) => {
-            let head_exists = git_status(
-                repo,
-                &["rev-parse", "--verify", "--quiet", "HEAD"],
-                Access::ReadOnly,
-                None,
-            )
-            .await?
-            .success();
-            if head_exists {
+            if head_exists(repo).await? {
                 Err(error)
             } else {
                 Ok(HashSet::new())
+            }
+        }
+    }
+}
+
+/// The subset of `paths` that are index entries or blobs in HEAD's tree, from
+/// one listing (`--with-tree` merges HEAD into the index view). An unborn
+/// branch has no HEAD tree, so only the index counts.
+async fn index_or_head_paths(repo: &Path, paths: &[String]) -> Result<HashSet<String>, WriteError> {
+    let listed = listed_paths(
+        repo,
+        &["ls-files", "-z", "--with-tree=HEAD"],
+        paths,
+        MAX_STATUS_OUTPUT_BYTES,
+    )
+    .await;
+    match listed {
+        Ok(listed) => Ok(listed),
+        Err(error) => {
+            if head_exists(repo).await? {
+                Err(error)
+            } else {
+                index_paths(repo, paths).await
             }
         }
     }
