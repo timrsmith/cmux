@@ -21,6 +21,7 @@ export type IconName =
   | "diffModified"
   | "diffRemoved"
   | "diffRenamed"
+  | "discard"
   | "document"
   | "dots"
   | "expand"
@@ -38,7 +39,6 @@ export type IconName =
   | "sidebarCollapse"
   | "split"
   | "stage"
-  | "trash"
   | "unified"
   | "unstage"
   | "word"
@@ -100,11 +100,11 @@ function StrokeIconPaths({ name }: { name: IconName }) {
   // (`file-tree-selection.ts`). A checked or mixed box fills its rect and
   // draws the mark in the page color (`.file-select-toggle` styles the parts).
   case "checkboxEmpty":
-    return <rect x="4" y="4" width="12" height="12" rx="2.5" />;
+    return <rect x="3" y="3" width="14" height="14" rx="3" />;
   case "checkboxChecked":
-    return <><rect x="4" y="4" width="12" height="12" rx="2.5" data-checkbox-fill="true" /><path d="m7 10.2 2.2 2.2L13.3 8" data-checkbox-mark="true" /></>;
+    return <><rect x="3" y="3" width="14" height="14" rx="3" data-checkbox-fill="true" /><path d="m6.4 10.3 2.5 2.5 4.7-5" data-checkbox-mark="true" /></>;
   case "checkboxMixed":
-    return <><rect x="4" y="4" width="12" height="12" rx="2.5" data-checkbox-fill="true" /><path d="M7.2 10h5.6" data-checkbox-mark="true" /></>;
+    return <><rect x="3" y="3" width="14" height="14" rx="3" data-checkbox-fill="true" /><path d="M6.6 10h6.8" data-checkbox-mark="true" /></>;
   case "open":
     return <><rect x="3.5" y="4" width="13" height="12" rx="2" /><path d="M8 4v12" /><path d="m11 8 2.5 2-2.5 2" /></>;
   case "pullRequest":
@@ -113,8 +113,8 @@ function StrokeIconPaths({ name }: { name: IconName }) {
     return <><path d="M10 16V6" /><path d="m6.5 9.5 3.5-3.5 3.5 3.5" /><path d="M4 3.5h12" /></>;
   case "split":
     return <><rect x="4" y="4" width="12" height="12" rx="2" /><rect x="6" y="6" width="3.5" height="8" rx="1" data-diff-deletion="true" /><rect x="10.5" y="6" width="3.5" height="8" rx="1" data-diff-addition="true" /></>;
-  case "trash":
-    return <><path d="M4 6h12" /><path d="M8 6V4h4v2" /><path d="M6 6l1 10h6l1-10" /></>;
+  case "discard":
+    return <><path d="M4 8h8a4 4 0 0 1 0 8H7" /><path d="m7 5-3 3 3 3" /></>;
   case "unified":
     return <><rect x="4" y="4" width="12" height="12" rx="2" /><rect x="6" y="6" width="8" height="3.5" rx="1" data-diff-deletion="true" /><rect x="6" y="10.5" width="8" height="3.5" rx="1" data-diff-addition="true" /></>;
   case "commit":

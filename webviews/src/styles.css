@@ -1576,6 +1576,12 @@ svg[data-icon-fill] {
 .file-collapse-toggle[aria-expanded="false"] svg {
   transform: rotate(-90deg);
 }
+/* The checkbox draws a 14/20 box; at 16px that is an 11px square, the size of
+   a native control, while the caret keeps its 13px glyph. */
+.file-select-toggle svg {
+  width: 16px;
+  height: 16px;
+}
 .file-select-toggle svg [data-checkbox-fill] {
   fill: currentcolor;
 }

@@ -94,7 +94,7 @@ export const WRITE_VERBS: Record<WriteVerb, WriteVerbDescriptor> = {
   },
   discard: {
     verb: "discard",
-    icon: "trash",
+    icon: "discard",
     method: { all: "worktreeDiscardAll", files: "worktreeDiscardFiles" },
     label: { file: "revertFile", all: "discardAll", selected: "discardSelected" },
     confirm: {
@@ -295,7 +295,12 @@ export function hunkActionAnchor(
 // object however often the item around it is re-annotated.
 const hunkActionTargetsByFileDiff = new WeakMap<object, HunkActionTarget[]>();
 
-/** Hunks eligible for action rows, or an empty list past the per-file cap. */
+/**
+ * Hunks eligible for action rows. A file needs two or more hunks to get rows:
+ * for a single hunk the file header's Discard already covers the whole
+ * change, so a row would duplicate it. Past the per-file cap there are no
+ * rows either.
+ */
 export function hunkActionTargets(
   fileDiff: WorktreeFileDiff | null | undefined,
 ): HunkActionTarget[] {
@@ -317,10 +322,7 @@ function computeHunkActionTargets(
   const hunks: readonly unknown[] = Array.isArray(fileDiff.hunks)
     ? fileDiff.hunks
     : [];
-  if (
-    hunks.length === 0 ||
-    hunks.length > MAX_HUNK_ACTION_ANNOTATIONS_PER_FILE
-  ) {
+  if (hunks.length < 2 || hunks.length > MAX_HUNK_ACTION_ANNOTATIONS_PER_FILE) {
     return [];
   }
   const targets: HunkActionTarget[] = [];

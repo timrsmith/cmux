@@ -244,6 +244,11 @@ function WorktreeActionButton({
   );
 }
 
+/**
+ * The Discard row under one hunk. It renders only for files with two or more
+ * hunks (see `hunkActionTargets`): a single hunk is already covered by the
+ * file header's Discard, so it gets no row.
+ */
 export function HunkWriteActions({
   label,
   onDiscard,
