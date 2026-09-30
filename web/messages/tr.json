@@ -2167,6 +2167,7 @@
           "compactStatusIcons": "Her durum için compactAgentStatus glifinin yerine geçen SF Symbol adları, örneğin {\"terminal\": \"apple.terminal\", \"needsInput\": \"hand.raised.fill\"}. Ayarlanmamış durumlar yerleşik sembolü korur ve görüntülenemeyen bir ad da ona geri döner.",
           "notificationMessageLineLimit": "Her çalışma alanı başlığının altında en son bildirim için gösterilen en fazla satır sayısı.",
           "rightMaxWidth": "Sağ kenar çubuğu için puan cinsinden en fazla genişlik. Atlanırsa yerleşik dinamik sınır uygulanır.",
+          "filesPanelPlacement": "Dosya ağacının bulunduğu yer: rightSidebar (sağ kenar çubuğunun Dosyalar sekmesi, varsayılan), leading (çalışma alanı kenar çubuğu ile bölmeler arasında kendi paneli, IDE tarzı) veya stacked (çalışma alanı kenar çubuğunun içinde çalışma alanı listesinin üstünde, başlık çubuğu şeridinin altında, sürüklenebilir bir ayırıcıyla listeden ayrılmış). leading veya stacked ile Bul, Değişiklikler ve diğer araçları içeren sağ kenar çubuğu sağ kenarda kalır ve Dosyalar sekmesini bırakır.",
           "showAgentUsage": "Claude Code veya Codex durum girdisine kodlama aracısının kullanımını ekler: model ve kullanılan bağlam penceresi, ayrıca Claude Code için Anthropic’in yayımlanan liste fiyatlarına göre tahmini API maliyeti (ana iş parçacığı ve alt aracılar). Bu maliyet bir tahmindir, abonelik faturanız değildir; toplu ve öncelikli katmanlar, iş ortağı fiyatlandırması, hızlı mod ve sunucu aracı ücretleri hesaba katılmaz.",
           "beta": {
             "conversations": {

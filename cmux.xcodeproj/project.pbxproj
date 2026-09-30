@@ -2805,6 +2805,7 @@
 		DE71CE00000000000000000A /* PresenceHeartbeatClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE71CE000000000000000009 /* PresenceHeartbeatClientTests.swift */; };
 		D1F0A00100000000000000B3 /* PresenceSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1F0A00100000000000000B4 /* PresenceSettings.swift */; };
 		C0DEA771000000000000000D /* PricingPlansScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEA771000000000000000E /* PricingPlansScreen.swift */; };
+		D081939B24B4143754AD3E51 /* PrimaryTabManagerCloseConfirmationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6EC76A5ECF54F93E8291A24 /* PrimaryTabManagerCloseConfirmationTests.swift */; };
 		C0DEA771000000000000000B /* ProBadgeStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEA771000000000000000C /* ProBadgeStyle.swift */; };
 		F0ACC0DE000000000000000D /* ProcessDetectedResumeIndexes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0ACC0DE000000000000000E /* ProcessDetectedResumeIndexes.swift */; };
 		AC0FCEFB6665CF134634D60B /* ProcessExitWait.swift in Sources */ = {isa = PBXBuildFile; fileRef = E06E7588C05AC6A8659CFA51 /* ProcessExitWait.swift */; };
@@ -7235,6 +7236,7 @@
 		DE71CE000000000000000009 /* PresenceHeartbeatClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresenceHeartbeatClientTests.swift; sourceTree = "<group>"; };
 		D1F0A00100000000000000B4 /* PresenceSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PresenceSettings.swift; sourceTree = "<group>"; };
 		C0DEA771000000000000000E /* PricingPlansScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PricingPlansScreen.swift; sourceTree = "<group>"; };
+		C6EC76A5ECF54F93E8291A24 /* PrimaryTabManagerCloseConfirmationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PrimaryTabManagerCloseConfirmationTests.swift"; sourceTree = "<group>"; };
 		C0DEA771000000000000000C /* ProBadgeStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProBadgeStyle.swift; sourceTree = "<group>"; };
 		F0ACC0DE000000000000000E /* ProcessDetectedResumeIndexes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessDetectedResumeIndexes.swift; sourceTree = "<group>"; };
 		E06E7588C05AC6A8659CFA51 /* ProcessExitWait.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessExitWait.swift; sourceTree = "<group>"; };
@@ -13504,6 +13506,7 @@
 				9B6AACEF936588B0F688EEC6 /* UnsavedChangesClosePlanTests.swift */,
 				840B22F2E2340F6B106A6AB7 /* UnsavedChangesTestSupport.swift */,
 				0E39AE0335BA0E8E75C95603 /* FilePreviewTabMetadataTestSupport.swift */,
+				C6EC76A5ECF54F93E8291A24 /* PrimaryTabManagerCloseConfirmationTests.swift */,
 			);
 			path = cmuxTests;
 			sourceTree = "<group>";
@@ -18163,6 +18166,7 @@
 					F83620010000000000000001 /* PortScannerTTYFreshnessTests.swift in Sources */,
 				B8E9500A0000000000000001 /* PostHogAnalyticsPropertiesTests.swift in Sources */,
 				DE71CE00000000000000000A /* PresenceHeartbeatClientTests.swift in Sources */,
+				D081939B24B4143754AD3E51 /* PrimaryTabManagerCloseConfirmationTests.swift in Sources */,
 				AC0FCEFB6665CF134634D60B /* ProcessExitWait.swift in Sources */,
 				C47110010000000000000001 /* ProcessPipeReadCrashRegressionTests.swift in Sources */,
 				0A327C88E531C7E407CEF58C /* ProcessSnapshotMeasurement.swift in Sources */,

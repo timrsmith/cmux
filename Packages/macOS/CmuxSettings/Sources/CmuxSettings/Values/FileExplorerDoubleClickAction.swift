@@ -37,17 +37,23 @@ public enum FileExplorerDoubleClickAction: String, CaseIterable, Sendable, Setti
         FileExplorerDoubleClickAction(rawValue: string) ?? legacyRawValues[string]
     }
 
+    /// Decodes a stored `UserDefaults` value: the raw value of a current
+    /// choice, or a legacy value folded into its replacement. Anything else
+    /// (a non-string, an unknown string) is `nil`, so the key default applies.
     public static func decodeFromUserDefaults(_ raw: Any?) -> FileExplorerDoubleClickAction? {
         (raw as? String).flatMap(resolved)
     }
 
+    /// The raw value, the form `decodeFromUserDefaults` reads back.
     public func encodeForUserDefaults() -> Any { rawValue }
 
-    /// The cmux.json parser stores the decoded choice, so a legacy value in the
-    /// file is normalized to its replacement on import.
+    /// Decodes a cmux.json value the same way as `UserDefaults`. The parser
+    /// stores the decoded choice, so a legacy value in the file is normalized
+    /// to its replacement on import.
     public static func decodeFromJSON(_ raw: Any?) -> FileExplorerDoubleClickAction? {
         (raw as? String).flatMap(resolved)
     }
 
+    /// The raw value, one of the schema's advertised choices.
     public func encodeForJSON() -> Any { rawValue }
 }

@@ -23,13 +23,15 @@ import SwiftUI
 /// observes the model, so a divider drag tick re-applies one frame over the
 /// already-built panel instead of re-running this body (and with it the list
 /// diff and the panel's `onAppear`/`onChange` closures). The height is
-/// re-clamped against the
-/// measured sidebar height on every layout pass
+/// re-clamped against the measured sidebar height on every layout pass
 /// (`FilesPanelStackedLayout.clampedHeight`), so a window that gets shorter
-/// after the user resized the split still keeps both regions usable. The
-/// divider uses the same native tracking loop as the vertical sidebar
-/// dividers (`SidebarDividerTracker`), whose AppKit cursor rect shows the
-/// vertical resize cursor while hovering.
+/// after the user resized the split still keeps both regions usable, and the
+/// model's height is written back to that clamped value whenever the regions'
+/// height changes (`StackedFilesPanelLayoutModel.reclamp`), so a drag starts
+/// from the height on screen. The divider uses the same native tracking loop
+/// as the vertical sidebar dividers (`SidebarDividerTracker`), whose AppKit
+/// cursor rect shows the vertical resize cursor while hovering; the drag math
+/// lives on the model (`beginDrag`, `drag`, `endDrag`).
 struct StackedFilesPanelSplit<TopChrome: View, Panel: View, List: View>: View {
     /// Deliberately NOT observed; the divider callbacks read and write it
     /// outside any body, and the frame modifier alone tracks its ticks.
@@ -82,6 +84,15 @@ struct StackedFilesPanelSplit<TopChrome: View, Panel: View, List: View>: View {
                     }
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+            // The frame modifier clamps what is shown; this keeps the model's
+            // height equal to it once the regions are measured or resized, so
+            // a drag never starts from a value taller than the screen shows.
+            .onChange(of: regionsHeight, initial: true) { _, nextRegionsHeight in
+                guard showsPanel else { return }
+                withTransaction(Transaction(animation: nil)) {
+                    layout.reclamp(availableHeight: nextRegionsHeight)
+                }
+            }
         }
     }
 
@@ -92,21 +103,15 @@ struct StackedFilesPanelSplit<TopChrome: View, Panel: View, List: View>: View {
         SidebarDividerTracker(
             axis: .vertical,
             onBegan: {
-                layout.dragStartHeight = layout.height
+                layout.beginDrag(availableHeight: availableHeight)
             },
             onChanged: { translation in
-                let startHeight = layout.dragStartHeight ?? layout.height
-                let nextHeight = FilesPanelStackedLayout.clampedHeight(
-                    FilesPanelStackedLayout.draggedHeight(startHeight: startHeight, translation: translation),
-                    availableHeight: availableHeight
-                )
                 withTransaction(Transaction(animation: nil)) {
-                    layout.height = nextHeight
+                    layout.drag(translation: translation, availableHeight: availableHeight)
                 }
             },
             onEnded: {
-                layout.dragStartHeight = nil
-                onHeightCommitted(layout.height)
+                onHeightCommitted(layout.endDrag())
             }
         )
         .frame(maxWidth: .infinity)

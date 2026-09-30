@@ -3400,6 +3400,7 @@
           "compactStatusIcons": "SF Symbol names that replace the compactAgentStatus glyph for each state, for example {\"terminal\": \"apple.terminal\", \"needsInput\": \"hand.raised.fill\"}. Unset states keep the built-in symbol, and a name that does not render falls back to it.",
           "notificationMessageLineLimit": "Maximum lines shown for the latest notification below each workspace title.",
           "rightMaxWidth": "Maximum width in points for the right sidebar. When omitted, the built-in dynamic cap applies.",
+          "filesPanelPlacement": "Where the file tree lives: rightSidebar (the Files tab of the right sidebar, the default), leading (its own panel between the workspace sidebar and the panes, IDE style), or stacked (above the workspace list inside the workspace sidebar, under its titlebar strip, split from the list by a draggable divider). With leading or stacked the right sidebar with Find, Changes, and the other tools stays on the right edge and drops its Files tab.",
           "showAgentUsage": "Append coding-agent usage to the Claude Code or Codex status entry: model and context window used, plus for Claude Code an estimated API cost (main thread and subagents) at published Anthropic list prices. The cost is an estimate, not your subscription bill; batch/priority tiers, partner pricing, fast mode and server-tool fees are not modelled.",
           "beta": {
             "conversations": {

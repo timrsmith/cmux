@@ -229,6 +229,7 @@ struct cmuxApp: App {
         let tabManager = TabManager(
             workspaceCustomizationStore: workspaceCustomizationStore,
             nativeSSHConnectionBroker: TerminalController.shared.nativeSSHConnectionBroker,
+            unsavedChangesCloseConfirmation: AppDelegate.shared?.unsavedChangesCloseConfirmation,
             cloudWorkspaceSelection: cloudWorkspaceCoordinator.makeSelectionState()
         )
         let historyMenuCoordinator = HistoryMenuCoordinator(

@@ -226,6 +226,39 @@ final class FilesPanelPlacementTests: XCTestCase {
         XCTAssertEqual(FilesPanelStackedLayout.clampedHeight(.nan, availableHeight: .nan), 320, accuracy: 0.001)
     }
 
+    @MainActor
+    func testStackedDividerDragStartsFromTheHeightOnScreen() {
+        // Regression: a persisted height (900) taller than the regions can show
+        // (680 of 800) started the drag from the stored 900, so the first 220
+        // points of an upward drag re-clamped to 680 and moved nothing.
+        let layout = StackedFilesPanelLayoutModel(height: 900)
+        layout.beginDrag(availableHeight: 800)
+        XCTAssertEqual(layout.dragStartHeight ?? -1, 680, accuracy: 0.001, "the drag starts from the height on screen")
+        layout.drag(translation: -10, availableHeight: 800)
+        XCTAssertEqual(layout.height, 670, accuracy: 0.001, "the first tick moves the divider")
+        XCTAssertEqual(layout.endDrag(), 670, accuracy: 0.001)
+        XCTAssertNil(layout.dragStartHeight)
+    }
+
+    @MainActor
+    func testStackedHeightFollowsTheMeasuredRegions() {
+        // The split re-clamps the model whenever the regions' height changes,
+        // so the value it holds is the one on screen.
+        let layout = StackedFilesPanelLayoutModel(height: 900)
+        layout.reclamp(availableHeight: 800)
+        XCTAssertEqual(layout.height, 680, accuracy: 0.001)
+        // A drag in flight owns the value.
+        layout.beginDrag(availableHeight: 800)
+        layout.reclamp(availableHeight: 400)
+        XCTAssertEqual(layout.height, 680, accuracy: 0.001)
+        layout.endDrag()
+        layout.reclamp(availableHeight: 400)
+        XCTAssertEqual(layout.height, 280, accuracy: 0.001)
+        // Unmeasured regions apply only the tree's floor.
+        layout.reclamp(availableHeight: .infinity)
+        XCTAssertEqual(layout.height, 280, accuracy: 0.001)
+    }
+
     func testStackedPlacementCedesNoLeadingTitlebarStripAndKeepsTheHeaderInOneRow() {
         // Nothing new sits under the window controls: the sidebar's own
         // titlebar strip stays above the tree, so the band behaves exactly as

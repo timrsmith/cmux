@@ -61,6 +61,10 @@ struct FilesPanelHeaderMenu: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
+        // The header sits in the titlebar band; like its sibling controls
+        // (`openAsPaneButton`, `closeButton`, `ModeBarButton`) the menu must
+        // keep its clicks from the window drag and double-click handlers.
+        .titlebarInteractiveControl()
         .safeHelp(String(localized: "filesPanel.header.options.tooltip", defaultValue: "Files options"))
         .accessibilityLabel(String(localized: "filesPanel.header.options.accessibilityLabel", defaultValue: "Files Options"))
         .accessibilityIdentifier("FilesPanel.optionsMenu")

@@ -119,14 +119,14 @@ struct PersistedPanelDimensionReconciler: ViewModifier {
                 let sanitized = clamp(persistedValue)
                 applyIfChanged(sanitized)
                 if abs(persistedValue - sanitized) > 0.5 {
-                    DispatchQueue.main.async { persist(sanitized) }
+                    persistOnNextTurn(sanitized)
                 }
             }
             .onChange(of: persistedValue) { _, newValue in
                 guard !isDragging() else { return }
                 let sanitized = clamp(newValue)
                 if abs(newValue - sanitized) > 0.5 {
-                    DispatchQueue.main.async { persist(sanitized) }
+                    persistOnNextTurn(sanitized)
                     return
                 }
                 applyIfChanged(sanitized)
@@ -136,5 +136,12 @@ struct PersistedPanelDimensionReconciler: ViewModifier {
     private func applyIfChanged(_ value: CGFloat) {
         guard liveValue() != value else { return }
         apply(value)
+    }
+
+    /// Writes the clamped value back on the next main-actor turn, never inside
+    /// the view update that observed the unclamped one.
+    private func persistOnNextTurn(_ value: CGFloat) {
+        let persist = persist
+        Task { @MainActor in persist(value) }
     }
 }

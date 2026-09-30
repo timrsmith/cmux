@@ -100,6 +100,31 @@ struct SidePanelWidthFitTests {
         #expect(fit.isLeftVisible && !fit.isLeftAutoCollapsed)
     }
 
+    /// A leading files panel (`sidebar.filesPanelPlacement` = `leading`) is a
+    /// third panel this policy never collapses, so its width comes off the
+    /// window before the sidebars are fit: 240 + 260 + 276 in a 900 pt window
+    /// leaves 124 pt, under the terminal floor, so the right sidebar collapses
+    /// although both sidebars alone would fit.
+    @Test func aDockedFilesPanelCountsAgainstTheTerminal() {
+        let both = SidePanelWidthFit(isLeftVisible: true, isRightVisible: true)
+        let filesPanel: CGFloat = 260
+        #expect(both.fitting(windowWidth: 900, leftWidth: left, rightWidth: right) == both)
+
+        let fit = both.fitting(windowWidth: 900, leftWidth: left, rightWidth: right, dockedPanelsWidth: filesPanel)
+        #expect(fit.isLeftVisible)
+        #expect(!fit.isRightVisible && fit.isRightAutoCollapsed)
+        #expect(terminalWidth(fit, window: 900) - filesPanel >= floor)
+
+        // Showing the right sidebar beside the panel collapses the left one the same way.
+        let shown = SidePanelWidthFit(isLeftVisible: true, isRightVisible: false)
+            .showing(.right, windowWidth: 900, leftWidth: left, rightWidth: right, dockedPanelsWidth: filesPanel)
+        #expect(shown.isRightVisible && !shown.isLeftVisible && shown.isLeftAutoCollapsed)
+
+        // Room for all three: nothing collapses, and a collapsed sidebar returns.
+        #expect(both.fitting(windowWidth: 1440, leftWidth: left, rightWidth: right, dockedPanelsWidth: filesPanel) == both)
+        #expect(fit.fitting(windowWidth: 1440, leftWidth: left, rightWidth: right, dockedPanelsWidth: filesPanel) == both)
+    }
+
     @Test func unknownWindowWidthChangesNothing() {
         let both = SidePanelWidthFit(isLeftVisible: true, isRightVisible: true)
         #expect(both.fitting(windowWidth: 0, leftWidth: left, rightWidth: right) == both)

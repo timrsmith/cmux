@@ -139,6 +139,47 @@ struct SidebarWidthPolicyTests: ManagedDefaultsTestSupport {
         #expect(abs(ContentView.clampedRightSidebarWidth(20, availableWidth: 1000) - 295) <= 0.001)
     }
 
+    @Test
+    func rightSidebarClampWithNoRoomLeftLandsOnTheMinimumNotAScreenWidth() {
+        // Regression: with the workspace sidebar and a docked files panel
+        // already filling the window the remaining width is 0 (or negative),
+        // which was treated like an unmeasured window and fell back to a
+        // 1920 pt screen, letting the panel take its full cap.
+        for availableWidth in [CGFloat(0), -40] {
+            #expect(
+                abs(ContentView.clampedRightSidebarWidth(10_000, availableWidth: availableWidth) - 295) <= 0.001,
+                "available width \(availableWidth)"
+            )
+        }
+        // An unmeasured window still uses the screen-sized fallback.
+        #expect(abs(ContentView.clampedRightSidebarWidth(500, availableWidth: .nan) - 500) <= 0.001)
+    }
+
+    @Test
+    func filesPanelCapLeavesTheTerminalItsRoomBesideBothSidebars() {
+        // The docked files panel is capped by the right sidebar's rule over
+        // what BOTH sidebars leave: 1400 - 240 - 276 = 884, minus the 360 pt
+        // the right sidebar's clamp reserves for the terminal.
+        #expect(
+            abs(
+                ContentView.filesPanelMaximumWidth(windowWidth: 1400, leadingSidebarWidth: 240, rightSidebarWidth: 276) - 524
+            ) <= 0.001
+        )
+        // With the right sidebar hidden the built-in cap applies before the room does.
+        #expect(
+            abs(
+                ContentView.filesPanelMaximumWidth(windowWidth: 2000, leadingSidebarWidth: 240, rightSidebarWidth: 0)
+                    - CGFloat(RightSidebarWidthSettings.builtInMaximumWidth)
+            ) <= 0.001
+        )
+        // Both sidebars filling the window leave the floor, not a screen-sized cap.
+        #expect(
+            abs(
+                ContentView.filesPanelMaximumWidth(windowWidth: 700, leadingSidebarWidth: 400, rightSidebarWidth: 300) - 295
+            ) <= 0.001
+        )
+    }
+
     @MainActor
     @Test
     func settingsFileStoreAppliesRightSidebarMaxWidthSetting() throws {

@@ -2167,6 +2167,7 @@
           "compactStatusIcons": "상태별로 compactAgentStatus 글리프를 대체하는 SF Symbol 이름입니다(예: {\"terminal\": \"apple.terminal\", \"needsInput\": \"hand.raised.fill\"}). 설정하지 않은 상태는 기본 기호를 사용하며, 표시할 수 없는 이름도 기본 기호로 돌아갑니다.",
           "notificationMessageLineLimit": "각 작업 공간 제목 아래에 표시되는 최신 알림의 최대 줄 수입니다.",
           "rightMaxWidth": "오른쪽 사이드바의 최대 너비(포인트). 생략하면 내장 동적 상한이 적용됩니다.",
+          "filesPanelPlacement": "파일 트리가 있는 위치: rightSidebar(오른쪽 사이드바의 파일 탭, 기본값), leading(워크스페이스 사이드바와 패널 사이의 자체 패널, IDE 스타일) 또는 stacked(워크스페이스 사이드바 안에서 워크스페이스 목록 위, 제목 표시줄 띠 아래에 놓이며 드래그 가능한 구분선으로 목록과 분리). leading이나 stacked에서는 찾기, 변경 사항 및 다른 도구가 있는 오른쪽 사이드바가 오른쪽 가장자리에 남고 파일 탭이 사라집니다.",
           "showAgentUsage": "Claude Code 또는 Codex 상태 항목에 코딩 에이전트 사용량을 덧붙입니다. 모델과 사용한 컨텍스트 창을 표시하고, Claude Code에서는 Anthropic이 공개한 정가를 기준으로 한 API 비용 추정치(메인 스레드와 서브에이전트)도 함께 표시합니다. 이 비용은 추정치이며 구독 청구액이 아닙니다. 배치 및 우선 처리 등급, 파트너 가격, 고속 모드, 서버 도구 요금은 반영하지 않습니다.",
           "beta": {
             "conversations": {

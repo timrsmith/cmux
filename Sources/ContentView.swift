@@ -984,6 +984,10 @@ struct ContentView: View {
     /// is the persisted value it is reconciled with, like `fileExplorerWidth`.
     @State private var filesPanelWidth: CGFloat = FilesPanelPlacementLayout.defaultWidth
     @State private var filesPanelDragStartWidth: CGFloat?
+    /// Bumped by `RightSidebarTabPreferences.didChangeNotification` so the
+    /// body re-reads `RightSidebarMode.visibleModes()` (a defaults read it
+    /// cannot observe) for the Files header's Show Changes item.
+    @State private var rightSidebarTabPreferencesRevision = 0
     /// Live height of the Files region stacked above the workspace list
     /// (`sidebar.filesPanelPlacement` = `stacked`), deliberately NOT observed
     /// here: divider ticks re-evaluate only `StackedFilesPanelSplit`.
@@ -1234,15 +1238,49 @@ struct ContentView: View {
 
     /// The files panel's width cap: the right sidebar's dynamic cap (window
     /// width minus reserved terminal space, capped by the configured maximum)
-    /// applied to what is left after the right sidebar, so both tool panels
-    /// together still leave the panes their reserved room.
+    /// applied to what is left after the workspace sidebar and the right
+    /// sidebar, so the three panels together still leave the panes their
+    /// reserved room.
     private func filesPanelMaximumWidth(availableWidth: CGFloat? = nil) -> CGFloat {
-        let resolvedAvailableWidth = resolvedRightSidebarAvailableWidth(availableWidth)
-        return Self.clampedRightSidebarWidth(
-            .greatestFiniteMagnitude,
-            availableWidth: max(0, resolvedAvailableWidth - rightSidebarWidth),
+        Self.filesPanelMaximumWidth(
+            windowWidth: resolvedWindowContentWidth(availableWidth),
+            leadingSidebarWidth: sidebarState.isVisible ? sidebarWidth : 0,
+            rightSidebarWidth: rightSidebarWidth,
             configuredMaximumWidth: rightSidebarConfiguredMaximumWidth
         )
+    }
+
+    /// Pure form of `filesPanelMaximumWidth`: `clampedRightSidebarWidth`'s cap
+    /// over the width the two sidebars leave. No room left lands on that
+    /// clamp's floor, never on a screen-sized fallback.
+    static func filesPanelMaximumWidth(
+        windowWidth: CGFloat,
+        leadingSidebarWidth: CGFloat,
+        rightSidebarWidth: CGFloat,
+        configuredMaximumWidth: CGFloat? = nil
+    ) -> CGFloat {
+        clampedRightSidebarWidth(
+            .greatestFiniteMagnitude,
+            availableWidth: windowWidth - leadingSidebarWidth - rightSidebarWidth,
+            configuredMaximumWidth: configuredMaximumWidth
+        )
+    }
+
+    /// Keeps a docked files panel inside its cap when the window or the other
+    /// panels change; a hidden or undocked panel keeps its width and is
+    /// clamped when it docks again. Like `clampRightSidebarWidthIfNeeded`, the
+    /// clamped width is persisted so the stored value matches what is shown.
+    private func clampFilesPanelWidthIfNeeded(availableWidth: CGFloat? = nil) {
+        guard filesPanelIsDocked else { return }
+        let nextWidth = FilesPanelPlacementLayout.clampedWidth(
+            filesPanelWidth,
+            maximumWidth: filesPanelMaximumWidth(availableWidth: availableWidth)
+        )
+        guard abs(nextWidth - filesPanelWidth) > 0.5 else { return }
+        withTransaction(Transaction(animation: nil)) {
+            filesPanelWidth = nextWidth
+        }
+        fileExplorerState.filesPanelWidth = nextWidth
     }
 
     private func normalizedFilesPanelWidth(_ candidate: CGFloat) -> CGFloat {
@@ -1256,12 +1294,13 @@ struct ContentView: View {
             ?? NSApp.keyWindow?.contentView?.bounds.width
             ?? NSApp.keyWindow?.contentLayoutRect.width
         if let resolvedAvailableWidth, resolvedAvailableWidth > 0 {
-            // Never wider than what leaves the terminal its minimum next to the right sidebar.
-            let widthLeftByRightSidebar = resolvedAvailableWidth - rightSidebarWidth
+            // Never wider than what leaves the terminal its minimum next to
+            // the right sidebar and a docked files panel.
+            let widthLeftByOtherPanels = resolvedAvailableWidth - rightSidebarWidth - filesPanelDockedWidth
                 - SidePanelWidthFit.minimumTerminalWidth
             return max(
                 minimumSidebarWidth,
-                min(resolvedAvailableWidth * Self.maximumSidebarWidthRatio, widthLeftByRightSidebar)
+                min(resolvedAvailableWidth * Self.maximumSidebarWidthRatio, widthLeftByOtherPanels)
             )
         }
 
@@ -1293,7 +1332,9 @@ struct ContentView: View {
     ) -> CGFloat {
         let minimumWidth = Self.minimumRightSidebarWidth
         let sanitizedCandidate = candidate.isFinite ? candidate : 220
-        let sanitizedAvailableWidth = availableWidth.isFinite && availableWidth > 0 ? availableWidth : 1920
+        // No room left (the other panels fill the window) is an answer, the
+        // floor; only an unmeasured width falls back to a screen-sized cap.
+        let sanitizedAvailableWidth = availableWidth.isFinite ? max(0, availableWidth) : 1920
         let availableWidthCap = max(
             minimumWidth,
             sanitizedAvailableWidth - Self.minimumTerminalWidthWithRightSidebar
@@ -1329,11 +1370,11 @@ struct ContentView: View {
     }
 
     /// The width the right sidebar and the terminal share: the window minus the
-    /// left sidebar, so a wide right sidebar cannot squeeze the terminal the left
-    /// sidebar already narrowed.
+    /// left sidebar and a docked files panel, so a wide right sidebar cannot
+    /// squeeze the terminal the leading panels already narrowed.
     private func resolvedRightSidebarAvailableWidth(_ availableWidth: CGFloat? = nil) -> CGFloat {
         let windowWidth = resolvedWindowContentWidth(availableWidth)
-        return windowWidth - (sidebarState.isVisible ? sidebarWidth : 0)
+        return windowWidth - (sidebarState.isVisible ? sidebarWidth : 0) - filesPanelDockedWidth
     }
 
     private func resolvedWindowContentWidth(_ availableWidth: CGFloat? = nil) -> CGFloat {
@@ -1413,27 +1454,39 @@ struct ContentView: View {
 
     /// Collapses side panels the window is too narrow for, and brings back ones it
     /// collapsed earlier once they fit again, so the terminal keeps
-    /// `SidePanelWidthFit.minimumTerminalWidth`. Runs after the left width clamp
-    /// and before the right one, so a right sidebar about to collapse keeps its width.
+    /// `SidePanelWidthFit.minimumTerminalWidth` beside a docked files panel too.
+    /// Runs after the left and files width clamps and before the right one, so
+    /// a right sidebar about to collapse keeps its width.
     private func fitSidePanelsToWindow(availableWidth: CGFloat? = nil) {
         let windowWidth = resolvedWindowContentWidth(availableWidth)
         applySidePanelFit(currentSidePanelFit.fitting(
             windowWidth: windowWidth,
             leftWidth: sidebarWidth,
-            rightWidth: normalizedRightSidebarWidth(fileExplorerWidth, availableWidth: windowWidth)
+            rightWidth: normalizedRightSidebarWidth(fileExplorerWidth, availableWidth: windowWidth),
+            dockedPanelsWidth: filesPanelDockedWidth
         ))
     }
 
     /// A panel that just became visible keeps its place; the other one collapses
-    /// if both do not fit.
+    /// if both do not fit beside a docked files panel.
     private func makeRoomForShownSidePanel(_ panel: SidePanelWidthFit.Panel) {
         let windowWidth = resolvedWindowContentWidth()
         applySidePanelFit(currentSidePanelFit.showing(
             panel,
             windowWidth: windowWidth,
             leftWidth: sidebarWidth,
-            rightWidth: normalizedRightSidebarWidth(fileExplorerWidth, availableWidth: windowWidth)
+            rightWidth: normalizedRightSidebarWidth(fileExplorerWidth, availableWidth: windowWidth),
+            dockedPanelsWidth: filesPanelDockedWidth
         ))
+    }
+
+    /// The whole window-fit pass for the docked files panel: its own clamp,
+    /// the sidebar fit around it, then the right sidebar's clamp against what
+    /// it leaves. Run when the panel docks, undocks or resizes with the window.
+    private func fitPanelsAroundFilesPanel(availableWidth: CGFloat? = nil) {
+        clampFilesPanelWidthIfNeeded(availableWidth: availableWidth)
+        fitSidePanelsToWindow(availableWidth: availableWidth)
+        clampRightSidebarWidthIfNeeded(availableWidth: availableWidth)
     }
 
     private func activateSidebarResizerCursor() {
@@ -2186,7 +2239,10 @@ struct ContentView: View {
         appearance: WindowAppearanceSnapshot,
         headerBelowTitlebarStrip: Bool
     ) -> FilesPanelView {
-        FilesPanelView(
+        // Re-evaluated when the user hides or shows the Changes tab, so the
+        // Show Changes item below follows (see `rightSidebarTabPreferencesRevision`).
+        _ = rightSidebarTabPreferencesRevision
+        return FilesPanelView(
             fileExplorerStore: fileExplorerStore,
             fileExplorerState: fileExplorerState,
             titlebarHeight: RightSidebarChromeMetrics.titlebarHeight,
@@ -3610,13 +3666,16 @@ struct ContentView: View {
             syncTrafficLightInset()
         })
 
+        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: RightSidebarTabPreferences.didChangeNotification)) { _ in
+            rightSidebarTabPreferencesRevision &+= 1
+        })
+
         view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: NSWindow.didResizeNotification)) { notification in
             guard let window = notification.object as? NSWindow,
                   window === observedWindow else { return }
             let availableWidth = window.contentView?.bounds.width ?? window.contentLayoutRect.width
             clampSidebarWidthIfNeeded(availableWidth: availableWidth)
-            fitSidePanelsToWindow(availableWidth: availableWidth)
-            clampRightSidebarWidthIfNeeded(availableWidth: availableWidth)
+            fitPanelsAroundFilesPanel(availableWidth: availableWidth)
             updateSidebarResizerBandState()
         })
 
@@ -3677,6 +3736,7 @@ struct ContentView: View {
             if isVisible {
                 makeRoomForShownSidePanel(.left)
             }
+            clampFilesPanelWidthIfNeeded()
             clampRightSidebarWidthIfNeeded()
             if !isVisible {
                 // A right sidebar collapsed for lack of room may fit again.
@@ -3727,11 +3787,14 @@ struct ContentView: View {
         // The docked files panel shares the right sidebar's lifecycle hooks:
         // its tree root follows the selected workspace only while it is on
         // screen, closing it hands focus back to the terminal when the tree
-        // owned it, and the portals re-measure around its width.
+        // owned it, the sidebars are fit around it (a sidebar collapsed for
+        // lack of room may fit again once it closes), and the portals
+        // re-measure around its width.
         view = AnyView(view.onChange(of: fileExplorerState.filesPanelVisible) { _, isVisible in
             if !isVisible {
                 _ = AppDelegate.shared?.restoreTerminalFocusAfterRightSidebarHidden(in: observedWindow)
             }
+            fitPanelsAroundFilesPanel()
             syncFileExplorerDirectory()
             if let observedWindow {
                 TerminalWindowPortalRegistry.scheduleExternalGeometrySynchronize(for: observedWindow)
@@ -3741,8 +3804,11 @@ struct ContentView: View {
         })
 
         view = AnyView(view.onChange(of: filesPanelPlacement) { previous, next in
-            // The tree follows the user to its new home; a hidden tree stays hidden.
+            // The tree follows the user to its new home; a tree the user
+            // closed stays closed. Docking or undocking the leading panel
+            // changes what the sidebars share, so they are fit around it.
             fileExplorerState.applyPlacementChange(from: previous, to: next)
+            fitPanelsAroundFilesPanel()
             syncFileExplorerDirectory()
             if let observedWindow {
                 TerminalWindowPortalRegistry.scheduleExternalGeometrySynchronize(for: observedWindow)

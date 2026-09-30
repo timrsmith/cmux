@@ -40,6 +40,10 @@ public struct FilesAndEditingSection: View {
         _tabWidth = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.fileEditor.tabWidth))
     }
 
+    /// The section header followed by its two cards, `filesPanelCard` and
+    /// `fileEditorCard`. Every row's `DefaultsValueModel` starts observing its
+    /// store when the section appears (`startSettingsObservation`) and stops
+    /// when it goes away, so a section the window has not shown costs nothing.
     public var body: some View {
         Group {
             SettingsSectionHeader(
