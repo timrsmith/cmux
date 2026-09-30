@@ -2195,6 +2195,9 @@ struct ContentView: View {
             onOpenFilePreview: { filePath in
                 openFilePreviewFromSidebar(filePath: filePath)
             },
+            onShowChanges: {
+                handleCommandPaletteRightSidebarMode(.changes, observedWindow: nil)
+            },
             onOpenAsPane: {
                 openRightSidebarToolPane(.files)
             },
