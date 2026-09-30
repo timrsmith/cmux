@@ -87,10 +87,7 @@ struct FilesPanelView: View {
                 .allowsHitTesting(false)
                 .accessibilityIdentifier("FilesPanel.title")
                 Spacer(minLength: 0)
-                if showsChangesButton {
-                    changesButton
-                }
-                FilesPanelHeaderMenu()
+                FilesPanelHeaderMenu(onShowChanges: onShowChanges)
                 openAsPaneButton
                 closeButton
             }
@@ -103,30 +100,6 @@ struct FilesPanelView: View {
         .background(TitlebarDoubleClickMonitorView())
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("FilesPanelHeader")
-    }
-
-    /// Whether Changes is a tab the right sidebar shows right now (available
-    /// and not hidden through Right Sidebar Tabs); the button follows the tab.
-    private var showsChangesButton: Bool {
-        RightSidebarMode.visibleModes().contains(.changes)
-    }
-
-    /// Jumps from the tree to the Changes tab: with the tree docked away from
-    /// the right sidebar, the two are no longer a tab switch apart.
-    private var changesButton: some View {
-        Button(action: onShowChanges) {
-            HeaderChromeIconStyle.symbol(RightSidebarMode.changes.symbolName)
-        }
-        .buttonStyle(RightSidebarHeaderIconButtonStyle(iconGeometryKeyPrefix: "filesPanelHeaderChangesIcon"))
-        .frame(
-            width: RightSidebarChromeMetrics.headerControlSize,
-            height: RightSidebarChromeMetrics.headerControlSize
-        )
-        .rightSidebarHeaderControlAlignment()
-        .safeHelp(String(localized: "filesPanel.showChanges.tooltip", defaultValue: "Show Changes"))
-        .accessibilityLabel(String(localized: "filesPanel.showChanges.accessibilityLabel", defaultValue: "Show Changes"))
-        .accessibilityIdentifier("FilesPanel.changesButton")
-        .titlebarInteractiveControl()
     }
 
     private var openAsPaneButton: some View {
