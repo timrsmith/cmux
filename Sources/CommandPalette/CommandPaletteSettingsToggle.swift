@@ -156,6 +156,9 @@ enum CommandPaletteSettingsToggleCommands {
             String(localized: "settings.section.automation", defaultValue: "Automation")
         }
         let browser: @Sendable () -> String = { String(localized: "settings.section.browser", defaultValue: "Browser") }
+        let filesAndEditing: @Sendable () -> String = {
+            String(localized: "settings.section.filesAndEditing", defaultValue: "Files and Editing")
+        }
         let browserImport: @Sendable () -> String = {
             String(localized: "settings.section.browserImport", defaultValue: "Browser Import")
         }
@@ -304,7 +307,7 @@ enum CommandPaletteSettingsToggleCommands {
                 title: {
                     String(localized: "settings.app.fileEditorWordWrap", defaultValue: "File Editor Word Wrap")
                 },
-                sectionTitle: app,
+                sectionTitle: filesAndEditing,
                 keywords: ["fileEditor.wordWrap", "file", "editor", "word", "wrap", "soft", "reflow", "lines", "preview"],
                 isOn: { FilePreviewWordWrapSettings(defaults: $0).isEnabled() },
                 setOn: { value, defaults, _ in FilePreviewWordWrapSettings(defaults: defaults).setEnabled(value) }
@@ -315,7 +318,7 @@ enum CommandPaletteSettingsToggleCommands {
                 title: {
                     String(localized: "settings.app.fileEditorSyntaxHighlighting", defaultValue: "File Editor Syntax Highlighting")
                 },
-                sectionTitle: app,
+                sectionTitle: filesAndEditing,
                 keywords: ["fileEditor.syntaxHighlighting", "syntax", "highlight", "colors", "tokens"],
                 defaultValue: fileEditorSettings.catalog.syntaxHighlighting.defaultValue,
                 defaultsKey: fileEditorSettings.catalog.syntaxHighlighting.userDefaultsKey
@@ -326,7 +329,7 @@ enum CommandPaletteSettingsToggleCommands {
                 title: {
                     String(localized: "settings.app.fileEditorLineNumbers", defaultValue: "File Editor Line Numbers")
                 },
-                sectionTitle: app,
+                sectionTitle: filesAndEditing,
                 keywords: ["fileEditor.lineNumbers", "gutter", "line", "numbers"],
                 defaultValue: fileEditorSettings.catalog.lineNumbers.defaultValue,
                 defaultsKey: fileEditorSettings.catalog.lineNumbers.userDefaultsKey
@@ -337,7 +340,7 @@ enum CommandPaletteSettingsToggleCommands {
                 title: {
                     String(localized: "settings.app.fileEditorIndentGuides", defaultValue: "File Editor Indent Guides")
                 },
-                sectionTitle: app,
+                sectionTitle: filesAndEditing,
                 keywords: ["fileEditor.indentGuides", "indent", "guides"],
                 defaultValue: fileEditorSettings.catalog.indentGuides.defaultValue,
                 defaultsKey: fileEditorSettings.catalog.indentGuides.userDefaultsKey
@@ -348,7 +351,7 @@ enum CommandPaletteSettingsToggleCommands {
                 title: {
                     String(localized: "settings.app.fileEditorCurrentLineHighlight", defaultValue: "File Editor Current Line Highlight")
                 },
-                sectionTitle: app,
+                sectionTitle: filesAndEditing,
                 keywords: ["fileEditor.currentLineHighlight", "current", "line", "caret"],
                 defaultValue: fileEditorSettings.catalog.currentLineHighlight.defaultValue,
                 defaultsKey: fileEditorSettings.catalog.currentLineHighlight.userDefaultsKey

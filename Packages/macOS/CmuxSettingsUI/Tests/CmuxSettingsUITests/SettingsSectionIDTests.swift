@@ -1,3 +1,4 @@
+import CmuxSettings
 import Testing
 @testable import CmuxSettingsUI
 
@@ -31,6 +32,43 @@ struct SettingsSectionIDTests {
         let destination = target.navigationDestination(providedAnchor: anchor)
         #expect(destination.section == .computers)
         #expect(destination.anchorID == "section:computers")
+    }
+
+    /// Files and Editing gathers the file tree and file editor rows that used
+    /// to live under App and Sidebar; `cmux settings open files-and-editing`
+    /// and persisted selections use its raw value.
+    @Test func filesAndEditingIsItsOwnSection() {
+        #expect(SettingsSectionID.filesAndEditing.title == "Files and Editing")
+        #expect(SettingsSectionID(rawValue: "filesAndEditing") == .filesAndEditing)
+        #expect(SettingsSectionID.filesAndEditing.symbolName == "folder.badge.gearshape")
+    }
+
+    /// Anchors saved while the file rows lived under App or Sidebar select
+    /// Files and Editing and scroll to the same row there, whichever section
+    /// the request named.
+    @Test(arguments: [
+        (SettingsSectionID.app, "setting:app:file-explorer-double-click-action", "setting:filesAndEditing:file-explorer-double-click-action"),
+        (.app, "setting:app:file-editor-terminal-editor-command", "setting:filesAndEditing:file-editor-terminal-editor-command"),
+        (.app, "setting:app:file-editor-word-wrap", "setting:filesAndEditing:file-editor-word-wrap"),
+        (.app, "setting:app:file-editor-tab-width", "setting:filesAndEditing:file-editor-tab-width"),
+        (.sidebarAppearance, "setting:sidebarAppearance:files-panel-placement", "setting:filesAndEditing:files-panel-placement"),
+        (.filesAndEditing, "setting:app:file-editor-line-numbers", "setting:filesAndEditing:file-editor-line-numbers")
+    ])
+    func legacyFileRowAnchorsLandOnTheirFilesAndEditingRow(target: SettingsSectionID, anchor: String, expected: String) {
+        let destination = target.navigationDestination(providedAnchor: anchor)
+        #expect(destination.section == .filesAndEditing)
+        #expect(destination.anchorID == expected)
+    }
+
+    /// Every legacy file-row anchor redirects to a row the search index knows,
+    /// so the redirected scroll has something to land on.
+    @Test func legacyFileRowAnchorsResolveToIndexedRows() {
+        let index = SettingsSearchIndex(catalog: SettingCatalog())
+        let indexed = Set(index.entries.map(\.id))
+        for (legacy, _) in SettingsSectionID.legacyFilesAndEditingAnchorIDs {
+            let destination = SettingsSectionID.app.navigationDestination(providedAnchor: legacy)
+            #expect(indexed.contains(destination.anchorID), "\(legacy) redirects to unknown row \(destination.anchorID)")
+        }
     }
 
     @Test(arguments: SettingsSectionID.allCases)

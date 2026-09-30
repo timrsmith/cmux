@@ -16,6 +16,15 @@ struct SettingsSectionMountModelTests {
         #expect(Array(order[(mobile + 1)...].prefix(3)) == [.cloudMachines, .computers, .networking])
     }
 
+    /// Files and Editing follows Browser in the detail stack, matching the
+    /// Browser & Files group in the sidebar.
+    @Test func filesAndEditingFollowsBrowserInTheDetailStack() throws {
+        let order = SettingsSectionMountModel.displayOrder
+        let browser = try #require(order.firstIndex(of: .browser))
+        #expect(order[browser + 1] == .filesAndEditing)
+        #expect(SettingsSectionMountModel.hostSection(for: .filesAndEditing) == .filesAndEditing)
+    }
+
     @Test func displayOrderGivesEverySectionASlotExceptTheEmbeddedBrowserImport() {
         let slots = Set(SettingsSectionMountModel.displayOrder)
         #expect(slots.count == SettingsSectionMountModel.displayOrder.count)

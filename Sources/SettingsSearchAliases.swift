@@ -37,6 +37,8 @@ enum SettingsSearchAliasIndex {
             return localized("settings.search.alias.section.browser", defaultValue: "web webview address bar omnibar links urls embedded default browser")
         case .browserImport:
             return localized("settings.search.alias.section.browserImport", defaultValue: "chrome safari firefox brave edge arc bookmarks history cookies profiles")
+        case .filesAndEditing:
+            return localized("settings.search.alias.section.filesAndEditing", defaultValue: "files file tree explorer panel placement editor open files terminal editor word wrap syntax highlighting line numbers indent guides tab width")
         case .globalHotkey:
             return localized("settings.search.alias.section.globalHotkey", defaultValue: "system shortcut global keyboard show hide bring forward")
         case .keyboardShortcuts:
@@ -80,14 +82,14 @@ enum SettingsSearchAliasIndex {
         "app:markdown-font-size": localized("settings.search.alias.setting.app.markdown-font-size", defaultValue: "markdown.fontSize md markdown viewer font size points zoom scale text bigger smaller larger default"),
         "app:markdown-font-family": localized("settings.search.alias.setting.app.markdown-font-family", defaultValue: "markdown.fontFamily md markdown viewer font font-family family typeface system stack custom"),
         "app:markdown-max-width": localized("settings.search.alias.setting.app.markdown-max-width", defaultValue: "markdown.maxWidth md markdown viewer max width column reading line length pixels px narrow wide"),
-        "app:file-editor-word-wrap": localized("settings.search.alias.setting.app.file-editor-word-wrap", defaultValue: "fileEditor.wordWrap file editor word wrap soft wrap reflow lines text horizontal scroll preview"),
-        "app:file-editor-syntax-highlighting": localized("settings.search.alias.setting.app.file-editor-syntax-highlighting", defaultValue: "fileEditor.syntaxHighlighting syntax highlight colors tokens code"),
-        "app:file-editor-line-numbers": localized("settings.search.alias.setting.app.file-editor-line-numbers", defaultValue: "fileEditor.lineNumbers gutter line numbers"),
-        "app:file-editor-indent-guides": localized("settings.search.alias.setting.app.file-editor-indent-guides", defaultValue: "fileEditor.indentGuides indent guides columns"),
-        "app:file-editor-current-line-highlight": localized("settings.search.alias.setting.app.file-editor-current-line-highlight", defaultValue: "fileEditor.currentLineHighlight current line caret"),
-        "app:file-editor-tab-width": localized("settings.search.alias.setting.app.file-editor-tab-width", defaultValue: "fileEditor.tabWidth tab width indent columns"),
-        "app:file-explorer-double-click-action": localized("settings.search.alias.setting.app.file-explorer-double-click-action", defaultValue: "fileExplorer.doubleClickAction file tree files panel double click open native editor terminal editor default app preferred editor preview"),
-        "app:file-editor-terminal-editor-command": localized("settings.search.alias.setting.app.file-editor-terminal-editor-command", defaultValue: "fileEditor.terminalEditorCommand terminal editor command vim nvim nano helix emacs VISUAL EDITOR"),
+        "filesAndEditing:file-editor-word-wrap": localized("settings.search.alias.setting.app.file-editor-word-wrap", defaultValue: "fileEditor.wordWrap file editor word wrap soft wrap reflow lines text horizontal scroll preview"),
+        "filesAndEditing:file-editor-syntax-highlighting": localized("settings.search.alias.setting.app.file-editor-syntax-highlighting", defaultValue: "fileEditor.syntaxHighlighting syntax highlight colors tokens code"),
+        "filesAndEditing:file-editor-line-numbers": localized("settings.search.alias.setting.app.file-editor-line-numbers", defaultValue: "fileEditor.lineNumbers gutter line numbers"),
+        "filesAndEditing:file-editor-indent-guides": localized("settings.search.alias.setting.app.file-editor-indent-guides", defaultValue: "fileEditor.indentGuides indent guides columns"),
+        "filesAndEditing:file-editor-current-line-highlight": localized("settings.search.alias.setting.app.file-editor-current-line-highlight", defaultValue: "fileEditor.currentLineHighlight current line caret"),
+        "filesAndEditing:file-editor-tab-width": localized("settings.search.alias.setting.app.file-editor-tab-width", defaultValue: "fileEditor.tabWidth tab width indent columns"),
+        "filesAndEditing:file-explorer-double-click-action": localized("settings.search.alias.setting.app.file-explorer-double-click-action", defaultValue: "fileExplorer.doubleClickAction file tree files panel double click open native editor terminal editor default app preferred editor preview"),
+        "filesAndEditing:file-editor-terminal-editor-command": localized("settings.search.alias.setting.app.file-editor-terminal-editor-command", defaultValue: "fileEditor.terminalEditorCommand terminal editor command vim nvim nano helix emacs VISUAL EDITOR"),
         "app:imessage-mode": localized("settings.search.alias.setting.app.imessage-mode", defaultValue: "app.iMessageMode imessage message messages chat prompt prompts submitted message texting reorder move workspace top agent send"),
         "app:reorder-notification": localized("settings.search.alias.setting.app.reorder-notification", defaultValue: "app.reorderOnNotification notification reorder move workspace top unread sort agent activity agents prompt turn finished needs input"),
         "app:dock-badge": localized("settings.search.alias.setting.app.dock-badge", defaultValue: "notifications.dockBadge badge dock unread count icon notifications red bubble"),
@@ -170,7 +172,7 @@ enum SettingsSearchAliasIndex {
         "sidebarAppearance:notification-badge-position": localized("settings.search.alias.setting.app.notification-badge-position", defaultValue: "sidebar.notificationBadgePosition notification unread badge position left right leading trailing side workspace"),
         "sidebarAppearance:show-metadata": localized("settings.search.alias.setting.app.show-metadata", defaultValue: "sidebar.showCustomMetadata metadata meta report_meta status custom block"),
         "sidebarAppearance:compact-agent-status": localized("settings.search.alias.setting.app.compact-agent-status", defaultValue: "sidebar.compactAgentStatus compact agent status running needs input glyph icon title line dense claude codex"),
-        "sidebarAppearance:files-panel-placement": localized("settings.search.alias.setting.sidebarAppearance.files-panel-placement", defaultValue: "sidebar.filesPanelPlacement files panel placement file tree explorer left of panes right sidebar leading stacked above workspaces ide layout next to workspace list"),
+        "filesAndEditing:files-panel-placement": localized("settings.search.alias.setting.sidebarAppearance.files-panel-placement", defaultValue: "sidebar.filesPanelPlacement files panel placement file tree explorer left of panes right sidebar leading stacked above workspaces ide layout next to workspace list"),
         "sidebarAppearance:right-max-width": localized("settings.search.alias.setting.sidebarAppearance.right-max-width", defaultValue: "sidebar.rightMaxWidth dock right sidebar max width terminal reservation cap logs lazygit"),
         "betaFeatures:feed": localized("settings.search.alias.setting.betaFeatures.feed", defaultValue: "feed right sidebar agent decisions permissions questions approval beta unstable"),
         "mobile:iOSPairingHost": localized("settings.search.alias.setting.mobile.iOSPairingHost", defaultValue: "ios iphone ipad mobile pairing local network permission sync"),

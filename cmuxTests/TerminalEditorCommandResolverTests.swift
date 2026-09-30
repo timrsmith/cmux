@@ -92,42 +92,6 @@ final class TerminalEditorCommandResolverTests: XCTestCase {
         XCTAssertEqual(request.workingDirectory, "/")
     }
 
-    // MARK: - Files header Editor submenu
-
-    private func menuTitles(configured: String) -> [String] {
-        FileExplorerDoubleClickAction.allCases.map {
-            FilesPanelEditorMenuItems.title(for: $0, configuredCommand: configured)
-        }
-    }
-
-    func testEditorMenuTitlesEveryChoiceInPickerOrder() {
-        XCTAssertEqual(FileExplorerDoubleClickAction.allCases, [.preview, .terminalEditor, .defaultEditor, .preferredEditor])
-        XCTAssertEqual(
-            menuTitles(configured: "nvim"),
-            ["Native Editor", "Terminal Editor (nvim)", "Default App", "Preferred Editor App"]
-        )
-    }
-
-    func testEditorMenuNamesTheShellResolutionWhenNoCommandIsConfigured() {
-        XCTAssertEqual(
-            menuTitles(configured: "  "),
-            ["Native Editor", "Terminal Editor ($VISUAL, $EDITOR or vi)", "Default App", "Preferred Editor App"]
-        )
-    }
-
-    func testEditorMenuNamesTheConfiguredCommandByItsExecutableBasename() {
-        func terminalEditorTitle(_ configured: String) -> String {
-            FilesPanelEditorMenuItems.title(for: .terminalEditor, configuredCommand: configured)
-        }
-        XCTAssertEqual(terminalEditorTitle("/opt/homebrew/bin/nvim -u NONE"), "Terminal Editor (nvim)")
-        XCTAssertEqual(terminalEditorTitle("emacs -nw"), "Terminal Editor (emacs)")
-        XCTAssertEqual(
-            terminalEditorTitle("'/Applications/My Editor.app/Contents/MacOS/edit' --wait"),
-            "Terminal Editor (edit)"
-        )
-        XCTAssertEqual(terminalEditorTitle("\"/usr/local/bin/hx\" --vsplit"), "Terminal Editor (hx)")
-    }
-
     // MARK: - cmux.json
 
     func testTerminalEditorCommandIsAdvertisedAsASupportedSettingsPath() {

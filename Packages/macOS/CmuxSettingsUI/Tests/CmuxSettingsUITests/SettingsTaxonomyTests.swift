@@ -20,7 +20,7 @@ struct SettingsTaxonomyTests {
         #expect(SettingsTaxonomyGroup.workspace.sections == [.workspaceColors])
         #expect(SettingsTaxonomyGroup.sidebarAndDock.sections == [.sidebarAppearance, .customSidebars])
         #expect(SettingsTaxonomyGroup.agentsAndAutomation.sections == [.automation, .computerUse])
-        #expect(SettingsTaxonomyGroup.browserAndFiles.sections == [.browser, .browserImport])
+        #expect(SettingsTaxonomyGroup.browserAndFiles.sections == [.browser, .browserImport, .filesAndEditing])
         #expect(SettingsTaxonomyGroup.remoteAndDevices.sections == [.mobile, .cloudMachines, .computers, .networking])
         #expect(
             SettingsTaxonomyGroup.keyboardAndAdvanced.sections

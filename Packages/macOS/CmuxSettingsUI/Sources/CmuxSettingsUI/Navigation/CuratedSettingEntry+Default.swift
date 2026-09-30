@@ -81,45 +81,51 @@ extension Array where Element == CuratedSettingEntry {
             .init(section: .app, id: "preferred-editor", title: String(localized: "settings.app.preferredEditor", defaultValue: "Open Files With"), synonyms: "Open Files With app.preferredEditor editor open file code vscode visual studio zed sublime subl cursor"),
             .init(section: .app, id: "supported-file-previews", title: String(localized: "settings.app.openSupportedFilesInCmux", defaultValue: "Open Supported Files in cmux"), synonyms: "Open Supported Files in cmux app.openSupportedFilesInCmux cmd click file preview pdf image video audio quicklook quick look editor external"),
             .init(section: .app, id: "markdown-viewer", title: String(localized: "settings.app.openMarkdownInCmuxViewer", defaultValue: "Open Markdown in cmux Viewer"), synonyms: "Open Markdown in cmux Viewer app.openMarkdownInCmuxViewer md markdown mdx viewer preview readme"),
-            .init(section: .app, id: "file-editor-word-wrap", title: String(localized: "settings.app.fileEditorWordWrap", defaultValue: "File Editor Word Wrap"), synonyms: "fileEditor.wordWrap " + String(localized: "settings.search.fileEditor.wordWrap", defaultValue: "file editor word wrap soft wrap reflow lines text horizontal scroll preview")),
             .init(
-                section: .app,
+                section: .filesAndEditing,
+                id: "files-panel-placement",
+                title: String(localized: "settings.sidebar.filesPanelPlacement", defaultValue: "Files Panel"),
+                synonyms: "sidebar.filesPanelPlacement " + String(localized: "settings.search.sidebar.filesPanelPlacement", defaultValue: "files panel placement file tree explorer left of panes right sidebar leading stacked above workspaces ide layout next to workspace list")
+            ),
+            .init(section: .filesAndEditing, id: "file-editor-word-wrap", title: String(localized: "settings.app.fileEditorWordWrap", defaultValue: "File Editor Word Wrap"), synonyms: "fileEditor.wordWrap " + String(localized: "settings.search.fileEditor.wordWrap", defaultValue: "file editor word wrap soft wrap reflow lines text horizontal scroll preview")),
+            .init(
+                section: .filesAndEditing,
                 id: "file-editor-syntax-highlighting",
                 title: String(localized: "settings.app.fileEditorSyntaxHighlighting", defaultValue: "File Editor Syntax Highlighting"),
                 synonyms: "fileEditor.syntaxHighlighting " + String(localized: "settings.search.fileEditor.syntaxHighlighting", defaultValue: "syntax highlight colors tokens code")
             ),
             .init(
-                section: .app,
+                section: .filesAndEditing,
                 id: "file-editor-line-numbers",
                 title: String(localized: "settings.app.fileEditorLineNumbers", defaultValue: "File Editor Line Numbers"),
                 synonyms: "fileEditor.lineNumbers " + String(localized: "settings.search.fileEditor.lineNumbers", defaultValue: "gutter line numbers")
             ),
             .init(
-                section: .app,
+                section: .filesAndEditing,
                 id: "file-editor-indent-guides",
                 title: String(localized: "settings.app.fileEditorIndentGuides", defaultValue: "File Editor Indent Guides"),
                 synonyms: "fileEditor.indentGuides " + String(localized: "settings.search.fileEditor.indentGuides", defaultValue: "indent guides columns")
             ),
             .init(
-                section: .app,
+                section: .filesAndEditing,
                 id: "file-editor-current-line-highlight",
                 title: String(localized: "settings.app.fileEditorCurrentLineHighlight", defaultValue: "File Editor Current Line Highlight"),
                 synonyms: "fileEditor.currentLineHighlight " + String(localized: "settings.search.fileEditor.currentLineHighlight", defaultValue: "current line caret highlight")
             ),
             .init(
-                section: .app,
+                section: .filesAndEditing,
                 id: "file-editor-tab-width",
                 title: String(localized: "settings.app.fileEditorTabWidth", defaultValue: "File Editor Tab Width"),
                 synonyms: "fileEditor.tabWidth " + String(localized: "settings.search.fileEditor.tabWidth", defaultValue: "tab width indent columns")
             ),
             .init(
-                section: .app,
+                section: .filesAndEditing,
                 id: "file-explorer-double-click-action",
                 title: String(localized: "settings.fileExplorer.doubleClickAction", defaultValue: "Open Files From Tree In"),
                 synonyms: "fileExplorer.doubleClickAction " + String(localized: "settings.search.fileExplorer.doubleClickAction", defaultValue: "file tree files panel double click open native editor terminal editor default app preferred editor preview")
             ),
             .init(
-                section: .app,
+                section: .filesAndEditing,
                 id: "file-editor-terminal-editor-command",
                 title: String(localized: "settings.fileEditor.terminalEditorCommand", defaultValue: "Terminal Editor"),
                 synonyms: "fileEditor.terminalEditorCommand " + String(localized: "settings.search.fileEditor.terminalEditorCommand", defaultValue: "terminal editor command vim nvim nano helix emacs VISUAL EDITOR")

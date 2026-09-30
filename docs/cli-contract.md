@@ -779,7 +779,7 @@ Settings subcommands:
 | `settings open [target]` | Open Settings to an optional target section. |
 | `settings path` | Print cmux.json paths, docs URL, schema URL, backup reminder, and reload command without a socket. |
 | `settings docs` | Print the same output as `docs settings` without a socket. |
-| `settings <target>` | Open Settings to a target section. Supported aliases include `shortcuts`, `json`, `cmux-json`, `browser`, and `automation`. |
+| `settings <target>` | Open Settings to a target section. Supported aliases include `shortcuts`, `json`, `cmux-json`, `browser`, `automation`, and `files-and-editing` (`files`, `editing`). |
 
 Config subcommands:
 

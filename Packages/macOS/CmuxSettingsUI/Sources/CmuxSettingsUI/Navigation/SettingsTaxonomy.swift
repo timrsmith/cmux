@@ -83,7 +83,7 @@ enum SettingsTaxonomyGroup: String, CaseIterable, Identifiable, Sendable {
         case .agentsAndAutomation:
             return [.automation, .computerUse]
         case .browserAndFiles:
-            return [.browser, .browserImport]
+            return [.browser, .browserImport, .filesAndEditing]
         case .remoteAndDevices:
             return [.mobile, .cloudMachines, .computers, .networking]
         case .keyboardAndAdvanced:

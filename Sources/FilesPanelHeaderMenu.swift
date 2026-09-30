@@ -4,32 +4,29 @@ import SwiftUI
 
 /// The "…" menu on the Files header, wherever the tree lives: the right
 /// sidebar's Files tab, the leading panel, or the stacked region. Its
-/// Placement submenu writes `sidebar.filesPanelPlacement` and its Editor
-/// submenu writes `fileExplorer.doubleClickAction`, each through the same
+/// Placement submenu writes `sidebar.filesPanelPlacement` through the same
 /// live setting the Settings window edits, so the header and Settings never
-/// disagree.
+/// disagree. Every other file setting (where files open, the terminal
+/// editor, the file editor's display) lives in Settings > Files and Editing,
+/// which the last item opens.
 struct FilesPanelHeaderMenu: View {
     @LiveSetting(\.sidebar.filesPanelPlacement) private var placement
-    @LiveSetting(\.fileExplorer.doubleClickAction) private var doubleClickAction
-    @LiveSetting(\.fileEditor.terminalEditorCommand) private var terminalEditorCommand
 
     var body: some View {
-        // Captured as a plain value so the row closure holds no setting wrapper.
-        let configuredCommand = terminalEditorCommand
+        let placementTitle = String(localized: "filesPanel.header.placement", defaultValue: "Placement")
         Menu {
-            settingSubmenu(
-                String(localized: "filesPanel.header.placement", defaultValue: "Placement"),
-                selection: $placement,
-                options: FilesPanelPlacement.allCases
-            ) { option in
-                option.localizedTitle
+            Menu(placementTitle) {
+                Picker(placementTitle, selection: $placement) {
+                    ForEach(FilesPanelPlacement.allCases, id: \.self) { option in
+                        Label(option.localizedTitle, systemImage: option.symbolName).tag(option)
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
             }
-            settingSubmenu(
-                String(localized: "filesPanel.header.editor", defaultValue: "Editor"),
-                selection: $doubleClickAction,
-                options: FileExplorerDoubleClickAction.allCases
-            ) { option in
-                FilesPanelEditorMenuItems.title(for: option, configuredCommand: configuredCommand)
+            Divider()
+            Button(String(localized: "filesPanel.header.openSettings", defaultValue: "Files and Editing Settings…")) {
+                SettingsWindowPresenter.show(navigationTarget: .filesAndEditing)
             }
         } label: {
             Image(systemName: "ellipsis")
@@ -51,23 +48,5 @@ struct FilesPanelHeaderMenu: View {
         .safeHelp(String(localized: "filesPanel.header.options.tooltip", defaultValue: "Files options"))
         .accessibilityLabel(String(localized: "filesPanel.header.options.accessibilityLabel", defaultValue: "Files Options"))
         .accessibilityIdentifier("FilesPanel.optionsMenu")
-    }
-
-    /// A submenu holding one inline picker over `options`, bound to a setting.
-    private func settingSubmenu<Option: Hashable>(
-        _ title: String,
-        selection: Binding<Option>,
-        options: [Option],
-        optionTitle: @escaping (Option) -> String
-    ) -> some View {
-        Menu(title) {
-            Picker(title, selection: selection) {
-                ForEach(options, id: \.self) { option in
-                    Text(optionTitle(option)).tag(option)
-                }
-            }
-            .pickerStyle(.inline)
-            .labelsHidden()
-        }
     }
 }

@@ -129,6 +129,7 @@ struct SettingsRowAnchorResolutionTests {
         "sidebar.showBranchDirectory",
         "sidebar.showCustomMetadata",
         "sidebar.compactAgentStatus",
+        "sidebar.filesPanelPlacement",
         "sidebar.showLog",
         "sidebar.showNotificationMessage",
         "sidebar.notificationMessageLineLimit",
