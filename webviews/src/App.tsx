@@ -1423,6 +1423,11 @@ export function App({ config, initialStatus }: ConfigProps) {
                 options={renderedCodeViewOptions}
                 renderHeaderPrefix={(item) => (
                   <>
+                    <FileCollapseToggle
+                      collapsed={(item as DiffItem).collapsed === true}
+                      label={label}
+                      onToggle={() => dispatch({ type: "toggle-item-collapsed", itemId: item.id })}
+                    />
                     {header != null ? (
                       <FileSelectCheckbox
                         checked={selectedItemIds.has(item.id)}
@@ -1433,11 +1438,6 @@ export function App({ config, initialStatus }: ConfigProps) {
                         })}
                       />
                     ) : null}
-                    <FileCollapseToggle
-                      collapsed={(item as DiffItem).collapsed === true}
-                      label={label}
-                      onToggle={() => dispatch({ type: "toggle-item-collapsed", itemId: item.id })}
-                    />
                   </>
                 )}
                 renderHeaderMetadata={(item) => (

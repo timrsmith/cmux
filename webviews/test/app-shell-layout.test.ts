@@ -65,6 +65,17 @@ describe("app shell grid", () => {
     expect(positionHidden).toMatch(/\.repo-header-position/);
   });
 
+  test("the header row carries no batch-action cluster; the overflow button wears the selection count", () => {
+    // The batch actions are items of the "..." menu, so the header has no
+    // button cluster (and no container query shedding its text) to grow the
+    // row; the count rides on the menu button as a badge drawn from its
+    // data attribute.
+    expect(css).not.toMatch(/\.repo-header-bulk|\.header-action/);
+    expect(css).toMatch(
+      /#repo-overflow-button\[data-selection-count\]::after\s*\{[^}]*content: attr\(data-selection-count\);/s,
+    );
+  });
+
   test("whichever top row renders draws the block's bottom border on the same background", () => {
     for (const row of ["#repo-header", "#toolbar"]) {
       expect(declaration(row, "border-bottom")).toBe(

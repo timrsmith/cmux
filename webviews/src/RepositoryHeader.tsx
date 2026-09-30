@@ -7,6 +7,7 @@ import { Icon, type IconName } from "./icons";
 import {
   formatCountLabel,
   formatLabel,
+  type CountLabelKey,
   type DiffViewerLabelResolver,
 } from "./labels";
 import { MenuButton } from "./ViewOptionsMenu";
@@ -36,12 +37,13 @@ import {
 /**
  * Repository header for working-tree views: the source/repo/base pickers
  * (passed in by the App, which renders them from exactly one host), then
- * `<branch> · N files +A -D · position`, and on the right the batch actions
- * (Stage all / Unstage all and Discard all…, or, while files are checked,
- * Stage N files / Discard N files… and Clear selection), the primary split
+ * `<branch> · N files +A -D · position`, and on the right the primary split
  * button (Commit, with Push and Create PR/MR in its menu), the files-list
- * toggle, and the view's one "..." menu: every view option the toolbar menu
- * offers (shared `ViewOptionsMenuItems`), then copy and refresh. This header
+ * toggle, and the view's one "..." menu: the batch actions first (Stage all /
+ * Unstage all and Discard all changes…, or, while files are checked, Stage N
+ * files / Discard N files… and Clear selection; the "..." button wears the
+ * count), then every view option the toolbar menu offers (shared
+ * `ViewOptionsMenuItems`), then copy and refresh. This header
  * is the view's only top row; the toolbar does not render alongside it. When
  * the payload offers no repo select, the plain abbreviated repo label
  * precedes the branch so the view still names its repository. Menus and
@@ -77,17 +79,35 @@ export type SelectionControl = {
 
 type OpenMenu = "commit" | "discard" | "overflow" | null;
 
-const BULK_ACTION_ICON: Record<BulkWriteAction, IconName> = {
-  discardAll: "trash",
-  stageAll: "stage",
-  unstageAll: "unstage",
-};
+/** A whole-view action or its selection-scoped counterpart; the keys are disjoint. */
+type BatchAction = BulkWriteAction | SelectionWriteAction;
 
-const SELECTION_ACTION_ICON: Record<SelectionWriteAction, IconName> = {
+const ACTION_ICON: Record<BatchAction, IconName> = {
+  discardAll: "trash",
   discardFiles: "trash",
+  stageAll: "stage",
   stageFiles: "stage",
+  unstageAll: "unstage",
   unstageFiles: "unstage",
 };
+
+/** The `{count}` label of each selection action; `formatCountLabel` picks the singular. */
+const SELECTION_LABEL_KEY: Record<SelectionWriteAction, CountLabelKey> = {
+  discardFiles: "discardSelected",
+  stageFiles: "stageSelected",
+  unstageFiles: "unstageSelected",
+};
+
+function isSelectionAction(
+  action: BatchAction,
+): action is SelectionWriteAction {
+  return action in SELECTION_LABEL_KEY;
+}
+
+/** Discard asks first: its menu item opens the confirmation popover instead of running. */
+function isDiscard(action: BatchAction): boolean {
+  return action === "discardAll" || action === "discardFiles";
+}
 
 export function RepositoryHeader({
   commit,
@@ -158,6 +178,22 @@ export function RepositoryHeader({
   const pushHint = forgeActionHintKey(availability.push);
   const requestHint = forgeActionHintKey(availability.createPullRequest);
   const selecting = selection.count > 0;
+  // The batch actions: the whole view while nothing is checked, the checked
+  // files otherwise. Discard asks first, in a popover under the header.
+  const batchActions: BatchAction[] = selecting
+    ? selectionActionsForSource(source)
+    : bulkActionsForSource(source);
+  const batchActionLabel = (action: BatchAction) =>
+    isSelectionAction(action)
+      ? formatCountLabel(label, SELECTION_LABEL_KEY[action], selection.count)
+      : label(action);
+  const runBatchAction = (action: BatchAction) =>
+    isSelectionAction(action)
+      ? selection.onAction(action)
+      : onBulkAction(action);
+  const moreActions = selecting
+    ? formatLabel(label("moreActionsWithSelection"), { count: selection.count })
+    : label("moreActions");
   return (
     <header id="repo-header" data-pending={pending ? "true" : "false"}>
       <div className="repo-header-summary">
@@ -226,76 +262,6 @@ export function RepositoryHeader({
         </span>
       </div>
       <div className="repo-header-actions">
-        {/* The batch actions: whole view while nothing is checked, the
-            checked files otherwise. Discard asks first, in a popover under
-            the header. Icon-only at narrow widths (container query). */}
-        <span
-          className="repo-header-bulk"
-          data-selecting={selecting ? "true" : "false"}
-        >
-          {selecting
-            ? selectionActionsForSource(source).map((action) => {
-                const text =
-                  action === "discardFiles"
-                    ? formatCountLabel(
-                        label,
-                        "discardSelected",
-                        selection.count,
-                      )
-                    : formatCountLabel(
-                        label,
-                        action === "stageFiles"
-                          ? "stageSelected"
-                          : "unstageSelected",
-                        selection.count,
-                      );
-                const discard = action === "discardFiles";
-                return (
-                  <HeaderActionButton
-                    key={action}
-                    action={action}
-                    danger={discard}
-                    disabled={pending}
-                    expanded={discard ? openMenu === "discard" : undefined}
-                    icon={SELECTION_ACTION_ICON[action]}
-                    label={text}
-                    onClick={() =>
-                      discard
-                        ? toggleMenu("discard")
-                        : runFromMenu(() => selection.onAction(action))
-                    }
-                  />
-                );
-              })
-            : bulkActionsForSource(source).map((action) => {
-                const discard = action === "discardAll";
-                return (
-                  <HeaderActionButton
-                    key={action}
-                    action={action}
-                    danger={discard}
-                    disabled={pending}
-                    expanded={discard ? openMenu === "discard" : undefined}
-                    icon={BULK_ACTION_ICON[action]}
-                    label={discard ? label("discardAllShort") : label(action)}
-                    title={discard ? label("discardAll") : undefined}
-                    onClick={() =>
-                      discard
-                        ? toggleMenu("discard")
-                        : runFromMenu(() => onBulkAction(action))
-                    }
-                  />
-                );
-              })}
-          {selecting ? (
-            <HeaderActionButton
-              action="clearSelection"
-              icon="close"
-              label={label("clearSelection")}
-              onClick={() => runFromMenu(selection.onClear)}
-            />
-          ) : null}
-        </span>
         <span
           className="split-button"
           data-open={openMenu === "commit" ? "true" : "false"}
@@ -345,10 +311,11 @@ export function RepositoryHeader({
           id="repo-overflow-button"
           type="button"
           className="toolbar-icon"
-          title={label("moreActions")}
-          aria-label={label("moreActions")}
+          title={moreActions}
+          aria-label={moreActions}
           aria-expanded={openMenu === "overflow"}
           aria-controls="repo-overflow-menu"
+          data-selection-count={selecting ? selection.count : undefined}
           onClick={() => toggleMenu("overflow")}
         >
           <Icon name="dots" />
@@ -356,27 +323,22 @@ export function RepositoryHeader({
       </div>
       {openMenu === "discard" ? (
         <div id="discard-popover" className="repo-menu repo-menu-confirm">
-          {selecting ? (
-            <InlineConfirmation
-              cancelLabel={label("cancel")}
-              confirmLabel={label("confirmDiscardSelected")}
-              onCancel={closeMenus}
-              onConfirm={() =>
-                runFromMenu(() => selection.onAction("discardFiles"))
-              }
-              pending={pending}
-              prompt={label("discardSelectedPrompt")}
-            />
-          ) : (
-            <InlineConfirmation
-              cancelLabel={label("cancel")}
-              confirmLabel={label("confirmDiscardAll")}
-              onCancel={closeMenus}
-              onConfirm={() => runFromMenu(() => onBulkAction("discardAll"))}
-              pending={pending}
-              prompt={label("discardAllPrompt")}
-            />
-          )}
+          <InlineConfirmation
+            cancelLabel={label("cancel")}
+            confirmLabel={label(
+              selecting ? "confirmDiscardSelected" : "confirmDiscardAll",
+            )}
+            onCancel={closeMenus}
+            onConfirm={() =>
+              runFromMenu(() =>
+                runBatchAction(selecting ? "discardFiles" : "discardAll"),
+              )
+            }
+            pending={pending}
+            prompt={label(
+              selecting ? "discardSelectedPrompt" : "discardAllPrompt",
+            )}
+          />
         </div>
       ) : null}
       {openMenu === "commit" ? (
@@ -402,8 +364,33 @@ export function RepositoryHeader({
       ) : null}
       {openMenu === "overflow" ? (
         <div id="repo-overflow-menu" className="repo-menu">
-          {/* View options stay open on toggle, like the toolbar menu does. The
-              batch actions live in the header itself, not here. */}
+          {/* The batch actions first (a discard swaps this menu for its
+              confirmation popover), then the view options, which stay open
+              on toggle like the toolbar menu does, then copy and refresh. */}
+          {batchActions.map((action) => (
+            <MenuButton
+              key={action}
+              action={action}
+              danger={isDiscard(action)}
+              disabled={pending}
+              icon={ACTION_ICON[action]}
+              label={batchActionLabel(action)}
+              onClick={() =>
+                isDiscard(action)
+                  ? toggleMenu("discard")
+                  : runFromMenu(() => runBatchAction(action))
+              }
+            />
+          ))}
+          {selecting ? (
+            <MenuButton
+              action="clearSelection"
+              icon="close"
+              label={label("clearSelection")}
+              onClick={() => runFromMenu(selection.onClear)}
+            />
+          ) : null}
+          <div className="menu-separator" />
           {viewOptions}
           <div className="menu-separator" />
           <MenuButton
@@ -446,50 +433,6 @@ export function RepositoryHeader({
         />
       ) : null}
     </header>
-  );
-}
-
-/**
- * One batch action of the header: icon plus text, the text hidden by the
- * header's container query at narrow widths, so `title` (the text unless
- * given) keeps naming the action.
- */
-function HeaderActionButton({
-  action,
-  danger,
-  disabled,
-  expanded,
-  icon,
-  label,
-  onClick,
-  title,
-}: {
-  action: string;
-  danger?: boolean;
-  disabled?: boolean;
-  /** Set for the discard buttons, which open the confirmation popover. */
-  expanded?: boolean;
-  icon: IconName;
-  label: string;
-  onClick: () => void;
-  title?: string;
-}) {
-  return (
-    <button
-      type="button"
-      className="header-action"
-      data-action={action}
-      data-danger={danger ? "true" : undefined}
-      disabled={disabled}
-      title={title ?? label}
-      aria-label={title ?? label}
-      aria-expanded={expanded}
-      aria-controls={expanded == null ? undefined : "discard-popover"}
-      onClick={onClick}
-    >
-      <Icon name={icon} />
-      <span className="header-action-label">{label}</span>
-    </button>
   );
 }
 

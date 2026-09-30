@@ -62,7 +62,6 @@ const DEFAULT_DIFF_VIEWER_LABELS = {
   detachedHeadShort: "detached",
   discardAll: "Discard all changes…",
   discardAllPrompt: "Discard every change in this view? This cannot be undone.",
-  discardAllShort: "Discard all…",
   discardSelected: "Discard {count} files…",
   discardSelectedOne: "Discard 1 file…",
   discardSelectedPrompt:
@@ -74,6 +73,7 @@ const DEFAULT_DIFF_VIEWER_LABELS = {
   forgeUnavailable: "Not available for this remote.",
   hunkStale: "This hunk changed on disk. The diff was reloaded.",
   moreActions: "More actions",
+  moreActionsWithSelection: "More actions ({count} selected)",
   noRemote: "The repository has no remote.",
   noUpstreamShort: "no upstream",
   nothingToCommit: "Nothing to commit.",

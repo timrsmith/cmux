@@ -1529,7 +1529,8 @@ svg[data-icon-fill] {
   }
 }
 
-/* Per-file fold chevron, slotted before the change icon in the card header.
+/* Per-file fold chevron, slotted first in the card header, before the
+   selection checkbox (`.file-select-checkbox`, in the change icon's place).
    Its state is the item's controlled `collapsed`; the chevron points down on
    an open card and turns to the right when the card is folded. */
 .file-collapse-toggle {
@@ -1944,68 +1945,73 @@ svg[data-icon-fill] {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-/* Batch actions: Stage all / Unstage all and Discard all…, or, while files
-   are checked, Stage N files / Discard N files… and Clear selection. Same
-   height and border as the Commit split button. At narrow header widths
-   the text sheds and the icon stays, with the title naming the action. */
-.repo-header-bulk {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+/* The "..." button wears the selection count while files are checked: the
+   selection's actions live in its menu. Small and quiet, in the header's
+   own tones; the button's aria-label carries the same number. */
+#repo-overflow-button {
+  position: relative;
 }
-.header-action {
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0 7px;
-  border: 1px solid color-mix(in lab, var(--cmux-diff-fg) 14%, transparent);
-  border-radius: 6px;
-  background: transparent;
-  color: color-mix(in lab, var(--cmux-diff-fg) 78%, var(--cmux-diff-bg));
-  font: inherit;
-  font-size: 12px;
-  white-space: nowrap;
-  cursor: pointer;
+#repo-overflow-button[data-selection-count]::after {
+  content: attr(data-selection-count);
+  position: absolute;
+  top: -5px;
+  right: -6px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 7px;
+  background: color-mix(in lab, var(--cmux-diff-fg) 78%, var(--cmux-diff-bg));
+  color: var(--cmux-diff-bg);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 14px;
+  text-align: center;
+  pointer-events: none;
 }
-.header-action:hover:not(:disabled),
-.header-action[aria-expanded="true"] {
-  background: color-mix(in lab, var(--cmux-diff-fg) 9%, transparent);
-  color: var(--cmux-diff-fg);
-}
-.header-action:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.header-action[data-danger="true"]:not(:disabled) {
-  color: color-mix(in lab, #ff5f56 70%, var(--cmux-diff-fg));
-}
-.header-action svg {
-  width: 13px;
-  height: 13px;
-  display: block;
-  fill: none;
-  stroke: currentcolor;
-  stroke-width: 1.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-@container (max-width: 760px) {
-  .header-action {
-    padding: 0 5px;
-  }
-  .header-action-label {
-    display: none;
-  }
-}
-/* Selection checkboxes: the file list header's select-all and each card. */
+/* Selection checkboxes: the file list header's select-all and each card's,
+   which sits after the fold chevron in the slot of the library's file-type
+   icon (hidden by the code view's CSS). Drawn here rather than by the
+   platform, so every WebKit theme shows the same crisp square as the file
+   list's lane (`file-tree-selection.ts`): the checked fill is the lane's
+   stroke tone and the mark is the lane's check path, in the scheme's page
+   color (the mark is an image, so it cannot read the theme's variables). */
 .file-select-checkbox {
-  width: 13px;
-  height: 13px;
+  --file-select-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='4 4 12 12'%3E%3Cpath d='m7 10.2 2.2 2.2L13.3 8' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --file-select-dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='4 4 12 12'%3E%3Cpath d='M7.2 10h5.6' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+  width: 14px;
+  height: 14px;
   flex: 0 0 auto;
   margin: 0;
-  accent-color: color-mix(in lab, var(--cmux-diff-fg) 70%, var(--cmux-diff-bg));
+  appearance: none;
+  border: 1px solid color-mix(in lab, var(--cmux-diff-fg) 40%, transparent);
+  border-radius: 3px;
+  background: transparent center / 12px 12px no-repeat;
   cursor: pointer;
+}
+@media (prefers-color-scheme: dark) {
+  .file-select-checkbox {
+    --file-select-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='4 4 12 12'%3E%3Cpath d='m7 10.2 2.2 2.2L13.3 8' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    --file-select-dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='4 4 12 12'%3E%3Cpath d='M7.2 10h5.6' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+  }
+}
+.file-select-checkbox:hover:not(:disabled) {
+  border-color: color-mix(in lab, var(--cmux-diff-fg) 60%, transparent);
+  background-color: var(--cmux-diff-hover-bg);
+}
+.file-select-checkbox:checked,
+.file-select-checkbox:indeterminate {
+  border-color: transparent;
+  background-color: color-mix(in lab, var(--cmux-diff-fg) 70%, var(--cmux-diff-bg));
+}
+.file-select-checkbox:checked {
+  background-image: var(--file-select-check);
+}
+.file-select-checkbox:indeterminate {
+  background-image: var(--file-select-dash);
+}
+.file-select-checkbox:focus-visible {
+  outline: 2px solid color-mix(in lab, var(--cmux-diff-fg) 36%, transparent);
+  outline-offset: 1px;
 }
 .file-select-checkbox:disabled {
   opacity: 0.45;
