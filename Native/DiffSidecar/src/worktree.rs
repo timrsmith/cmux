@@ -8,6 +8,14 @@
 //! Authorization requires a valid capability token, a repository in that
 //! token's allow-list, and an open session owned by the token whose
 //! repository and source kind are the ones being mutated.
+//!
+//! A discard never destroys content that exists in no Git object: untracked
+//! files are refused (a `git diff` session never lists them), and so are
+//! intent-to-add entries (`git add -N`, whose only content is the working-tree
+//! file) and unmerged paths (whose resolution in progress is the user's, and
+//! which make `git restore` refuse a whole batch). Bulk discards skip those
+//! entries and act on the rest; per-file and per-hunk discards refuse them
+//! before any Git child runs ([`protected_entries`]).
 
 use std::borrow::Cow;
 use std::collections::HashSet;
@@ -68,6 +76,8 @@ pub(crate) const PULL_REQUEST_FLOW_BUDGET: Duration = Duration::from_secs(115);
 pub(crate) enum WriteError {
     NotAllowed,
     InvalidPath,
+    /// A discard named a path with an unresolved merge conflict.
+    UnmergedPath,
     InvalidMessage,
     StaleHunk,
     Conflict,
@@ -108,6 +118,7 @@ impl WriteError {
         match self {
             Self::NotAllowed => "notAllowed",
             Self::InvalidPath => "invalidPath",
+            Self::UnmergedPath => "unmergedPath",
             Self::InvalidMessage => "invalidMessage",
             Self::StaleHunk => "staleHunk",
             Self::Conflict => "conflict",
@@ -133,6 +144,9 @@ impl WriteError {
         match self {
             Self::NotAllowed => "Working-tree change is not authorized".into(),
             Self::InvalidPath => "Path must be relative to the repository".into(),
+            Self::UnmergedPath => {
+                "The file has a merge conflict; resolve it before discarding changes".into()
+            }
             Self::InvalidMessage => "Commit message is empty or too long".into(),
             Self::StaleHunk => "The hunk no longer matches the working tree".into(),
             Self::Conflict => "The change could not be applied cleanly".into(),
@@ -256,7 +270,18 @@ async fn apply_file_op(target: &Target, paths: &[String], op: FileOp) -> Result<
             // where `restore --staged` takes it from.
             let known = index_or_head_paths(&target.repo, paths).await?;
             require_all(paths, &known)?;
-            run_over_paths(&target.repo, &["restore", "--staged"], paths).await
+            if head_exists(&target.repo).await? {
+                return run_over_paths(&target.repo, &["restore", "--staged"], paths).await;
+            }
+            // An unborn branch has no HEAD to restore the index from; like
+            // `unstage_all`, dropping the entries leaves the files on disk
+            // as untracked.
+            run_over_paths(
+                &target.repo,
+                &["rm", "-q", "--cached", "--ignore-unmatch"],
+                paths,
+            )
+            .await
         }
         FileOp::Discard => discard_paths(target, paths).await,
     }
@@ -280,6 +305,9 @@ pub(crate) async fn discard_hunk(
         .as_deref()
         .map(validate_repo_relative_path)
         .transpose()?;
+    protected_entries(&target.repo, &[path.to_owned()])
+        .await?
+        .refuse_any()?;
     // Re-read the file's diff the way the session patch was produced (default
     // rename detection, so a staged rename with edits still finds its hunks),
     // with the prefixes pinned so `diff.noprefix` or `diff.mnemonicPrefix`
@@ -454,9 +482,12 @@ fn last_stderr_line(stderr: &[u8]) -> Option<String> {
 
 /// Discards every change the session shows. An unstaged session restores
 /// the index copy of each path `git diff` lists (tracked files only, so an
-/// untracked file is never touched and `git clean` never runs); a staged
-/// session restores HEAD's copy of the paths HEAD knows and removes the ones
-/// staged as new, a rename being one of each.
+/// untracked file is never touched and `git clean` never runs), leaving out
+/// intent-to-add entries (listed as `A`, whose content the index does not
+/// hold) and unmerged paths (listed as `M` next to their `U`, and refused by
+/// `git restore` for the whole batch); a staged session restores HEAD's copy
+/// of the paths HEAD knows and removes the ones staged as new, a rename being
+/// one of each, and leaves unmerged entries alone.
 pub(crate) async fn discard_all(
     state: &AppState,
     request: &WorktreeSessionRequest,
@@ -477,13 +508,17 @@ pub(crate) async fn discard_all(
                 "--name-only",
                 "-z",
                 "--no-renames",
-                "--diff-filter=ACDMRT",
+                "--diff-filter=CDMRT",
             ],
             &[],
             MAX_PATH_LISTING_BYTES,
         )
         .await?;
-        let paths: Vec<String> = changed.into_iter().collect();
+        let unmerged = unmerged_paths(&target.repo, &[]).await?;
+        let paths: Vec<String> = changed
+            .into_iter()
+            .filter(|path| !unmerged.contains(path))
+            .collect();
         run_over_paths(&target.repo, &["restore", "--worktree"], &paths).await?;
         return Ok(mutated(&request.source));
     }
@@ -1463,8 +1498,12 @@ fn require_all(paths: &[String], known: &HashSet<String>) -> Result<(), WriteErr
 /// A path Git knows nothing about is refused. A `git diff` session never
 /// lists untracked files, so such a path can only come from the page, and
 /// honoring it (with `git clean`) would delete an arbitrary untracked file.
-/// Listings match whole blobs only, so a directory name is never "known".
+/// An intent-to-add entry is refused the same way (the index holds no
+/// content for it), and an unmerged path as `UnmergedPath`; see
+/// [`protected_entries`]. Listings match whole blobs only, so a directory
+/// name is never "known".
 async fn discard_paths(target: &Target, paths: &[String]) -> Result<(), WriteFailure> {
+    protected_entries(&target.repo, paths).await?.refuse_any()?;
     let in_index = index_paths(&target.repo, paths).await?;
     if !target.staged {
         require_all(paths, &in_index)?;
@@ -1495,6 +1534,95 @@ async fn discard_paths(target: &Target, paths: &[String]) -> Result<(), WriteFai
 /// The subset of `paths` that are index entries.
 async fn index_paths(repo: &Path, paths: &[String]) -> Result<HashSet<String>, WriteError> {
     listed_paths(repo, &["ls-files", "-z"], paths, MAX_STATUS_OUTPUT_BYTES).await
+}
+
+/// Index entries a discard must leave alone, among `paths` (or in the whole
+/// index when `paths` is empty).
+///
+/// An unmerged path is in the middle of a conflict resolution: `git restore
+/// --worktree` refuses a batch that names one ("path is unmerged"), and
+/// restoring it from HEAD would resolve the conflict behind the user's
+/// back. An intent-to-add entry (`git add -N`) is in the index without
+/// content: `restore --worktree` writes the empty blob over the file and
+/// `apply -R` deletes it, both destroying content that exists in no object,
+/// exactly what the untracked-file rule protects.
+struct ProtectedEntries {
+    unmerged: HashSet<String>,
+    intent_to_add: HashSet<String>,
+}
+
+impl ProtectedEntries {
+    /// Refuses the selection when it names a protected entry: `UnmergedPath`
+    /// for a conflict (the page can say so), `InvalidPath` for an
+    /// intent-to-add entry (the same answer as for an untracked file).
+    fn refuse_any(&self) -> Result<(), WriteError> {
+        if !self.unmerged.is_empty() {
+            return Err(WriteError::UnmergedPath);
+        }
+        if !self.intent_to_add.is_empty() {
+            return Err(WriteError::InvalidPath);
+        }
+        Ok(())
+    }
+}
+
+/// The [`ProtectedEntries`] among `paths`. Unmerged entries come from
+/// `ls-files -u`; intent-to-add entries are the `A` entries of the
+/// index-to-working-tree diff, the only way that diff can show an addition
+/// (`ls-files` cannot tell them from a real empty file).
+async fn protected_entries(repo: &Path, paths: &[String]) -> Result<ProtectedEntries, WriteError> {
+    let unmerged = unmerged_paths(repo, paths).await?;
+    let intent_to_add = listed_paths(
+        repo,
+        &[
+            "diff",
+            "--name-only",
+            "-z",
+            "--no-renames",
+            "--diff-filter=A",
+        ],
+        paths,
+        MAX_PATH_LISTING_BYTES,
+    )
+    .await?;
+    Ok(ProtectedEntries {
+        unmerged,
+        intent_to_add,
+    })
+}
+
+/// The unmerged index entries among `paths` (the whole index when empty).
+async fn unmerged_paths(repo: &Path, paths: &[String]) -> Result<HashSet<String>, WriteError> {
+    let mut unmerged = HashSet::new();
+    for chunk in pathspec_chunks(paths) {
+        let listed = listing(
+            repo,
+            &["ls-files", "-u", "-z"],
+            chunk,
+            MAX_PATH_LISTING_BYTES,
+        )
+        .await?;
+        unmerged.extend(parse_ls_files_stage_z(&listed));
+    }
+    Ok(unmerged)
+}
+
+/// The paths of `ls-files -u -z` (or `-s -z`) output: one
+/// `<mode> <object> <stage>\t<path>\0` record per index entry, a path with
+/// several stages appearing once per stage. The path may itself contain a
+/// tab, so only the first tab separates it from the stage. A record without
+/// a tab is skipped.
+pub(crate) fn parse_ls_files_stage_z(output: &[u8]) -> HashSet<String> {
+    output
+        .split(|byte| *byte == 0)
+        .filter(|record| !record.is_empty())
+        .filter_map(|record| {
+            let tab = record.iter().position(|byte| *byte == b'\t')?;
+            std::str::from_utf8(&record[tab + 1..]).ok()
+        })
+        .filter(|path| !path.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 /// The subset of `paths` that are blobs in HEAD's tree (`-r`, so a directory
@@ -1820,13 +1948,63 @@ async fn git_status(
 mod tests {
     use super::{
         BranchConfig, ForgeCliKind, HunkRef, MAX_BATCH_PATHS, MAX_LISTING_PATHSPEC_BYTES,
-        NameStatusEntry, WriteError, WriteFailure, batch_paths, commit_rejection,
+        NameStatusEntry, ProtectedEntries, WriteError, WriteFailure, batch_paths, commit_rejection,
         header_names_path, mentions_authentication, parse_branch_config, parse_hunk_header,
-        parse_name_status_z, partition_staged_entries, pathspec_chunks,
+        parse_ls_files_stage_z, parse_name_status_z, partition_staged_entries, pathspec_chunks,
         pull_request_create_command, pull_request_create_failure, push_rejection, regex_literal,
         select_hunk_patch, unquote_c_style, validate_pull_request_body,
         validate_pull_request_title, validate_ref_name, validate_repo_relative_path,
     };
+
+    #[test]
+    fn ls_files_stage_records_yield_each_path_once_and_keep_tabs_in_names() {
+        let output: Vec<u8> = [
+            "100644 aaaa 1\ta.txt",
+            "100644 bbbb 2\ta.txt",
+            "100644 cccc 3\ta.txt",
+            "100644 dddd 1\tdir/we\tird.txt",
+            "garbage without a tab",
+            "100644 eeee 1\t",
+            "",
+        ]
+        .join("\0")
+        .into_bytes();
+        let paths = parse_ls_files_stage_z(&output);
+        assert_eq!(
+            paths,
+            ["a.txt", "dir/we\tird.txt"]
+                .into_iter()
+                .map(str::to_owned)
+                .collect()
+        );
+        assert!(parse_ls_files_stage_z(b"").is_empty());
+    }
+
+    #[test]
+    fn protected_entries_refuse_unmerged_before_intent_to_add_and_pass_when_empty() {
+        let entries = |unmerged: &[&str], intent_to_add: &[&str]| ProtectedEntries {
+            unmerged: unmerged.iter().map(|path| (*path).to_owned()).collect(),
+            intent_to_add: intent_to_add
+                .iter()
+                .map(|path| (*path).to_owned())
+                .collect(),
+        };
+        assert_eq!(entries(&[], &[]).refuse_any(), Ok(()));
+        assert_eq!(
+            entries(&["a.txt"], &["draft.txt"]).refuse_any(),
+            Err(WriteError::UnmergedPath)
+        );
+        assert_eq!(
+            entries(&[], &["draft.txt"]).refuse_any(),
+            Err(WriteError::InvalidPath)
+        );
+        assert_eq!(WriteError::UnmergedPath.code(), "unmergedPath");
+        assert!(WriteError::UnmergedPath.message().contains("conflict"));
+        assert!(
+            !WriteFailure::from(WriteError::UnmergedPath).state_may_have_changed,
+            "a refusal before any Git child runs leaves the page current"
+        );
+    }
 
     #[test]
     fn batch_paths_validate_every_path_dedupe_and_refuse_an_empty_list() {

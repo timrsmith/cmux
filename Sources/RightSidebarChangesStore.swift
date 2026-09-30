@@ -135,6 +135,14 @@ final class RightSidebarChangesStore: ObservableObject {
     private var fingerprintRecheckPending = false
     /// Completed digest runs (tests).
     private(set) var fingerprintCheckCount = 0
+    /// Whether a digest is in flight (tests): a scheduled re-check or re-seed
+    /// shows here synchronously, so a test can assert that none followed
+    /// without waiting for one not to happen.
+    var isFingerprintCheckInFlight: Bool { fingerprintTask != nil }
+    /// Whether a page production is in flight (tests).
+    var isProducingPage: Bool { loadTask != nil }
+    /// Whether a repository probe is in flight (tests).
+    var isProbingRepoRoot: Bool { pendingProbe != nil }
 
     init(
         repoRootResolver: @escaping RepoRootResolver = RightSidebarChangesStore.defaultRepoRootResolver,
@@ -586,6 +594,14 @@ enum RightSidebarChangesProductionRace {
         }
     }
 
+    /// `@unchecked Sendable` with an `NSLock` rather than an actor: `cancel()`
+    /// runs synchronously inside `withTaskCancellationHandler`'s `onCancel`,
+    /// which cannot await, while `finish` may arrive concurrently from the
+    /// producer or deadline task on another thread. The continuation must be
+    /// resumed exactly once, so taking it out of `continuation` has to be an
+    /// atomic take-and-clear that every path (cancel, producer, deadline)
+    /// goes through; the lock provides that, and nothing is called while it
+    /// is held.
     private final class Race: @unchecked Sendable {
         private let lock = NSLock()
         private var continuation: CheckedContinuation<RightSidebarChangesPage, Error>?
@@ -687,8 +703,18 @@ enum RightSidebarChangesProcessRunner {
             child.terminate()
         }
         try Task.checkCancellation()
-        let stderrOutput = String(decoding: stderr.finish(), as: UTF8.self)
-        let stdoutData = stdout.finish()
+        // The child has exited, so its output is in the pipes; the bounded
+        // waits only give up on a grandchild that inherited a write end.
+        // What was read by then is decoded as is: a page cut short fails
+        // the strict decode below and is reported like any bad page.
+        let stderrOutput = String(decoding: stderr.finish().data, as: UTF8.self)
+        let stdoutDrain = stdout.finish()
+        let stdoutData = stdoutDrain.data
+        #if DEBUG
+        if !stdoutDrain.isComplete {
+            cmuxDebugLog("rightSidebar.changes.producer.stdoutHeldOpen bytes=\(stdoutData.count)")
+        }
+        #endif
         guard status == 0 else {
             throw Failure(message: Self.failureMessage(
                 stderr: stderrOutput,
@@ -796,23 +822,58 @@ enum RightSidebarChangesProcessRunner {
 
     /// Reads one pipe to end-of-file on a background queue so the child never
     /// blocks on a full pipe buffer while the caller reads the other pipe.
-    private final class PipeDrain: @unchecked Sendable {
+    ///
+    /// The read runs on a GCD thread rather than a task because
+    /// `FileHandle.availableData` blocks; a `DispatchGroup` signals its
+    /// completion so `finish(timeout:)` can wait on it with a deadline (a
+    /// `CheckedContinuation` cannot be given one). The wait is bounded: the
+    /// pipe only closes when its last writer exits, and a grandchild the CLI
+    /// spawned may have inherited the write end and outlive it, which would
+    /// otherwise park a cooperative-pool thread forever. Chunks are appended
+    /// under a lock so a timed-out `finish` can hand back what has arrived so
+    /// far instead of nothing.
+    final class PipeDrain: @unchecked Sendable {
+        /// Once the child has exited its own output is already in the pipe
+        /// buffer or read; anything this long past exit is a grandchild
+        /// holding the write end, and its output is not the verb's.
+        static let defaultTimeout: TimeInterval = 2
+
+        struct Output: Equatable {
+            let data: Data
+            /// `false` when the deadline passed before end-of-file: `data`
+            /// is everything read so far and more may still be written.
+            let isComplete: Bool
+        }
+
         private let handle: FileHandle
         private let group = DispatchGroup()
+        private let lock = NSLock()
         private var data = Data()
 
         init(_ pipe: Pipe) {
             handle = pipe.fileHandleForReading
             group.enter()
             DispatchQueue.global(qos: .userInitiated).async { [self] in
-                self.data = self.handle.readDataToEndOfFile()
+                while true {
+                    let chunk = self.handle.availableData
+                    if chunk.isEmpty { break }
+                    self.lock.lock()
+                    self.data.append(chunk)
+                    self.lock.unlock()
+                }
                 self.group.leave()
             }
         }
 
-        func finish() -> Data {
-            group.wait()
-            return data
+        /// Everything read so far, complete when end-of-file arrived within
+        /// `timeout`. The reader thread keeps draining after a timeout so the
+        /// pipe never fills, and a later call may find it complete.
+        func finish(timeout: TimeInterval = PipeDrain.defaultTimeout) -> Output {
+            let isComplete = group.wait(timeout: .now() + max(0, timeout)) == .success
+            lock.lock()
+            let data = self.data
+            lock.unlock()
+            return Output(data: data, isComplete: isComplete)
         }
     }
 }

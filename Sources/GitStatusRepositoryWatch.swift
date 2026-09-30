@@ -27,11 +27,12 @@ enum GitStatusRepositoryWatching {
     /// The production factory: resolves the repository's Git-aware watch
     /// descriptor and installs a recursive watcher filtered to the paths that
     /// can change `git status` output. The descriptor's plan is the sidebar's
-    /// (`SidebarGitMetadataService`), which also follows ref, packed-ref and
-    /// reflog churn for the branch display; the status-scoped filter
+    /// (`SidebarGitMetadataService`), which also follows ref and packed-ref
+    /// churn for the branch display; the status-scoped filter
     /// (`GitWorkspaceMetadataWatchDescriptor.containsStatusRelevantChange`)
     /// drops those first so a commit or fetch in another worktree does not
-    /// refetch this one's status.
+    /// refetch this one's status, while keeping this checkout's `logs/HEAD`
+    /// so a soft reset (refs and reflogs only) still does.
     static let defaultFactory: GitStatusRepositoryWatchFactory = { repoRoot in
         guard let descriptor = await GitStatusRepositoryWatching.gitMetadataService.watchDescriptor(for: repoRoot) else { return nil }
         guard let watcher = await RecursivePathWatcher(

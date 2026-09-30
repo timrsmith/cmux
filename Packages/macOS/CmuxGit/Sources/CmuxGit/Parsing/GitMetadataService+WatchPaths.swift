@@ -156,7 +156,12 @@ extension GitMetadataService {
     }
 
     /// The metadata paths (`HEAD`, `index`, `refs`, `packed-refs`, `reftable`,
-    /// every reachable `config`) for a single resolved repository.
+    /// every reachable `config`) for a single resolved repository, plus this
+    /// checkout's `logs/HEAD`: a soft reset or `update-ref` on the checked-out
+    /// branch changes the dirty state and the commit shown while writing only
+    /// refs and reflogs, and HEAD's reflog is the one written exactly then
+    /// (the status filter keeps it for the same reason,
+    /// `GitWorkspaceMetadataWatchDescriptor.canAffectStatus`).
     nonisolated static func gitRepositoryMetadataWatchPaths(
         repository: ResolvedGitRepository,
         configPathsByRepository: [String: [String]]? = nil
@@ -171,6 +176,7 @@ extension GitMetadataService {
         return [
             joinedPath(root: repository.gitDirectory, relativePath: "HEAD"),
             joinedPath(root: repository.gitDirectory, relativePath: "index"),
+            joinedPath(root: repository.gitDirectory, relativePath: "logs/HEAD"),
             joinedPath(root: repository.gitDirectory, relativePath: "refs"),
             joinedPath(root: repository.gitDirectory, relativePath: "reftable"),
             joinedPath(root: repository.commonDirectory, relativePath: "refs"),
