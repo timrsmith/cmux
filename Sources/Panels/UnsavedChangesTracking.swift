@@ -22,34 +22,64 @@ extension UnsavedChangesTracking {
 }
 
 extension UnsavedChangesTracking where Self: FilePreviewTextEditingPanel {
-    /// Saves the text buffer and waits for the write to settle. A save that is
-    /// already in flight is awaited instead of being restarted.
+    /// Saves the text buffer and waits for the write to settle.
+    ///
+    /// `saveTextContent()` starts nothing while a save is already running, so
+    /// that save is awaited instead and the buffer is saved once more when it
+    /// was edited after the running save started; two rounds cover that.
+    /// When no write can start at all (a read-only cloud preview), the error
+    /// says so rather than reporting a failed write.
     func saveUnsavedChanges() async throws {
+        for _ in 0..<2 {
+            guard isDirty else { return }
+            if let save = saveTextContent() {
+                await save.value
+                guard isDirty else { return }
+                throw UnsavedChangesSaveError(fileName: unsavedChangesDisplayName, reason: .writeFailed)
+            }
+            guard let runningSave = latestTextSaveTask else { break }
+            await runningSave.value
+        }
         guard isDirty else { return }
-        if let save = saveTextContent() {
-            await save.value
-        } else if let inFlightSave = latestTextSaveTask {
-            await inFlightSave.value
-        }
-        guard !isDirty else {
-            throw UnsavedChangesSaveError(fileName: unsavedChangesDisplayName)
-        }
+        throw UnsavedChangesSaveError(fileName: unsavedChangesDisplayName, reason: .savingUnavailable)
     }
 }
 
 /// The error a text editor throws when a close-time save does not land.
 struct UnsavedChangesSaveError: LocalizedError, Equatable {
-    /// The file whose save failed.
+    /// Why the buffer is still unsaved.
+    enum Reason: Equatable, Sendable {
+        /// A write ran and did not land: the file is gone, read-only, or the
+        /// disk refused it.
+        case writeFailed
+        /// No write could start: the panel cannot save at all, as a cloud
+        /// preview of a remote file cannot.
+        case savingUnavailable
+    }
+
+    /// The file whose save did not land.
     let fileName: String
+    let reason: Reason
+
+    init(fileName: String, reason: Reason = .writeFailed) {
+        self.fileName = fileName
+        self.reason = reason
+    }
 
     var errorDescription: String? {
-        String(
-            format: String(
+        let format: String
+        switch reason {
+        case .writeFailed:
+            format = String(
                 localized: "error.unsavedChanges.saveFailed",
                 defaultValue: "“%@” could not be saved."
-            ),
-            locale: .current,
-            fileName
-        )
+            )
+        case .savingUnavailable:
+            format = String(
+                localized: "error.unsavedChanges.savingUnavailable",
+                defaultValue: "Saving isn’t available for “%@”."
+            )
+        }
+        return String(format: format, locale: .current, fileName)
     }
 }

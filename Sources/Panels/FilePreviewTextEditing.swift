@@ -55,7 +55,7 @@ struct FilePreviewTextEditing {
         if probe >= line.start, Self.opensIndentedBlock(text.character(at: probe)) {
             indent += indentation.unit
         }
-        let replacement = "\n" + indent
+        let replacement = lineTerminator + indent
         return FilePreviewTextEditResult(
             edits: [FilePreviewTextEdit(range: selection, replacement: replacement)],
             selection: NSRange(location: selection.location + (replacement as NSString).length, length: 0)
@@ -115,10 +115,12 @@ struct FilePreviewTextEditing {
     /// Comments every selected line with `token` at the block's shallowest
     /// indentation, or uncomments them when every non-blank line already
     /// starts with `token`. Blank lines are skipped unless the whole
-    /// selection is blank.
-    func toggleLineComment(in selection: NSRange, token: String) -> FilePreviewTextEditResult {
+    /// selection is blank. Returns `nil` where there is no line: an empty
+    /// document, or the empty position after a trailing line break.
+    func toggleLineComment(in selection: NSRange, token: String) -> FilePreviewTextEditResult? {
         let selection = clamped(selection)
         let block = lineBlockRange(for: selection)
+        guard block.length > 0 else { return nil }
         let tokenLength = (token as NSString).length
         let nonBlankLines = lines(in: block).filter { firstNonIndentIndex(in: $0) < $0.contentsEnd }
         var edits: [FilePreviewTextEdit] = []
@@ -156,6 +158,10 @@ struct FilePreviewTextEditing {
 
     /// Swaps the selected lines with the line above (`up`) or below. Returns
     /// `nil` at the first or last line.
+    ///
+    /// When the last line of the file takes part it has no terminator, so
+    /// the break that separated the two lines moves with them: the file keeps
+    /// exactly the terminators it had (`"\r\n"` stays `"\r\n"`).
     func moveLines(in selection: NSRange, up: Bool) -> FilePreviewTextEditResult? {
         let selection = clamped(selection)
         let block = lineBlockRange(for: selection)
@@ -163,37 +169,42 @@ struct FilePreviewTextEditing {
         let blockHasNewline = endsWithLineBreak(block)
         if up {
             guard block.location > 0 else { return nil }
-            let previous = text.lineRange(for: NSRange(location: block.location - 1, length: 0))
-            let previousText = text.substring(with: previous)
+            let previous = lineBounds(at: block.location - 1)
             let replacement: String
             if blockHasNewline {
-                replacement = blockText + previousText
+                replacement = blockText + substring(from: previous.start, to: previous.end)
             } else {
-                replacement = blockText + "\n" + String(previousText.dropLast())
+                replacement = blockText
+                    + substring(from: previous.contentsEnd, to: previous.end)
+                    + substring(from: previous.start, to: previous.contentsEnd)
             }
             let edit = FilePreviewTextEdit(
-                range: NSRange(location: previous.location, length: NSMaxRange(block) - previous.location),
+                range: NSRange(location: previous.start, length: NSMaxRange(block) - previous.start),
                 replacement: replacement
             )
             return FilePreviewTextEditResult(
                 edits: [edit],
-                selection: NSRange(location: selection.location - previous.length, length: selection.length)
+                selection: NSRange(location: selection.location - (previous.end - previous.start), length: selection.length)
             )
         }
         guard NSMaxRange(block) < text.length, blockHasNewline else { return nil }
-        let next = text.lineRange(for: NSRange(location: NSMaxRange(block), length: 0))
-        let nextText = text.substring(with: next)
+        let next = lineBounds(at: NSMaxRange(block))
+        let nextText = substring(from: next.start, to: next.end)
         let replacement: String
+        // How far the block moves: past the next line, plus the separator
+        // that now precedes it when the next line had none of its own.
         let shift: Int
-        if endsWithLineBreak(next) {
+        if next.end > next.contentsEnd {
             replacement = nextText + blockText
-            shift = next.length
+            shift = next.end - next.start
         } else {
-            replacement = nextText + "\n" + String(blockText.dropLast())
-            shift = next.length + 1
+            let lastLine = lineBounds(at: NSMaxRange(block) - 1)
+            let separator = substring(from: lastLine.contentsEnd, to: lastLine.end)
+            replacement = nextText + separator + substring(from: block.location, to: lastLine.contentsEnd)
+            shift = next.end - next.start + (separator as NSString).length
         }
         let edit = FilePreviewTextEdit(
-            range: NSRange(location: block.location, length: NSMaxRange(next) - block.location),
+            range: NSRange(location: block.location, length: next.end - block.location),
             replacement: replacement
         )
         return FilePreviewTextEditResult(
@@ -203,12 +214,14 @@ struct FilePreviewTextEditing {
     }
 
     /// Inserts a copy of the selected lines below them and moves the
-    /// selection onto the copy.
-    func duplicateLines(in selection: NSRange) -> FilePreviewTextEditResult {
+    /// selection onto the copy. Returns `nil` where there is no line to copy
+    /// (an empty document, or the empty position after a trailing line break).
+    func duplicateLines(in selection: NSRange) -> FilePreviewTextEditResult? {
         let selection = clamped(selection)
         let block = lineBlockRange(for: selection)
+        guard block.length > 0 else { return nil }
         let blockText = text.substring(with: block)
-        let replacement = endsWithLineBreak(block) ? blockText : "\n" + blockText
+        let replacement = endsWithLineBreak(block) ? blockText : lineTerminator + blockText
         let edit = FilePreviewTextEdit(range: NSRange(location: NSMaxRange(block), length: 0), replacement: replacement)
         return FilePreviewTextEditResult(
             edits: [edit],
@@ -217,10 +230,14 @@ struct FilePreviewTextEditing {
     }
 
     /// Removes the selected lines, keeping the caret's column on the line
-    /// that takes their place.
-    func deleteLines(in selection: NSRange) -> FilePreviewTextEditResult {
+    /// that takes their place. On the last line, which has no terminator of
+    /// its own, the whole terminator before it goes (both characters of a
+    /// `"\r\n"`); on the empty position after a trailing line break that is
+    /// the trailing break itself. Returns `nil` for an empty document.
+    func deleteLines(in selection: NSRange) -> FilePreviewTextEditResult? {
         let selection = clamped(selection)
         let block = lineBlockRange(for: selection)
+        guard block.length > 0 || block.location > 0 else { return nil }
         let column = selection.location - lineBounds(at: selection.location).start
         let removed: NSRange
         let caret: Int
@@ -229,8 +246,8 @@ struct FilePreviewTextEditing {
             let following = lineBounds(at: NSMaxRange(block))
             caret = block.location + min(column, following.contentsEnd - following.start)
         } else if block.location > 0 {
-            removed = NSRange(location: block.location - 1, length: block.length + 1)
             let previous = lineBounds(at: block.location - 1)
+            removed = NSRange(location: previous.contentsEnd, length: NSMaxRange(block) - previous.contentsEnd)
             caret = previous.start + min(column, previous.contentsEnd - previous.start)
         } else {
             removed = block
@@ -240,6 +257,25 @@ struct FilePreviewTextEditing {
             edits: [FilePreviewTextEdit(range: removed, replacement: "")],
             selection: NSRange(location: caret, length: 0)
         )
+    }
+
+    // MARK: Line terminator
+
+    /// The line break a command inserts (Return, Duplicate Line on the last
+    /// line): `"\r\n"` when the first line break in the document is one,
+    /// otherwise `"\n"`. A mixed file follows its first line. Read once per
+    /// command, only by the commands that insert a break.
+    var lineTerminator: String {
+        let newline = text.range(of: "\n")
+        guard newline.location != NSNotFound else { return "\n" }
+        if newline.location > 0, text.character(at: newline.location - 1) == 0x0D {
+            return "\r\n"
+        }
+        return "\n"
+    }
+
+    private func substring(from start: Int, to end: Int) -> String {
+        text.substring(with: NSRange(location: start, length: end - start))
     }
 
     // MARK: Line geometry
