@@ -25,6 +25,9 @@ struct FilesPanelView: View {
     let headerBelowTitlebarStrip: Bool
     let windowAppearance: WindowAppearanceSnapshot
     let onOpenFilePreview: (String) -> Void
+    /// Shows the right sidebar on its Changes tab; the same action the
+    /// Changes shortcut and the command palette run.
+    let onShowChanges: () -> Void
     let onOpenAsPane: () -> Void
     let onClose: () -> Void
 
@@ -84,6 +87,9 @@ struct FilesPanelView: View {
                 .allowsHitTesting(false)
                 .accessibilityIdentifier("FilesPanel.title")
                 Spacer(minLength: 0)
+                if showsChangesButton {
+                    changesButton
+                }
                 FilesPanelHeaderMenu()
                 openAsPaneButton
                 closeButton
@@ -97,6 +103,30 @@ struct FilesPanelView: View {
         .background(TitlebarDoubleClickMonitorView())
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("FilesPanelHeader")
+    }
+
+    /// Whether Changes is a tab the right sidebar shows right now (available
+    /// and not hidden through Right Sidebar Tabs); the button follows the tab.
+    private var showsChangesButton: Bool {
+        RightSidebarMode.visibleModes().contains(.changes)
+    }
+
+    /// Jumps from the tree to the Changes tab: with the tree docked away from
+    /// the right sidebar, the two are no longer a tab switch apart.
+    private var changesButton: some View {
+        Button(action: onShowChanges) {
+            HeaderChromeIconStyle.symbol(RightSidebarMode.changes.symbolName)
+        }
+        .buttonStyle(RightSidebarHeaderIconButtonStyle(iconGeometryKeyPrefix: "filesPanelHeaderChangesIcon"))
+        .frame(
+            width: RightSidebarChromeMetrics.headerControlSize,
+            height: RightSidebarChromeMetrics.headerControlSize
+        )
+        .rightSidebarHeaderControlAlignment()
+        .safeHelp(String(localized: "filesPanel.showChanges.tooltip", defaultValue: "Show Changes"))
+        .accessibilityLabel(String(localized: "filesPanel.showChanges.accessibilityLabel", defaultValue: "Show Changes"))
+        .accessibilityIdentifier("FilesPanel.changesButton")
+        .titlebarInteractiveControl()
     }
 
     private var openAsPaneButton: some View {
