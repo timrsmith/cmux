@@ -90,7 +90,7 @@ describe("write action visibility by source kind", () => {
     // Discard is the one verb that asks first, with wording per scope, and
     // draws the same glyph at every scope.
     expect(WRITE_VERBS.discard).toMatchObject({
-      icon: "trash",
+      icon: "discard",
       method: { all: "worktreeDiscardAll", files: "worktreeDiscardFiles" },
       label: { file: "revertFile", all: "discardAll", selected: "discardSelected" },
       confirm: {
@@ -238,7 +238,7 @@ describe("hunk references", () => {
     ).toEqual({ side: "additions", lineNumber: 12 });
   });
 
-  test("hunk action targets are capped per file and skip malformed hunks", () => {
+  test("hunk action targets need two hunks, are capped per file and skip malformed hunks", () => {
     const hunks = [
       {
         additionStart: 1,
@@ -287,6 +287,8 @@ describe("hunk references", () => {
       }),
     );
     expect(hunkActionTargets({ hunks: tooMany })).toEqual([]);
+    // A single hunk gets no row: the file header's Discard covers it.
+    expect(hunkActionTargets({ hunks: [hunks[0]] })).toEqual([]);
     expect(hunkActionTargets({ hunks: [] })).toEqual([]);
     expect(hunkActionTargets(null)).toEqual([]);
   });
@@ -300,10 +302,16 @@ describe("hunk references", () => {
           deletionStart: 1,
           deletionCount: 1,
         },
+        {
+          additionStart: 20,
+          additionCount: 1,
+          deletionStart: 19,
+          deletionCount: 1,
+        },
       ],
     };
     const first = hunkActionTargets(fileDiff);
-    expect(first).toHaveLength(1);
+    expect(first).toHaveLength(2);
     expect(hunkActionTargets(fileDiff)).toBe(first);
     expect(hunkActionTargets({ ...fileDiff })).not.toBe(first);
   });
@@ -325,6 +333,12 @@ describe("hunk references", () => {
             deletionStart: 1,
             deletionCount: 2,
           },
+          {
+            additionStart: 20,
+            additionCount: 2,
+            deletionStart: 19,
+            deletionCount: 2,
+          },
         ],
       },
     } as any;
@@ -343,6 +357,15 @@ describe("hunk references", () => {
           hunk: { oldStart: 1, oldCount: 2, newStart: 1, newCount: 3 },
         },
       },
+      {
+        side: "additions",
+        lineNumber: 21,
+        metadata: {
+          kind: "hunkActions",
+          index: 1,
+          hunk: { oldStart: 19, oldCount: 2, newStart: 20, newCount: 2 },
+        },
+      },
     ]);
     // A disjoint version range: the CodeView must see a change both when the
     // rows appear and when they go away, whatever the source version is.
@@ -353,13 +376,20 @@ describe("hunk references", () => {
     const list = attachHunkActionAnnotations([item]);
     expect(list[0]).toBe(decorated);
     expect(attachHunkActionAnnotations([item])).not.toBe(list);
-    // Items without hunks or without a fileDiff pass through untouched.
+    // Items with fewer than two hunks or without a fileDiff pass through
+    // untouched: a single hunk is covered by the header's Discard.
     const hunkless = {
       id: "empty",
       type: "diff",
       fileDiff: { name: "e", hunks: [] },
     } as any;
     expect(withHunkActionAnnotations(hunkless)).toBe(hunkless);
+    const singleHunk = {
+      id: "single",
+      type: "diff",
+      fileDiff: { name: "s", hunks: [item.fileDiff.hunks[0]] },
+    } as any;
+    expect(withHunkActionAnnotations(singleHunk)).toBe(singleHunk);
     const fileless = { id: "none", type: "diff" } as any;
     expect(withHunkActionAnnotations(fileless)).toBe(fileless);
   });

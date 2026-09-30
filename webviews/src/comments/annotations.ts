@@ -61,6 +61,10 @@ const itemsWithHunkActions = new WeakMap<DiffItem, DiffItem>();
  * which the reducer does not own. The decorated item gets a version from a
  * disjoint (negative) range so the CodeView always sees a change when the
  * rows appear or disappear, whatever the source item's version does.
+ *
+ * Only files with two or more hunks get rows (`hunkActionTargets` returns
+ * none for a single hunk, which the header's Discard covers); an item with no
+ * rows passes through untouched.
  */
 export function withHunkActionAnnotations(item: DiffItem): DiffItem {
   if (item.fileDiff == null) {

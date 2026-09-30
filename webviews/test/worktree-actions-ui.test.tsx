@@ -68,6 +68,24 @@ index 3333333..4444444 100644
 +beta changed
 `;
 
+/**
+ * `story.txt` alone, with two hunks far enough apart to stay separate
+ * (`@@ -1,3 +1,3 @@` and `@@ -20,3 +20,3 @@`); the only fixture that renders
+ * hunk action rows, since a single-hunk file gets none.
+ */
+const TWO_HUNK_PATCH = `${ONE_FILE_PATCH}@@ -20,3 +20,3 @@
+ twenty
+-twenty-one
++twenty-one changed
+ twenty-two
+`;
+
+/** The header ranges of `TWO_HUNK_PATCH`'s hunks, in order. */
+const TWO_HUNK_HUNKS = [
+  ONE_FILE_HUNK,
+  { oldStart: 20, oldCount: 3, newStart: 20, newCount: 3 },
+];
+
 /** Source and repo options as the CLI sends them for a multi-repo view. */
 const PICKER_OPTIONS = {
   sourceOptions: [
@@ -538,9 +556,10 @@ test("header Stage sends worktreeStageFiles for the streamed file and reopens th
   const document = await renderApp(
     unstagedSource,
     sidecarMock(requests, ["worktree.write"]),
-    { patch: ONE_FILE_PATCH },
+    { patch: TWO_HUNK_PATCH },
   );
-  expect(document.querySelectorAll(".worktree-hunk-button")).toHaveLength(1);
+  // One row per hunk.
+  expect(document.querySelectorAll(".worktree-hunk-button")).toHaveLength(2);
   click(headerAction(document, "stageFile"));
   await waitFor(
     () => requestsFor(requests, "worktreeStageFiles").length === 1,
@@ -559,8 +578,8 @@ test("header Stage sends worktreeStageFiles for the streamed file and reopens th
   // The reloaded file renders its actions again, header and hunk row alike.
   expect(headerAction(document, "stageFile")?.disabled).toBe(false);
   await waitFor(
-    () => document.querySelectorAll(".worktree-hunk-button").length === 1,
-    "the reloaded hunk row",
+    () => document.querySelectorAll(".worktree-hunk-button").length === 2,
+    "the reloaded hunk rows",
   );
   expect(document.getElementById("worktree-notice")).toBeNull();
 });
@@ -572,6 +591,8 @@ test("header Discard confirms first, then sends worktreeDiscardFiles", async () 
     sidecarMock(requests, ["worktree.write"]),
     { patch: ONE_FILE_PATCH },
   );
+  // A single-hunk file gets no hunk row: the header's Discard covers it.
+  expect(document.querySelectorAll(".worktree-hunk-button")).toHaveLength(0);
   click(headerAction(document, "discardFile"));
   expect(requestsFor(requests, "worktreeDiscardFiles")).toHaveLength(0);
   expect(document.querySelector(".worktree-confirm-text")?.textContent).toBe(
@@ -596,11 +617,17 @@ test("hunk row Discard sends worktreeDiscardHunk with the hunk's header ranges",
   const document = await renderApp(
     stagedSource,
     sidecarMock(requests, ["worktree.write"]),
-    { patch: ONE_FILE_PATCH },
+    { patch: TWO_HUNK_PATCH },
   );
-  click(document.querySelector<HTMLButtonElement>(".worktree-hunk-button"));
+  const rows = document.querySelectorAll<HTMLButtonElement>(".worktree-hunk-button");
+  expect(rows).toHaveLength(2);
+  // The second row targets the second hunk, not the first.
+  click(rows[1]);
   expect(requestsFor(requests, "worktreeDiscardHunk")).toHaveLength(0);
-  click(findButton(document, "Discard", ".worktree-hunk-actions"));
+  // Only the clicked row confirms; the first row still offers its own
+  // Discard, so the confirm button is the one inside the confirmation.
+  expect(document.querySelectorAll(".worktree-confirm")).toHaveLength(1);
+  click(findButton(document, "Discard", ".worktree-hunk-actions .worktree-confirm"));
   await waitFor(
     () => requestsFor(requests, "worktreeDiscardHunk").length === 1,
     "the hunk discard request",
@@ -610,7 +637,7 @@ test("hunk row Discard sends worktreeDiscardHunk with the hunk's header ranges",
     capabilityToken: token,
     source: stagedSource,
     path: "story.txt",
-    hunk: ONE_FILE_HUNK,
+    hunk: TWO_HUNK_HUNKS[1],
   });
   await waitForReload(document, requests);
 });
@@ -635,7 +662,7 @@ test("staleHunk and partialRevert show their notice and reopen the session", asy
         worktreeDiscardHunk: (request) =>
           failureResponse(request, code, message),
       }),
-      { patch: ONE_FILE_PATCH },
+      { patch: TWO_HUNK_PATCH },
     );
     click(document.querySelector<HTMLButtonElement>(".worktree-hunk-button"));
     click(findButton(document, "Discard", ".worktree-hunk-actions"));
@@ -679,7 +706,7 @@ test("a second click while a write is pending is ignored, and the actions wait f
       return sessionOpenedResponse(request);
     },
   });
-  const document = await renderApp(stagedSource, mock, { patch: ONE_FILE_PATCH });
+  const document = await renderApp(stagedSource, mock, { patch: TWO_HUNK_PATCH });
   const commitButton = document.getElementById(
     "commit-button",
   ) as HTMLButtonElement;
