@@ -14,12 +14,12 @@ struct FilesPanelPlacementTitleTests {
 
     @Test("the default placement reads as the right sidebar tab")
     func defaultTitle() {
-        #expect(FilesPanelPlacement.rightSidebar.localizedTitle == "In Right Sidebar")
+        #expect(FilesPanelPlacement.rightSidebar.localizedTitle == "Right Sidebar")
     }
 
-    @Test("the stacked placement names the tree's position above the workspace list")
+    @Test("the stacked placement is titled Stacked")
     func stackedTitle() {
-        #expect(FilesPanelPlacement.stacked.localizedTitle == "Above Workspaces")
+        #expect(FilesPanelPlacement.stacked.localizedTitle == "Stacked")
     }
 
     @Test("every placement has its own non-empty symbol")
