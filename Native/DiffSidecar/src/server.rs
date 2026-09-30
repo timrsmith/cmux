@@ -614,6 +614,14 @@ async fn handle_protocol_request(
             )
             .await
         }
+        DiffCommand::WorktreeUnstageHunk(params) => {
+            worktree_response(
+                request.id,
+                worktree::unstage_hunk(state, &params),
+                SESSION_OPEN_TIMEOUT,
+            )
+            .await
+        }
         DiffCommand::WorktreeCommit(params) => {
             worktree_response(
                 request.id,
@@ -2476,6 +2484,19 @@ mod tests {
                 ))
                 .is_err(),
                 "{method} without paths"
+            );
+        }
+        // The hunk row: a discard in the unstaged view, an unstage in the
+        // staged view; both carry one path and one hunk header.
+        for (method, kind) in [
+            ("worktreeDiscardHunk", "unstaged"),
+            ("worktreeUnstageHunk", "staged"),
+        ] {
+            assert!(
+                write(&format!(
+                    r#"{{"id":"a","version":1,"method":"{method}","params":{{"sessionId":"s","capabilityToken":"t","source":{{"kind":"{kind}","repoRoot":"/r"}},"path":"a.txt","hunk":{{"oldStart":1,"oldCount":2,"newStart":1,"newCount":3}}}}}}"#
+                )),
+                "{method}"
             );
         }
         assert!(write(&format!(

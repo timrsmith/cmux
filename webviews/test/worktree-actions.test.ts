@@ -27,6 +27,7 @@ import {
   hunkActionAnchor,
   hunkActionTargets,
   hunkRefFromPierreHunk,
+  hunkVerbForSource,
   payloadRepoLabel,
   pullRequestLabelKeys,
   pullRequestStateLabelKey,
@@ -63,9 +64,10 @@ const verbs = (source: unknown) =>
   writeVerbsForSource(source as any).map((descriptor) => descriptor.verb);
 
 describe("write action visibility by source kind", () => {
-  test("only unstaged and staged sources get write verbs: stage or unstage, then discard", () => {
+  test("only unstaged and staged sources get write verbs: stage then discard, or unstage alone", () => {
     expect(verbs(unstaged)).toEqual(["stage", "discard"]);
-    expect(verbs(staged)).toEqual(["unstage", "discard"]);
+    // The Staged view only unstages: nothing there touches the working tree.
+    expect(verbs(staged)).toEqual(["unstage"]);
     expect(verbs(branch)).toEqual([]);
     expect(verbs(patch)).toEqual([]);
     expect(verbs(null)).toEqual([]);
@@ -105,6 +107,28 @@ describe("write action visibility by source kind", () => {
     expect(writeActionId("stage", "file")).toBe("stageFile");
     expect(writeActionId("unstage", "selected")).toBe("unstageFiles");
     expect(writeActionId("discard", "all")).toBe("discardAll");
+  });
+
+  test("the hunk row discards in the unstaged view and unstages, without asking, in the staged view", () => {
+    expect(hunkVerbForSource(unstaged)).toEqual({
+      verb: "discard",
+      method: "worktreeDiscardHunk",
+      icon: "discard",
+      label: "revertHunk",
+      confirm: { button: "confirmRevert", prompt: "revertPrompt" },
+    });
+    expect(hunkVerbForSource(staged)).toEqual({
+      verb: "unstage",
+      method: "worktreeUnstageHunk",
+      icon: "unstage",
+      label: "unstageHunk",
+      confirm: null,
+    });
+    for (const source of [branch, patch, null, undefined]) {
+      expect(hunkVerbForSource(source as any)).toBeNull();
+    }
+    // The same descriptor every render: a stable input for memoized props.
+    expect(hunkVerbForSource(staged)).toBe(hunkVerbForSource(staged));
   });
 
   test("commit is enabled for staged, hinted for unstaged, hidden otherwise", () => {
@@ -287,7 +311,7 @@ describe("hunk references", () => {
       }),
     );
     expect(hunkActionTargets({ hunks: tooMany })).toEqual([]);
-    // A single hunk gets no row: the file header's Discard covers it.
+    // A single hunk gets no row: the file header's action covers it.
     expect(hunkActionTargets({ hunks: [hunks[0]] })).toEqual([]);
     expect(hunkActionTargets({ hunks: [] })).toEqual([]);
     expect(hunkActionTargets(null)).toEqual([]);
@@ -377,7 +401,7 @@ describe("hunk references", () => {
     expect(list[0]).toBe(decorated);
     expect(attachHunkActionAnnotations([item])).not.toBe(list);
     // Items with fewer than two hunks or without a fileDiff pass through
-    // untouched: a single hunk is covered by the header's Discard.
+    // untouched: a single hunk is covered by the header's action.
     const hunkless = {
       id: "empty",
       type: "diff",
@@ -407,14 +431,14 @@ describe("request envelopes", () => {
       buildFilesRequest("unstage", session, staged, [{ path: "src/a.ts" }]),
     ).toMatchObject({ method: "worktreeUnstageFiles" });
     expect(
-      buildFilesRequest("discard", session, staged, [
+      buildFilesRequest("discard", session, unstaged, [
         { path: "new.ts", previousPath: "old.ts" },
       ]),
     ).toEqual({
       method: "worktreeDiscardFiles",
       params: {
         ...session,
-        source: staged,
+        source: unstaged,
         paths: ["new.ts", "old.ts"],
       },
     });
@@ -428,7 +452,8 @@ describe("request envelopes", () => {
       method: "worktreeDiscardHunk",
       params: { ...session, source: unstaged, path: "src/a.ts", hunk },
     });
-    // A staged rename carries its origin so the sidecar re-reads both names.
+    // The Staged view's row unstages the hunk (index only); a staged rename
+    // carries its origin so the sidecar re-reads both names.
     expect(
       buildHunkRequest(
         session,
@@ -437,7 +462,7 @@ describe("request envelopes", () => {
         hunk,
       ),
     ).toEqual({
-      method: "worktreeDiscardHunk",
+      method: "worktreeUnstageHunk",
       params: {
         ...session,
         source: staged,

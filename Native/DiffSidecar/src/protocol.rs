@@ -26,6 +26,7 @@ pub enum DiffCommand {
     WorktreeUnstageFiles(WorktreeFilesRequest),
     WorktreeDiscardFiles(WorktreeFilesRequest),
     WorktreeDiscardHunk(WorktreeHunkRequest),
+    WorktreeUnstageHunk(WorktreeHunkRequest),
     WorktreeCommit(WorktreeCommitRequest),
     WorktreeDiscardAll(WorktreeSessionRequest),
     WorktreeStageAll(WorktreeSessionRequest),
@@ -58,6 +59,7 @@ impl DiffCommand {
             | Self::WorktreeUnstageFiles(_)
             | Self::WorktreeDiscardFiles(_)
             | Self::WorktreeDiscardHunk(_)
+            | Self::WorktreeUnstageHunk(_)
             | Self::WorktreeCommit(_)
             | Self::WorktreeDiscardAll(_)
             | Self::WorktreeStageAll(_)
@@ -178,8 +180,11 @@ pub struct HunkRef {
     pub new_count: u32,
 }
 
-/// Targets one hunk of one file. `previous_path` names the rename origin of a
-/// staged rename so the sidecar re-reads the diff with both names in scope.
+/// Targets one hunk of one file: discarded from the working tree by an
+/// `unstaged` session (`worktreeDiscardHunk`), or taken out of the index by a
+/// `staged` session (`worktreeUnstageHunk`). `previous_path` names the rename
+/// origin of a staged rename so the sidecar re-reads the diff with both names
+/// in scope.
 #[derive(Clone, Debug, Deserialize, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "protocol.ts")]

@@ -111,6 +111,9 @@ describe("createDiffViewerLabelResolver", () => {
       "stageAll",
       "stageAllAndCommit",
       "unstageAll",
+      // The hunk row: Discard in the Unstaged view, Unstage in the Staged view.
+      "revertHunk",
+      "unstageHunk",
       // Batch actions: the selection forms (template plus singular), the
       // confirm, the select-all and the per-row checkbox names.
       "clearSelection",

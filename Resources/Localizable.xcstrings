@@ -1,6 +1,301 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "close.unsavedChanges.refused.one": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” has unsaved changes; save it first."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ hat ungesicherte Änderungen; sichern Sie sie zuerst."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "« %@ » contient des modifications non enregistrées ; enregistrez-les d’abord."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "”%@“ يحتوي على تغييرات غير محفوظة؛ احفظها أولاً."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” tiene cambios sin guardar; guárdelos primero."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」有未儲存的變更；請先儲存。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”有未保存的更改；请先保存。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”에 저장되지 않은 변경 사항이 있습니다. 먼저 저장하세요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”に未保存の変更があります。先に保存してください。"
+          }
+        }
+      }
+    },
+    "close.unsavedChanges.refused.other": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ have unsaved changes; save them first."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ haben ungesicherte Änderungen; sichern Sie sie zuerst."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ contiennent des modifications non enregistrées ; enregistrez-les d’abord."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ تحتوي على تغييرات غير محفوظة؛ احفظها أولاً."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ tienen cambios sin guardar; guárdelos primero."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 有未儲存的變更；請先儲存。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 有未保存的更改；请先保存。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 저장되지 않은 변경 사항이 있습니다. 먼저 저장하세요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@に未保存の変更があります。先に保存してください。"
+          }
+        }
+      }
+    },
+    "close.unsavedChanges.refused.force.one": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” has unsaved changes; save it first or pass --force."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ hat ungesicherte Änderungen; sichern Sie sie zuerst oder übergeben Sie --force."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "« %@ » contient des modifications non enregistrées ; enregistrez-les d’abord ou passez --force."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "”%@“ يحتوي على تغييرات غير محفوظة؛ احفظها أولاً أو استخدم --force."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” tiene cambios sin guardar; guárdelos primero o pase --force."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」有未儲存的變更；請先儲存或加上 --force。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”有未保存的更改；请先保存或加上 --force。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”에 저장되지 않은 변경 사항이 있습니다. 먼저 저장하거나 --force를 지정하세요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”に未保存の変更があります。先に保存するか、--force を指定してください。"
+          }
+        }
+      }
+    },
+    "close.unsavedChanges.refused.force.other": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ have unsaved changes; save them first or pass --force."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ haben ungesicherte Änderungen; sichern Sie sie zuerst oder übergeben Sie --force."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ contiennent des modifications non enregistrées ; enregistrez-les d’abord ou passez --force."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ تحتوي على تغييرات غير محفوظة؛ احفظها أولاً أو استخدم --force."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ tienen cambios sin guardar; guárdelos primero o pase --force."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 有未儲存的變更；請先儲存或加上 --force。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 有未保存的更改；请先保存或加上 --force。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 저장되지 않은 변경 사항이 있습니다. 먼저 저장하거나 --force를 지정하세요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@に未保存の変更があります。先に保存するか、--force を指定してください。"
+          }
+        }
+      }
+    },
+    "diffViewer.unstageHunk": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unstage"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus dem Stage entfernen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Désindexer"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إلغاء التجهيز"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar del stage"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消暫存"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消暂存"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "스테이징 해제"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ステージを解除"
+          }
+        }
+      }
+    },
     "error.unsavedChanges.savingUnavailable": {
       "extractionState": "manual",
       "localizations": {
@@ -131657,61 +131952,61 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux workspace <subcommand> [flags]\n\nCanonical noun for workspace operations. Legacy verbs\n(new-workspace, list-workspaces, close-workspace,\nrename-workspace, select-workspace) keep working and print a\none-time deprecation hint pointing here.\n\nSubcommands:\n  list                    List workspaces in a window\n  create [flags]          Create a workspace (same flags as new-workspace)\n  env [workspace] [--mask]\n                          Print a workspace's configured environment\n                          variables (--mask redacts the values)\n  close <workspace>       Close a workspace\n  rename <workspace> --title <new>\n  select <workspace>      Make a workspace active\n  status [set <lane|auto>]\n                          Show or pin the workspace todo status\n  reconnect [workspace]   Reconnect a remote (SSH) workspace, including one\n                          whose automatic reconnect paused because the host\n                          was unreachable\n  disconnect [workspace]  Stop a remote (SSH) workspace's connection\n  loading <on|off> [--id <name>] Toggle the workspace loading spinner.\n  group <subcommand>      Workspace group operations (see cmux workspace-group --help)\nenv/reconnect/disconnect accept a positional handle or --workspace\n<id|ref|index>, defaulting to the caller's workspace, then the\nselected one (of --window's window when given).\nExamples:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
+            "value": "Usage: cmux workspace <subcommand> [flags]\n\nCanonical noun for workspace operations. Legacy verbs\n(new-workspace, list-workspaces, close-workspace,\nrename-workspace, select-workspace) keep working and print a\none-time deprecation hint pointing here.\n\nSubcommands:\n  list                    List workspaces in a window\n  create [flags]          Create a workspace (same flags as new-workspace)\n  env [workspace] [--mask]\n                          Print a workspace's configured environment\n                          variables (--mask redacts the values)\n  close <workspace> [--force]\n                          Close a workspace (--force discards unsaved edits)\n  rename <workspace> --title <new>\n  select <workspace>      Make a workspace active\n  status [set <lane|auto>]\n                          Show or pin the workspace todo status\n  reconnect [workspace]   Reconnect a remote (SSH) workspace, including one\n                          whose automatic reconnect paused because the host\n                          was unreachable\n  disconnect [workspace]  Stop a remote (SSH) workspace's connection\n  loading <on|off> [--id <name>] Toggle the workspace loading spinner.\n  group <subcommand>      Workspace group operations (see cmux workspace-group --help)\nenv/reconnect/disconnect accept a positional handle or --workspace\n<id|ref|index>, defaulting to the caller's workspace, then the\nselected one (of --window's window when given).\nExamples:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "使用方法: cmux workspace <subcommand> [flags]\n\nワークスペース操作用の標準コマンド。従来の動詞\n(new-workspace, list-workspaces, close-workspace,\nrename-workspace, select-workspace) も引き続き動作し、ここを指し示す\n初回限りの非推奨ヒントを出力します。\n\nサブコマンド:\n  list                    ウィンドウ内のワークスペースを一覧表示\n  create [flags]          ワークスペースを作成（new-workspace と同じフラグ）\n  env [workspace] [--mask]\n                          ワークスペースに設定されている環境変数を出力\n                          （--mask は値をマスクします）\n  close <workspace>       ワークスペースを閉じる\n  rename <workspace> --title <new>\n  select <workspace>      ワークスペースをアクティブにする\n  status [set <lane|auto>]\n                          ワークスペースの todo ステータスを表示またはピン留め\n  reconnect [workspace]   リモート（SSH）ワークスペースを再接続。ホストが\n                          到達不能になったために自動再接続が一時停止した\n                          ものも含みます\n  disconnect [workspace]  リモート（SSH）ワークスペースの接続を切断\n  loading <on|off> [--id <name>] ワークスペースの読み込み中インジケーターを切り替え。\n  group <subcommand>      ワークスペースグループ操作（cmux workspace-group --help を参照）\nenv/reconnect/disconnect は、位置引数のハンドルまたは --workspace\n<id|ref|index> を受け取り、デフォルトは呼び出し元のワークスペース、次に\n選択されたもの（--window が指定されている場合はそのウィンドウのもの）になります。\n例:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
+            "value": "使用方法: cmux workspace <subcommand> [flags]\n\nワークスペース操作用の標準コマンド。従来の動詞\n(new-workspace, list-workspaces, close-workspace,\nrename-workspace, select-workspace) も引き続き動作し、ここを指し示す\n初回限りの非推奨ヒントを出力します。\n\nサブコマンド:\n  list                    ウィンドウ内のワークスペースを一覧表示\n  create [flags]          ワークスペースを作成（new-workspace と同じフラグ）\n  env [workspace] [--mask]\n                          ワークスペースに設定されている環境変数を出力\n                          （--mask は値をマスクします）\n  close <workspace> [--force]\n                          ワークスペースを閉じる (--force は未保存の変更を破棄します)\n  rename <workspace> --title <new>\n  select <workspace>      ワークスペースをアクティブにする\n  status [set <lane|auto>]\n                          ワークスペースの todo ステータスを表示またはピン留め\n  reconnect [workspace]   リモート（SSH）ワークスペースを再接続。ホストが\n                          到達不能になったために自動再接続が一時停止した\n                          ものも含みます\n  disconnect [workspace]  リモート（SSH）ワークスペースの接続を切断\n  loading <on|off> [--id <name>] ワークスペースの読み込み中インジケーターを切り替え。\n  group <subcommand>      ワークスペースグループ操作（cmux workspace-group --help を参照）\nenv/reconnect/disconnect は、位置引数のハンドルまたは --workspace\n<id|ref|index> を受け取り、デフォルトは呼び出し元のワークスペース、次に\n選択されたもの（--window が指定されている場合はそのウィンドウのもの）になります。\n例:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "사용법: cmux workspace <subcommand> [flags]\n\n작업 공간 작업의 정식 표준 명령어 명사입니다. 기존 동사 스타일의 구형 명령들\n(new-workspace, list-workspaces, close-workspace,\nrename-workspace, select-workspace)도 계속 작동하며, 이를 실행할 시 여기에 명시된 정식 명령어로의\n전환을 안내하는 일회성 권장 중단 힌트 메시지를 출력합니다.\n\n하위 명령:\n  list                    창 내의 작업 공간 목록 표시\n  create [flags]          작업 공간 생성 (new-workspace와 동일한 플래그)\n  env [workspace] [--mask]\n                          작업 공간에 설정된 환경 변수 출력\n                          (--mask 플래그 사용 시 환경 변수 값이 마스킹됩니다)\n  close <workspace>       작업 공간 닫기\n  rename <workspace> --title <new>\n  select <workspace>      작업 공간 활성화\n  status [set <lane|auto>]\n                          작업 공간의 할 일 상태 표시 또는 고정\n  reconnect [workspace]   원격(SSH) 작업 공간 재연결 (호스트 연결 불가로 인해\n                          자동 재연결이 일시 중지된\n                          작업 공간 포함)\n  disconnect [workspace]  원격(SSH) 작업 공간 연결 종료\n  loading <on|off> [--id <name>] 작업 공간 로딩 스피너 토글\n  group <subcommand>      작업 공간 그룹 작업 (cmux workspace-group --help 참고)\nenv/reconnect/disconnect는 위치 지정용 핸들 또는 --workspace\n<id|ref|index>를 허용하며, 기본값은 호출자의 작업 공간, 다음으로\n선택된 작업 공간입니다 (--window가 제공되는 경우 해당 창의 작업 공간).\n예시:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
+            "value": "사용법: cmux workspace <subcommand> [flags]\n\n작업 공간 작업의 정식 표준 명령어 명사입니다. 기존 동사 스타일의 구형 명령들\n(new-workspace, list-workspaces, close-workspace,\nrename-workspace, select-workspace)도 계속 작동하며, 이를 실행할 시 여기에 명시된 정식 명령어로의\n전환을 안내하는 일회성 권장 중단 힌트 메시지를 출력합니다.\n\n하위 명령:\n  list                    창 내의 작업 공간 목록 표시\n  create [flags]          작업 공간 생성 (new-workspace와 동일한 플래그)\n  env [workspace] [--mask]\n                          작업 공간에 설정된 환경 변수 출력\n                          (--mask 플래그 사용 시 환경 변수 값이 마스킹됩니다)\n  close <workspace> [--force]\n                          작업 공간 닫기 (--force는 저장되지 않은 변경 사항을 버립니다)\n  rename <workspace> --title <new>\n  select <workspace>      작업 공간 활성화\n  status [set <lane|auto>]\n                          작업 공간의 할 일 상태 표시 또는 고정\n  reconnect [workspace]   원격(SSH) 작업 공간 재연결 (호스트 연결 불가로 인해\n                          자동 재연결이 일시 중지된\n                          작업 공간 포함)\n  disconnect [workspace]  원격(SSH) 작업 공간 연결 종료\n  loading <on|off> [--id <name>] 작업 공간 로딩 스피너 토글\n  group <subcommand>      작업 공간 그룹 작업 (cmux workspace-group --help 참고)\nenv/reconnect/disconnect는 위치 지정용 핸들 또는 --workspace\n<id|ref|index>를 허용하며, 기본값은 호출자의 작업 공간, 다음으로\n선택된 작업 공간입니다 (--window가 제공되는 경우 해당 창의 작업 공간).\n예시:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Використання: cmux workspace <підкоманда> [прапорці]\n\nКанонічний простір імен для операцій з робочими просторами.\nЗастарілі дієслівні команди (new-workspace, list-workspaces,\nclose-workspace, rename-workspace, select-workspace) продовжують\nпрацювати й одноразово показують підказку про застарілість, що\nвказує сюди.\n\nПідкоманди:\n  list                    Список робочих просторів у вікні\n  create [flags]          Створити робочий простір (ті самі прапорці, що й\n                          new-workspace, зокрема --env KEY=VALUE та --env-file <path>)\n  env [workspace] [--mask]\n                          Показати налаштовані змінні середовища робочого\n                          простору (--mask приховує значення)\n  close <workspace>       Закрити робочий простір\n  rename <workspace> --title <new>\n  select <workspace>      Зробити робочий простір активним\n  reconnect [workspace]   Перепідключити віддалений (SSH) робочий простір,\n                          зокрема той, де автоматичне перепідключення\n                          призупинено через недосяжний хост\n  disconnect [workspace]  Зупинити з'єднання віддаленого (SSH) робочого простору\n  status [set <lane|auto>]\n                          Показати або закріпити todo-статус робочого простору\n  loading <on|off> [--id <name>]\n                          Перемкнути індикатор завантаження робочого простору.\n                          Кожен --id — окремий лоадер; без --id перемикається\n                          один типовий\n  group <subcommand>      Операції з групами робочих просторів (див. cmux workspace-group --help)\n\nenv/reconnect/disconnect приймають позиційний дескриптор або --workspace\n<id|ref|index>; типово використовується робочий простір викликача,\nдалі — вибраний (у вікні з --window, якщо задано).\n\nПриклади:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace create --cwd . --env AWS_PROFILE=prod --env-file ./.cmux.env\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3\n  cmux workspace loading on\n  cmux workspace loading on --id build\n  cmux workspace loading off"
+            "value": "Використання: cmux workspace <підкоманда> [прапорці]\n\nКанонічний простір імен для операцій з робочими просторами.\nЗастарілі дієслівні команди (new-workspace, list-workspaces,\nclose-workspace, rename-workspace, select-workspace) продовжують\nпрацювати й одноразово показують підказку про застарілість, що\nвказує сюди.\n\nПідкоманди:\n  list                    Список робочих просторів у вікні\n  create [flags]          Створити робочий простір (ті самі прапорці, що й\n                          new-workspace, зокрема --env KEY=VALUE та --env-file <path>)\n  env [workspace] [--mask]\n                          Показати налаштовані змінні середовища робочого\n                          простору (--mask приховує значення)\n  close <workspace> [--force]\n                          Закрити робочий простір (--force відкидає незбережені зміни)\n  rename <workspace> --title <new>\n  select <workspace>      Зробити робочий простір активним\n  reconnect [workspace]   Перепідключити віддалений (SSH) робочий простір,\n                          зокрема той, де автоматичне перепідключення\n                          призупинено через недосяжний хост\n  disconnect [workspace]  Зупинити з'єднання віддаленого (SSH) робочого простору\n  status [set <lane|auto>]\n                          Показати або закріпити todo-статус робочого простору\n  loading <on|off> [--id <name>]\n                          Перемкнути індикатор завантаження робочого простору.\n                          Кожен --id — окремий лоадер; без --id перемикається\n                          один типовий\n  group <subcommand>      Операції з групами робочих просторів (див. cmux workspace-group --help)\n\nenv/reconnect/disconnect приймають позиційний дескриптор або --workspace\n<id|ref|index>; типово використовується робочий простір викликача,\nдалі — вибраний (у вікні з --window, якщо задано).\n\nПриклади:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace create --cwd . --env AWS_PROFILE=prod --env-file ./.cmux.env\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3\n  cmux workspace loading on\n  cmux workspace loading on --id build\n  cmux workspace loading off"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "用法：cmux workspace <subcommand> [flags]\n\n工作区操作的标准名词形式。旧的动词命令\n（new-workspace、list-workspaces、close-workspace、\nrename-workspace、select-workspace）仍可使用，并会打印一次性的\n弃用提示指向这里。\n\n子命令:\n  list                    列出某个窗口中的工作区\n  create [flags]          创建工作区（标志与 new-workspace 相同）\n  env [workspace] [--mask]\n                          输出某个工作区已配置的环境\n                          变量（--mask 会遮蔽取值）\n  close <workspace>       关闭一个工作区\n  rename <workspace> --title <new>\n  select <workspace>      将某个工作区设为活动\n  status [set <lane|auto>]\n                          显示或固定工作区的待办状态\n  reconnect [workspace]   重新连接远程（SSH）工作区，包括因主机\n                          不可达而暂停了自动重连的\n                          工作区\n  disconnect [workspace]  断开远程（SSH）工作区的连接\n  loading <on|off> [--id <name>] 切换工作区的加载指示器。\n  group <subcommand>      工作区分组操作（见 cmux workspace-group --help）\nenv/reconnect/disconnect 接受位置句柄或 --workspace\n<id|ref|index>，默认取调用方的工作区，其次取\n当前选中的工作区（给出 --window 时为该窗口内的）。\n示例:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
+            "value": "用法：cmux workspace <subcommand> [flags]\n\n工作区操作的标准名词形式。旧的动词命令\n（new-workspace、list-workspaces、close-workspace、\nrename-workspace、select-workspace）仍可使用，并会打印一次性的\n弃用提示指向这里。\n\n子命令:\n  list                    列出某个窗口中的工作区\n  create [flags]          创建工作区（标志与 new-workspace 相同）\n  env [workspace] [--mask]\n                          输出某个工作区已配置的环境\n                          变量（--mask 会遮蔽取值）\n  close <workspace> [--force]\n                          关闭一个工作区 (--force 会丢弃未保存的更改)\n  rename <workspace> --title <new>\n  select <workspace>      将某个工作区设为活动\n  status [set <lane|auto>]\n                          显示或固定工作区的待办状态\n  reconnect [workspace]   重新连接远程（SSH）工作区，包括因主机\n                          不可达而暂停了自动重连的\n                          工作区\n  disconnect [workspace]  断开远程（SSH）工作区的连接\n  loading <on|off> [--id <name>] 切换工作区的加载指示器。\n  group <subcommand>      工作区分组操作（见 cmux workspace-group --help）\nenv/reconnect/disconnect 接受位置句柄或 --workspace\n<id|ref|index>，默认取调用方的工作区，其次取\n当前选中的工作区（给出 --window 时为该窗口内的）。\n示例:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verwendung: cmux workspace <Unterbefehl> [flags]\n\nKanonisches Substantiv für Arbeitsbereichs-Operationen. Veraltete Verben\n(new-workspace, list-workspaces, close-workspace,\nrename-workspace, select-workspace) funktionieren weiterhin und geben einen\neinmaligen Veraltungshinweis aus, der hierher verweist.\n\nUnterbefehle:\n  list                    Arbeitsbereiche in einem Fenster auflisten\n  create [flags]          Einen Arbeitsbereich erstellen (gleiche Flags wie new-workspace)\n  env [workspace] [--mask]\n                          Die konfigurierten Umgebungsvariablen eines Arbeitsbereichs\n                          ausgeben (--mask zensiert die Werte)\n  close <workspace>       Einen Arbeitsbereich schließen\n  rename <workspace> --title <new>\n  select <workspace>      Einen Arbeitsbereich aktivieren\n  status [set <lane|auto>]\n                          Den Todo-Status des Arbeitsbereichs anzeigen oder pinnt\n  reconnect [workspace]   Einen Remote-Arbeitsbereich (SSH) erneut verbinden, einschließlich eines\n                          Arbeitsbereichs, dessen automatische Wiederverbindung pausiert wurde, weil der Host\n                          nicht erreichbar war\n  disconnect [workspace]  Die Verbindung eines Remote-Arbeitsbereichs (SSH) trennen\n  loading <on|off> [--id <name>] Die Ladeanzeige des Arbeitsbereichs umschalten.\n  group <subcommand>      Operationen für Arbeitsbereichsgruppen (siehe cmux workspace-group --help)\nenv/reconnect/disconnect akzeptieren ein positionales Handle oder --workspace\n<id|ref|index>, standardmäßig den Arbeitsbereich des Aufrufers, dann den\nausgewählten (vom Fenster von --window, falls angegeben).\nBeispiele:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
+            "value": "Verwendung: cmux workspace <Unterbefehl> [flags]\n\nKanonisches Substantiv für Arbeitsbereichs-Operationen. Veraltete Verben\n(new-workspace, list-workspaces, close-workspace,\nrename-workspace, select-workspace) funktionieren weiterhin und geben einen\neinmaligen Veraltungshinweis aus, der hierher verweist.\n\nUnterbefehle:\n  list                    Arbeitsbereiche in einem Fenster auflisten\n  create [flags]          Einen Arbeitsbereich erstellen (gleiche Flags wie new-workspace)\n  env [workspace] [--mask]\n                          Die konfigurierten Umgebungsvariablen eines Arbeitsbereichs\n                          ausgeben (--mask zensiert die Werte)\n  close <workspace> [--force]\n                          Einen Arbeitsbereich schließen (--force verwirft ungesicherte Änderungen)\n  rename <workspace> --title <new>\n  select <workspace>      Einen Arbeitsbereich aktivieren\n  status [set <lane|auto>]\n                          Den Todo-Status des Arbeitsbereichs anzeigen oder pinnt\n  reconnect [workspace]   Einen Remote-Arbeitsbereich (SSH) erneut verbinden, einschließlich eines\n                          Arbeitsbereichs, dessen automatische Wiederverbindung pausiert wurde, weil der Host\n                          nicht erreichbar war\n  disconnect [workspace]  Die Verbindung eines Remote-Arbeitsbereichs (SSH) trennen\n  loading <on|off> [--id <name>] Die Ladeanzeige des Arbeitsbereichs umschalten.\n  group <subcommand>      Operationen für Arbeitsbereichsgruppen (siehe cmux workspace-group --help)\nenv/reconnect/disconnect akzeptieren ein positionales Handle oder --workspace\n<id|ref|index>, standardmäßig den Arbeitsbereich des Aufrufers, dann den\nausgewählten (vom Fenster von --window, falls angegeben).\nBeispiele:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Utilisation : cmux workspace <subcommand> [flags]\n\nNom canonique pour les opérations sur les espaces de travail. Les anciens verbes\n(new-workspace, list-workspaces, close-workspace,\nrename-workspace, select-workspace) continuent de fonctionner et affichent un\nmessage d'avertissement d'obsolescence unique redirigeant ici.\n\nSous-commandes :\n  list                    Liste les espaces de travail dans une fenêtre\n  create [flags]          Crée un espace de travail (mêmes options que new-workspace)\n  env [workspace] [--mask]\n                          Affiche les variables d'environnement configurées\n                          d'un espace de travail (--mask masque les valeurs)\n  close <workspace>       Ferme un espace de travail\n  rename <workspace> --title <new>\n  select <workspace>      Rend un espace de travail actif\n  status [set <lane|auto>]\n                          Affiche ou épingle le statut todo de l'espace de travail\n  reconnect [workspace]   Reconnecte un espace de travail distant (SSH), y compris un\n                          dont la reconnexion automatique s'est interrompue car l'hôte\n                          était injoignable\n  disconnect [workspace]  Arrête la connexion d'un espace de travail distant (SSH)\n  loading <on|off> [--id <name>] Active/désactive l'indicateur de chargement de l'espace de travail.\n  group <subcommand>      Opérations sur les groupes d'espaces de travail (voir cmux workspace-group --help)\nenv/reconnect/disconnect acceptent un descripteur de position ou --workspace\n<id|ref|index>, ciblant par défaut l'espace de travail de l'appelant, puis l'\nespace de travail sélectionné (de la fenêtre spécifiée via --window le cas échéant).\nExemples :\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
+            "value": "Utilisation : cmux workspace <subcommand> [flags]\n\nNom canonique pour les opérations sur les espaces de travail. Les anciens verbes\n(new-workspace, list-workspaces, close-workspace,\nrename-workspace, select-workspace) continuent de fonctionner et affichent un\nmessage d'avertissement d'obsolescence unique redirigeant ici.\n\nSous-commandes :\n  list                    Liste les espaces de travail dans une fenêtre\n  create [flags]          Crée un espace de travail (mêmes options que new-workspace)\n  env [workspace] [--mask]\n                          Affiche les variables d'environnement configurées\n                          d'un espace de travail (--mask masque les valeurs)\n  close <workspace> [--force]\n                          Ferme un espace de travail (--force ignore les modifications non enregistrées)\n  rename <workspace> --title <new>\n  select <workspace>      Rend un espace de travail actif\n  status [set <lane|auto>]\n                          Affiche ou épingle le statut todo de l'espace de travail\n  reconnect [workspace]   Reconnecte un espace de travail distant (SSH), y compris un\n                          dont la reconnexion automatique s'est interrompue car l'hôte\n                          était injoignable\n  disconnect [workspace]  Arrête la connexion d'un espace de travail distant (SSH)\n  loading <on|off> [--id <name>] Active/désactive l'indicateur de chargement de l'espace de travail.\n  group <subcommand>      Opérations sur les groupes d'espaces de travail (voir cmux workspace-group --help)\nenv/reconnect/disconnect acceptent un descripteur de position ou --workspace\n<id|ref|index>, ciblant par défaut l'espace de travail de l'appelant, puis l'\nespace de travail sélectionné (de la fenêtre spécifiée via --window le cas échéant).\nExemples :\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "الاستخدام: cmux workspace <subcommand> [flags]\n\nالاسم النموذجي لعمليات مساحات العمل. الأفعال القديمة\n(new-workspace، list-workspaces، close-workspace،\nrename-workspace، select-workspace) تستمر في العمل وتطبع\nتلميحًا لمرة واحدة يفيد بالإيقاف التدريجي ويشير إلى هنا.\n\nالأوامر الفرعية:\n  list                    سرد مساحات العمل في نافذة\n  create [flags]          إنشاء مساحة عمل (نفس علامات new-workspace)\n  env [workspace] [--mask]\n                          طباعة المتغيرات البيئية المكونة لمساحة عمل\n                          (العلامة --mask تحجب القيم)\n  close <workspace>       إغلاق مساحة عمل\n  rename <workspace> --title <new>\n  select <workspace>      تنشيط مساحة عمل\n  status [set <lane|auto>]\n                          عرض أو تثبيت حالة مهام مساحة العمل للقيام بها\n  reconnect [workspace]   إعادة اتصال مساحة عمل بعيدة (SSH)، بما في ذلك تلك\n                          التي توقفت إعادة اتصالها التلقائي مؤقتًا لأن المضيف\n                          كان غير قابل للوصول\n  disconnect [workspace]  إيقاف اتصال مساحة عمل بعيدة (SSH)\n  loading <on|off> [--id <name>] تبديل مؤشر تحميل مساحة العمل.\n  group <subcommand>      عمليات مجموعات مساحات العمل (انظر cmux workspace-group --help)\nتقبل الأوامر env/reconnect/disconnect وسيطًا موضعيًا أو --workspace\n<id|ref|index>، وتكون القيمة الافتراضية هي مساحة عمل المستدعي، ثم\nالمحددة (من نافذة --window عند تحديدها).\nأمثلة:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
+            "value": "الاستخدام: cmux workspace <subcommand> [flags]\n\nالاسم النموذجي لعمليات مساحات العمل. الأفعال القديمة\n(new-workspace، list-workspaces، close-workspace،\nrename-workspace، select-workspace) تستمر في العمل وتطبع\nتلميحًا لمرة واحدة يفيد بالإيقاف التدريجي ويشير إلى هنا.\n\nالأوامر الفرعية:\n  list                    سرد مساحات العمل في نافذة\n  create [flags]          إنشاء مساحة عمل (نفس علامات new-workspace)\n  env [workspace] [--mask]\n                          طباعة المتغيرات البيئية المكونة لمساحة عمل\n                          (العلامة --mask تحجب القيم)\n  close <workspace> [--force]\n                          إغلاق مساحة عمل (--force يتجاهل التغييرات غير المحفوظة)\n  rename <workspace> --title <new>\n  select <workspace>      تنشيط مساحة عمل\n  status [set <lane|auto>]\n                          عرض أو تثبيت حالة مهام مساحة العمل للقيام بها\n  reconnect [workspace]   إعادة اتصال مساحة عمل بعيدة (SSH)، بما في ذلك تلك\n                          التي توقفت إعادة اتصالها التلقائي مؤقتًا لأن المضيف\n                          كان غير قابل للوصول\n  disconnect [workspace]  إيقاف اتصال مساحة عمل بعيدة (SSH)\n  loading <on|off> [--id <name>] تبديل مؤشر تحميل مساحة العمل.\n  group <subcommand>      عمليات مجموعات مساحات العمل (انظر cmux workspace-group --help)\nتقبل الأوامر env/reconnect/disconnect وسيطًا موضعيًا أو --workspace\n<id|ref|index>، وتكون القيمة الافتراضية هي مساحة عمل المستدعي، ثم\nالمحددة (من نافذة --window عند تحديدها).\nأمثلة:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uso: cmux workspace <subcommand> [flags]\n\nSustantivo canónico para operaciones de espacio de trabajo. Los verbos heredados\n(new-workspace, list-workspaces, close-workspace,\nrename-workspace, select-workspace) siguen funcionando e imprimen una\nindicación de depreciación única que apunta aquí.\n\nSubcomandos:\n  list                    Enumera los espacios de trabajo en una ventana\n  create [flags]          Crea un espacio de trabajo (mismos flags que new-workspace)\n  env [workspace] [--mask]\n                          Imprime las variables de entorno configuradas\n                          de un espacio de trabajo (--mask redacta los valores)\n  close <workspace>       Cierra un espacio de trabajo\n  rename <workspace> --title <nuevo>\n  select <workspace>      Activa un espacio de trabajo\n  status [set <lane|auto>]\n                          Muestra o fija el estado de tareas pendientes de un espacio de trabajo\n  reconnect [workspace]   Reconecta un espacio de trabajo remoto (SSH), incluido uno\n                          cuya reconexión automática se detuvo porque el host\n                          no era accesible\n  disconnect [workspace]  Detiene la conexión de un espacio de trabajo remoto (SSH)\n  loading <on|off> [--id <nombre>] Alterna el indicador de carga del espacio de trabajo.\n  group <subcommand>      Operaciones de grupo de espacios de trabajo (ver cmux workspace-group --help)\nenv/reconnect/disconnect aceptan un identificador posicional o --workspace\n<id|ref|índice>, por defecto al espacio de trabajo del llamador, luego al\nseleccionado (de la ventana de --window cuando se proporciona).\nEjemplos:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
+            "value": "Uso: cmux workspace <subcommand> [flags]\n\nSustantivo canónico para operaciones de espacio de trabajo. Los verbos heredados\n(new-workspace, list-workspaces, close-workspace,\nrename-workspace, select-workspace) siguen funcionando e imprimen una\nindicación de depreciación única que apunta aquí.\n\nSubcomandos:\n  list                    Enumera los espacios de trabajo en una ventana\n  create [flags]          Crea un espacio de trabajo (mismos flags que new-workspace)\n  env [workspace] [--mask]\n                          Imprime las variables de entorno configuradas\n                          de un espacio de trabajo (--mask redacta los valores)\n  close <workspace> [--force]\n                          Cierra un espacio de trabajo (--force descarta los cambios sin guardar)\n  rename <workspace> --title <nuevo>\n  select <workspace>      Activa un espacio de trabajo\n  status [set <lane|auto>]\n                          Muestra o fija el estado de tareas pendientes de un espacio de trabajo\n  reconnect [workspace]   Reconecta un espacio de trabajo remoto (SSH), incluido uno\n                          cuya reconexión automática se detuvo porque el host\n                          no era accesible\n  disconnect [workspace]  Detiene la conexión de un espacio de trabajo remoto (SSH)\n  loading <on|off> [--id <nombre>] Alterna el indicador de carga del espacio de trabajo.\n  group <subcommand>      Operaciones de grupo de espacios de trabajo (ver cmux workspace-group --help)\nenv/reconnect/disconnect aceptan un identificador posicional o --workspace\n<id|ref|índice>, por defecto al espacio de trabajo del llamador, luego al\nseleccionado (de la ventana de --window cuando se proporciona).\nEjemplos:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "用法: cmux workspace <subcommand> [flags]\n\n工作區操作的標準名詞。舊版動詞\n(new-workspace, list-workspaces, close-workspace,\nrename-workspace, select-workspace) 仍可繼續使用，並會列印\n一次性棄用提示，指引至此處。\n\n子指令：\n  list                    列出視窗中的工作區\n  create [flags]          建立工作區（旗標與 new-workspace 相同）\n  env [workspace] [--mask]\n                          列印工作區設定的環境變數\n                          （--mask 會遮蔽其值）\n  close <workspace>       關閉工作區\n  rename <workspace> --title <new>\n  select <workspace>      啟用工作區\n  status [set <lane|auto>]\n                          顯示或釘選工作區待辦狀態\n  reconnect [workspace]   重新連線遠端 (SSH) 工作區，包括那些\n                          因主機無法連線而暫停\n                          自動重新連線的工作區\n  disconnect [workspace]  停止遠端 (SSH) 工作區的連線\n  loading <on|off> [--id <name>] 切換工作區載入指示器。\n  group <subcommand>      工作區群組操作（請參閱 cmux workspace-group --help）\nenv/reconnect/disconnect 接受位置控點或 --workspace\n<id|ref|index>，預設為呼叫端的工作區，其次為\n選取的工作區（若有指定則為 --window 的視窗工作區）。\n範例：\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
+            "value": "用法: cmux workspace <subcommand> [flags]\n\n工作區操作的標準名詞。舊版動詞\n(new-workspace, list-workspaces, close-workspace,\nrename-workspace, select-workspace) 仍可繼續使用，並會列印\n一次性棄用提示，指引至此處。\n\n子指令：\n  list                    列出視窗中的工作區\n  create [flags]          建立工作區（旗標與 new-workspace 相同）\n  env [workspace] [--mask]\n                          列印工作區設定的環境變數\n                          （--mask 會遮蔽其值）\n  close <workspace> [--force]\n                          關閉工作區 (--force 會捨棄未儲存的變更)\n  rename <workspace> --title <new>\n  select <workspace>      啟用工作區\n  status [set <lane|auto>]\n                          顯示或釘選工作區待辦狀態\n  reconnect [workspace]   重新連線遠端 (SSH) 工作區，包括那些\n                          因主機無法連線而暫停\n                          自動重新連線的工作區\n  disconnect [workspace]  停止遠端 (SSH) 工作區的連線\n  loading <on|off> [--id <name>] 切換工作區載入指示器。\n  group <subcommand>      工作區群組操作（請參閱 cmux workspace-group --help）\nenv/reconnect/disconnect 接受位置控點或 --workspace\n<id|ref|index>，預設為呼叫端的工作區，其次為\n選取的工作區（若有指定則為 --window 的視窗工作區）。\n範例：\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
           }
         }
       }
