@@ -4,22 +4,24 @@ import Foundation
 /// A digest of everything the Changes panel's working-tree diff can depend on,
 /// so a filesystem event only refreshes the page when the diff can differ.
 ///
-/// The git-aware watcher fires for the repository's `HEAD`, `index`, `refs`,
-/// `packed-refs`, `reftable` and `config` paths and for tracked entries (in a
-/// large repository, for any write under the working tree). Ref, packed-ref
-/// and reflog churn from other worktrees is dropped before it reaches the
-/// store (the descriptor's `containsStatusRelevantChange`), but the index is
-/// still rewritten
-/// without the diff changing: another tool's `git status` refreshing the stat
-/// cache, `git add` of an already-staged path, an editor saving a file with
+/// The git-aware watcher fires for the repository's `HEAD`, `index`,
+/// `logs/HEAD`, `refs`, `packed-refs`, `reftable` and `config` paths and for
+/// tracked entries (in a large repository, for any write under the working
+/// tree). Ref, packed-ref and branch-reflog churn from other worktrees is
+/// dropped before it reaches the store (the descriptor's
+/// `containsStatusRelevantChange`), but the index is still rewritten without
+/// the diff changing: another tool's `git status` refreshing the stat cache,
+/// `git add` of an already-staged path, an editor saving a file with
 /// identical contents. The panel used to reload its whole document on each
 /// such event, faster than a diff could parse.
 ///
-/// The digest covers `git status --porcelain=v2 -z` (index and HEAD object
-/// ids and modes for every changed entry, the paths, the untracked set) plus
-/// the size and modification time of each listed working-tree path, which is
-/// what changes when an already-dirty file is edited again. Object writes,
-/// ref updates on other branches, and other worktrees' indexes never appear.
+/// The digest covers `git status --porcelain=v2 -z` without untracked files
+/// (index and HEAD object ids and modes for every changed entry, the paths)
+/// plus the size and modification time of each listed working-tree path,
+/// which is what changes when an already-dirty file is edited again. Object
+/// writes, ref updates on other branches, other worktrees' indexes, and
+/// untracked files (which the unstaged diff never shows, so their churn
+/// cannot change the page) never appear.
 struct RightSidebarChangesFingerprint: Sendable {
     /// Produces the digest for a repository root, or `nil` when it cannot be
     /// computed (the panel then refreshes, as before).
@@ -44,7 +46,7 @@ struct RightSidebarChangesFingerprint: Sendable {
     func fingerprint(repoRoot: String) -> String? {
         guard let status = gitStatusProvider.runGitData(
             in: repoRoot,
-            arguments: ["status", "--porcelain=v2", "-z", "--untracked-files=normal"]
+            arguments: ["status", "--porcelain=v2", "-z", "--untracked-files=no"]
         ) else {
             return nil
         }
@@ -71,8 +73,10 @@ struct RightSidebarChangesFingerprint: Sendable {
 
     /// The working-tree paths a `--porcelain=v2 -z` listing names: ordinary
     /// (`1`), renamed or copied (`2`, whose original path follows in its own
-    /// NUL-terminated field), unmerged (`u`), and untracked (`?`) entries.
-    /// Ignored (`!`) entries and headers (`#`) name nothing to stat.
+    /// NUL-terminated field), and unmerged (`u`) entries. Untracked (`?`)
+    /// and ignored (`!`) entries are not part of the diff (the listing is
+    /// taken without untracked files anyway), and headers (`#`) name nothing
+    /// to stat.
     static func workingTreePaths(porcelainV2 status: Data) -> [String] {
         let fields = status.split(separator: 0, omittingEmptySubsequences: true)
             .map { String(decoding: $0, as: UTF8.self) }
@@ -92,8 +96,6 @@ struct RightSidebarChangesFingerprint: Sendable {
                 index += 1
             case "u":
                 if let path = nthSpaceSeparatedTail(record, skipping: 10) { paths.append(path) }
-            case "?":
-                if let path = nthSpaceSeparatedTail(record, skipping: 1) { paths.append(path) }
             default:
                 continue
             }

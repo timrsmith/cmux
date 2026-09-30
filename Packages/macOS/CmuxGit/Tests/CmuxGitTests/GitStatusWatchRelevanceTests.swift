@@ -44,15 +44,33 @@ import Testing
         #expect(!affects(".git/reftable/tables.list"))
         #expect(!affects(".git/FETCH_HEAD"))
         #expect(!affects(".git/ORIG_HEAD"))
-        #expect(!affects(".git/logs/HEAD"))
+        #expect(!affects(".git/logs/refs/heads/feature"))
+        #expect(!affects(".git/logs/refs/remotes/origin/main"))
+        #expect(!affects(".git/logs/refs/stash"))
+        #expect(!affects(".git/logs"))
         #expect(!affects(".git/objects/ab/cd0123"))
+    }
+
+    /// `git reset --soft` and `git update-ref` on the checked-out branch move
+    /// the commit HEAD resolves to without writing `HEAD`, the index or the
+    /// working tree, yet `git status` (index against the new HEAD) changes.
+    /// The files they do write are the branch ref, `ORIG_HEAD` and the
+    /// reflogs; of those only HEAD's own reflog is written exactly when
+    /// HEAD's target moves, so it is the signal. A linked worktree has its
+    /// own HEAD and its own `logs/HEAD`.
+    @Test func headReflogIsRelevant() {
+        #expect(affects(".git/logs/HEAD"))
+        #expect(affects(".git/worktrees/w/logs/HEAD"))
+        #expect(!affects(".git/logs/HEADS"), "only the exact name")
+        #expect(!affects(".git/logs/HEAD/x"), "a directory named HEAD under the reflog is not the reflog")
+        #expect(!affects(".git/logs/refs/heads/main"), "a branch's reflog also moves for commits on other worktrees")
     }
 
     @Test func linkedWorktreePrivateDirectoryIsJudgedOnItsOwnContents() {
         #expect(affects(".git/worktrees/w/index"))
         #expect(affects(".git/worktrees/w/HEAD"))
         #expect(!affects(".git/worktrees/w/refs/x"))
-        #expect(!affects(".git/worktrees/w/logs/HEAD"))
+        #expect(!affects(".git/worktrees/w/logs/refs/heads/x"))
         #expect(!affects(".git/worktrees/w/ORIG_HEAD"))
         #expect(affects(".git/worktrees/w"), "the worktree directory itself stays conservative")
         #expect(affects(".git/worktrees"))
@@ -104,13 +122,52 @@ import Testing
         #expect(GitWorkspaceMetadataWatchDescriptor.canAffectStatus(path: "\(repo)/Sources/App.swift"))
     }
 
+    /// The production plan (``GitMetadataService/gitRepositoryMetadataWatchPaths``)
+    /// names the metadata files it follows rather than the whole `.git`
+    /// directory, so the status filter can only pass `logs/HEAD` when the
+    /// plan lists it too.
+    @Test func productionPlanFollowsHeadReflogButNotBranchReflogs() {
+        let repository = ResolvedGitRepository(
+            workTreeRoot: repo,
+            gitDirectory: "\(repo)/.git",
+            commonDirectory: "\(repo)/.git"
+        )
+        let metadataPaths = GitMetadataService.gitRepositoryMetadataWatchPaths(
+            repository: repository,
+            configPathsByRepository: [repo: []]
+        )
+        #expect(metadataPaths.contains("\(repo)/.git/logs/HEAD"))
+        #expect(!metadataPaths.contains("\(repo)/.git/logs"))
+        let plan = descriptor(gitMetadataPaths: metadataPaths)
+        #expect(plan.containsStatusRelevantChange(path: "\(repo)/.git/logs/HEAD"))
+        #expect(plan.containsStatusRelevantChange(path: "\(repo)/.git/index"))
+        #expect(!plan.containsStatusRelevantChange(path: "\(repo)/.git/logs/refs/heads/main"))
+        #expect(!plan.containsStatusRelevantChange(path: "\(repo)/.git/refs/heads/main"))
+
+        let linked = ResolvedGitRepository(
+            workTreeRoot: "/Users/me/src/app-w",
+            gitDirectory: "\(repo)/.git/worktrees/w",
+            commonDirectory: "\(repo)/.git"
+        )
+        let linkedPaths = GitMetadataService.gitRepositoryMetadataWatchPaths(
+            repository: linked,
+            configPathsByRepository: [linked.workTreeRoot: []]
+        )
+        #expect(linkedPaths.contains("\(repo)/.git/worktrees/w/logs/HEAD"))
+        #expect(!linkedPaths.contains("\(repo)/.git/logs/HEAD"), "the main worktree's HEAD is not this checkout's")
+    }
+
     @Test func batchWithOneStatusRelevantPathIsAChange() {
         let plan = descriptor(trackedEntryPaths: ["\(repo)/README.md"])
         #expect(plan.containsStatusRelevantChange(paths: [
             "\(repo)/.git/refs/heads/main",
-            "\(repo)/.git/logs/HEAD",
+            "\(repo)/.git/logs/refs/heads/main",
             "\(repo)/README.md"
         ]))
+        #expect(plan.containsStatusRelevantChange(paths: [
+            "\(repo)/.git/refs/heads/main",
+            "\(repo)/.git/logs/HEAD"
+        ]), "a soft reset writes only refs and reflogs; HEAD's reflog carries it")
         #expect(plan.containsStatusRelevantChange(paths: [
             "\(repo)/.git/packed-refs",
             "\(repo)/.git/index",
@@ -121,10 +178,10 @@ import Testing
     @Test func batchOfOnlyIgnoredPathsIsNotAChange() {
         let plan = descriptor(trackedEntryPaths: ["\(repo)/README.md"])
         #expect(
-            !plan.containsStatusRelevantChange(paths: ["\(repo)/.git/packed-refs", "\(repo)/.git/logs/HEAD"]),
+            !plan.containsStatusRelevantChange(paths: ["\(repo)/.git/packed-refs", "\(repo)/.git/logs/refs/heads/main"]),
             "the plan would follow both, but neither can change status"
         )
-        #expect(plan.containsRelevantChange(paths: ["\(repo)/.git/packed-refs", "\(repo)/.git/logs/HEAD"]))
+        #expect(plan.containsRelevantChange(paths: ["\(repo)/.git/packed-refs", "\(repo)/.git/logs/refs/heads/main"]))
         let planWithoutGitDirectory = descriptor(gitMetadataPaths: [], trackedEntryPaths: ["\(repo)/README.md"])
         #expect(
             !planWithoutGitDirectory.containsStatusRelevantChange(paths: ["\(repo)/.git/index"]),

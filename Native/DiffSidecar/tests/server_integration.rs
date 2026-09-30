@@ -1859,9 +1859,9 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
         "A  first.txt\n?? loose.txt\n"
     );
     std::fs::remove_file(unborn.join("loose.txt")).expect("remove untracked file");
-    // The staged path passes the check; Git itself has no HEAD to restore the
-    // index from (`restore --staged`), so the write fails cleanly and the
-    // index and working tree stay as they were.
+    // There is no HEAD to restore the index from, so unstaging one file drops
+    // its index entry the way "Unstage all" does: the file stays on disk and
+    // becomes untracked.
     let unstaged_on_unborn = worktree_write(
         &root,
         "worktreeUnstageFiles",
@@ -1869,13 +1869,18 @@ fn rpc_worktree_writes_bind_sessions_and_report_partial_states() {
         &[],
     );
     assert_eq!(
-        unstaged_on_unborn["error"]["code"], "worktreeWriteFailed",
+        unstaged_on_unborn["result"]["type"], "worktreeMutated",
         "{unstaged_on_unborn}"
     );
     assert_eq!(
         git_stdout(&unborn, &["status", "--porcelain"]),
-        "A  first.txt\n"
+        "?? first.txt\n"
     );
+    assert_eq!(
+        std::fs::read_to_string(unborn.join("first.txt")).expect("first file"),
+        "first\n"
+    );
+    run_git(&unborn, &["add", "first.txt"]);
     let removed = worktree_write(
         &root,
         "worktreeDiscardFiles",
@@ -2912,6 +2917,254 @@ fn rpc_selection_writes_act_on_the_named_paths_only() {
         std::fs::read_to_string(repo.join("untracked.txt")).expect("untracked"),
         "keep me\n"
     );
+    close_session(&root, token, &session, &request_path);
+
+    assert!(!root.join(".server.json").exists());
+    let _ = std::fs::remove_dir_all(root);
+}
+/// A repository in the middle of a merge: `a.txt` is unmerged (`UU`) and
+/// `b.txt` carries an ordinary edit.
+fn init_conflicted_repo(repo: &Path) {
+    init_repo(repo);
+    run_git(repo, &["symbolic-ref", "HEAD", "refs/heads/main"]);
+    std::fs::write(repo.join("a.txt"), "base\n").expect("write a");
+    std::fs::write(repo.join("b.txt"), "b\n").expect("write b");
+    run_git(repo, &["add", "."]);
+    run_git(repo, &["commit", "-q", "-m", "initial"]);
+    run_git(repo, &["checkout", "-q", "-b", "side"]);
+    std::fs::write(repo.join("a.txt"), "side\n").expect("write a on side");
+    run_git(repo, &["commit", "-q", "-a", "-m", "side"]);
+    run_git(repo, &["checkout", "-q", "main"]);
+    std::fs::write(repo.join("a.txt"), "main\n").expect("write a on main");
+    run_git(repo, &["commit", "-q", "-a", "-m", "main"]);
+    let merge = Command::new("/usr/bin/git")
+        .arg("-C")
+        .arg(repo)
+        .args(["merge", "-q", "side"])
+        .output()
+        .expect("run git merge");
+    assert!(!merge.status.success(), "the merge must conflict");
+    std::fs::write(repo.join("b.txt"), "b changed\n").expect("modify b");
+}
+
+#[test]
+fn rpc_discards_skip_unmerged_paths_and_refuse_them_by_name() {
+    let root = std::env::temp_dir().join(format!(
+        "cmux-diff-sidecar-unmerged-test-{}-{}",
+        std::process::id(),
+        uuid::Uuid::new_v4()
+    ));
+    std::fs::create_dir_all(&root).expect("create root");
+    #[cfg(unix)]
+    std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
+        .expect("secure root permissions");
+    let repo = root.join("repo");
+    init_conflicted_repo(&repo);
+    let token = "0123456789abcdef";
+    authorize_repos(&root, token, "unmerged-test", &[&repo]);
+    let unstaged = serde_json::json!({"kind": "unstaged", "repoRoot": repo});
+    let staged = serde_json::json!({"kind": "staged", "repoRoot": repo});
+    let porcelain = || git_stdout(&repo, &["status", "--porcelain"]);
+    let conflicted = std::fs::read_to_string(repo.join("a.txt")).expect("conflicted a");
+    assert!(conflicted.contains("<<<<<<<"), "{conflicted}");
+    assert_eq!(porcelain(), "UU a.txt\n M b.txt\n");
+
+    // Discard all restores the ordinary edit and leaves the conflict (and
+    // its markers) for the user to resolve; Git would otherwise refuse the
+    // whole batch for the unmerged path and restore nothing.
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &unstaged, &UNSTAGED_GIT);
+    let discarded = worktree_write(
+        &root,
+        "worktreeDiscardAll",
+        &serde_json::json!({
+            "sessionId": session,
+            "capabilityToken": token,
+            "source": unstaged
+        }),
+        &[],
+    );
+    assert_eq!(
+        discarded["result"]["type"], "worktreeMutated",
+        "{discarded}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(repo.join("b.txt")).expect("b"),
+        "b\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(repo.join("a.txt")).expect("a"),
+        conflicted
+    );
+    assert_eq!(porcelain(), "UU a.txt\n");
+
+    // Naming the conflicted file, alone or among others, is refused before
+    // anything runs, with an error that says why.
+    std::fs::write(repo.join("b.txt"), "b changed\n").expect("modify b again");
+    for paths in [&["a.txt"][..], &["b.txt", "a.txt"][..]] {
+        let refused = worktree_write(
+            &root,
+            "worktreeDiscardFiles",
+            &files_params(&session, token, &unstaged, paths),
+            &[],
+        );
+        assert_eq!(
+            refused["error"]["code"], "unmergedPath",
+            "{paths:?}: {refused}"
+        );
+        assert!(
+            refused["error"].get("stateMayHaveChanged").is_none(),
+            "{paths:?}: {refused}"
+        );
+        let message = refused["error"]["message"].as_str().expect("message");
+        assert!(message.contains("conflict"), "{message}");
+        assert_eq!(porcelain(), "UU a.txt\n M b.txt\n");
+    }
+    let hunk = &hunk_refs(&git_stdout(&repo, &["diff", "--", "b.txt"]))[0];
+    let conflicted_hunk = worktree_write(
+        &root,
+        "worktreeDiscardHunk",
+        &hunk_params(&session, token, &unstaged, "a.txt", hunk),
+        &[],
+    );
+    assert_eq!(
+        conflicted_hunk["error"]["code"], "unmergedPath",
+        "{conflicted_hunk}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(repo.join("a.txt")).expect("a"),
+        conflicted
+    );
+    close_session(&root, token, &session, &request_path);
+
+    // The staged view: discarding the conflicted path would resolve it to
+    // HEAD's copy behind the user's back, so it is refused there too.
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &staged, &STAGED_GIT);
+    let refused = worktree_write(
+        &root,
+        "worktreeDiscardFiles",
+        &files_params(&session, token, &staged, &["a.txt"]),
+        &[],
+    );
+    assert_eq!(refused["error"]["code"], "unmergedPath", "{refused}");
+    assert_eq!(porcelain(), "UU a.txt\n M b.txt\n");
+    close_session(&root, token, &session, &request_path);
+
+    assert!(!root.join(".server.json").exists());
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn rpc_discards_never_touch_intent_to_add_entries() {
+    let root = std::env::temp_dir().join(format!(
+        "cmux-diff-sidecar-intent-to-add-test-{}-{}",
+        std::process::id(),
+        uuid::Uuid::new_v4()
+    ));
+    std::fs::create_dir_all(&root).expect("create root");
+    #[cfg(unix)]
+    std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
+        .expect("secure root permissions");
+    let repo = root.join("repo");
+    init_repo(&repo);
+    std::fs::write(repo.join("story.txt"), "story\n").expect("write story");
+    run_git(&repo, &["add", "."]);
+    run_git(&repo, &["commit", "-q", "-m", "initial"]);
+    std::fs::write(repo.join("story.txt"), "story changed\n").expect("modify story");
+    // `git add -N`: the index records the path with no content; the only
+    // copy of "draft" is the working-tree file.
+    std::fs::write(repo.join("draft.txt"), "draft\n").expect("write draft");
+    run_git(&repo, &["add", "-N", "draft.txt"]);
+    let token = "0123456789abcdef";
+    authorize_repos(&root, token, "intent-to-add-test", &[&repo]);
+    let unstaged = serde_json::json!({"kind": "unstaged", "repoRoot": repo});
+    let staged = serde_json::json!({"kind": "staged", "repoRoot": repo});
+    let porcelain = || git_stdout(&repo, &["status", "--porcelain"]);
+    let draft = || std::fs::read_to_string(repo.join("draft.txt")).expect("draft");
+    assert_eq!(porcelain(), " A draft.txt\n M story.txt\n");
+
+    // Discard all restores the tracked edit and leaves the intent-to-add
+    // file with its content (`git restore --worktree` would empty it).
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &unstaged, &UNSTAGED_GIT);
+    let discarded = worktree_write(
+        &root,
+        "worktreeDiscardAll",
+        &serde_json::json!({
+            "sessionId": session,
+            "capabilityToken": token,
+            "source": unstaged
+        }),
+        &[],
+    );
+    assert_eq!(
+        discarded["result"]["type"], "worktreeMutated",
+        "{discarded}"
+    );
+    assert_eq!(draft(), "draft\n");
+    assert_eq!(porcelain(), " A draft.txt\n");
+
+    // Named like an untracked file, it is refused the same way, alone or
+    // among tracked paths, per file and per hunk (`git apply -R` would
+    // delete it).
+    std::fs::write(repo.join("story.txt"), "story changed\n").expect("modify story again");
+    for paths in [&["draft.txt"][..], &["story.txt", "draft.txt"][..]] {
+        let refused = worktree_write(
+            &root,
+            "worktreeDiscardFiles",
+            &files_params(&session, token, &unstaged, paths),
+            &[],
+        );
+        assert_eq!(
+            refused["error"]["code"], "invalidPath",
+            "{paths:?}: {refused}"
+        );
+        assert!(
+            refused["error"].get("stateMayHaveChanged").is_none(),
+            "{paths:?}: {refused}"
+        );
+    }
+    let hunk = &hunk_refs(&git_stdout(&repo, &["diff", "--", "draft.txt"]))[0];
+    let refused_hunk = worktree_write(
+        &root,
+        "worktreeDiscardHunk",
+        &hunk_params(&session, token, &unstaged, "draft.txt", hunk),
+        &[],
+    );
+    assert_eq!(
+        refused_hunk["error"]["code"], "invalidPath",
+        "{refused_hunk}"
+    );
+    assert_eq!(draft(), "draft\n");
+    assert_eq!(porcelain(), " A draft.txt\n M story.txt\n");
+    // Staging it is the one thing the page may do with it.
+    let added = worktree_write(
+        &root,
+        "worktreeStageFiles",
+        &files_params(&session, token, &unstaged, &["draft.txt"]),
+        &[],
+    );
+    assert_eq!(added["result"]["type"], "worktreeMutated", "{added}");
+    assert_eq!(porcelain(), "A  draft.txt\n M story.txt\n");
+    run_git(&repo, &["reset", "-q", "--", "draft.txt"]);
+    run_git(&repo, &["add", "-N", "draft.txt"]);
+    close_session(&root, token, &session, &request_path);
+
+    // The staged view knows the path from the index; discarding it there
+    // would `git rm -f` the file.
+    run_git(&repo, &["add", "story.txt"]);
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &staged, &STAGED_GIT);
+    let refused = worktree_write(
+        &root,
+        "worktreeDiscardFiles",
+        &files_params(&session, token, &staged, &["draft.txt"]),
+        &[],
+    );
+    assert_eq!(refused["error"]["code"], "invalidPath", "{refused}");
+    assert_eq!(draft(), "draft\n");
+    assert_eq!(porcelain(), " A draft.txt\nM  story.txt\n");
     close_session(&root, token, &session, &request_path);
 
     assert!(!root.join(".server.json").exists());

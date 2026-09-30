@@ -147,11 +147,14 @@ final class ScriptedFingerprintSource: @unchecked Sendable {
 
 /// A producer that blocks until released, so a test can observe what the
 /// store does while a load is pending, and whether the load was cancelled.
+/// Waiting parks a continuation that `release()` or cancellation resumes;
+/// nothing polls.
 final class GatedChangesPageProducer: @unchecked Sendable {
     private let lock = NSLock()
     private var releasedStorage = false
     private var startedStorage = 0
     private var cancelledStorage = 0
+    private var waiters: [UUID: CheckedContinuation<Void, Error>] = [:]
     let page: RightSidebarChangesPage
 
     init(page: RightSidebarChangesPage) {
@@ -168,46 +171,83 @@ final class GatedChangesPageProducer: @unchecked Sendable {
         return cancelledStorage
     }
 
-    private var isReleased: Bool {
-        lock.lock(); defer { lock.unlock() }
-        return releasedStorage
-    }
-
     func release() {
-        lock.lock(); releasedStorage = true; lock.unlock()
+        lock.lock()
+        releasedStorage = true
+        let waiters = self.waiters
+        self.waiters = [:]
+        lock.unlock()
+        for waiter in waiters.values { waiter.resume() }
     }
 
     func produce() async throws -> RightSidebarChangesPage {
         lock.lock(); startedStorage += 1; lock.unlock()
         do {
-            while !isReleased {
-                try await Task.sleep(nanoseconds: 5_000_000)
-            }
+            try await waitUntilReleased()
         } catch is CancellationError {
             lock.lock(); cancelledStorage += 1; lock.unlock()
             throw CancellationError()
         }
         return page
     }
+
+    private func waitUntilReleased() async throws {
+        let id = UUID()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                // The lock orders this registration against `onCancel`: a
+                // cancellation before it is seen in `Task.isCancelled`, one
+                // after it finds the waiter.
+                lock.lock()
+                if releasedStorage {
+                    lock.unlock()
+                    continuation.resume()
+                    return
+                }
+                if Task.isCancelled {
+                    lock.unlock()
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                waiters[id] = continuation
+                lock.unlock()
+            }
+        } onCancel: {
+            lock.lock()
+            let waiter = waiters.removeValue(forKey: id)
+            lock.unlock()
+            waiter?.resume(throwing: CancellationError())
+        }
+    }
 }
 
 /// Holds an async fake open until the test lets it answer; never observes
 /// cancellation, so it also stands in for a producer that ignores it.
+/// Waiting parks a continuation that only `open()` resumes; nothing polls.
 final class ProbeGate: @unchecked Sendable {
     private let lock = NSLock()
     private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
 
     func open() {
-        lock.lock(); isOpen = true; lock.unlock()
+        lock.lock()
+        isOpen = true
+        let waiters = self.waiters
+        self.waiters = []
+        lock.unlock()
+        for waiter in waiters { waiter.resume() }
     }
 
     func wait() async {
-        while true {
+        await withCheckedContinuation { continuation in
             lock.lock()
-            let open = isOpen
+            if isOpen {
+                lock.unlock()
+                continuation.resume()
+                return
+            }
+            waiters.append(continuation)
             lock.unlock()
-            if open { return }
-            try? await Task.sleep(nanoseconds: 5_000_000)
         }
     }
 }
@@ -349,23 +389,35 @@ final class RightSidebarChangesStoreTests: XCTestCase {
 
     func testPageProducerFailureIsReported() async throws {
         struct ProducerError: LocalizedError {
-            var errorDescription: String? { "boom" }
+            let attempt: Int
+            var errorDescription: String? { "boom \(attempt)" }
         }
+        let attempts = ProbeCounter()
         let watchSource = ScriptedRepositoryWatchSource()
         let repoRoot = repoRoot
+        let otherRepoRoot = otherRepoRoot
         let store = RightSidebarChangesStore(
-            repoRootResolver: { _ in repoRoot },
-            pageProducer: { _, _ in throw ProducerError() },
+            repoRootResolver: { directory in directory.hasPrefix(repoRoot) ? repoRoot : otherRepoRoot },
+            pageProducer: { _, _ in
+                attempts.increment()
+                throw ProducerError(attempt: attempts.count)
+            },
             watchFactory: watchSource.factory,
             schemeHandler: CmuxDiffViewerURLSchemeHandler()
         )
         store.update(directory: repoRoot, workspaceId: UUID(), isRemote: false, isActive: true)
-        await waitUntil("failed") { store.state == .failed(message: "boom") }
+        await waitUntil("failed") { store.state == .failed(message: "boom 1") }
 
-        // A failure is not retried on every sync; only a new repository is.
+        // A failure is not retried on every sync: the re-sync starts no
+        // production (checked synchronously; the cached repository root makes
+        // the sync itself synchronous)...
         store.update(directory: repoRoot + "/Sources", workspaceId: UUID(), isRemote: false, isActive: true)
-        try await Task.sleep(nanoseconds: 50_000_000)
-        XCTAssertEqual(store.state, .failed(message: "boom"))
+        XCTAssertFalse(store.isProducingPage)
+        XCTAssertEqual(store.state, .failed(message: "boom 1"))
+        // ...and only a new repository does, so its production is attempt 2.
+        store.update(directory: otherRepoRoot, workspaceId: UUID(), isRemote: false, isActive: true)
+        await waitUntil("failed for the other repository") { store.state == .failed(message: "boom 2") }
+        XCTAssertEqual(attempts.count, 2)
     }
 
     func testInactivePanelRecordsTheTargetWithoutProducingAPage() async throws {
@@ -380,8 +432,10 @@ final class RightSidebarChangesStoreTests: XCTestCase {
         await waitUntil("target recorded") { store.target != nil }
         store.update(directory: repoRoot + "/Sources", workspaceId: workspaceId, isRemote: false, isActive: false)
         store.update(directory: repoRoot, workspaceId: UUID(), isRemote: false, isActive: false)
-        try await Task.sleep(nanoseconds: 50_000_000)
-        XCTAssertEqual(producer.callCount, 0, "a hidden panel must not generate pages")
+        // The root is cached after the first probe, so these syncs ran
+        // synchronously: a production they started would be in flight now.
+        XCTAssertFalse(store.isProducingPage, "a hidden panel must not generate pages")
+        XCTAssertEqual(producer.callCount, 0)
         XCTAssertEqual(store.state, .loading(previousURL: nil))
         XCTAssertFalse(store.isWatching)
         XCTAssertTrue(watchSource.startedRepoRoots.isEmpty)
@@ -467,8 +521,9 @@ final class RightSidebarChangesStoreTests: XCTestCase {
         fingerprints.pin("edited")
         watchSource.fire(repoRoot: repoRoot)
         await waitUntil("reloaded") { store.reloadGeneration == 1 }
-        // The digest that triggered the reload is the document's; no re-seed.
-        try await Task.sleep(nanoseconds: 100_000_000)
+        // The digest that triggered the reload is the document's; a re-seed
+        // would have been scheduled in the same turn as the reload.
+        XCTAssertFalse(store.isFingerprintCheckInFlight, "no re-seed after a digest-triggered reload")
         XCTAssertEqual(store.fingerprintCheckCount, 3)
         XCTAssertEqual(producer.callCount, 1)
 
@@ -508,19 +563,21 @@ final class RightSidebarChangesStoreTests: XCTestCase {
         await waitUntil("ready") { store.state == .ready(url: page.url) }
         await waitUntil("watching") { store.isWatching }
         XCTAssertEqual(store.fingerprintCheckCount, 0, "the seed is still held")
+        XCTAssertTrue(store.isFingerprintCheckInFlight)
 
+        // Three events land while the seed is held (delivered the way the
+        // watch's stream consumer delivers them).
         for _ in 0..<3 {
-            watchSource.fire(repoRoot: repoRoot)
-            try await Task.sleep(nanoseconds: 20_000_000)
+            store.handleRepositoryChange()
         }
         gate.open()
         // Seed, then one folded re-check (a fresh value, so a reload) whose
-        // digest is kept for the reloaded document.
+        // digest is kept for the reloaded document. Digests run one at a
+        // time, so at the reload the folded re-check is the second and last
+        // one; any further re-check would already be in flight.
         await waitUntil("reloaded once") { store.reloadGeneration == 1 }
-        await waitUntil("settled") { store.fingerprintCheckCount == 2 }
-        try await Task.sleep(nanoseconds: 100_000_000)
-        XCTAssertEqual(store.reloadGeneration, 1)
         XCTAssertEqual(store.fingerprintCheckCount, 2)
+        XCTAssertFalse(store.isFingerprintCheckInFlight, "three events cost one re-check, not three")
     }
 
     func testStaticPagesRegenerateInsteadOfReloading() async throws {
@@ -597,9 +654,10 @@ final class RightSidebarChangesStoreTests: XCTestCase {
         await waitUntil("now a repository") { probedStore.state == .ready(url: reloadable.url) }
         XCTAssertEqual(probes.count, 3, "each sync of a non-repository directory probes it again")
 
-        // The positive answer is cached: the same directory does not probe again.
+        // The positive answer is cached: the same directory does not probe
+        // again (a probe would be in flight right after the synchronous sync).
         probedStore.update(directory: plain, workspaceId: workspaceId, isRemote: false, isActive: true)
-        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertFalse(probedStore.isProbingRepoRoot)
         XCTAssertEqual(probes.count, 3)
         XCTAssertEqual(probedStore.cachedRepoRootDirectories, [plain])
     }
@@ -623,11 +681,14 @@ final class RightSidebarChangesStoreTests: XCTestCase {
         store.update(directory: plain, workspaceId: workspaceId, isRemote: false, isActive: true)
         store.update(directory: plain, workspaceId: workspaceId, isRemote: false, isActive: true)
         store.update(directory: plain, workspaceId: workspaceId, isRemote: false, isActive: true)
+        XCTAssertTrue(store.isProbingRepoRoot)
         await waitUntil("probe started") { probes.count == 1 }
-        try await Task.sleep(nanoseconds: 30_000_000)
-        XCTAssertEqual(probes.count, 1, "identical syncs do not stack probes")
         gate.open()
+        // Every probe task the syncs started counted itself before parking on
+        // the gate, so once the first answer has landed the count is final.
         await waitUntil("not a repository") { store.state == .notARepository(path: plain) }
+        XCTAssertEqual(probes.count, 1, "identical syncs do not stack probes")
+        XCTAssertFalse(store.isProbingRepoRoot)
 
         // Positive answers are kept for the most recent 64 directories.
         let cached = makeStore(
@@ -751,11 +812,13 @@ final class RightSidebarChangesStoreTests: XCTestCase {
         await waitUntil("slow producer cancelled") { slowProducer.cancelledCount == 1 }
         await waitUntil("other ready") { store.state == .ready(url: other.url) }
 
-        // A late result from the cancelled load never registers a session.
+        // The cancelled producer threw instead of producing, so releasing it
+        // now has no result to hand anyone; the slow page never registers.
         slowProducer.release()
-        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(slowProducer.startedCount, 1)
         XCTAssertEqual(store.state, .ready(url: other.url))
         XCTAssertFalse(handler.hasActiveSession(token: slow.token))
+        XCTAssertFalse(store.isProducingPage)
     }
 
     func testProductionTimesOutIntoAFailure() async throws {
@@ -780,10 +843,12 @@ final class RightSidebarChangesStoreTests: XCTestCase {
 
         // A producer that ignores cancellation is abandoned, not awaited.
         let stuck = ProbeGate()
+        let returned = ProbeCounter()
         let stuckStore = RightSidebarChangesStore(
             repoRootResolver: { _ in repoRoot },
             pageProducer: { _, _ in
                 await stuck.wait()
+                returned.increment()
                 return page
             },
             watchFactory: watchSource.factory,
@@ -792,8 +857,11 @@ final class RightSidebarChangesStoreTests: XCTestCase {
         )
         stuckStore.update(directory: repoRoot, workspaceId: UUID(), isRemote: false, isActive: true)
         await waitUntil("timed out despite the stuck producer") { stuckStore.state == .failed(message: expected) }
+        XCTAssertFalse(stuckStore.isProducingPage, "the timed-out load is no longer awaited")
         stuck.open()
-        try await Task.sleep(nanoseconds: 50_000_000)
+        // The abandoned producer does return its page; the settled race has
+        // no continuation left to hand it to.
+        await waitUntil("abandoned producer returned") { returned.count == 1 }
         XCTAssertEqual(stuckStore.state, .failed(message: expected), "the abandoned result is dropped")
         XCTAssertFalse(handler.hasActiveSession(token: page.token))
     }
@@ -877,6 +945,47 @@ final class RightSidebarChangesStoreTests: XCTestCase {
         // The evicted repository is produced again on return.
         store.update(directory: "/tmp/cmux-changes-tests/lru/0", workspaceId: workspaceId, isRemote: false, isActive: true)
         await waitUntil("re-produced") { producer.callCount == limit + 2 }
+    }
+
+    /// The unstaged diff never shows untracked files, so their churn (build
+    /// output, editor swap files) must not read as a change to the page.
+    func testWorkingTreeDigestIgnoresUntrackedFiles() throws {
+        let repoURL = try GitRepositoryTestSupport.makeTemporaryDirectory(prefix: "cmux-changes-digest-")
+        defer { try? FileManager.default.removeItem(at: repoURL) }
+        try GitRepositoryTestSupport.initializeRepo(at: repoURL)
+        let tracked = repoURL.appendingPathComponent("tracked.txt")
+        try "tracked\n".write(to: tracked, atomically: true, encoding: .utf8)
+        try GitRepositoryTestSupport.runGit(["add", "tracked.txt"], in: repoURL)
+        try GitRepositoryTestSupport.runGit(["commit", "-q", "-m", "initial"], in: repoURL)
+        try "edited\n".write(to: tracked, atomically: true, encoding: .utf8)
+        let fingerprint = RightSidebarChangesFingerprint()
+        let dirty = try XCTUnwrap(fingerprint.fingerprint(repoRoot: repoURL.path))
+
+        try "scratch\n".write(to: repoURL.appendingPathComponent("untracked.txt"), atomically: true, encoding: .utf8)
+        XCTAssertEqual(fingerprint.fingerprint(repoRoot: repoURL.path), dirty, "an untracked file is not part of the diff")
+
+        // A tracked edit still is (the size changes, whatever the clock says).
+        try "edited again\n".write(to: tracked, atomically: true, encoding: .utf8)
+        XCTAssertNotEqual(fingerprint.fingerprint(repoRoot: repoURL.path), dirty)
+    }
+
+    /// A grandchild of the CLI that inherited its stdout keeps the pipe open
+    /// after the CLI exits; the drain must not wait on it forever.
+    func testPipeDrainGivesUpOnAPipeHeldOpenByAnotherWriter() async throws {
+        let pipe = Pipe()
+        let drain = RightSidebarChangesProcessRunner.PipeDrain(pipe)
+        try pipe.fileHandleForWriting.write(contentsOf: Data("{\"partial\":".utf8))
+        // Written bytes are read as they arrive; the writer is still open.
+        let partial = drain.finish(timeout: 0.1)
+        XCTAssertFalse(partial.isComplete, "the write end is still open")
+        XCTAssertEqual(String(decoding: partial.data, as: UTF8.self), "{\"partial\":")
+
+        try pipe.fileHandleForWriting.write(contentsOf: Data(" true}".utf8))
+        try pipe.fileHandleForWriting.close()
+        let complete = drain.finish(timeout: 5)
+        XCTAssertTrue(complete.isComplete)
+        XCTAssertEqual(String(decoding: complete.data, as: UTF8.self), "{\"partial\": true}")
+        XCTAssertEqual(drain.finish(timeout: 0).data, complete.data, "finished output is stable")
     }
 
     func testFailureMessageNeverSurfacesTheChildOutput() {
