@@ -1,5 +1,5 @@
 import { Icon, type IconName } from "./icons";
-import type { DiffViewerLabelResolver } from "./labels";
+import type { DiffViewerLabelKey, DiffViewerLabelResolver } from "./labels";
 import type { DiffViewerOptions } from "./pierre-options";
 
 /**
@@ -13,8 +13,41 @@ import type { DiffViewerOptions } from "./pierre-options";
 
 export type DiffViewerLayout = DiffViewerOptions["layout"];
 
+/**
+ * Sets one view option. The reducer applies it as `options[key] = value`, so
+ * each key pairs with its own value type (a layout for `layout`, a boolean
+ * for `wordWrap`) rather than any value for any key.
+ */
+export type SetOptionAction = {
+  [K in keyof DiffViewerOptions]: {
+    type: "set-option";
+    key: K;
+    value: DiffViewerOptions[K];
+  };
+}[keyof DiffViewerOptions];
+
 /** The App reducer actions a view option dispatches. */
-export type ViewOptionAction = { type: "set-files-visible"; visible: boolean };
+export type ViewOptionAction =
+  | SetOptionAction
+  | { type: "set-files-visible"; visible: boolean };
+
+/** The options a menu row switches on and off. */
+type BooleanOptionKey = {
+  [K in keyof DiffViewerOptions]: DiffViewerOptions[K] extends boolean
+    ? K
+    : never;
+}[keyof DiffViewerOptions];
+
+/** The indicator styles of the segmented control, with their icon and label. */
+const INDICATOR_STYLES = [
+  { value: "bars", icon: "bars", labelKey: "bars" },
+  { value: "classic", icon: "classic", labelKey: "classic" },
+  { value: "none", icon: "eye", labelKey: "none" },
+] as const satisfies ReadonlyArray<{
+  value: DiffViewerOptions["diffIndicators"];
+  icon: IconName;
+  labelKey: DiffViewerLabelKey;
+}>;
 
 export function ViewOptionsMenuItems({
   dispatch,
@@ -22,7 +55,6 @@ export function ViewOptionsMenuItems({
   filesVisible,
   label,
   onSetLayout,
-  onSetOption,
   options,
 }: {
   dispatch: (action: ViewOptionAction) => void;
@@ -30,11 +62,10 @@ export function ViewOptionsMenuItems({
   filesVisible: boolean;
   label: DiffViewerLabelResolver;
   onSetLayout: (layout: DiffViewerLayout) => void;
-  /** Applies an option and persists it when it is a saved preference (the App's `setOption`). */
-  onSetOption: (key: keyof DiffViewerOptions, value: any) => void;
   options: DiffViewerOptions;
 }) {
-  const toggle = (key: keyof DiffViewerOptions) => onSetOption(key, !options[key]);
+  const toggle = (key: BooleanOptionKey) =>
+    dispatch({ type: "set-option", key, value: !options[key] });
   return (
     <>
       <MenuButton
@@ -125,21 +156,17 @@ export function ViewOptionsMenuItems({
         <Icon name="bars" />
         <span className="menu-label">{label("indicatorStyle")}</span>
         <span className="menu-segment-controls">
-          {[
-            { value: "bars", icon: "bars", label: label("bars") },
-            { value: "classic", icon: "classic", label: label("classic") },
-            { value: "none", icon: "none", label: label("none") },
-          ].map((option) => (
+          {INDICATOR_STYLES.map((option) => (
             <button
               key={option.value}
               type="button"
               className="segment-button"
-              title={option.label}
-              aria-label={option.label}
+              title={label(option.labelKey)}
+              aria-label={label(option.labelKey)}
               aria-pressed={options.diffIndicators === option.value}
-              onClick={() => onSetOption("diffIndicators", option.value)}
+              onClick={() => dispatch({ type: "set-option", key: "diffIndicators", value: option.value })}
             >
-              <Icon name={option.icon as IconName} />
+              <Icon name={option.icon} />
             </button>
           ))}
         </span>

@@ -148,7 +148,7 @@ import {
 import { RepositoryHeader } from "./RepositoryHeader";
 import { copyText } from "./actions";
 import { formatLabel } from "./labels";
-import { MenuButton, ViewOptionsMenuItems, type DiffViewerLayout } from "./ViewOptionsMenu";
+import { MenuButton, ViewOptionsMenuItems, type DiffViewerLayout, type SetOptionAction, type ViewOptionAction } from "./ViewOptionsMenu";
 
 const statusIconName: Record<DiffFileStatus, IconName> = {
   added: "diffAdded",
@@ -175,6 +175,12 @@ type AppState = {
   activeTreePath: string;
   comments: DiffCommentRecord[];
   copyFeedback: string;
+  /**
+   * Counts the `reset-diff`s: a reload after a write, a host refresh or a
+   * view change. Menus that captured something from the view before (the
+   * header's discard confirmation) close when it changes.
+   */
+  diffGeneration: number;
   draft: CommentDraft | null;
   /** Path, status, and hide-viewed filter; hides diff sections and tree rows. */
   fileFilter: DiffFileFilter;
@@ -245,7 +251,7 @@ type AppAction =
   | { type: "set-files-width"; width: number }
   | { type: "set-files-visible"; visible: boolean }
   | { type: "set-metrics"; metrics: StreamMetrics }
-  | { type: "set-option"; key: keyof DiffViewerOptions; value: any }
+  | SetOptionAction
   | { type: "set-options-open"; open: boolean }
   | { type: "set-status"; status: DiffViewerStatus }
   | { type: "set-tree-source"; source: FileTreeSource }
@@ -267,6 +273,7 @@ function initialAppState(config: DiffViewerConfig, initialStatus: DiffViewerStat
     activeTreePath: "",
     comments: [],
     copyFeedback: "",
+    diffGeneration: 0,
     draft: null,
     fileFilter: defaultDiffFileFilter(),
     fileCollapseOverrides: new Map(),
@@ -423,6 +430,7 @@ function reducer(state: AppState, action: AppAction): AppState {
       ...state,
       activeItemId: "",
       activeTreePath: "",
+      diffGeneration: state.diffGeneration + 1,
       draft: null,
       generatedPaths: [],
       items: [],
@@ -496,12 +504,15 @@ function reducer(state: AppState, action: AppAction): AppState {
     return { ...state, filesWidth: action.width };
   case "set-files-visible":
     return { ...state, filesVisible: action.visible };
-  case "set-metrics":
+  case "set-metrics": {
+    const selectedPaths = pruneSelectionToStream(state.selectedPaths, state.treeSource, action.metrics);
     return {
       ...state,
       metrics: action.metrics,
-      selectedPaths: pruneSelectionToStream(state.selectedPaths, state.treeSource, action.metrics),
+      selectedPaths,
+      selectionAnchor: selectedPaths.size === 0 ? null : state.selectionAnchor,
     };
+  }
   case "set-option":
     if (action.key === "collapsed") {
       // Collapse all / expand all is the new baseline: per-file choices made
@@ -525,10 +536,12 @@ function reducer(state: AppState, action: AppAction): AppState {
   case "set-tree-source": {
     const source = action.source;
     const nextPath = state.activeItemId ? source.treePathByItemId.get(state.activeItemId) ?? state.activeTreePath : state.activeTreePath;
+    const selectedPaths = pruneSelectionToStream(state.selectedPaths, source, state.metrics);
     return {
       ...state,
       activeTreePath: nextPath,
-      selectedPaths: pruneSelectionToStream(state.selectedPaths, source, state.metrics),
+      selectedPaths,
+      selectionAnchor: selectedPaths.size === 0 ? null : state.selectionAnchor,
       treeSource: source,
     };
   }
@@ -573,23 +586,35 @@ function reducer(state: AppState, action: AppAction): AppState {
 /**
  * Once a stream has completed (`completedAt` set), the selection keeps only
  * the paths the completed tree lists: a file staged or discarded by a batch
- * action has left the view. Mid-stream the set is left alone, because the
- * paths still to come would otherwise be dropped. Returns the same set
- * when nothing changes.
+ * action has left the view. A completed stream without a tree listed no
+ * files at all (an empty diff never builds one), so every path has left.
+ * Mid-stream the set is left alone, because the paths still to come would
+ * otherwise be dropped. Returns the same set when nothing changes.
  */
 function pruneSelectionToStream(
   selection: FileSelection,
   treeSource: FileTreeSource | null,
   metrics: StreamMetrics | null,
 ): FileSelection {
-  if (selection.size === 0 || treeSource == null || !streamCompleted(metrics)) {
+  if (selection.size === 0 || !streamCompleted(metrics)) {
     return selection;
+  }
+  if (treeSource == null) {
+    return EMPTY_SELECTION;
   }
   return pruneSelection(selection, (path) => treeSource.pathToItemId.has(path));
 }
 
 function streamCompleted(metrics: StreamMetrics | null): boolean {
   return metrics != null && Number.isFinite(metrics.completedAt) && metrics.completedAt > 0;
+}
+
+/**
+ * The tree path of the file the viewer is on: the active item's, or the
+ * path remembered across a reload while the items are gone.
+ */
+function activeFilePath(state: AppState): string {
+  return state.treeSource?.treePathByItemId.get(state.activeItemId) ?? state.activeTreePath;
 }
 
 /** The key a card's fold override is stored under: its file path. */
@@ -738,8 +763,9 @@ export function App({ config, initialStatus }: ConfigProps) {
     }
   }, [latestState, toggleViewed]);
   // Write actions stay disabled from the click until the session reopened
-  // by the reload exists again (`settleWrite`, called by the render hook), so
-  // a second click can never race the reload or target the closed session.
+  // by the reload has streamed its diff completely (`settleWrite`, called by
+  // the render hook), so a second click can never race the reload, target
+  // the closed session, or act on the subset of files streamed so far.
   const [pendingWrite, setPendingWrite] = useState(false);
   const pendingWriteRef = useRef(false);
   // A settled session is also when a working-tree view's repository status
@@ -890,8 +916,9 @@ export function App({ config, initialStatus }: ConfigProps) {
   // already shown all stay put and nothing is refetched. Only an open
   // working-tree session can take it, and never while a write is in flight;
   // on `false` the host falls back to a full document reload. The reload
-  // holds the write actions until the reopened session exists, exactly as a
-  // write does, so a click cannot target the closing session.
+  // holds the write actions until the reopened session has streamed, exactly
+  // as a write does, so a click cannot target the closing session or a
+  // partially streamed view.
   const refreshInPlace = (): boolean => {
     if (!writeSource || pendingWriteRef.current || !activeSessionRef.current) {
       return false;
@@ -958,8 +985,8 @@ export function App({ config, initialStatus }: ConfigProps) {
         reloadAfterWrite(source);
       }
     } finally {
-      // A reload keeps the actions disabled until the reopened session
-      // exists; the render hook settles it then.
+      // A reload keeps the actions disabled until the reopened session has
+      // streamed; the render hook settles it then.
       if (!reloading) {
         settleWrite();
       }
@@ -1023,11 +1050,35 @@ export function App({ config, initialStatus }: ConfigProps) {
     }
     return ids;
   }, [pathToItemId, state.selectedPaths]);
-  // One sidecar call for the whole selection (`worktreeStageFiles`,
+  // The same selection as an ordered path list (diff order), which the
+  // header shows and hands back to a selection action.
+  const treePathByItemId = state.treeSource?.treePathByItemId;
+  const selectedFilePaths = useMemo(() => {
+    if (!treePathByItemId || selectedItemIds.size === 0) {
+      return NO_PATHS;
+    }
+    const paths: string[] = [];
+    for (const item of state.items) {
+      const path = selectedItemIds.has(item.id) ? treePathByItemId.get(item.id) : undefined;
+      if (path) {
+        paths.push(path);
+      }
+    }
+    return paths;
+  }, [selectedItemIds, state.items, treePathByItemId]);
+  // One sidecar call for the paths the header captured when the action (or
+  // its confirmation) was invoked (`worktreeStageFiles`,
   // `worktreeUnstageFiles`, `worktreeDiscardFiles`); the reload afterwards
   // drops the acted-on paths from the selection as they leave the view.
-  const onSelectionAction = (verb: WriteVerb) => {
-    const targets = selectedFileTargets(state.items, selectedItemIds);
+  const onSelectionAction = (verb: WriteVerb, paths: readonly string[]) => {
+    const itemIds = new Set<string>();
+    for (const path of paths) {
+      const itemId = pathToItemId?.get(path);
+      if (itemId) {
+        itemIds.add(itemId);
+      }
+    }
+    const targets = selectedFileTargets(state.items, itemIds);
     const session = writeSession();
     if (!writeSource || !session || targets.length === 0) {
       return;
@@ -1176,10 +1227,10 @@ export function App({ config, initialStatus }: ConfigProps) {
     });
   };
 
-  const selectedTreePath = state.treeSource?.treePathByItemId.get(state.activeItemId) ?? state.activeTreePath;
   // Index of the last hunk reached through n/p; -1 once a file-level jump or
   // refresh makes it stale so the next keypress re-seeds from the active file.
   const hunkNavIndex = useRef(-1);
+  const selectedTreePath = activeFilePath(state);
   const scrollToItem = useCallback((itemId: string) => {
     const current = latestState.current;
     const target = scrollTargetForItem(itemId, current.items);
@@ -1328,6 +1379,7 @@ export function App({ config, initialStatus }: ConfigProps) {
             },
             open: commitOpen,
           }}
+          diffGeneration={state.diffGeneration}
           label={label}
           model={repositoryHeaderModel(header.source, repositoryStatus, state.treeSource?.diffStats, payloadRepoLabel(payload, header.source))}
           notice={worktreeNotice}
@@ -1338,7 +1390,7 @@ export function App({ config, initialStatus }: ConfigProps) {
           onRefresh={reloadPage}
           pending={pendingWrite}
           pullRequest={pullRequestControl}
-          selection={{ count: selectedItemIds.size, onAction: onSelectionAction, onClear: clearSelection }}
+          selection={{ paths: selectedFilePaths, onAction: onSelectionAction, onClear: clearSelection }}
           files={{
             onToggle: () => dispatch({ type: "set-files-visible", visible: !state.filesVisible }),
             visible: state.filesVisible,
@@ -1349,12 +1401,11 @@ export function App({ config, initialStatus }: ConfigProps) {
           status={repositoryStatus}
           viewOptions={
             <ViewOptionsMenuItems
-              dispatch={dispatch}
+              dispatch={viewOptionDispatcher(dispatch, setOption)}
               externalURL={externalURL}
               filesVisible={state.filesVisible}
               label={label}
               onSetLayout={setLayout}
-              onSetOption={setOption}
               options={state.options}
             />
           }
@@ -1819,6 +1870,24 @@ function WorkerRenderOptionsSync({
   return null;
 }
 
+/**
+ * Routes a view option change through `setOption`, which also persists the
+ * saved display preferences (viewerPrefs); the other view actions reach the
+ * reducer directly.
+ */
+function viewOptionDispatcher(
+  dispatch: React.Dispatch<AppAction>,
+  setOption: (key: keyof DiffViewerOptions, value: any) => void,
+): (action: ViewOptionAction) => void {
+  return (action) => {
+    if (action.type === "set-option") {
+      setOption(action.key, action.value);
+    } else {
+      dispatch(action);
+    }
+  };
+}
+
 function Toolbar({
   config,
   dispatch,
@@ -2265,12 +2334,11 @@ function OptionsMenu({
           regardless of what the bar decided to drop: the bar hides its
           duplicate icon button when it overflows; the menu copy is canonical. */}
       <ViewOptionsMenuItems
-        dispatch={dispatch}
+        dispatch={viewOptionDispatcher(dispatch, onSetOption)}
         externalURL={externalURL}
         filesVisible={state.filesVisible}
         label={label}
         onSetLayout={onSetLayout}
-        onSetOption={onSetOption}
         options={state.options}
       />
       <div className="menu-separator" />
@@ -2942,10 +3010,10 @@ function useRenderDiff(
         if (cancelled) {
           return;
         }
-        // The (re)opened session exists, or this page has none to wait for:
-        // a write action held for the reload may run again.
-        onSessionSettled();
         if (!patchURL) {
+          // Nothing to stream: a write action held for the reload may run
+          // again now.
+          onSessionSettled();
           return;
         }
         onPatchURL(patchURL);
@@ -2964,6 +3032,11 @@ function useRenderDiff(
           onComplete: (metrics) => {
             if (cancelled) return;
             dispatch({ type: "set-metrics", metrics });
+            // The reopened diff is complete (its selection pruned above): a
+            // write action held for the reload may run again, over the
+            // whole view rather than the files streamed so far. The catch
+            // below settles a stream that fails instead.
+            onSessionSettled();
             const items = streamedItems;
             if (items.length === 0) {
               // Nothing to scroll back to; a pending restore must not fire
@@ -3202,6 +3275,14 @@ function usePageDataAttributes(state: AppState) {
     document.documentElement.dataset.wordWrap = String(state.options.wordWrap);
     document.documentElement.dataset.diffIndicators = state.options.diffIndicators;
     document.body.dataset.generatedPathCount = String(state.generatedPaths.length);
+    // The file the diff is on (`data-active-file`): a file list row click
+    // moves it, the row's checkbox lane does not.
+    const activeFile = activeFilePath(state);
+    if (activeFile) {
+      document.documentElement.dataset.activeFile = activeFile;
+    } else {
+      delete document.documentElement.dataset.activeFile;
+    }
     if (state.metrics) {
       document.body.dataset.streamFileCount = String(state.metrics.fileCount ?? state.items.length);
       document.body.dataset.streamRenderableFileCount = String(state.metrics.renderableFileCount ?? state.items.length);

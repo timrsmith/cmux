@@ -117,6 +117,12 @@ export function installDomGlobals(dom: JSDOM, fetchImpl: FetchMock): void {
   };
   elementProto.attachEvent = () => {};
   elementProto.detachEvent = () => {};
+  // JSDOM implements no Element.scrollTo; Pierre's CodeView calls it when
+  // the viewer scrolls to a file, so navigating in a test needs a no-op.
+  const scrollable = dom.window.Element.prototype as unknown as {
+    scrollTo?: (options?: ScrollToOptions) => void;
+  };
+  scrollable.scrollTo ??= () => {};
   g.fetch = fetchImpl;
   g.requestAnimationFrame = (callback: FrameRequestCallback) =>
     setTimeout(() => callback(performance.now()), 0);

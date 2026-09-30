@@ -9,6 +9,7 @@ import { writeVerbsForSource } from "../src/worktree-actions";
 import {
   click,
   emptyFetch,
+  type FetchMock,
   findButton,
   mountDom,
   registerDomCleanup,
@@ -109,7 +110,7 @@ const PICKER_OPTIONS = {
 
 type RenderOptions = {
   /** Answers every patch fetch; by default the `patch` (or nothing). */
-  fetch?: () => Response;
+  fetch?: FetchMock;
   /** Adds to the page payload (picker options, for instance). */
   payloadExtras?: Record<string, unknown>;
   /** The diff every patch fetch streams; empty means an empty diff. */
@@ -898,19 +899,22 @@ test("the repository header shows the repo, branch, streamed totals, and upstrea
   expect(header.querySelector(".repo-header-repo")?.textContent).toBe("/tmp/repo");
   expect(header.querySelector(".repo-header-title")?.getAttribute("title")).toBe("/tmp/repo");
   expect(header.querySelector(".repo-header-branch")?.textContent).toBe("main");
-  // The totals come from the streamed metrics: one file, +1 / -1.
-  expect(header.querySelector(".repo-header-files")?.textContent).toBe("1 files");
+  // The totals come from the streamed metrics: one file (singular), +1 / -1.
+  expect(header.querySelector(".repo-header-files")?.textContent).toBe("1 file");
   expect(header.querySelector(".repo-header-additions")?.textContent).toBe("+1");
   expect(header.querySelector(".repo-header-deletions")?.textContent).toBe("-1");
   expect(header.querySelector(".repo-header-position")?.textContent).toBe("2 ahead");
-  // One status query per opened view: no polling.
+  // One status query per opened view: no polling, and a write's reload (a
+  // later session open of the same view) does not ask again.
   expect(requestsFor(requests, "worktreeRepositoryStatus")).toHaveLength(1);
   expect(requestsFor(requests, "worktreeRepositoryStatus")[0].params).toEqual({
     sessionId,
     capabilityToken: token,
     source: unstagedSource,
   });
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  click(headerAction(document, "stageFile"));
+  await waitForReload(document, requests);
+  expect(sessionOpens(requests)).toBe(2);
   expect(requestsFor(requests, "worktreeRepositoryStatus")).toHaveLength(1);
 });
 
@@ -1351,6 +1355,195 @@ test("select all checks every listed file, toggles back to none, and discard sel
   expect(requestsFor(requests, "worktreeDiscardFiles")).toHaveLength(1);
 });
 
+/** A file row of the file list, inside the tree's shadow root. */
+function treeRow(document: Document, name: string): HTMLElement {
+  const shadow = document.querySelector("file-tree-container")?.shadowRoot ?? null;
+  expect(shadow).toBeTruthy();
+  const row = shadow!.querySelector<HTMLElement>(`[data-item-type="file"][data-item-path="${name}"]`);
+  expect(row).toBeTruthy();
+  return row!;
+}
+
+/** Space on a row: the keyboard toggle of its checkbox, which fires no mousedown. */
+function pressSpaceOn(row: HTMLElement): void {
+  const window = row.ownerDocument.defaultView!;
+  flushSync(() => {
+    row.dispatchEvent(
+      new window.KeyboardEvent("keydown", { key: " ", bubbles: true, composed: true, cancelable: true }),
+    );
+  });
+}
+
+/** Checks `name` alone and opens the selection-scoped discard confirmation; returns its Confirm. */
+async function openDiscardSelectedConfirmation(document: Document, name: string): Promise<HTMLButtonElement> {
+  await waitFor(() => cardCheckbox(document, name) != null, "the cards");
+  toggleCheckbox(cardCheckbox(document, name));
+  await waitFor(() => headerBulkAction(document, "discardFiles") != null, "the selection actions");
+  click(headerBulkAction(document, "discardFiles"));
+  expect(document.querySelector("#discard-popover .worktree-confirm-text")?.textContent).toBe(
+    "Discard every change to the selected files? This cannot be undone.",
+  );
+  const confirm = document.querySelector<HTMLButtonElement>('#discard-popover [data-action="confirm"]');
+  expect(confirm?.textContent).toBe("Discard selected");
+  return confirm!;
+}
+
+test("the discard confirmation keeps the scope it opened with: an emptied selection closes it instead of discarding everything", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(
+    unstagedSource,
+    MOCK_REPOSITORY_STATUS,
+    requests,
+    { patch: TWO_FILE_PATCH },
+  );
+  const confirm = await openDiscardSelectedConfirmation(document, "notes.txt");
+  // Space on the tree row unchecks the file. No mousedown happens, so the
+  // outside-click dismissal never sees it: the header itself must notice
+  // that the selection it asked about is gone, and not fall back to "all".
+  pressSpaceOn(treeRow(document, "notes.txt"));
+  await waitFor(() => selectionBadge(document) == null, "nothing selected");
+  // Confirm posts nothing, whether it is still mounted for the frame before
+  // the popover closes or already gone.
+  confirm.click();
+  expect(requestsFor(requests, "worktreeDiscardAll")).toHaveLength(0);
+  expect(requestsFor(requests, "worktreeDiscardFiles")).toHaveLength(0);
+  await waitFor(() => document.getElementById("discard-popover") == null, "the confirmation to close");
+  confirm.click();
+  expect(requestsFor(requests, "worktreeDiscardAll")).toHaveLength(0);
+  expect(requestsFor(requests, "worktreeDiscardFiles")).toHaveLength(0);
+  expect(sessionOpens(requests)).toBe(1);
+});
+
+test("a host refresh while the discard confirmation is open closes it", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(
+    unstagedSource,
+    MOCK_REPOSITORY_STATUS,
+    requests,
+    { patch: TWO_FILE_PATCH },
+  );
+  await openDiscardSelectedConfirmation(document, "notes.txt");
+  // The host reloads the diff under the popover: what it asked about was
+  // the view before the reload, so it closes rather than confirming later.
+  expect(document.defaultView!.cmuxDiffViewer?.refresh()).toBe(true);
+  await waitFor(() => document.getElementById("discard-popover") == null, "the confirmation to close");
+  await waitForReload(document, requests);
+  expect(document.getElementById("discard-popover")).toBeNull();
+  expect(requestsFor(requests, "worktreeDiscardFiles")).toHaveLength(0);
+  expect(requestsFor(requests, "worktreeDiscardAll")).toHaveLength(0);
+});
+
+test("a write's reload keeps the batch actions disabled until the reopened diff has streamed, then shows the full count", async () => {
+  const requests: SidecarRequest[] = [];
+  let fetches = 0;
+  let releaseReloadedPatch: (() => void) | undefined;
+  const document = await renderWithStatus(
+    unstagedSource,
+    MOCK_REPOSITORY_STATUS,
+    requests,
+    {
+      // The reopened session's patch is held until the test releases it.
+      fetch: () => {
+        fetches += 1;
+        if (fetches === 1) {
+          return new Response(TWO_FILE_PATCH, { status: 200 });
+        }
+        return new Promise<Response>((resolve) => {
+          releaseReloadedPatch = () => resolve(new Response(TWO_FILE_PATCH, { status: 200 }));
+        });
+      },
+    },
+  );
+  await waitFor(() => cardCheckbox(document, "notes.txt") != null, "both cards");
+  toggleCheckbox(selectAllCheckbox(document));
+  await waitFor(
+    () => headerBulkAction(document, "stageFiles")?.textContent?.trim() === "Stage 2 files",
+    "both files selected",
+  );
+  click(headerBulkAction(document, "stageFiles"));
+  await waitFor(() => requestsFor(requests, "worktreeStageFiles").length === 1, "the stage request");
+  // The session reopened and its stream is being parsed, but no file has
+  // arrived yet: an action now would act on whatever subset had streamed.
+  await waitFor(
+    () =>
+      sessionOpens(requests) === 2 &&
+      document.getElementById("status-text")?.textContent === "Parsing diff...",
+    "the reopened session to start streaming",
+  );
+  expect(fetches).toBe(2);
+  const commitButton = document.getElementById("commit-button") as HTMLButtonElement;
+  expect(commitButton.disabled).toBe(true);
+  const batchActions = () =>
+    Array.from(
+      document.querySelectorAll<HTMLButtonElement>(
+        '#repo-overflow-menu [data-action$="All"], #repo-overflow-menu [data-action$="Files"]',
+      ),
+    );
+  openOverflowMenu(document);
+  expect(batchActions().length).toBeGreaterThan(0);
+  expect(batchActions().map((action) => action.disabled)).toEqual(batchActions().map(() => true));
+  // The stream completes: both files are back, still checked, and the
+  // actions re-enable naming all of them.
+  releaseReloadedPatch?.();
+  await waitFor(
+    () =>
+      headerBulkAction(document, "stageFiles")?.textContent?.trim() === "Stage 2 files" &&
+      headerBulkAction(document, "stageFiles")?.disabled === false,
+    "the full selection, enabled",
+    3000,
+  );
+  expect(commitButton.disabled).toBe(false);
+  expect(requestsFor(requests, "worktreeStageFiles")).toHaveLength(1);
+});
+
+test("a reload that streams no files clears the selection, so nothing comes back pre-checked", async () => {
+  const requests: SidecarRequest[] = [];
+  // First stream: two files. After the write the view is empty; the host
+  // refresh after that lists both files again.
+  let fetches = 0;
+  const document = await renderWithStatus(
+    unstagedSource,
+    MOCK_REPOSITORY_STATUS,
+    requests,
+    {
+      fetch: () => {
+        fetches += 1;
+        return new Response(fetches === 2 ? "" : TWO_FILE_PATCH, { status: 200 });
+      },
+    },
+  );
+  await waitFor(() => cardCheckbox(document, "notes.txt") != null, "both cards");
+  toggleCheckbox(cardCheckbox(document, "story.txt"));
+  await waitFor(
+    () => headerBulkAction(document, "stageFiles")?.textContent?.trim() === "Stage 1 file",
+    "story.txt selected",
+  );
+  click(headerBulkAction(document, "stageFiles"));
+  await waitFor(() => requestsFor(requests, "worktreeStageFiles").length === 1, "the stage request");
+  const commitButton = document.getElementById("commit-button") as HTMLButtonElement;
+  await waitFor(
+    () =>
+      sessionOpens(requests) === 2 &&
+      document.body.dataset.streamFileCount === "0" &&
+      !commitButton.disabled,
+    "the empty reload to settle",
+    3000,
+  );
+  expect(selectionBadge(document)).toBeNull();
+  // The next reload lists story.txt again: it had left the view, so it
+  // comes back unchecked.
+  expect(document.defaultView!.cmuxDiffViewer?.refresh()).toBe(true);
+  await waitFor(() => sessionOpens(requests) === 3, "the third session");
+  await waitFor(
+    () => cardCheckbox(document, "notes.txt") != null && !commitButton.disabled,
+    "the files back in the view",
+    3000,
+  );
+  expect(cardCheckbox(document, "story.txt")?.getAttribute("aria-checked")).toBe("false");
+  expect(selectionBadge(document)).toBeNull();
+  expect(headerBulkAction(document, "stageAll")).not.toBeNull();
+});
+
 test("switching the view clears the selection", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderWithStatus(
@@ -1369,7 +1562,7 @@ test("switching the view clears the selection", async () => {
   expect(cardCheckbox(document, "story.txt")?.getAttribute("aria-checked")).toBe("false");
 });
 
-test("the file list's rows carry the checkbox lane, and clicking it toggles the selection without navigating", async () => {
+test("the file list's rows carry the checkbox lane: clicking it toggles the selection without navigating, clicking the row navigates", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderWithStatus(
     unstagedSource,
@@ -1388,7 +1581,9 @@ test("the file list's rows carry the checkbox lane, and clicking it toggles the 
   expect(lane.querySelector("svg")?.getAttribute("data-icon-name")).toBe("cmux-select-off");
   expect(lane.querySelector("span")?.getAttribute("title")).toBe("Select notes.txt");
   const window = document.defaultView!;
-  const activeBefore = document.documentElement.dataset.activeFile;
+  // The page names the file the diff is on: the first one, once the stream
+  // has listed it.
+  await waitFor(() => document.documentElement.dataset.activeFile === "story.txt", "the first file active");
   flushSync(() => {
     lane.dispatchEvent(new window.MouseEvent("click", { bubbles: true, composed: true, cancelable: true }));
   });
@@ -1396,7 +1591,7 @@ test("the file list's rows carry the checkbox lane, and clicking it toggles the 
   expect(cardCheckbox(document, "notes.txt")?.getAttribute("aria-checked")).toBe("true");
   expect(headerBulkLabels(document)[0]).toBe("Stage 1 file");
   // The row was not selected for navigation by that click.
-  expect(document.documentElement.dataset.activeFile).toBe(activeBefore);
+  expect(document.documentElement.dataset.activeFile).toBe("story.txt");
   // The lane redraws as checked, and Space on the focused row unchecks it.
   await waitFor(
     () =>
@@ -1411,6 +1606,14 @@ test("the file list's rows carry the checkbox lane, and clicking it toggles the 
     );
   });
   await waitFor(() => headerBulkAction(document, "stageAll") != null, "nothing selected");
+  expect(cardCheckbox(document, "notes.txt")?.getAttribute("aria-checked")).toBe("false");
+  expect(document.documentElement.dataset.activeFile).toBe("story.txt");
+  // Clicking the row itself (its name, not the lane) does navigate, and
+  // checks nothing.
+  flushSync(() => {
+    row("notes.txt")!.dispatchEvent(new window.MouseEvent("click", { bubbles: true, composed: true, cancelable: true }));
+  });
+  await waitFor(() => document.documentElement.dataset.activeFile === "notes.txt", "the row click to navigate");
   expect(cardCheckbox(document, "notes.txt")?.getAttribute("aria-checked")).toBe("false");
   expect(sessionOpens(requests)).toBe(1);
 });
@@ -1977,8 +2180,14 @@ test("a patch session has no in-place refresh", async () => {
     { payloadExtras: PICKER_OPTIONS },
   );
   expect(document.defaultView!.cmuxDiffViewer?.refresh() ?? false).toBe(false);
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  expect(sessionOpens(requests)).toBe(1);
+  // The refused refresh reopened nothing: the next session open is the
+  // picker's, for the source it chose.
+  selectOption(document.getElementById("source-select") as HTMLSelectElement, "staged");
+  await waitFor(() => sessionOpens(requests) === 2, "the staged session");
+  expect(requestsFor(requests, "sessionOpen").map((request) => request.params.source)).toEqual([
+    { kind: "patch", path: "/last-turn.patch" },
+    stagedSource,
+  ]);
 });
 
 // MARK: One "..." menu per view, shared view options

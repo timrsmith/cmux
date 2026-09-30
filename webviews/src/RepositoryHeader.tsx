@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type {
   PullRequestSummary,
   RepositoryStatus,
@@ -70,17 +70,38 @@ export type PullRequestControl = {
 
 /** The checked files of the current view and the actions over them. */
 export type SelectionControl = {
-  /** How many of the view's files are checked; zero shows the "all" actions. */
-  count: number;
-  onAction: (verb: WriteVerb) => void;
+  /**
+   * The checked paths in diff order; empty shows the "all" actions. A
+   * selection action posts the list it was invoked with, never the live one.
+   */
+  paths: readonly string[];
+  onAction: (verb: WriteVerb, paths: readonly string[]) => void;
   onClear: () => void;
 };
 
-/** The open menu, or the verb whose confirmation popover replaced the menu. */
-type OpenMenu = "commit" | "overflow" | { confirm: WriteVerbDescriptor } | null;
+/**
+ * A confirming verb with the scope captured when its menu item was clicked:
+ * the checked paths then (empty: the whole view). The prompt, the confirm
+ * label and the request all read this capture, never the live selection,
+ * so a selection that empties under the popover (Space on a tree row fires
+ * no mousedown; a reload keeps the set but not its items) can never turn
+ * "Discard selected" into "Discard all".
+ */
+type PendingConfirmation = {
+  descriptor: WriteVerbDescriptor;
+  paths: readonly string[];
+};
+
+/** The open menu, or the confirmation popover that replaced the menu. */
+type OpenMenu = "commit" | "overflow" | { confirm: PendingConfirmation } | null;
+
+function samePaths(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((path, index) => path === b[index]);
+}
 
 export function RepositoryHeader({
   commit,
+  diffGeneration,
   files,
   label,
   model,
@@ -100,6 +121,11 @@ export function RepositoryHeader({
   viewOptions,
 }: {
   commit: CommitControl;
+  /**
+   * Counts the diff resets (a reload or a view change); every open menu
+   * closes on one.
+   */
+  diffGeneration: number;
   /** The files-list toggle: the file column is how this view navigates files. */
   files: { visible: boolean; onToggle: () => void };
   label: DiffViewerLabelResolver;
@@ -125,6 +151,25 @@ export function RepositoryHeader({
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const closeMenus = useCallback(() => setOpenMenu(null), []);
   useDismissOnOutsideInteraction(openMenu != null, closeMenus, "#repo-header");
+  const confirming =
+    openMenu != null && typeof openMenu === "object"
+      ? openMenu.confirm
+      : null;
+  // A reload or a view change resets the diff: whatever a menu or the
+  // confirmation showed belongs to the view before it.
+  useEffect(() => {
+    closeMenus();
+  }, [closeMenus, diffGeneration]);
+  // The confirmation asked about one selection; when the live selection
+  // stops matching the captured one (a row toggled, the set cleared or
+  // pruned), the question no longer applies and the popover closes.
+  const capturedPaths = confirming?.paths ?? null;
+  const livePaths = selection.paths;
+  useEffect(() => {
+    if (capturedPaths != null && !samePaths(capturedPaths, livePaths)) {
+      closeMenus();
+    }
+  }, [capturedPaths, closeMenus, livePaths]);
   useDismissOnOutsideInteraction(
     commit.open,
     commit.onClose,
@@ -147,26 +192,37 @@ export function RepositoryHeader({
   };
   const pushHint = forgeActionHintKey(availability.push);
   const requestHint = forgeActionHintKey(availability.createPullRequest);
-  const selecting = selection.count > 0;
+  const selectedCount = selection.paths.length;
+  const selecting = selectedCount > 0;
   // The batch actions: the view's verbs over the whole view while nothing is
   // checked, over the checked files otherwise. A verb that confirms asks
-  // first, in a popover under the header.
+  // first, in a popover under the header, about the selection as it was
+  // when the item was clicked.
   const scope = selecting ? "selected" : "all";
   const verbs = writeVerbsForSource(source);
   const verbLabel = (descriptor: WriteVerbDescriptor) =>
     selecting
-      ? formatCountLabel(label, descriptor.label.selected, selection.count)
+      ? formatCountLabel(label, descriptor.label.selected, selectedCount)
       : label(descriptor.label.all);
-  const runVerb = (descriptor: WriteVerbDescriptor) =>
-    selecting
-      ? selection.onAction(descriptor.verb)
+  const runVerb = (
+    descriptor: WriteVerbDescriptor,
+    paths: readonly string[],
+  ) =>
+    paths.length > 0
+      ? selection.onAction(descriptor.verb, paths)
       : onBulkAction(descriptor.verb);
-  const confirming =
-    openMenu != null && typeof openMenu === "object"
-      ? openMenu.confirm
-      : null;
+  // Confirm posts the captured scope, and only while the live selection
+  // still matches it: the effect above closes a stale popover, and this
+  // guards the same frame.
+  const runConfirmed = ({ descriptor, paths }: PendingConfirmation) => {
+    if (samePaths(paths, selection.paths)) {
+      runVerb(descriptor, paths);
+    }
+  };
+  const confirmScope = confirming?.paths.length ? "selected" : "all";
+  const confirmation = confirming?.descriptor.confirm?.[confirmScope];
   const moreActions = selecting
-    ? formatLabel(label("moreActionsWithSelection"), { count: selection.count })
+    ? formatLabel(label("moreActionsWithSelection"), { count: selectedCount })
     : label("moreActions");
   return (
     <header id="repo-header" data-pending={pending ? "true" : "false"}>
@@ -195,9 +251,7 @@ export function RepositoryHeader({
           {model.branch ? <HeaderDot /> : null}
           <span className="repo-header-stats" aria-label={label("diffStats")}>
             <span className="repo-header-files">
-              {formatLabel(label("changedFilesCount"), {
-                count: model.fileCount,
-              })}
+              {formatCountLabel(label, "changedFilesCount", model.fileCount)}
             </span>
             <span className="repo-header-additions">+{model.additions}</span>
             <span className="repo-header-deletions">-{model.deletions}</span>
@@ -289,21 +343,21 @@ export function RepositoryHeader({
           aria-label={moreActions}
           aria-expanded={openMenu === "overflow"}
           aria-controls="repo-overflow-menu"
-          data-selection-count={selecting ? selection.count : undefined}
+          data-selection-count={selecting ? selectedCount : undefined}
           onClick={() => toggleMenu("overflow")}
         >
           <Icon name="dots" />
         </button>
       </div>
-      {confirming?.confirm ? (
+      {confirming && confirmation ? (
         <div id="discard-popover" className="repo-menu repo-menu-confirm">
           <InlineConfirmation
             cancelLabel={label("cancel")}
-            confirmLabel={label(confirming.confirm[scope].button)}
+            confirmLabel={label(confirmation.button)}
             onCancel={closeMenus}
-            onConfirm={() => runFromMenu(() => runVerb(confirming))}
+            onConfirm={() => runFromMenu(() => runConfirmed(confirming))}
             pending={pending}
-            prompt={label(confirming.confirm[scope].prompt)}
+            prompt={label(confirmation.prompt)}
           />
         </div>
       ) : null}
@@ -343,8 +397,10 @@ export function RepositoryHeader({
               label={verbLabel(descriptor)}
               onClick={() =>
                 descriptor.confirm
-                  ? setOpenMenu({ confirm: descriptor })
-                  : runFromMenu(() => runVerb(descriptor))
+                  ? setOpenMenu({
+                      confirm: { descriptor, paths: selection.paths },
+                    })
+                  : runFromMenu(() => runVerb(descriptor, selection.paths))
               }
             />
           ))}

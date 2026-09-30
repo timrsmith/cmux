@@ -30,6 +30,7 @@ const DEFAULT_DIFF_VIEWER_LABELS = {
   changedSinceViewed: "Changed since viewed",
   clearFileFilter: "Clear filter",
   changedFilesCount: "{count} files",
+  changedFilesCountOne: "{count} file",
   checksFailed: "{count} failed",
   checksPassed: "{passed}/{total} checks passed",
   checksPending: "{count} pending",
@@ -123,6 +124,8 @@ const DEFAULT_DIFF_VIEWER_LABELS = {
   worktreeNotAllowed: "Working-tree changes are not available for this diff.",
   worktreePartialRevert:
     "The change was unstaged but is still in the working tree. The diff was reloaded.",
+  worktreeUnmerged:
+    "This file has a merge conflict. Resolve it before discarding changes.",
   worktreeWriteFailed: "Could not update the working tree.",
   copyFailedGitApplyCommand: "Could not copy git apply command.",
   copiedGitApplyCommand: "Copied git apply command",
@@ -228,20 +231,23 @@ export function createDiffViewerLabelResolver(
  * the singular is its own key and `formatCountLabel` picks between the two.
  */
 export type CountLabelKey =
+  | "changedFilesCount"
   | "discardSelected"
   | "stageSelected"
   | "unstageSelected";
 
-/** `label("<key>One")` for exactly one, otherwise `label(key)` with `{count}` filled in. */
+/**
+ * `label("<key>One")` for exactly one, otherwise `label(key)`; either form
+ * gets `{count}` filled in (a singular may spell the number out or carry it).
+ */
 export function formatCountLabel(
   label: DiffViewerLabelResolver,
   key: CountLabelKey,
   count: number,
 ): string {
-  if (count === 1) {
-    return label(`${key}One` as DiffViewerLabelKey);
-  }
-  return formatLabel(label(key), { count });
+  const template =
+    count === 1 ? label(`${key}One` as DiffViewerLabelKey) : label(key);
+  return formatLabel(template, { count });
 }
 
 /** Substitutes `{name}` placeholders in a resolved label. */
