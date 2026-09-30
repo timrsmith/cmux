@@ -1404,7 +1404,8 @@
           "compactAgentStatus": "每個工作區只顯示一行：標題前的單一彩色圖示表示代理、未讀與拉取請求狀態，取代代理狀態列（例如「執行中」或「需要輸入」）、分支與目錄列以及拉取請求列，這些詳細資訊移到圖示的提示中。其他狀態項目保留各自的列。",
           "compactStatusIcons": "依狀態取代 compactAgentStatus 字符的 SF Symbol 名稱，例如 {\"terminal\": \"apple.terminal\", \"needsInput\": \"hand.raised.fill\"}。未設定的狀態使用內建符號，無法顯示的名稱也會回退到內建符號。",
           "notificationMessageLineLimit": "每個工作區標題下方顯示的最新通知最大行數。",
-          "rightMaxWidth": "右側邊欄的最大寬度（點）。省略時使用內建動態上限。"
+          "rightMaxWidth": "右側邊欄的最大寬度（點）。省略時使用內建動態上限。",
+          "filesPanelPlacement": "檔案樹所在的位置：rightSidebar（右側邊欄的「檔案」分頁，預設）、leading（位於工作區側邊欄與窗格之間的獨立面板，IDE 風格）或 stacked（在工作區側邊欄內位於工作區清單上方、標題列條帶下方，以可拖曳的分隔線與清單分開）。使用 leading 或 stacked 時，帶有「尋找」「變更」和其他工具的右側邊欄保留在右邊緣，並移除其「檔案」分頁。"
         },
         "fileExplorer": {
           "description": "右側邊欄檔案瀏覽器（檔案樹）設定。",

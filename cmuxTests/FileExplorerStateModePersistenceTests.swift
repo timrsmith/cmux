@@ -362,10 +362,37 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
         }
     }
 
-    func testPlacementChangeLeavesAHiddenTreeHiddenAndOtherTabsAlone() {
+    func testPlacementChangeRefreshesTheModeAfterDecidingWhatWasShown() {
         withSavedRightSidebarModeDefaults {
             let defaults = UserDefaults.standard
             defaults.set(FilesPanelPlacement.rightSidebar.rawValue, forKey: filesPanelPlacementKey)
+            defaults.set(false, forKey: filesPanelVisibleKey)
+            let state = FileExplorerState(sidebar: nil)
+            state.setVisible(true)
+            state.mode = .files
+            XCTAssertTrue(state.filesAreShown())
+
+            // The setting has flipped: the mode bar has no Files tab any more.
+            // The placement change must decide "Files was showing" from the
+            // stale `.files` mode BEFORE re-landing the mode on a visible tab;
+            // a refresh that ran first left the sidebar open on Find and the
+            // tree nowhere.
+            defaults.set(FilesPanelPlacement.leading.rawValue, forKey: filesPanelPlacementKey)
+            state.applyPlacementChange(from: .rightSidebar, to: .leading)
+
+            XCTAssertTrue(state.filesPanelVisible, "the tree that was showing moves to the leading panel")
+            XCTAssertFalse(state.isVisible, "the right sidebar that showed only Files closes")
+            XCTAssertNotEqual(state.mode, .files, "the stored mode lands on a tab the bar still shows")
+            XCTAssertEqual(state.mode, RightSidebarMode.visibleModes(defaults: defaults).first)
+            XCTAssertEqual(defaults.string(forKey: modeKey), state.mode.rawValue)
+        }
+    }
+
+    func testPlacementChangeLeavesAClosedTreeClosedAndOtherTabsAlone() {
+        withSavedRightSidebarModeDefaults {
+            let defaults = UserDefaults.standard
+            defaults.set(FilesPanelPlacement.rightSidebar.rawValue, forKey: filesPanelPlacementKey)
+            // The user closed the detached tree earlier (the persisted exception).
             defaults.set(false, forKey: filesPanelVisibleKey)
             let state = FileExplorerState(sidebar: nil)
             state.setVisible(true)
@@ -375,15 +402,38 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
             defaults.set(FilesPanelPlacement.leading.rawValue, forKey: filesPanelPlacementKey)
             state.applyPlacementChange(from: .rightSidebar, to: .leading)
 
-            XCTAssertFalse(state.filesPanelVisible, "a hidden tree stays hidden")
+            XCTAssertFalse(state.filesPanelVisible, "a tree the user closed stays closed")
             XCTAssertTrue(state.isVisible, "a right sidebar on another tab stays open")
             XCTAssertEqual(state.mode, .changes)
 
-            // Back to the right sidebar with the tree still hidden: nothing opens.
+            // Back to the right sidebar with the tree still closed: nothing opens.
             defaults.set(FilesPanelPlacement.rightSidebar.rawValue, forKey: filesPanelPlacementKey)
             state.setVisible(false)
             state.applyPlacementChange(from: .leading, to: .rightSidebar)
             XCTAssertFalse(state.isVisible)
+        }
+    }
+
+    func testPlacementChangeShowsANeverClosedTreeInItsNewHome() {
+        withSavedRightSidebarModeDefaults {
+            let defaults = UserDefaults.standard
+            defaults.set(FilesPanelPlacement.rightSidebar.rawValue, forKey: filesPanelPlacementKey)
+            defaults.removeObject(forKey: filesPanelVisibleKey)
+            let state = FileExplorerState(sidebar: nil)
+            state.setVisible(true)
+            state.mode = .changes
+            XCTAssertFalse(state.filesAreShown(), "the right sidebar is on another tab")
+            XCTAssertTrue(state.filesPanelVisible, "the detached tree's flag starts shown until the user closes it")
+
+            defaults.set(FilesPanelPlacement.leading.rawValue, forKey: filesPanelPlacementKey)
+            state.applyPlacementChange(from: .rightSidebar, to: .leading)
+
+            XCTAssertTrue(
+                state.filesPanelVisible,
+                "the leading panel appears although the Files tab was not showing: the flag was never cleared"
+            )
+            XCTAssertTrue(state.isVisible, "a right sidebar on another tab stays open")
+            XCTAssertEqual(state.mode, .changes)
         }
     }
 

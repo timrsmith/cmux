@@ -1404,7 +1404,8 @@
           "compactAgentStatus": "Jeden Workspace in einer Zeile anzeigen: Ein farbiges Symbol vor dem Titel zeigt Agenten-, Ungelesen- und Pull-Request-Status und ersetzt die Status-Zeilen von Agenten (zum Beispiel „Wird ausgeführt“ oder „Eingabe erforderlich“), die Branch- und Verzeichniszeile sowie die Pull-Request-Zeilen, deren Details in den Tooltip des Symbols wandern. Andere Statuseinträge behalten ihre eigenen Zeilen.",
           "compactStatusIcons": "SF-Symbol-Namen, die das compactAgentStatus-Symbol je Zustand ersetzen, zum Beispiel {\"terminal\": \"apple.terminal\", \"needsInput\": \"hand.raised.fill\"}. Nicht gesetzte Zustände behalten das eingebaute Symbol, und ein Name, der nicht darstellbar ist, fällt darauf zurück.",
           "notificationMessageLineLimit": "Maximale Anzahl der Zeilen, die für die neueste Benachrichtigung unter jedem Workspace-Titel angezeigt werden.",
-          "rightMaxWidth": "Maximale Breite der rechten Seitenleiste in Punkten. Wenn weggelassen, gilt die integrierte dynamische Obergrenze."
+          "rightMaxWidth": "Maximale Breite der rechten Seitenleiste in Punkten. Wenn weggelassen, gilt die integrierte dynamische Obergrenze.",
+          "filesPanelPlacement": "Wo der Dateibaum liegt: rightSidebar (der Tab „Dateien“ der rechten Seitenleiste, Standard), leading (ein eigenes Panel zwischen der Workspace-Seitenleiste und den Panes, IDE-Stil) oder stacked (über der Workspace-Liste in der Workspace-Seitenleiste, unter deren Titelleistenstreifen, durch einen ziehbaren Trenner von der Liste getrennt). Mit leading oder stacked bleibt die rechte Seitenleiste mit Suchen, Änderungen und den anderen Werkzeugen am rechten Rand und verliert ihren Tab „Dateien“."
         },
         "fileExplorer": {
           "description": "Einstellungen für den Datei-Explorer (Dateibaum) in der rechten Seitenleiste.",

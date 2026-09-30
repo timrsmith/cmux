@@ -10,7 +10,9 @@ public import CoreGraphics
 /// panels that do not fit collapse as the window shrinks, the right one first
 /// because it is the secondary panel, and a panel collapsed this way comes
 /// back on its own once the window is wide enough again. A panel the person
-/// hid stays hidden.
+/// hid stays hidden. A panel this policy never collapses (the file tree docked
+/// as its own leading panel) is passed as `dockedPanelsWidth`, so the sidebars
+/// are fit into the width it leaves.
 public struct SidePanelWidthFit: Equatable, Sendable {
     /// The narrowest terminal area the window keeps, in points: a prompt and
     /// about 25 columns at the default font. Two full-width panels
@@ -58,14 +60,19 @@ public struct SidePanelWidthFit: Equatable, Sendable {
     ///   - windowWidth: The window's content width.
     ///   - leftWidth: The width the left sidebar takes when shown.
     ///   - rightWidth: The width the right sidebar takes when shown.
+    ///   - dockedPanelsWidth: Width already taken by panels this policy never
+    ///     collapses (the file tree docked as its own leading panel), so the
+    ///     sidebars are fit into what those leave.
     ///   - minimumTerminalWidth: The terminal area to keep.
     public func fitting(
         windowWidth: CGFloat,
         leftWidth: CGFloat,
         rightWidth: CGFloat,
+        dockedPanelsWidth: CGFloat = 0,
         minimumTerminalWidth: CGFloat = SidePanelWidthFit.minimumTerminalWidth
     ) -> SidePanelWidthFit {
         guard windowWidth.isFinite, windowWidth > 0 else { return self }
+        let sharedWidth = windowWidth - max(0, dockedPanelsWidth)
         let wantsLeft = isLeftVisible || isLeftAutoCollapsed
         let wantsRight = isRightVisible || isRightAutoCollapsed
         let single = preferredPanel == .left
@@ -73,7 +80,7 @@ public struct SidePanelWidthFit: Equatable, Sendable {
             : [(false, wantsRight), (wantsLeft, false)]
         let candidates = [(wantsLeft, wantsRight)] + single
         let chosen = candidates.first { left, right in
-            windowWidth - (left ? leftWidth : 0) - (right ? rightWidth : 0) >= minimumTerminalWidth
+            sharedWidth - (left ? leftWidth : 0) - (right ? rightWidth : 0) >= minimumTerminalWidth
         } ?? (false, false)
         return SidePanelWidthFit(
             isLeftVisible: chosen.0,
@@ -90,12 +97,14 @@ public struct SidePanelWidthFit: Equatable, Sendable {
     /// resize does not undo it. A panel shown in a window too narrow even for
     /// it alone stays shown; the terminal still keeps some width because the
     /// window minimum is wider than either panel, and the next window resize
-    /// collapses it.
+    /// collapses it. `dockedPanelsWidth` is taken off the window first, as in
+    /// ``fitting(windowWidth:leftWidth:rightWidth:dockedPanelsWidth:minimumTerminalWidth:)``.
     public func showing(
         _ panel: Panel,
         windowWidth: CGFloat,
         leftWidth: CGFloat,
         rightWidth: CGFloat,
+        dockedPanelsWidth: CGFloat = 0,
         minimumTerminalWidth: CGFloat = SidePanelWidthFit.minimumTerminalWidth
     ) -> SidePanelWidthFit {
         var next = self
@@ -110,7 +119,7 @@ public struct SidePanelWidthFit: Equatable, Sendable {
         }
         guard windowWidth.isFinite, windowWidth > 0,
               next.isLeftVisible, next.isRightVisible,
-              windowWidth - leftWidth - rightWidth < minimumTerminalWidth
+              windowWidth - max(0, dockedPanelsWidth) - leftWidth - rightWidth < minimumTerminalWidth
         else { return next }
         switch panel {
         case .left:

@@ -1404,7 +1404,8 @@
           "compactAgentStatus": "每个工作区只显示一行：标题前的单个彩色图标表示代理、未读和拉取请求状态，取代代理状态行（例如“运行中”或“需要输入”）、分支和目录行以及拉取请求行，这些详细信息移到图标的提示中。其他状态条目保留各自的行。",
           "compactStatusIcons": "按状态替换 compactAgentStatus 字形的 SF Symbol 名称，例如 {\"terminal\": \"apple.terminal\", \"needsInput\": \"hand.raised.fill\"}。未设置的状态使用内置符号，无法显示的名称也会回退到内置符号。",
           "notificationMessageLineLimit": "每个工作区标题下方显示的最新通知的最大行数。",
-          "rightMaxWidth": "右侧边栏的最大宽度（点）。省略时使用内置动态上限。"
+          "rightMaxWidth": "右侧边栏的最大宽度（点）。省略时使用内置动态上限。",
+          "filesPanelPlacement": "文件树所在的位置：rightSidebar（右侧边栏的“文件”标签页，默认）、leading（位于工作区侧边栏与窗格之间的独立面板，IDE 风格）或 stacked（在工作区侧边栏内位于工作区列表上方、标题栏条带下方，以可拖动的分隔条与列表分开）。使用 leading 或 stacked 时，带有“查找”“更改”和其他工具的右侧边栏保留在右边缘，并去掉其“文件”标签页。"
         },
         "fileExplorer": {
           "description": "右侧边栏文件浏览器（文件树）设置。",

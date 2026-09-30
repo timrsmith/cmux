@@ -29,9 +29,13 @@ import SwiftUI
 /// kind as closures — done there because that is where the key-kind type
 /// information (e.g. a secret's `Value == String`) is in scope, so the secret
 /// store's `AsyncStream<String>` is used directly as `AsyncStream<Value>` with
-/// no wrapping or casting. Reads work without an injected ``SettingsRuntime``
-/// (the `@State` is seeded from the catalog default); the runtime is only
-/// needed to observe and persist changes, resolved from the environment.
+/// no wrapping or casting. Reads work without an injected ``SettingsRuntime``:
+/// a UserDefaults-backed key seeds the `@State` synchronously from
+/// `UserDefaults.standard` (the suite the app's ``UserDefaultsSettingsStore``
+/// wraps), so the first body already shows the stored value; a JSON- or
+/// secret-backed key, whose stores read asynchronously, seeds the catalog
+/// default. The runtime is only needed to observe and persist changes,
+/// resolved from the environment.
 /// Deliberately not main-actor isolated. SwiftUI's `DynamicProperty.update()`
 /// requirement is nonisolated, so a main-actor conformance forces a
 /// cross-isolation bridge whose runtime executor check crashes on macOS 26.4.x.
@@ -51,10 +55,17 @@ public struct LiveSetting<Value: SettingCodable>: DynamicProperty {
 
     /// Binds to a UserDefaults-backed setting.
     ///
+    /// The first body reads the value stored in `UserDefaults.standard`, the
+    /// suite the app's store wraps: a view that lays out from the setting
+    /// (`sidebar.filesPanelPlacement` places the whole window's panels) must
+    /// not render the catalog default for a frame and swap once the store
+    /// stream delivers. The read is a plain `UserDefaults` lookup, cheap for
+    /// every wrapper; the stream still drives later changes.
+    ///
     /// - Parameter keyPath: Key path to the catalog's ``DefaultsKey`` for this value.
     public init(_ keyPath: KeyPath<SettingCatalog, DefaultsKey<Value>>) {
         let key = SettingCatalog()[keyPath: keyPath]
-        _value = State(initialValue: key.defaultValue)
+        _value = State(initialValue: key.value(in: .standard))
         makeStream = { runtime in
             runtime.userDefaultsStore.values(for: key)
         }

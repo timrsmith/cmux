@@ -229,7 +229,10 @@ struct RightSidebarPanelView: View {
         }
         .onChange(of: feedEnabled) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
         .onChange(of: cloudMachinesBetaEnabled) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
-        .onChange(of: filesPanelPlacement) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
+        // A placement change re-lands the mode inside
+        // `FileExplorerState.applyPlacementChange` (the window's one mutation
+        // path for it), after it has decided whether Files was showing; a
+        // refresh from here could run first and hide that fact.
         .onReceive(NotificationCenter.default.publisher(for: RightSidebarTabPreferences.didChangeNotification)) { _ in
             refreshModeAvailabilityAndFocusIfNeeded()
         }

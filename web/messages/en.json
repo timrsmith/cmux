@@ -2647,7 +2647,8 @@
           "compactAgentStatus": "Show each workspace on one line: one colored icon before the title for agent, unread, and pull request state replaces the agent status rows (for example Running or Needs input), the branch and directory line, and the pull request rows, whose details move to the icon's tooltip. Other status entries keep their rows.",
           "compactStatusIcons": "SF Symbol names that replace the compactAgentStatus glyph for each state, for example {\"terminal\": \"apple.terminal\", \"needsInput\": \"hand.raised.fill\"}. Unset states keep the built-in symbol, and a name that does not render falls back to it.",
           "notificationMessageLineLimit": "Maximum lines shown for the latest notification below each workspace title.",
-          "rightMaxWidth": "Maximum width in points for the right sidebar. When omitted, the built-in dynamic cap applies."
+          "rightMaxWidth": "Maximum width in points for the right sidebar. When omitted, the built-in dynamic cap applies.",
+          "filesPanelPlacement": "Where the file tree lives: rightSidebar (the Files tab of the right sidebar, the default), leading (its own panel between the workspace sidebar and the panes, IDE style), or stacked (above the workspace list inside the workspace sidebar, under its titlebar strip, split from the list by a draggable divider). With leading or stacked the right sidebar with Find, Changes, and the other tools stays on the right edge and drops its Files tab."
         },
         "fileExplorer": {
           "description": "Right-sidebar file explorer (file tree) settings.",

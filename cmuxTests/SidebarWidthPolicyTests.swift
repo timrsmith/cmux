@@ -137,6 +137,50 @@ final class SidebarWidthPolicyTests: XCTestCase {
         )
     }
 
+    func testRightSidebarClampWithNoRoomLeftLandsOnTheMinimumNotAScreenWidth() {
+        // Regression: with the workspace sidebar and a docked files panel
+        // already filling the window the remaining width is 0 (or negative),
+        // which was treated like an unmeasured window and fell back to a
+        // 1920 pt screen, letting the panel take its full cap.
+        for availableWidth in [CGFloat(0), -40] {
+            XCTAssertEqual(
+                ContentView.clampedRightSidebarWidth(10_000, availableWidth: availableWidth),
+                276,
+                accuracy: 0.001,
+                "available width \(availableWidth)"
+            )
+        }
+        // An unmeasured window still uses the screen-sized fallback.
+        XCTAssertEqual(
+            ContentView.clampedRightSidebarWidth(500, availableWidth: .nan),
+            500,
+            accuracy: 0.001
+        )
+    }
+
+    func testFilesPanelCapLeavesTheTerminalItsRoomBesideBothSidebars() {
+        // The docked files panel is capped by the right sidebar's rule over
+        // what BOTH sidebars leave: 1400 - 240 - 276 = 884, minus the 360 pt
+        // the right sidebar's clamp reserves for the terminal.
+        XCTAssertEqual(
+            ContentView.filesPanelMaximumWidth(windowWidth: 1400, leadingSidebarWidth: 240, rightSidebarWidth: 276),
+            524,
+            accuracy: 0.001
+        )
+        // With the right sidebar hidden the built-in cap applies before the room does.
+        XCTAssertEqual(
+            ContentView.filesPanelMaximumWidth(windowWidth: 2000, leadingSidebarWidth: 240, rightSidebarWidth: 0),
+            CGFloat(RightSidebarWidthSettings.builtInMaximumWidth),
+            accuracy: 0.001
+        )
+        // Both sidebars filling the window leave the floor, not a screen-sized cap.
+        XCTAssertEqual(
+            ContentView.filesPanelMaximumWidth(windowWidth: 700, leadingSidebarWidth: 400, rightSidebarWidth: 300),
+            276,
+            accuracy: 0.001
+        )
+    }
+
     func testSettingsFileStoreAppliesRightSidebarMaxWidthSetting() throws {
         let managedKey = RightSidebarWidthSettings.maxWidthKey
         try withCleanManagedDefaults(clearing: [managedKey]) { defaults in

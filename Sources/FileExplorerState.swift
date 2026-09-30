@@ -30,10 +30,13 @@ final class FileExplorerState: ObservableObject {
 
     /// Whether the detached files panel (the file tree docked between the
     /// workspace sidebar and the panes with `leading`, or stacked above the
-    /// workspace list with `stacked`) is shown. Only laid out while
-    /// `sidebar.filesPanelPlacement` is one of those; the value is kept across
-    /// placement changes so switching back and forth restores the panel.
-    /// Independent of `isVisible`, which is the right sidebar.
+    /// workspace list with `stacked`) is shown. Starts `true`: a docked or
+    /// stacked tree is shown until the user closes it, and that close is the
+    /// persisted exception (`filesPanel.isVisible`). Only laid out while
+    /// `sidebar.filesPanelPlacement` is one of those; the flag is shared by
+    /// both detached placements and kept across placement changes, so
+    /// switching back and forth restores the panel. Independent of
+    /// `isVisible`, which is the right sidebar.
     @Published var filesPanelVisible: Bool {
         didSet { UserDefaults.standard.set(filesPanelVisible, forKey: Self.filesPanelVisibleKey) }
     }
@@ -103,9 +106,9 @@ final class FileExplorerState: ObservableObject {
         self.isVisible = defaults.bool(forKey: "fileExplorer.isVisible")
         let storedWidth = defaults.double(forKey: "fileExplorer.width")
         self.width = storedWidth > 0 ? CGFloat(storedWidth) : 220
-        // The docked file tree starts shown: a user who picks the leading
-        // placement wants the tree next to the workspace list, and closing it
-        // is the persisted exception.
+        // The detached file tree starts shown: a user who picks the leading
+        // or stacked placement wants the tree there, and closing it is the
+        // persisted exception (see `filesPanelVisible`).
         let storedFilesPanelVisible = defaults.object(forKey: Self.filesPanelVisibleKey)
         self.filesPanelVisible = storedFilesPanelVisible == nil ? true : defaults.bool(forKey: Self.filesPanelVisibleKey)
         let storedFilesPanelWidth = defaults.double(forKey: Self.filesPanelWidthKey)
@@ -191,10 +194,20 @@ final class FileExplorerState: ObservableObject {
 
     /// Carries "Files is showing" across a placement change so the tree does
     /// not vanish when the user moves it. A tree that was on screen under
-    /// `previous` is shown under `next`; one that was hidden stays hidden. When
-    /// the tree leaves the right sidebar, a right sidebar that was showing only
+    /// `previous` is shown under `next`. One that was not is left to the flag
+    /// of its new home: a detached tree the user closed earlier stays closed
+    /// (`filesPanelVisible` is `false` only then, so a tree never closed
+    /// appears in its new home even when the Files tab was not the one
+    /// showing), and a right sidebar on another tab stays on it. When the
+    /// tree leaves the right sidebar, a right sidebar that was showing only
     /// the Files tab closes, since the tab it showed no longer exists there.
-    /// Called from the window when `sidebar.filesPanelPlacement` changes.
+    ///
+    /// The right sidebar's stored mode is re-landed on a tab the bar still
+    /// shows (`refreshModeAvailability`) last, and only here: the decisions
+    /// above read `mode` as it was under `previous`, and a refresh that ran
+    /// first (the mode bar's own `onChange` used to) turned a showing Files
+    /// tab into Find before this could see it. Called from the window when
+    /// `sidebar.filesPanelPlacement` changes, after the store holds `next`.
     func applyPlacementChange(
         from previous: FilesPanelPlacement,
         to next: FilesPanelPlacement,
@@ -205,8 +218,10 @@ final class FileExplorerState: ObservableObject {
         if previous == .rightSidebar, next.isDetachedFromRightSidebar, mode == .files {
             setVisible(false)
         }
-        guard wasShown else { return }
-        showFiles(placement: next, defaults: defaults)
+        if wasShown {
+            showFiles(placement: next, defaults: defaults)
+        }
+        refreshModeAvailability(defaults: defaults)
     }
 
     /// Hides the file tree wherever it lives: closes the leading panel or the
