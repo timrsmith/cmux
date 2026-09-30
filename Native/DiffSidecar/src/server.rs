@@ -593,6 +593,30 @@ async fn handle_protocol_request(
             )
             .await
         }
+        DiffCommand::WorktreeStageFiles(params) => {
+            worktree_response(
+                request.id,
+                worktree::stage_files(state, &params),
+                SESSION_OPEN_TIMEOUT,
+            )
+            .await
+        }
+        DiffCommand::WorktreeUnstageFiles(params) => {
+            worktree_response(
+                request.id,
+                worktree::unstage_files(state, &params),
+                SESSION_OPEN_TIMEOUT,
+            )
+            .await
+        }
+        DiffCommand::WorktreeDiscardFiles(params) => {
+            worktree_response(
+                request.id,
+                worktree::discard_files(state, &params),
+                SESSION_OPEN_TIMEOUT,
+            )
+            .await
+        }
         DiffCommand::WorktreeRevertHunk(params) => {
             worktree_response(
                 request.id,
@@ -2181,6 +2205,26 @@ mod tests {
                     r#"{{"id":"a","version":1,"method":"{method}","params":{session_params}}}"#
                 )),
                 "{method}"
+            );
+        }
+        // A selection action is a write with the paths it names.
+        for method in [
+            "worktreeStageFiles",
+            "worktreeUnstageFiles",
+            "worktreeDiscardFiles",
+        ] {
+            let request: DiffRequest = serde_json::from_str(&format!(
+                r#"{{"id":"a","version":1,"method":"{method}","params":{{"sessionId":"s","capabilityToken":"t","source":{{"kind":"unstaged","repoRoot":"/r"}},"paths":["a.txt","src/b.txt"]}}}}"#
+            ))
+            .expect("decode");
+            assert!(request.command.is_worktree_write(), "{method}");
+            // Without `paths` the request does not decode at all.
+            assert!(
+                serde_json::from_str::<DiffRequest>(&format!(
+                    r#"{{"id":"a","version":1,"method":"{method}","params":{session_params}}}"#
+                ))
+                .is_err(),
+                "{method} without paths"
             );
         }
         assert!(write(&format!(

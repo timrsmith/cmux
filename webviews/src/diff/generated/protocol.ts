@@ -26,7 +26,7 @@ export type DiffProtocolError = { code: string, message: string,
  */
 stateMayHaveChanged?: boolean, };
 
-export type DiffRequest = { id: string, version: number, } & ({ "method": "protocolHandshake" } | { "method": "sessionOpen", "params": OpenSessionRequest } | { "method": "sessionClose", "params": SessionRequest } | { "method": "branchList", "params": BranchListRequest } | { "method": "branchChange", "params": BranchChangeRequest } | { "method": "worktreeRevertFile", "params": WorktreeFileRequest } | { "method": "worktreeStageFile", "params": WorktreeFileRequest } | { "method": "worktreeUnstageFile", "params": WorktreeFileRequest } | { "method": "worktreeRevertHunk", "params": WorktreeHunkRequest } | { "method": "worktreeCommit", "params": WorktreeCommitRequest } | { "method": "worktreeDiscardAll", "params": WorktreeSessionRequest } | { "method": "worktreeStageAll", "params": WorktreeSessionRequest } | { "method": "worktreeUnstageAll", "params": WorktreeSessionRequest } | { "method": "worktreePush", "params": WorktreePushRequest } | { "method": "worktreeRepositoryStatus", "params": WorktreeSessionRequest } | { "method": "worktreeCreatePullRequest", "params": WorktreeCreatePullRequestRequest });
+export type DiffRequest = { id: string, version: number, } & ({ "method": "protocolHandshake" } | { "method": "sessionOpen", "params": OpenSessionRequest } | { "method": "sessionClose", "params": SessionRequest } | { "method": "branchList", "params": BranchListRequest } | { "method": "branchChange", "params": BranchChangeRequest } | { "method": "worktreeRevertFile", "params": WorktreeFileRequest } | { "method": "worktreeStageFile", "params": WorktreeFileRequest } | { "method": "worktreeUnstageFile", "params": WorktreeFileRequest } | { "method": "worktreeStageFiles", "params": WorktreeFilesRequest } | { "method": "worktreeUnstageFiles", "params": WorktreeFilesRequest } | { "method": "worktreeDiscardFiles", "params": WorktreeFilesRequest } | { "method": "worktreeRevertHunk", "params": WorktreeHunkRequest } | { "method": "worktreeCommit", "params": WorktreeCommitRequest } | { "method": "worktreeDiscardAll", "params": WorktreeSessionRequest } | { "method": "worktreeStageAll", "params": WorktreeSessionRequest } | { "method": "worktreeUnstageAll", "params": WorktreeSessionRequest } | { "method": "worktreePush", "params": WorktreePushRequest } | { "method": "worktreeRepositoryStatus", "params": WorktreeSessionRequest } | { "method": "worktreeCreatePullRequest", "params": WorktreeCreatePullRequestRequest });
 
 export type DiffResourceRef = { id: string, mediaType: string, byteLength: number | null, revision: number, };
 
@@ -91,6 +91,15 @@ export type WorktreeCreatePullRequestRequest = { sessionId: string, capabilityTo
  * `previous_path`) are repository-relative and validated by the sidecar.
  */
 export type WorktreeFileRequest = { sessionId: string, capabilityToken: string, source: DiffSource, path: string, previousPath?: string, };
+
+/**
+ * Targets several files of an open `unstaged` or `staged` session for one
+ * Git invocation (stage, unstage, or discard a selection). `paths` are
+ * repository-relative and validated by the sidecar; a rename contributes
+ * both of its names, exactly as the single-file request carries
+ * `previous_path`. An empty list is refused.
+ */
+export type WorktreeFilesRequest = { sessionId: string, capabilityToken: string, source: DiffSource, paths: Array<string>, };
 
 /**
  * Targets one hunk of one file. `previous_path` names the rename origin of a

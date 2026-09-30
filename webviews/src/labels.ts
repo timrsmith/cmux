@@ -32,6 +32,7 @@ const DEFAULT_DIFF_VIEWER_LABELS = {
   checksPassed: "{passed}/{total} checks passed",
   checksPending: "{count} pending",
   classic: "Classic",
+  clearSelection: "Clear selection",
   collapseAllDiffs: "Collapse all diffs",
   collapseFile: "Collapse file",
   collapseUnchangedContext: "Collapse unchanged context",
@@ -44,6 +45,7 @@ const DEFAULT_DIFF_VIEWER_LABELS = {
   commitSubmit: "Commit",
   committed: "Committed {commit}",
   confirmDiscardAll: "Discard all",
+  confirmDiscardSelected: "Discard selected",
   confirmRevert: "Discard",
   copiedPath: "Copied path",
   copyPath: "Copy path",
@@ -58,6 +60,11 @@ const DEFAULT_DIFF_VIEWER_LABELS = {
   detachedHeadShort: "detached",
   discardAll: "Discard all changes…",
   discardAllPrompt: "Discard every change in this view? This cannot be undone.",
+  discardAllShort: "Discard all…",
+  discardSelected: "Discard {count} files…",
+  discardSelectedOne: "Discard 1 file…",
+  discardSelectedPrompt:
+    "Discard every change to the selected files? This cannot be undone.",
   forgeCliMissing:
     "Install the GitHub CLI (gh) or GitLab CLI (glab) to use this action.",
   forgeNotAuthenticated:
@@ -98,11 +105,17 @@ const DEFAULT_DIFF_VIEWER_LABELS = {
   revertFile: "Discard changes",
   revertHunk: "Discard hunk",
   revertPrompt: "Discard these changes?",
+  selectAllFiles: "Select all files",
+  selectFile: "Select {name}",
   stageAll: "Stage all",
   stageAllAndCommit: "Stage all and commit",
   stageFile: "Stage file",
+  stageSelected: "Stage {count} files",
+  stageSelectedOne: "Stage 1 file",
   unstageAll: "Unstage all",
   unstageFile: "Unstage file",
+  unstageSelected: "Unstage {count} files",
+  unstageSelectedOne: "Unstage 1 file",
   worktreeConflict:
     "The change could not be applied cleanly. The diff was reloaded.",
   worktreeNotAllowed: "Working-tree changes are not available for this diff.",
@@ -189,6 +202,28 @@ export function createDiffViewerLabelResolver(
 
     return DEFAULT_DIFF_VIEWER_LABELS[key];
   };
+}
+
+/**
+ * The label keys that come as a `{count}` template plus a `...One` singular
+ * (`stageSelected` / `stageSelectedOne`). The catalog's count strings carry
+ * no plural variations (a `{count}` placeholder is not a printf argument), so
+ * the singular is its own key and this picks between the two.
+ */
+export type CountLabelKey = {
+  [K in DiffViewerLabelKey]: `${K}One` extends DiffViewerLabelKey ? K : never;
+}[DiffViewerLabelKey];
+
+/** `label("<key>One")` for exactly one, otherwise `label(key)` with `{count}` filled in. */
+export function formatCountLabel(
+  label: DiffViewerLabelResolver,
+  key: CountLabelKey,
+  count: number,
+): string {
+  if (count === 1) {
+    return label(`${key}One` as DiffViewerLabelKey);
+  }
+  return formatLabel(label(key), { count });
 }
 
 /** Substitutes `{name}` placeholders in a resolved label. */

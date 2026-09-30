@@ -21,8 +21,8 @@ use crate::manifest::valid_token;
 use crate::protocol::{
     CommitResult, DiffResult, DiffSource, DiffSourceKind, ForgeCliKind, ForgeCliStatus, HunkRef,
     PullRequestCreated, PushResult, RepositoryHostKind, RepositoryStatus, WorktreeCommitRequest,
-    WorktreeCreatePullRequestRequest, WorktreeFileRequest, WorktreeHunkRequest, WorktreeMutated,
-    WorktreePushRequest, WorktreeSessionRequest,
+    WorktreeCreatePullRequestRequest, WorktreeFileRequest, WorktreeFilesRequest,
+    WorktreeHunkRequest, WorktreeMutated, WorktreePushRequest, WorktreeSessionRequest,
 };
 use crate::server::{
     AppState, authorize_canonical_repo_for_token, manifest_files, read_session_owner,
@@ -34,6 +34,14 @@ pub(crate) const MAX_PULL_REQUEST_TITLE_BYTES: usize = 256;
 pub(crate) const MAX_PULL_REQUEST_BODY_BYTES: usize = 64 * 1024;
 const MAX_REF_NAME_BYTES: usize = 256;
 const MAX_REPO_RELATIVE_PATH_BYTES: usize = 4096;
+// Paths one selection action may name. A request is already bounded to one
+// MiB; this keeps the listings and the pathspec stream a page can ask for
+// proportional to something a person selected rather than to that limit.
+pub(crate) const MAX_BATCH_PATHS: usize = 10_000;
+// Read-only listings take their pathspecs on the command line, so a batch is
+// walked in chunks that stay well under the argument-length limit even when
+// every path is at its maximum length.
+const MAX_LISTING_PATHSPEC_BYTES: usize = 128 * 1024;
 // One file's unified diff is re-read to select a hunk; anything larger is
 // not something a per-hunk action should be reverting.
 const MAX_HUNK_DIFF_BYTES: usize = 32 * 1024 * 1024;
@@ -228,6 +236,7 @@ pub(crate) async fn unstage_file(
     file_op(state, request, FileOp::Unstage).await
 }
 
+/// One file: the single-file request is the batch of that file's path(s).
 async fn file_op(
     state: &AppState,
     request: &WorktreeFileRequest,
@@ -242,26 +251,75 @@ async fn file_op(
     )
     .await?;
     let paths = file_paths(request)?;
+    apply_file_op(&target, &paths, op).await?;
+    Ok(mutated(&request.source))
+}
+
+pub(crate) async fn stage_files(
+    state: &AppState,
+    request: &WorktreeFilesRequest,
+) -> Result<DiffResult, WriteFailure> {
+    files_op(state, request, FileOp::Stage).await
+}
+
+pub(crate) async fn unstage_files(
+    state: &AppState,
+    request: &WorktreeFilesRequest,
+) -> Result<DiffResult, WriteFailure> {
+    files_op(state, request, FileOp::Unstage).await
+}
+
+pub(crate) async fn discard_files(
+    state: &AppState,
+    request: &WorktreeFilesRequest,
+) -> Result<DiffResult, WriteFailure> {
+    files_op(state, request, FileOp::Revert).await
+}
+
+/// A selection of files, acted on with one Git invocation per step (the same
+/// steps the single-file action takes). Every path is validated before
+/// anything runs, so a refused path leaves the repository untouched.
+async fn files_op(
+    state: &AppState,
+    request: &WorktreeFilesRequest,
+    op: FileOp,
+) -> Result<DiffResult, WriteFailure> {
+    let _permit = permit(state)?;
+    let target = authorize(
+        state,
+        &request.session_id,
+        &request.capability_token,
+        &request.source,
+    )
+    .await?;
+    let paths = batch_paths(&request.paths)?;
+    apply_file_op(&target, &paths, op).await?;
+    Ok(mutated(&request.source))
+}
+
+/// The shared core of the per-file and per-selection actions. Every path
+/// must already be known to Git (see each arm); a `git diff` session lists
+/// tracked files only, so an unknown path can only come from the page and is
+/// refused before any Git child runs.
+async fn apply_file_op(target: &Target, paths: &[String], op: FileOp) -> Result<(), WriteFailure> {
     match op {
         FileOp::Stage => {
-            // A `git diff` session lists index-tracked files only, so a path
-            // outside the index can only come from the page; staging it
-            // would add an arbitrary untracked file.
-            let in_index = index_paths(&target.repo, &paths).await?;
-            require_all(&paths, &in_index)?;
-            run_over_paths(&target.repo, &["add"], &paths).await?;
+            // A path outside the index can only come from the page; staging
+            // it would add an arbitrary untracked file.
+            let in_index = index_paths(&target.repo, paths).await?;
+            require_all(paths, &in_index)?;
+            run_over_paths(&target.repo, &["add"], paths).await
         }
         FileOp::Unstage => {
             // A staged deletion has no index entry but is in HEAD, which is
             // where `restore --staged` takes it from.
-            let mut known = index_paths(&target.repo, &paths).await?;
-            known.extend(head_paths(&target.repo, &paths).await?);
-            require_all(&paths, &known)?;
-            run_over_paths(&target.repo, &["restore", "--staged"], &paths).await?;
+            let mut known = index_paths(&target.repo, paths).await?;
+            known.extend(head_paths(&target.repo, paths).await?);
+            require_all(paths, &known)?;
+            run_over_paths(&target.repo, &["restore", "--staged"], paths).await
         }
-        FileOp::Revert => revert_paths(&target, &paths).await?,
+        FileOp::Revert => revert_paths(target, paths).await,
     }
-    Ok(mutated(&request.source))
 }
 
 pub(crate) async fn revert_hunk(
@@ -1420,6 +1478,25 @@ fn file_paths(request: &WorktreeFileRequest) -> Result<Vec<String>, WriteError> 
     Ok(paths)
 }
 
+/// The paths of a selection action: each validated like a single-file path,
+/// duplicates dropped (first occurrence kept), never empty, and bounded to
+/// [`MAX_BATCH_PATHS`]. A refused path refuses the whole batch, before any
+/// Git child runs.
+pub(crate) fn batch_paths(paths: &[String]) -> Result<Vec<String>, WriteError> {
+    if paths.is_empty() || paths.len() > MAX_BATCH_PATHS {
+        return Err(WriteError::InvalidPath);
+    }
+    let mut seen = HashSet::with_capacity(paths.len());
+    let mut validated = Vec::with_capacity(paths.len());
+    for path in paths {
+        let path = validate_repo_relative_path(path)?;
+        if seen.insert(path) {
+            validated.push(path.to_owned());
+        }
+    }
+    Ok(validated)
+}
+
 /// Accepts only a normalized repository-relative path: no leading slash, no
 /// empty, `.` or `..` components, no NUL bytes, and a bounded length. Every
 /// Git invocation still passes paths after `--` as literal pathspecs.
@@ -1523,28 +1600,58 @@ async fn head_paths(repo: &Path, paths: &[String]) -> Result<HashSet<String>, Wr
 }
 
 /// The names a NUL-delimited listing (`ls-files -z`, `ls-tree -r -z`, `diff
-/// --name-only -z`) prints for `paths` (see [`listing`]). A path that names
-/// a directory lists its children, none of which equal the path itself, so
-/// it is never classified as tracked.
+/// --name-only -z`) prints for `paths` (see [`listing`]), or for the whole
+/// session when `paths` is empty. A path that names a directory lists its
+/// children, none of which equal the path itself, so it is never classified
+/// as tracked. A selection's paths are listed in chunks (see
+/// [`pathspec_chunks`]); each chunk's output is bounded by `limit`.
 async fn listed_paths(
     repo: &Path,
     arguments: &[&str],
     paths: &[String],
     limit: usize,
 ) -> Result<HashSet<String>, WriteError> {
-    Ok(listing(repo, arguments, paths, limit)
-        .await?
-        .split(|byte| *byte == 0)
-        .filter(|name| !name.is_empty())
-        .filter_map(|name| std::str::from_utf8(name).ok())
-        .map(str::to_owned)
-        .collect())
+    let mut listed = HashSet::new();
+    for chunk in pathspec_chunks(paths) {
+        listed.extend(
+            listing(repo, arguments, chunk, limit)
+                .await?
+                .split(|byte| *byte == 0)
+                .filter(|name| !name.is_empty())
+                .filter_map(|name| std::str::from_utf8(name).ok())
+                .map(str::to_owned),
+        );
+    }
+    Ok(listed)
+}
+
+/// Splits `paths` into command-line sized chunks: each holds at most
+/// [`MAX_LISTING_PATHSPEC_BYTES`] of path text (one path at least, so a
+/// maximum-length path still fits). An empty list yields one empty chunk,
+/// which [`listing`] reads as "the whole session".
+fn pathspec_chunks(paths: &[String]) -> Vec<&[String]> {
+    if paths.is_empty() {
+        return vec![paths];
+    }
+    let mut chunks = Vec::new();
+    let mut start = 0;
+    let mut bytes = 0;
+    for (index, path) in paths.iter().enumerate() {
+        if index > start && bytes + path.len() > MAX_LISTING_PATHSPEC_BYTES {
+            chunks.push(&paths[start..index]);
+            start = index;
+            bytes = 0;
+        }
+        bytes += path.len();
+    }
+    chunks.push(&paths[start..]);
+    chunks
 }
 
 /// A read-only listing over `paths` as literal pathspecs (the listing
-/// commands take no `--pathspec-from-file`; a per-file action names at most
-/// two), or over the whole session when `paths` is empty, with at most
-/// `limit` bytes of output.
+/// commands take no `--pathspec-from-file`; callers chunk a long list), or
+/// over the whole session when `paths` is empty, with at most `limit` bytes
+/// of output.
 async fn listing(
     repo: &Path,
     arguments: &[&str],
@@ -1768,13 +1875,68 @@ async fn git_status(
 #[cfg(test)]
 mod tests {
     use super::{
-        BranchConfig, ForgeCliKind, HunkRef, NameStatusEntry, WriteError, WriteFailure,
-        commit_rejection, header_names_path, mentions_authentication, parse_branch_config,
-        parse_hunk_header, parse_name_status_z, partition_staged_entries,
+        BranchConfig, ForgeCliKind, HunkRef, MAX_BATCH_PATHS, MAX_LISTING_PATHSPEC_BYTES,
+        NameStatusEntry, WriteError, WriteFailure, batch_paths, commit_rejection,
+        header_names_path, mentions_authentication, parse_branch_config, parse_hunk_header,
+        parse_name_status_z, partition_staged_entries, pathspec_chunks,
         pull_request_create_command, pull_request_create_failure, push_rejection, regex_literal,
         select_hunk_patch, unquote_c_style, validate_pull_request_body,
         validate_pull_request_title, validate_ref_name, validate_repo_relative_path,
     };
+
+    #[test]
+    fn batch_paths_validate_every_path_dedupe_and_refuse_an_empty_list() {
+        let owned = |paths: &[&str]| -> Vec<String> {
+            paths.iter().map(|path| (*path).to_owned()).collect()
+        };
+        assert_eq!(
+            batch_paths(&owned(&["src/a.txt", "b.txt", "src/a.txt", "-dash.txt"])),
+            Ok(owned(&["src/a.txt", "b.txt", "-dash.txt"]))
+        );
+        assert_eq!(batch_paths(&[]), Err(WriteError::InvalidPath));
+        // One bad path refuses the batch, however many good ones surround it.
+        for rejected in ["", "/etc/passwd", "../outside", "src/", "nul\0byte"] {
+            assert_eq!(
+                batch_paths(&owned(&["src/a.txt", rejected, "b.txt"])),
+                Err(WriteError::InvalidPath),
+                "{rejected:?}"
+            );
+        }
+        let too_many: Vec<String> = (0..=MAX_BATCH_PATHS).map(|i| format!("f{i}.txt")).collect();
+        assert_eq!(batch_paths(&too_many), Err(WriteError::InvalidPath));
+        assert_eq!(
+            batch_paths(&too_many[..MAX_BATCH_PATHS]).map(|paths| paths.len()),
+            Ok(MAX_BATCH_PATHS)
+        );
+    }
+
+    #[test]
+    fn pathspec_chunks_stay_under_the_byte_budget_and_keep_order() {
+        let empty: Vec<String> = Vec::new();
+        assert_eq!(pathspec_chunks(&empty), vec![&empty[..]]);
+        let long = "x".repeat(MAX_LISTING_PATHSPEC_BYTES / 2 + 1);
+        let paths = vec![long.clone(), long.clone(), "short.txt".to_owned(), long];
+        let chunks = pathspec_chunks(&paths);
+        // Two halves never share a chunk; the short path rides with the third.
+        assert_eq!(
+            chunks.len(),
+            3,
+            "{:?}",
+            chunks.iter().map(|c| c.len()).collect::<Vec<_>>()
+        );
+        assert_eq!(chunks[0].len(), 1);
+        assert_eq!(chunks[1].len(), 2);
+        assert_eq!(chunks[1][1], "short.txt");
+        assert_eq!(chunks[2].len(), 1);
+        let rejoined: Vec<&String> = chunks.iter().flat_map(|chunk| chunk.iter()).collect();
+        assert_eq!(rejoined, paths.iter().collect::<Vec<_>>());
+        for chunk in &chunks {
+            assert!(
+                chunk.len() == 1
+                    || chunk.iter().map(String::len).sum::<usize>() <= MAX_LISTING_PATHSPEC_BYTES
+            );
+        }
+    }
 
     #[test]
     fn write_failures_flag_a_diff_that_changed_under_the_page() {

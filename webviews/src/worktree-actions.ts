@@ -15,6 +15,7 @@ import type {
   WorktreeCommitRequest,
   WorktreeCreatePullRequestRequest,
   WorktreeFileRequest,
+  WorktreeFilesRequest,
   WorktreeHunkRequest,
   WorktreePushRequest,
   WorktreeSessionRequest,
@@ -46,8 +47,15 @@ export type WritableDiffSource = Extract<
 
 export type FileWriteAction = "stageFile" | "unstageFile" | "revertFile";
 
-/** Whole-session write actions offered from the header's overflow menu. */
+/** Whole-session write actions, shown in the repository header while nothing is selected. */
 export type BulkWriteAction = "discardAll" | "stageAll" | "unstageAll";
+
+/**
+ * Selection-scoped write actions: the header offers them in place of the
+ * whole-session ones while files are selected. Each is one sidecar call
+ * carrying every selected path.
+ */
+export type SelectionWriteAction = "discardFiles" | "stageFiles" | "unstageFiles";
 
 /**
  * `enabled`: the view is the index, a commit records it as is. `stageAll`:
@@ -121,6 +129,15 @@ const BULK_ACTION_METHOD: Record<
   unstageAll: "worktreeUnstageAll",
 };
 
+const SELECTION_ACTION_METHOD: Record<
+  SelectionWriteAction,
+  "worktreeDiscardFiles" | "worktreeStageFiles" | "worktreeUnstageFiles"
+> = {
+  discardFiles: "worktreeDiscardFiles",
+  stageFiles: "worktreeStageFiles",
+  unstageFiles: "worktreeUnstageFiles",
+};
+
 export function writableDiffSource(
   source: DiffSource | null | undefined,
 ): WritableDiffSource | null {
@@ -173,6 +190,33 @@ export function bulkStageActionForSource(
       return "unstageAll";
     default:
       return null;
+  }
+}
+
+/**
+ * The header's whole-session actions per source kind, in render order: the
+ * stage / unstage counterpart of the per-file button, then discard (which
+ * confirms first). Both working-tree views can discard; a staged discard
+ * restores HEAD's copy the way the per-file Discard does.
+ */
+export function bulkActionsForSource(
+  source: DiffSource | null | undefined,
+): BulkWriteAction[] {
+  const stage = bulkStageActionForSource(source);
+  return stage == null ? [] : [stage, "discardAll"];
+}
+
+/** The selection-scoped counterparts of {@link bulkActionsForSource}, same order. */
+export function selectionActionsForSource(
+  source: DiffSource | null | undefined,
+): SelectionWriteAction[] {
+  switch (writableDiffSource(source)?.kind) {
+    case "unstaged":
+      return ["stageFiles", "discardFiles"];
+    case "staged":
+      return ["unstageFiles", "discardFiles"];
+    default:
+      return [];
   }
 }
 
@@ -328,6 +372,63 @@ export function buildFileRequest(
     params.previousPath = target.previousPath;
   }
   return { method: FILE_ACTION_METHOD[action], params };
+}
+
+/**
+ * The file targets of the selected items, in item (diff) order. Items whose
+ * diff carries no usable name have no target and are skipped, as the
+ * per-file buttons skip them.
+ */
+export function selectedFileTargets(
+  items: ReadonlyArray<{ id: string; fileDiff?: WorktreeFileDiff | null }>,
+  selectedItemIds: ReadonlySet<string>,
+): WorktreeFileTarget[] {
+  const targets: WorktreeFileTarget[] = [];
+  for (const item of items) {
+    if (!selectedItemIds.has(item.id)) {
+      continue;
+    }
+    const target = worktreeFileTarget(item.fileDiff);
+    if (target != null) {
+      targets.push(target);
+    }
+  }
+  return targets;
+}
+
+/**
+ * The paths a selection request names: each target's path, then its rename
+ * origin when it has one (the single-file request's `previousPath`), without
+ * duplicates. The sidecar validates each and refuses the batch on any bad one.
+ */
+export function selectionPaths(targets: readonly WorktreeFileTarget[]): string[] {
+  const paths: string[] = [];
+  const seen = new Set<string>();
+  for (const target of targets) {
+    for (const path of [target.path, target.previousPath]) {
+      if (path != null && !seen.has(path)) {
+        seen.add(path);
+        paths.push(path);
+      }
+    }
+  }
+  return paths;
+}
+
+/** One request for the whole selection; `targets` must not be empty. */
+export function buildFilesRequest(
+  action: SelectionWriteAction,
+  session: WorktreeSession,
+  source: WritableDiffSource,
+  targets: readonly WorktreeFileTarget[],
+): DiffCommand {
+  const params: WorktreeFilesRequest = {
+    sessionId: session.sessionId,
+    capabilityToken: session.capabilityToken,
+    source,
+    paths: selectionPaths(targets),
+  };
+  return { method: SELECTION_ACTION_METHOD[action], params };
 }
 
 /**

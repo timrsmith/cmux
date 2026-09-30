@@ -2,6 +2,7 @@ import { CodeView, WorkerPoolContextProvider, type CodeViewHandle, useWorkerPool
 import { getFiletypeFromFileName, parsePatchFiles, preloadHighlighter, processFile, registerCustomTheme } from "@pierre/diffs";
 import type { SelectedLineRange } from "@pierre/diffs";
 import { FileTree, useFileTree } from "@pierre/trees/react";
+import type { FileTree as FileTreeModel } from "@pierre/trees";
 import { preparePresortedFileTreeInput } from "@pierre/trees";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import "../../Resources/markdown-viewer/viewer-navigation.js";
@@ -37,6 +38,13 @@ import { resolveDiffFileLanguage, resolveDiffPreloadLanguages } from "./diff-lan
 import { fileName, type DiffItem, type FileTreeSource, type StreamMetrics, streamPatch } from "./diff-stream";
 import { DiffHeaderMetadata } from "./diff-metadata";
 import { applyPierreFileTreeGitStatus, planPierreFileTreeRefresh, selectPierreFileTreePath } from "./file-tree-refresh";
+import {
+  FILE_TREE_SELECTION_SPRITE,
+  focusedFileRowPath,
+  isPlainSpace,
+  selectionDecoration,
+  selectionRowPathFromComposedPath,
+} from "./file-tree-selection";
 import { Icon } from "./icons";
 import { createDiffViewerLabelResolver, shouldAssertMissingLabels } from "./labels";
 import {
@@ -46,6 +54,17 @@ import {
   workerHighlighterOptions,
   type DiffViewerOptions,
 } from "./pierre-options";
+import {
+  EMPTY_SELECTION,
+  pathsInRange,
+  pruneSelection,
+  selectAllState,
+  selectAllToggleSelects,
+  setPathsSelected,
+  toggleSelectedPath,
+  visibleFilePaths,
+  type FileSelection,
+} from "./selection";
 import { applyDiffViewerStatusToDocument, createDiffViewerStatus } from "./status";
 import { resolveToolbarOverflow } from "./toolbar-overflow";
 import { useToolbarWidth } from "./useToolbarWidth";
@@ -70,6 +89,7 @@ import {
   buildCommitRequest,
   buildCreatePullRequestRequest,
   buildFileRequest,
+  buildFilesRequest,
   buildHunkRequest,
   buildOpenFileRequest,
   buildPushRequest,
@@ -78,6 +98,7 @@ import {
   fileActionsForSource,
   payloadRepoLabel,
   repositoryHeaderModel,
+  selectedFileTargets,
   worktreeErrorDetail,
   worktreeErrorLabelKey,
   worktreeErrorReloads,
@@ -87,10 +108,12 @@ import {
   type BulkWriteAction,
   type FileWriteAction,
   type PullRequestDraft,
+  type SelectionWriteAction,
   type WritableDiffSource,
 } from "./worktree-actions";
 import {
   FileCollapseToggle,
+  FileSelectCheckbox,
   FileWriteActions,
   HunkWriteActions,
   useDismissOnOutsideInteraction,
@@ -138,15 +161,26 @@ type AppState = {
   metrics: StreamMetrics | null;
   options: DiffViewerOptions;
   optionsOpen: boolean;
+  /**
+   * The checked files of the current working-tree view, keyed by tree
+   * path (the file list's and the cards' shared key). Cleared when the
+   * view changes; kept across a write reload and pruned to the paths
+   * that stream back once it completes.
+   */
+  selectedPaths: FileSelection;
+  /** The last path checked or unchecked one at a time: the start of a shift-click range. */
+  selectionAnchor: string | null;
   status: DiffViewerStatus;
   treeSource: FileTreeSource | null;
 };
 
 type AppAction =
   | { type: "append-items"; items: DiffItem[] }
-  | { type: "reset-diff"; status: DiffViewerStatus }
+  | { type: "clear-selection" }
+  | { type: "reset-diff"; status: DiffViewerStatus; keepSelection?: boolean }
   | { type: "remove-comment"; id: string }
   | { type: "rename-item"; oldId: string; newId: string }
+  | { type: "select-paths"; paths: string[]; selected: boolean; anchor?: string }
   | { type: "set-active-item"; itemId: string; treePath?: string }
   | { type: "replace-comments"; comments: DiffCommentRecord[] }
   | { type: "set-copy-feedback"; message: string }
@@ -164,6 +198,7 @@ type AppAction =
   | { type: "set-status"; status: DiffViewerStatus }
   | { type: "set-tree-source"; source: FileTreeSource }
   | { type: "toggle-item-collapsed"; itemId: string }
+  | { type: "toggle-selected-path"; path: string }
   | { type: "upsert-comment"; comment: DiffCommentRecord };
 
 const fileSkeletonWidths = ["82%", "64%", "76%", "58%", "70%", "46%"];
@@ -201,6 +236,8 @@ function initialAppState(config: DiffViewerConfig, initialStatus: DiffViewerStat
       wordWrap: false,
     } as DiffViewerOptions,
     optionsOpen: false,
+    selectedPaths: EMPTY_SELECTION,
+    selectionAnchor: null,
     status: initialStatus,
     treeSource: null,
   };
@@ -226,7 +263,13 @@ function reducer(state: AppState, action: AppAction): AppState {
       status: state.status.loading ? createDiffViewerStatus("", { loading: false }) : state.status,
     };
   }
+  case "clear-selection":
+    return state.selectedPaths.size === 0
+      ? state
+      : { ...state, selectedPaths: EMPTY_SELECTION, selectionAnchor: null };
   case "reset-diff":
+    // A write reload keeps the selection (the paths acted on leave it
+    // when the stream completes); any other reset is a different view.
     return {
       ...state,
       activeItemId: "",
@@ -235,6 +278,8 @@ function reducer(state: AppState, action: AppAction): AppState {
       items: [],
       languages: ["text"],
       metrics: null,
+      selectedPaths: action.keepSelection ? state.selectedPaths : EMPTY_SELECTION,
+      selectionAnchor: action.keepSelection ? state.selectionAnchor : null,
       status: action.status,
       treeSource: null,
     };
@@ -259,6 +304,14 @@ function reducer(state: AppState, action: AppAction): AppState {
           : item
       )),
     };
+  case "select-paths": {
+    const selectedPaths = setPathsSelected(state.selectedPaths, action.paths, action.selected);
+    const selectionAnchor = action.anchor ?? state.selectionAnchor;
+    if (selectedPaths === state.selectedPaths && selectionAnchor === state.selectionAnchor) {
+      return state;
+    }
+    return { ...state, selectedPaths, selectionAnchor };
+  }
   case "set-active-item":
     return {
       ...state,
@@ -296,7 +349,11 @@ function reducer(state: AppState, action: AppAction): AppState {
   case "set-files-visible":
     return { ...state, filesVisible: action.visible };
   case "set-metrics":
-    return { ...state, metrics: action.metrics };
+    return {
+      ...state,
+      metrics: action.metrics,
+      selectedPaths: pruneSelectionToStream(state.selectedPaths, state.treeSource, action.metrics),
+    };
   case "set-option":
     if (action.key === "collapsed") {
       // Collapse all / expand all is the new baseline: per-file choices made
@@ -323,6 +380,7 @@ function reducer(state: AppState, action: AppAction): AppState {
     return {
       ...state,
       activeTreePath: nextPath,
+      selectedPaths: pruneSelectionToStream(state.selectedPaths, source, state.metrics),
       treeSource: source,
     };
   }
@@ -344,6 +402,12 @@ function reducer(state: AppState, action: AppAction): AppState {
       )),
     };
   }
+  case "toggle-selected-path":
+    return {
+      ...state,
+      selectedPaths: toggleSelectedPath(state.selectedPaths, action.path),
+      selectionAnchor: action.path,
+    };
   case "upsert-comment": {
     const exists = state.comments.some((comment) => comment.id === action.comment.id);
     const comments = exists
@@ -356,6 +420,28 @@ function reducer(state: AppState, action: AppAction): AppState {
     };
   }
   }
+}
+
+/**
+ * Once a stream has completed (`completedAt` set), the selection keeps only
+ * the paths the completed tree lists: a file staged or discarded by a batch
+ * action has left the view. Mid-stream the set is left alone, because the
+ * paths still to come would otherwise be dropped. Returns the same set
+ * when nothing changes.
+ */
+function pruneSelectionToStream(
+  selection: FileSelection,
+  treeSource: FileTreeSource | null,
+  metrics: StreamMetrics | null,
+): FileSelection {
+  if (selection.size === 0 || treeSource == null || !streamCompleted(metrics)) {
+    return selection;
+  }
+  return pruneSelection(selection, (path) => treeSource.pathToItemId.has(path));
+}
+
+function streamCompleted(metrics: StreamMetrics | null): boolean {
+  return metrics != null && Number.isFinite(metrics.completedAt) && metrics.completedAt > 0;
 }
 
 /** The key a card's fold override is stored under: its file path. */
@@ -603,7 +689,7 @@ export function App({ config, initialStatus }: ConfigProps) {
     }
     const status = createDiffViewerStatus(label("loadingDiff"), { pending: true });
     applyDiffViewerStatusToDocument(status);
-    dispatch({ type: "reset-diff", status });
+    dispatch({ type: "reset-diff", status, keepSelection: restoreScroll });
     setActivePatchURL(undefined);
     void closeActiveSession();
     setResolvedSessionSource(selectedSource);
@@ -736,6 +822,36 @@ export function App({ config, initialStatus }: ConfigProps) {
     }
     void runWorktreeWrite(buildBulkRequest(action, session, writeSource), writeSource);
   };
+  // The checked files, as item ids: only paths the stream has produced so
+  // far count (the stored set is pruned once a reload completes). The
+  // header's count, the cards' checkboxes, and the selection actions all
+  // read this one set.
+  const pathToItemId = state.treeSource?.pathToItemId;
+  const selectedItemIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!pathToItemId) {
+      return ids;
+    }
+    for (const path of state.selectedPaths) {
+      const itemId = pathToItemId.get(path);
+      if (itemId) {
+        ids.add(itemId);
+      }
+    }
+    return ids;
+  }, [pathToItemId, state.selectedPaths]);
+  // One sidecar call for the whole selection (`worktreeStageFiles`,
+  // `worktreeUnstageFiles`, `worktreeDiscardFiles`); the reload afterwards
+  // drops the acted-on paths from the selection as they leave the view.
+  const onSelectionAction = (action: SelectionWriteAction) => {
+    const targets = selectedFileTargets(state.items, selectedItemIds);
+    const session = writeSession();
+    if (!writeSource || !session || targets.length === 0) {
+      return;
+    }
+    void runWorktreeWrite(buildFilesRequest(action, session, writeSource, targets), writeSource);
+  };
+  const clearSelection = () => dispatch({ type: "clear-selection" });
   // A push from the header always creates a missing upstream: the button is
   // the user's answer to "push where?", and the status line shows the result.
   const onPush = () => {
@@ -974,6 +1090,7 @@ export function App({ config, initialStatus }: ConfigProps) {
           onRefresh={reloadPage}
           pending={pendingWrite}
           pullRequest={pullRequestControl}
+          selection={{ count: selectedItemIds.size, onAction: onSelectionAction, onClear: clearSelection }}
           files={{
             onToggle: () => dispatch({ type: "set-files-visible", visible: !state.filesVisible }),
             visible: state.filesVisible,
@@ -1019,6 +1136,7 @@ export function App({ config, initialStatus }: ConfigProps) {
           label={label}
           onSelectComment={selectCommentEntry}
           onSelectItem={scrollToItem}
+          selectable={header != null}
           selectedPath={selectedTreePath}
           dispatch={dispatch}
           state={state}
@@ -1046,11 +1164,23 @@ export function App({ config, initialStatus }: ConfigProps) {
                 onScroll={handleCodeViewScroll}
                 options={renderedCodeViewOptions}
                 renderHeaderPrefix={(item) => (
-                  <FileCollapseToggle
-                    collapsed={(item as DiffItem).collapsed === true}
-                    label={label}
-                    onToggle={() => dispatch({ type: "toggle-item-collapsed", itemId: item.id })}
-                  />
+                  <>
+                    {header != null ? (
+                      <FileSelectCheckbox
+                        checked={selectedItemIds.has(item.id)}
+                        label={formatLabel(label("selectFile"), { name: fileCollapseKey(item as DiffItem) })}
+                        onToggle={() => dispatch({
+                          type: "toggle-selected-path",
+                          path: state.treeSource?.treePathByItemId.get(item.id) ?? fileCollapseKey(item as DiffItem),
+                        })}
+                      />
+                    ) : null}
+                    <FileCollapseToggle
+                      collapsed={(item as DiffItem).collapsed === true}
+                      label={label}
+                      onToggle={() => dispatch({ type: "toggle-item-collapsed", itemId: item.id })}
+                    />
+                  </>
                 )}
                 renderHeaderMetadata={(item) => (
                   <>
@@ -1728,6 +1858,7 @@ function FilesSidebar({
   label,
   onSelectComment,
   onSelectItem,
+  selectable,
   selectedPath,
   state,
 }: {
@@ -1738,10 +1869,34 @@ function FilesSidebar({
   label: DiffViewerLabelResolver;
   onSelectComment: (entry: SidebarCommentEntry) => void;
   onSelectItem: (itemId: string) => void;
+  /** Working-tree views with write actions: rows get checkboxes and the header a select-all. */
+  selectable: boolean;
   selectedPath: string;
   state: AppState;
 }) {
   const dragStart = useRef<{ startWidth: number; startX: number } | null>(null);
+  // The tree model, for the search's matching paths (select all respects
+  // the file search filter) and the shift-click range order. While the
+  // search is open the header follows the tree's changes so the select-all
+  // state tracks the filtered set.
+  const [treeModel, setTreeModel] = useState<FileTreeModel | null>(null);
+  const [, setTreeVersion] = useState(0);
+  useEffect(() => {
+    if (!treeModel || !state.fileSearchOpen) {
+      return;
+    }
+    return treeModel.subscribe(() => setTreeVersion((version) => version + 1));
+  }, [state.fileSearchOpen, treeModel]);
+  const searchMatches = state.fileSearchOpen && treeModel?.isSearchOpen() ? treeModel.getSearchMatchingPaths() : null;
+  const visiblePaths = selectable && state.treeSource ? visibleFilePaths(state.treeSource.paths, searchMatches) : [];
+  const allState = selectAllState(state.selectedPaths, visiblePaths);
+  const toggleSelection = (path: string, range: boolean) => {
+    if (range && state.selectionAnchor != null) {
+      dispatch({ type: "select-paths", paths: pathsInRange(visiblePaths, state.selectionAnchor, path), selected: true, anchor: path });
+      return;
+    }
+    dispatch({ type: "toggle-selected-path", path });
+  };
   const resizeFiles = (clientX: number) => {
     const start = dragStart.current;
     if (!start) {
@@ -1783,6 +1938,23 @@ function FilesSidebar({
       />
       <div id="files-header">
         <span id="files-title">
+          {selectable ? (
+            <input
+              id="files-select-all"
+              type="checkbox"
+              className="file-select-checkbox"
+              aria-label={label("selectAllFiles")}
+              title={label("selectAllFiles")}
+              checked={allState === "all"}
+              disabled={visiblePaths.length === 0}
+              ref={(node) => {
+                if (node) {
+                  node.indeterminate = allState === "some";
+                }
+              }}
+              onChange={() => dispatch({ type: "select-paths", paths: visiblePaths, selected: selectAllToggleSelects(allState) })}
+            />
+          ) : null}
           <span>{label("files")}</span>
           <span id="files-count">{state.treeSource?.pathCount ?? 0}</span>
         </span>
@@ -1808,8 +1980,12 @@ function FilesSidebar({
             fileSearchOpen={state.fileSearchOpen}
             fileSearchRequest={state.fileSearchRequest}
             label={label}
+            onModel={setTreeModel}
             onSelectItem={onSelectItem}
+            onToggleSelection={toggleSelection}
+            selectable={selectable}
             selectedPath={selectedPath}
+            selectedPaths={state.selectedPaths}
             source={state.treeSource}
           />
         ) : state.status.loading || state.status.pending ? (
@@ -1832,18 +2008,27 @@ function PierreFileTree({
   fileSearchOpen,
   fileSearchRequest,
   label,
+  onModel,
   onSelectItem,
+  onToggleSelection,
+  selectable,
   selectedPath,
+  selectedPaths,
   source,
 }: {
   fileSearchOpen: boolean;
   fileSearchRequest: number;
   label: DiffViewerLabelResolver;
+  onModel: (model: FileTreeModel) => void;
   onSelectItem: (itemId: string) => void;
+  /** A row checkbox was clicked (shift held: `range`) or toggled with Space. */
+  onToggleSelection: (path: string, range: boolean) => void;
+  selectable: boolean;
   selectedPath: string;
+  selectedPaths: FileSelection;
   source: FileTreeSource;
 }) {
-  const latest = useSyncedRef({ label, onSelectItem, source });
+  const latest = useSyncedRef({ label, onSelectItem, onToggleSelection, selectable, selectedPaths, source });
   const [initialPreparedInput] = useState(() => preparePresortedFileTreeInput(source.paths));
   const { model } = useFileTree({
     flattenEmptyDirectories: false,
@@ -1860,6 +2045,20 @@ function PierreFileTree({
     gitStatus: source.gitStatus as any,
     sort: () => 0,
     unsafeCSS: fileTreeUnsafeCSS(),
+    // The row checkbox: the tree's custom decoration lane, drawn from the
+    // selection sprite. Read through the ref so a re-render after a
+    // selection change (below) sees the current set.
+    icons: { set: "complete", spriteSheet: FILE_TREE_SELECTION_SPRITE },
+    renderRowDecoration({ row }) {
+      const current = latest.current;
+      if (!current.selectable || row.kind !== "file" || !current.source.pathToItemId.has(row.path)) {
+        return null;
+      }
+      return selectionDecoration(
+        current.selectedPaths.has(row.path),
+        formatLabel(current.label("selectFile"), { name: row.name }),
+      );
+    },
     onSelectionChange(paths: readonly string[]) {
       const path = paths[paths.length - 1];
       const itemId = latest.current.source.pathToItemId.get(path);
@@ -1872,8 +2071,58 @@ function PierreFileTree({
   usePierreFileTreeSource(model, source);
   usePierreFileTreeSearch(model, fileSearchOpen, fileSearchRequest);
   usePierreFileTreeSelection(model, selectedPath);
+  useEffect(() => {
+    onModel(model);
+  }, [model, onModel]);
+  // The tree renders its rows itself and reads the decoration renderer at
+  // render time, so a selection change asks it to render again; reapplying
+  // its own composition is the public way to do that. Runs after the
+  // synced ref above has the new set.
+  useEffect(() => {
+    model.setComposition(model.getComposition());
+  }, [model, selectable, selectedPaths]);
 
-  return <FileTree model={model} style={{ height: "100%" }} />;
+  // Clicks and Space on a row's checkbox lane are taken here, in the
+  // capture phase above the tree's shadow root, so the tree never sees
+  // them: checking a file must not navigate to it. Everything else
+  // (the row name, folders, the search box) reaches the tree untouched.
+  const captureCheckboxClick = (event: React.MouseEvent) => {
+    if (!latest.current.selectable) {
+      return;
+    }
+    const path = selectionRowPathFromComposedPath(event.nativeEvent.composedPath());
+    if (path == null) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    event.nativeEvent.stopPropagation();
+    latest.current.onToggleSelection(path, event.shiftKey);
+  };
+  const captureCheckboxKey = (event: React.KeyboardEvent) => {
+    if (!latest.current.selectable || !isPlainSpace(event)) {
+      return;
+    }
+    const path = focusedFileRowPath(event.nativeEvent.composedPath()[0] ?? null);
+    if (path == null) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    event.nativeEvent.stopPropagation();
+    latest.current.onToggleSelection(path, false);
+  };
+
+  return (
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions
+    <div
+      className="file-tree-host"
+      onClickCapture={captureCheckboxClick}
+      onKeyDownCapture={captureCheckboxKey}
+    >
+      <FileTree model={model} style={{ height: "100%" }} />
+    </div>
+  );
 }
 
 function LoadingFileList() {

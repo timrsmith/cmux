@@ -24,11 +24,16 @@ enum DiffSidecarRequestPolicy {
     ]
 
     /// Methods that change the repository's index or working tree, or act on
-    /// its remote (push, pull request creation).
+    /// its remote (push, pull request creation). The `...Files` methods are
+    /// the selection (batch) forms of the single-file writes and are gated
+    /// identically; the sidecar validates each path they name.
     static let writeMethods: Set<String> = [
         "worktreeRevertFile",
         "worktreeStageFile",
         "worktreeUnstageFile",
+        "worktreeStageFiles",
+        "worktreeUnstageFiles",
+        "worktreeDiscardFiles",
         "worktreeRevertHunk",
         "worktreeCommit",
         "worktreeDiscardAll",

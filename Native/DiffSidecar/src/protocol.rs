@@ -25,6 +25,9 @@ pub enum DiffCommand {
     WorktreeRevertFile(WorktreeFileRequest),
     WorktreeStageFile(WorktreeFileRequest),
     WorktreeUnstageFile(WorktreeFileRequest),
+    WorktreeStageFiles(WorktreeFilesRequest),
+    WorktreeUnstageFiles(WorktreeFilesRequest),
+    WorktreeDiscardFiles(WorktreeFilesRequest),
     WorktreeRevertHunk(WorktreeHunkRequest),
     WorktreeCommit(WorktreeCommitRequest),
     WorktreeDiscardAll(WorktreeSessionRequest),
@@ -57,6 +60,9 @@ impl DiffCommand {
             Self::WorktreeRevertFile(_)
             | Self::WorktreeStageFile(_)
             | Self::WorktreeUnstageFile(_)
+            | Self::WorktreeStageFiles(_)
+            | Self::WorktreeUnstageFiles(_)
+            | Self::WorktreeDiscardFiles(_)
             | Self::WorktreeRevertHunk(_)
             | Self::WorktreeCommit(_)
             | Self::WorktreeDiscardAll(_)
@@ -167,6 +173,21 @@ pub struct WorktreeFileRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub previous_path: Option<String>,
+}
+
+/// Targets several files of an open `unstaged` or `staged` session for one
+/// Git invocation (stage, unstage, or discard a selection). `paths` are
+/// repository-relative and validated by the sidecar; a rename contributes
+/// both of its names, exactly as the single-file request carries
+/// `previous_path`. An empty list is refused.
+#[derive(Clone, Debug, Deserialize, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "protocol.ts")]
+pub struct WorktreeFilesRequest {
+    pub session_id: String,
+    pub capability_token: String,
+    pub source: DiffSource,
+    pub paths: Vec<String>,
 }
 
 /// Identifies one hunk by its `@@ -old,count +new,count @@` header ranges.

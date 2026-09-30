@@ -83,6 +83,33 @@ function stopHeaderToggleKeys(event: React.KeyboardEvent): void {
   }
 }
 
+/**
+ * The card's selection checkbox, slotted at the front of the header next to
+ * the fold chevron. It mirrors the file list's row checkbox: both toggle
+ * the same path in the App's selection, and neither navigates. A native
+ * checkbox, so the header's own click handling is stopped at it.
+ */
+export function FileSelectCheckbox({ checked, label, onToggle }: {
+  checked: boolean;
+  /** The accessible name, already naming the file ("Select story.txt"). */
+  label: string;
+  onToggle: () => void;
+}) {
+  return (
+    <input
+      type="checkbox"
+      className="file-select-checkbox"
+      aria-label={label}
+      title={label}
+      checked={checked}
+      onChange={onToggle}
+      onClick={stopHeaderPropagation}
+      onPointerDown={stopHeaderPropagation}
+      onKeyDown={stopHeaderToggleKeys}
+    />
+  );
+}
+
 export function FileWriteActions({
   actions,
   label,
