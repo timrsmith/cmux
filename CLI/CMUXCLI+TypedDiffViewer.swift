@@ -328,6 +328,7 @@ extension CMUXCLI.DiffViewerLabels {
             "behindBy": CMUXDiffViewerLocalization.string("diffViewer.behindBy", defaultValue: "{count} behind"),
             "cancel": CMUXDiffViewerLocalization.string("diffViewer.cancel", defaultValue: "Cancel"),
             "changedFilesCount": CMUXDiffViewerLocalization.string("diffViewer.changedFilesCount", defaultValue: "{count} files"),
+            "changedFilesCountOne": CMUXDiffViewerLocalization.string("diffViewer.changedFilesCountOne", defaultValue: "{count} file"),
             "checksFailed": CMUXDiffViewerLocalization.string("diffViewer.checksFailed", defaultValue: "{count} failed"),
             "checksPassed": CMUXDiffViewerLocalization.string("diffViewer.checksPassed", defaultValue: "{passed}/{total} checks passed"),
             "checksPending": CMUXDiffViewerLocalization.string("diffViewer.checksPending", defaultValue: "{count} pending"),
@@ -413,6 +414,7 @@ extension CMUXCLI.DiffViewerLabels {
             "worktreeConflict": CMUXDiffViewerLocalization.string("diffViewer.worktreeConflict", defaultValue: "The change could not be applied cleanly. The diff was reloaded."),
             "worktreeNotAllowed": CMUXDiffViewerLocalization.string("diffViewer.worktreeNotAllowed", defaultValue: "Working-tree changes are not available for this diff."),
             "worktreePartialRevert": CMUXDiffViewerLocalization.string("diffViewer.worktreePartialRevert", defaultValue: "The change was unstaged but is still in the working tree. The diff was reloaded."),
+            "worktreeUnmerged": CMUXDiffViewerLocalization.string("diffViewer.worktreeUnmerged", defaultValue: "This file has a merge conflict. Resolve it before discarding changes."),
             "worktreeWriteFailed": CMUXDiffViewerLocalization.string("diffViewer.worktreeWriteFailed", defaultValue: "Could not update the working tree."),
         ]
     }

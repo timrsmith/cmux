@@ -627,6 +627,7 @@ const WORKTREE_ERROR_LABEL: Record<string, DiffViewerLabelKey> = {
   staleHunk: "hunkStale",
   conflict: "worktreeConflict",
   partialRevert: "worktreePartialRevert",
+  unmergedPath: "worktreeUnmerged",
   nothingToCommit: "nothingToCommit",
   commitFailed: "commitFailed",
   invalidMessage: "commitMessageInvalid",

@@ -55,6 +55,7 @@ describe("createDiffViewerLabelResolver", () => {
       "authRequired",
       "behindBy",
       "changedFilesCount",
+      "changedFilesCountOne",
       "checksFailed",
       "checksPassed",
       "checksPending",
@@ -149,6 +150,9 @@ describe("formatCountLabel", () => {
     expect(formatCountLabel(label, "discardSelected", 0)).toBe(
       "Discard 0 files…",
     );
+    // The header's file count: its singular is a template too.
+    expect(formatCountLabel(label, "changedFilesCount", 1)).toBe("1 file");
+    expect(formatCountLabel(label, "changedFilesCount", 2)).toBe("2 files");
     // Localized payloads win for both forms.
     const localized = createDiffViewerLabelResolver({
       stageSelected: "{count} Dateien stagen",
