@@ -19,6 +19,9 @@ enum SettingsNavigationTarget: String, CaseIterable, Identifiable {
     case computerUse
     case browser
     case browserImport
+    /// Files panel placement, how files open from the tree, and the
+    /// built-in file editor's display options.
+    case filesAndEditing
     case globalHotkey
     case keyboardShortcuts
     case workspaceColors
@@ -63,6 +66,8 @@ enum SettingsNavigationTarget: String, CaseIterable, Identifiable {
             return String(localized: "settings.section.browser", defaultValue: "Browser")
         case .browserImport:
             return String(localized: "settings.browser.import", defaultValue: "Import Browser Data")
+        case .filesAndEditing:
+            return String(localized: "settings.section.filesAndEditing", defaultValue: "Files and Editing")
         case .globalHotkey:
             return String(localized: "settings.section.globalHotkey", defaultValue: "Global Hotkey")
         case .keyboardShortcuts:
@@ -110,6 +115,8 @@ enum SettingsNavigationTarget: String, CaseIterable, Identifiable {
             return "globe"
         case .browserImport:
             return "square.and.arrow.down"
+        case .filesAndEditing:
+            return "folder.badge.gearshape"
         case .globalHotkey:
             return "keyboard.badge.ellipsis"
         case .keyboardShortcuts:
@@ -157,6 +164,8 @@ enum SettingsNavigationTarget: String, CaseIterable, Identifiable {
             return "\(title) search engine links history theme"
         case .browserImport:
             return "\(title) browser import data bookmarks history cookies"
+        case .filesAndEditing:
+            return "\(title) files file tree explorer panel placement open editor terminal editor word wrap syntax highlighting line numbers indent guides tab width"
         case .globalHotkey:
             return "\(title) system wide shortcut"
         case .keyboardShortcuts:

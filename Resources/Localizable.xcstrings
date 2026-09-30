@@ -1,6 +1,242 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "settings.section.filesAndEditing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Files and Editing"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateien und Bearbeitung"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fichiers et édition"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "الملفات والتحرير"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archivos y edición"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檔案與編輯"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件与编辑"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파일 및 편집"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイルと編集"
+          }
+        }
+      }
+    },
+    "filesPanel.header.openSettings": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Files and Editing Settings…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einstellungen für Dateien und Bearbeitung …"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réglages Fichiers et édition…"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إعدادات الملفات والتحرير…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustes de archivos y edición…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檔案與編輯設定…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件与编辑设置…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파일 및 편집 설정…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイルと編集の設定…"
+          }
+        }
+      }
+    },
+    "settings.search.sidebar.filesPanelPlacement": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "files panel placement file tree explorer left of panes right sidebar leading stacked above workspaces ide layout next to workspace list"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateien Panel Platzierung Dateibaum Explorer links von Bereichen rechte Seitenleiste gestapelt über Arbeitsbereichen IDE Layout Arbeitsbereichsliste"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fichiers panneau emplacement arborescence explorateur à gauche des volets barre latérale droite empilé au-dessus des espaces de travail disposition IDE liste des espaces de travail"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "الملفات لوحة الموضع شجرة الملفات المستكشف يسار الأجزاء الشريط الجانبي الأيمن مكدس فوق مساحات العمل تخطيط IDE قائمة مساحات العمل"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "archivos panel ubicación árbol de archivos explorador izquierda de los paneles barra lateral derecha apilado encima de los espacios de trabajo diseño IDE lista de espacios de trabajo"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檔案 面板 位置 檔案樹 瀏覽器 窗格左側 右側邊欄 堆疊 工作區上方 IDE 佈局 工作區列表"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件 面板 位置 文件树 浏览器 窗格左侧 右侧边栏 堆叠 工作区上方 IDE 布局 工作区列表"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파일 패널 배치 파일 트리 탐색기 패널 왼쪽 오른쪽 사이드바 스택 워크스페이스 위 IDE 레이아웃 워크스페이스 목록"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイル パネル 配置 ファイルツリー エクスプローラー ペインの左 右サイドバー 積み重ね ワークスペースの上 IDE レイアウト ワークスペース一覧"
+          }
+        }
+      }
+    },
+    "settings.search.alias.section.filesAndEditing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "files file tree explorer panel placement editor open files terminal editor word wrap syntax highlighting line numbers indent guides tab width"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateien Dateibaum Explorer Panel Platzierung Editor Dateien öffnen Terminal-Editor Zeilenumbruch Syntaxhervorhebung Zeilennummern Einzugslinien Tabulatorbreite"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fichiers arborescence explorateur panneau emplacement éditeur ouvrir les fichiers éditeur de terminal retour à la ligne coloration syntaxique numéros de ligne guides d'indentation largeur de tabulation"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "الملفات شجرة الملفات المستكشف لوحة الموضع المحرر فتح الملفات محرر الطرفية التفاف الكلمات تلوين الصيغة أرقام الأسطر أدلة المسافة البادئة عرض علامة الجدولة"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "archivos árbol de archivos explorador panel ubicación editor abrir archivos editor de terminal ajuste de línea resaltado de sintaxis números de línea guías de sangría ancho de tabulación"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檔案 檔案樹 瀏覽器 面板 位置 編輯器 開啟檔案 終端機編輯器 自動換行 語法標示 行號 縮排指引 定位點寬度"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件 文件树 浏览器 面板 位置 编辑器 打开文件 终端编辑器 自动换行 语法高亮 行号 缩进参考线 制表符宽度"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파일 파일 트리 탐색기 패널 배치 편집기 파일 열기 터미널 편집기 자동 줄바꿈 구문 강조 줄 번호 들여쓰기 안내선 탭 너비"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイル ファイルツリー エクスプローラー パネル 配置 エディタ ファイルを開く ターミナルエディタ 折り返し シンタックスハイライト 行番号 インデントガイド タブ幅"
+          }
+        }
+      }
+    },
     "filesPanel.header.editor.terminalEditorWithCommand": {
       "extractionState": "manual",
       "localizations": {
@@ -5671,55 +5907,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Show the file tree as a tab of the right sidebar, as its own panel between the workspace sidebar and the panes, or above the workspace list inside the sidebar. Find, Changes, and the other tools stay in the right sidebar."
+            "value": "Where the file tree lives. Find, Changes, and the other tools stay in the right sidebar."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zeigt den Dateibaum als Tab der rechten Seitenleiste, als eigenen Bereich zwischen der Arbeitsbereich-Seitenleiste und den Bereichen oder über der Arbeitsbereichsliste in der Seitenleiste. Suchen, Änderungen und die übrigen Werkzeuge bleiben in der rechten Seitenleiste."
+            "value": "Wo der Dateibaum angezeigt wird. Suchen, Änderungen und die übrigen Werkzeuge bleiben in der rechten Seitenleiste."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Affiche l'arborescence des fichiers comme onglet de la barre latérale droite, comme panneau distinct entre la barre latérale des espaces de travail et les volets, ou au-dessus de la liste des espaces de travail dans la barre latérale. Rechercher, Modifications et les autres outils restent dans la barre latérale droite."
+            "value": "Emplacement de l'arborescence des fichiers. Rechercher, Modifications et les autres outils restent dans la barre latérale droite."
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "إظهار شجرة الملفات كعلامة تبويب في الشريط الجانبي الأيمن، أو كلوحة مستقلة بين شريط مساحات العمل الجانبي والأجزاء، أو أعلى قائمة مساحات العمل داخل الشريط الجانبي. تبقى أدوات البحث والتغييرات وباقي الأدوات في الشريط الجانبي الأيمن."
+            "value": "مكان عرض شجرة الملفات. تبقى أدوات البحث والتغييرات وباقي الأدوات في الشريط الجانبي الأيمن."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Muestra el árbol de archivos como una pestaña de la barra lateral derecha, como un panel propio entre la barra lateral de espacios de trabajo y los paneles, o encima de la lista de espacios de trabajo dentro de la barra lateral. Buscar, Cambios y las demás herramientas permanecen en la barra lateral derecha."
+            "value": "Dónde se muestra el árbol de archivos. Buscar, Cambios y las demás herramientas permanecen en la barra lateral derecha."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "將檔案樹顯示為右側邊欄的分頁、顯示為工作區側邊欄與分割窗格之間的獨立面板，或顯示在側邊欄內工作區列表的上方。「尋找」、「變更」與其他工具仍保留在右側邊欄。"
+            "value": "檔案樹的顯示位置。「尋找」、「變更」與其他工具仍保留在右側邊欄。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "将文件树显示为右侧边栏的标签页、显示为工作区侧边栏与窗格之间的独立面板，或显示在侧边栏内工作区列表的上方。“查找”“更改”及其他工具仍保留在右侧边栏。"
+            "value": "文件树的显示位置。“查找”“更改”及其他工具仍保留在右侧边栏。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "파일 트리를 오른쪽 사이드바의 탭으로, 작업 공간 사이드바와 창 사이의 별도 패널로, 또는 사이드바 안 작업 공간 목록 위에 표시합니다. 찾기, 변경 사항 및 다른 도구는 오른쪽 사이드바에 남습니다."
+            "value": "파일 트리가 표시되는 위치입니다. 찾기, 변경 사항 및 다른 도구는 오른쪽 사이드바에 남습니다."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ファイルツリーを右サイドバーのタブとして、ワークスペースサイドバーとペインの間の独立したパネルとして、またはサイドバー内のワークスペースリストの上に表示します。検索、変更、その他のツールは右サイドバーに残ります。"
+            "value": "ファイルツリーの表示位置。検索、変更、その他のツールは右サイドバーに残ります。"
           }
         }
       }
@@ -107296,67 +107532,67 @@
         },
         "bs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "right-sidebar set zahtijeva način: files, find, vault, sessions, feed, dock, cloud, devices ili custom [naziv bočne trake]"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "right-sidebar set kræver en tilstand: files, find, vault, sessions, feed, dock, cloud, devices eller custom [navn på sidepanel]"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "right-sidebar set richiede una modalità: files, find, vault, sessions, feed, dock, cloud, devices o custom [nome barra laterale]"
           }
         },
         "km": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "right-sidebar set ត្រូវការរបៀបមួយ៖ files, find, vault, sessions, feed, dock, cloud, devices ឬ custom [ឈ្មោះរបារចំហៀង]"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "right-sidebar set krever en modus: files, find, vault, sessions, feed, dock, cloud, devices eller custom [navn på sidestolpe]"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "right-sidebar set wymaga trybu: files, find, vault, sessions, feed, dock, cloud, devices lub custom [nazwa paska bocznego]"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "right-sidebar set requer um modo: files, find, vault, sessions, feed, dock, cloud, devices ou custom [nome da barra lateral]"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "для right-sidebar set требуется режим: files, find, vault, sessions, feed, dock, cloud, devices или custom [имя боковой панели]"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "right-sidebar set ต้องระบุโหมด: files, find, vault, sessions, feed, dock, cloud, devices หรือ custom [ชื่อแถบด้านข้าง]"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "right-sidebar set bir mod gerektirir: files, find, vault, sessions, feed, dock, cloud, devices veya custom [kenar çubuğu adı]"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "right-sidebar set потребує режиму: files, find, vault, sessions, feed, dock, cloud, devices або custom [назва бічної панелі]"
           }
         }
@@ -210981,13 +211217,13 @@
         },
         "bs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Branch"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Branch"
           }
         },
@@ -211017,7 +211253,7 @@
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Branch"
           }
         },
@@ -211029,7 +211265,7 @@
         },
         "km": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Branch"
           }
         },
@@ -211041,43 +211277,43 @@
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Branch"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Branch"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Branch"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Branch"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Branch"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Branch"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Branch"
           }
         },

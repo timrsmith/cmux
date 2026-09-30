@@ -99,7 +99,7 @@ Notification behavior from Settings > Notifications.
 
 ## sidebar
 
-Sidebar content and metadata visibility from Settings > Sidebar.
+Sidebar content and metadata visibility from Settings > Sidebar. `sidebar.filesPanelPlacement` is edited from Settings > Files and Editing and the Files header's Placement submenu.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
@@ -218,7 +218,7 @@ Built-in Markdown viewer settings from Settings > App.
 
 ## fileEditor
 
-Built-in text editor settings used by text file previews.
+Built-in text editor settings used by text file previews, from Settings > Files and Editing.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
@@ -232,7 +232,7 @@ Built-in text editor settings used by text file previews.
 
 ## fileExplorer
 
-Right-sidebar file explorer routing for file previews.
+File tree routing for file previews, from Settings > Files and Editing.
 
 | Key | Type | Default | Description |
 |---|---|---|---|

@@ -748,8 +748,8 @@ extension CMUXCLI {
 
         Targets:
           account, app, terminal, networking, computers, devices, sidebar-appearance,
-          custom-sidebars, automation, browser, browser-import,
-          global-hotkey, keyboard-shortcuts, shortcuts, workspace-colors,
+          custom-sidebars, automation, browser, browser-import, files-and-editing,
+          files, editing, global-hotkey, keyboard-shortcuts, shortcuts, workspace-colors,
           cmux-json, json, reset
 
         Config file:
@@ -795,6 +795,8 @@ extension CMUXCLI {
             return "computers"
         case "browser-import", "browserimport", "import-browser-data":
             return "browserImport"
+        case "files", "files-and-editing", "filesandediting", "editing", "editor":
+            return "filesAndEditing"
         case "global-hotkey", "globalhotkey", "hotkey":
             return "globalHotkey"
         case "keyboard-shortcuts", "keyboardshortcuts", "shortcuts", "keys", "keybindings":

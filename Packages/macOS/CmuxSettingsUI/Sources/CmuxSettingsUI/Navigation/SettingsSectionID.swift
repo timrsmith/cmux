@@ -37,6 +37,9 @@ public enum SettingsSectionID: String, CaseIterable, Identifiable, Sendable, Has
     case computerUse
     case browser
     case browserImport
+    /// Files panel placement, how files open from the tree, and the
+    /// built-in file editor's display options.
+    case filesAndEditing
     case globalHotkey
     case keyboardShortcuts
     case workspaceColors
@@ -75,6 +78,7 @@ public enum SettingsSectionID: String, CaseIterable, Identifiable, Sendable, Has
         case .computerUse: return String(localized: "settings.section.computerUse", defaultValue: "cmux Computer Use")
         case .browser: return String(localized: "settings.section.browser", defaultValue: "Browser")
         case .browserImport: return String(localized: "settings.browser.import", defaultValue: "Import Browser Data")
+        case .filesAndEditing: return String(localized: "settings.section.filesAndEditing", defaultValue: "Files and Editing")
         case .globalHotkey: return String(localized: "settings.section.globalHotkey", defaultValue: "Global Hotkey")
         case .keyboardShortcuts: return String(localized: "settings.section.keyboardShortcuts", defaultValue: "Keyboard Shortcuts")
         case .workspaceColors: return String(localized: "settings.section.workspaceColors", defaultValue: "Workspace Colors")
@@ -102,6 +106,7 @@ public enum SettingsSectionID: String, CaseIterable, Identifiable, Sendable, Has
         case .computerUse: return "cursorarrow.rays"
         case .browser: return "globe"
         case .browserImport: return "square.and.arrow.down"
+        case .filesAndEditing: return "folder.badge.gearshape"
         case .globalHotkey: return "keyboard.badge.ellipsis"
         case .keyboardShortcuts: return "keyboard"
         case .workspaceColors: return "paintpalette"
@@ -139,6 +144,8 @@ public enum SettingsSectionID: String, CaseIterable, Identifiable, Sendable, Has
             )
         case .browser: return "search engine links history theme"
         case .browserImport: return "browser import bookmarks history cookies"
+        case .filesAndEditing:
+            return "files file tree explorer panel placement open editor terminal editor word wrap syntax highlighting line numbers indent guides tab width"
         case .globalHotkey: return "system wide shortcut"
         case .keyboardShortcuts: return "keybindings commands chords"
         case .workspaceColors: return "palette tabs indicator"

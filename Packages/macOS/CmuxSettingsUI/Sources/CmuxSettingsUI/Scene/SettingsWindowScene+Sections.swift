@@ -21,8 +21,9 @@ extension SettingsWindowRoot {
         // Top to bottom in ``SettingsSectionMountModel/displayOrder``, the
         // order sections mount in: Account through Sleepy Mode, then Mobile,
         // Cloud, Devices, Networking, the sidebar sections, Beta Features,
-        // Automation, Computer Use, Browser (with embedded Import), Global
-        // Hotkey, Keyboard Shortcuts, Workspace Colors, cmux.json, Reset.
+        // Automation, Computer Use, Browser (with embedded Import), Files and
+        // Editing, Global Hotkey, Keyboard Shortcuts, Workspace Colors,
+        // cmux.json, Reset.
         slot(.account, proxy: proxy) {
             AccountSection(
                 defaultsStore: defaultsStore,
@@ -124,6 +125,10 @@ extension SettingsWindowRoot {
                 hostActions: hostActions,
                 importAnchorID: anchorID(for: .browserImport)
             )
+        }
+
+        slot(.filesAndEditing, proxy: proxy) {
+            FilesAndEditingSection(defaultsStore: defaultsStore, catalog: catalog)
         }
 
         slot(.globalHotkey, proxy: proxy) {

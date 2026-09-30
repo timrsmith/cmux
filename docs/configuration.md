@@ -274,7 +274,7 @@ Chooses where the file tree lives. The right sidebar (Find, Changes, Vault, Feed
 - `leading`: the file tree is its own panel docked between the workspace sidebar and the panes, IDE style, with its own width and resize divider. The right sidebar drops its Files tab, and files opened from the tree appear as tabs to its right.
 - `stacked`: the file tree sits inside the workspace sidebar, above the workspace list and under the sidebar's titlebar strip (window controls and toolbar buttons), IDE style. A horizontal divider between the two regions drags to resize them (drag down to grow the tree); the workspace list keeps at least 120 points and the tree at least 160 points, and both shrink together when the window is shorter than that. The tree shows and hides with the sidebar, and the right sidebar drops its Files tab as with `leading`. The Files height is remembered per Mac (in app preferences, not `cmux.json`).
 
-With `leading` or `stacked`, every way of showing Files targets the panel instead of the right sidebar: `cmux right-sidebar files` and `cmux right-sidebar set files`, the Ctrl+1 mode shortcut (`switchRightSidebarToFiles`), the command palette's "Show Sidebar Files", and Files-related focus routing. Ctrl+1 stays on Files; the right sidebar's tabs take Ctrl+2 onward. `cmux right-sidebar hide` and `cmux right-sidebar mode` still describe the right sidebar only; the panel's close button hides the panel and the same Files shortcut brings it back. With `stacked`, showing Files while the workspace sidebar is hidden also shows the sidebar. Change it from **Settings > Sidebar > Files Panel** (In Right Sidebar, Left of Panes, or Above Workspaces).
+With `leading` or `stacked`, every way of showing Files targets the panel instead of the right sidebar: `cmux right-sidebar files` and `cmux right-sidebar set files`, the Ctrl+1 mode shortcut (`switchRightSidebarToFiles`), the command palette's "Show Sidebar Files", and Files-related focus routing. Ctrl+1 stays on Files; the right sidebar's tabs take Ctrl+2 onward. `cmux right-sidebar hide` and `cmux right-sidebar mode` still describe the right sidebar only; the panel's close button hides the panel and the same Files shortcut brings it back. With `stacked`, showing Files while the workspace sidebar is hidden also shows the sidebar. Change it from **Settings > Files and Editing > Files Panel** (In Right Sidebar, Left of Panes, or Above Workspaces) or from the Placement submenu of the Files header's "…" menu; both write the same key.
 
 ## `terminal.showTextBoxOnNewTerminals` and `terminal.focusTextBoxOnNewTerminals`
 
@@ -435,7 +435,7 @@ Chooses what opens when a file is activated: a double-click or Return in the fil
 - `defaultEditor`: the macOS default app for the file type, the same as the tree's "Open in <App>" context menu item.
 - `preferredEditor`: the `app.preferredEditor` command, the same as Cmd-clicking a path in a terminal. Falls back to `defaultEditor` when that command is empty.
 
-Change it from **Settings > App > Open Files From Tree In** or from the Editor submenu of the Files header's "…" menu; both write the same key. The header menu's Terminal Editor item names the editor that would run (for example "Terminal Editor (nvim)") while no command is configured.
+Change it from **Settings > Files and Editing > Open Files From Tree In**, next to the Terminal Editor command and the file editor's display options. The Files header's "…" menu opens that section through its "Files and Editing Settings…" item.
 
 ## `diffViewer.defaultLayout`
 

@@ -45,14 +45,6 @@ public struct AppSection: View {
     @State private var markdownMaxWidth: DefaultsValueModel<Int>
     @State private var canvasPaneGap: DefaultsValueModel<Int>
     @State private var canvasSnapping: DefaultsValueModel<Bool>
-    @State private var fileEditorWordWrap: DefaultsValueModel<Bool>
-    @State private var fileEditorSyntaxHighlighting: DefaultsValueModel<Bool>
-    @State private var fileEditorLineNumbers: DefaultsValueModel<Bool>
-    @State private var fileEditorIndentGuides: DefaultsValueModel<Bool>
-    @State private var fileEditorCurrentLineHighlight: DefaultsValueModel<Bool>
-    @State private var fileEditorTabWidth: DefaultsValueModel<Int>
-    @State private var fileEditorTerminalEditorCommand: DefaultsValueModel<String>
-    @State private var fileExplorerDoubleClickAction: DefaultsValueModel<FileExplorerDoubleClickAction>
     @State private var iMessage: DefaultsValueModel<Bool>
     @State private var reorder: DefaultsValueModel<WorkspaceAutoReorderMode>
     @State private var dockBadge: DefaultsValueModel<Bool>
@@ -133,14 +125,6 @@ public struct AppSection: View {
         _markdownMaxWidth = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.markdown.maxWidth))
         _canvasPaneGap = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.canvas.paneGap))
         _canvasSnapping = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.canvas.snappingEnabled))
-        _fileEditorWordWrap = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.fileEditor.wordWrap))
-        _fileEditorSyntaxHighlighting = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.fileEditor.syntaxHighlighting))
-        _fileEditorLineNumbers = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.fileEditor.lineNumbers))
-        _fileEditorIndentGuides = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.fileEditor.indentGuides))
-        _fileEditorCurrentLineHighlight = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.fileEditor.currentLineHighlight))
-        _fileEditorTabWidth = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.fileEditor.tabWidth))
-        _fileEditorTerminalEditorCommand = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.fileEditor.terminalEditorCommand))
-        _fileExplorerDoubleClickAction = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.fileExplorer.doubleClickAction))
         _iMessage = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.app.iMessageMode))
         _reorder = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.app.reorderOnNotification))
         _dockBadge = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.notifications.dockBadge))
@@ -191,7 +175,7 @@ public struct AppSection: View {
             AppChannelSwitchCard(hostActions: hostActions)
         }
         .task {
-            startSettingsObservation([language, appearance, accentColor, accentColorCustomHex, appIcon, placement, inheritDir, minimalMode, keepWorkspaceOpen, firstClick, focusHistoryIncludesPanesAndTabs, equalizeSplitsOnCreate, fileDrop, preferredEditor, openSupported, openMarkdown, globalFontMagnification, markdownFontSize, markdownFontFamily, markdownMaxWidth, canvasPaneGap, canvasSnapping, fileEditorWordWrap, fileEditorSyntaxHighlighting, fileEditorLineNumbers, fileEditorIndentGuides, fileEditorCurrentLineHighlight, fileEditorTabWidth, fileExplorerDoubleClickAction, fileEditorTerminalEditorCommand, iMessage, reorder, dockBadge, menuBarOnly, showInMenuBar, paneRing, paneFlash, desktopNotifications, agentPermissionPrompt, agentTurnComplete, agentIdleReminder, soundName, soundWhenFocused, soundCommand, customSoundFile, soundOverrides, telemetry, confirmQuit, warnCloseTab, warnCloseX, warnCloseWorkspace, warnCloseWindow, hideCloseButton, renameSelects, paletteAllSurfaces])
+            startSettingsObservation([language, appearance, accentColor, accentColorCustomHex, appIcon, placement, inheritDir, minimalMode, keepWorkspaceOpen, firstClick, focusHistoryIncludesPanesAndTabs, equalizeSplitsOnCreate, fileDrop, preferredEditor, openSupported, openMarkdown, globalFontMagnification, markdownFontSize, markdownFontFamily, markdownMaxWidth, canvasPaneGap, canvasSnapping, iMessage, reorder, dockBadge, menuBarOnly, showInMenuBar, paneRing, paneFlash, desktopNotifications, agentPermissionPrompt, agentTurnComplete, agentIdleReminder, soundName, soundWhenFocused, soundCommand, customSoundFile, soundOverrides, telemetry, confirmQuit, warnCloseTab, warnCloseX, warnCloseWorkspace, warnCloseWindow, hideCloseButton, renameSelects, paletteAllSurfaces])
             await soundAgentCache.loadIfNeeded { await hostActions.notificationSoundAgentOptions() }
             if languageAtAppear == nil { languageAtAppear = language.current }; if telemetryAtAppear == nil { telemetryAtAppear = telemetry.current }
         }
@@ -615,123 +599,6 @@ public struct AppSection: View {
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 200)
                 .accessibilityIdentifier("SettingsMarkdownFontFamilyTextField")
-            }
-            SettingsCardDivider()
-
-            // File Editor Word Wrap
-            SettingsCardRow(
-                configurationReview: .json("fileEditor.wordWrap"),
-                String(localized: "settings.app.fileEditorWordWrap", defaultValue: "File Editor Word Wrap"),
-                subtitle: String(localized: "settings.app.fileEditorWordWrap.subtitle", defaultValue: "Wrap long lines at the editor's right edge instead of scrolling horizontally. Applies to the plain-text file editor.")
-            ) {
-                Toggle("", isOn: Binding(get: { fileEditorWordWrap.current }, set: { fileEditorWordWrap.set($0) }))
-                    .labelsHidden()
-                    .controlSize(.small)
-                    .accessibilityIdentifier("SettingsFileEditorWordWrapToggle")
-            }
-            SettingsCardDivider()
-
-            SettingsCardRow(
-                configurationReview: .json("fileEditor.syntaxHighlighting"),
-                String(localized: "settings.app.fileEditorSyntaxHighlighting", defaultValue: "File Editor Syntax Highlighting"),
-                subtitle: String(localized: "settings.app.fileEditorSyntaxHighlighting.subtitle", defaultValue: "Color keywords, strings, and other tokens in the built-in file editor.")
-            ) {
-                Toggle("", isOn: Binding(get: { fileEditorSyntaxHighlighting.current }, set: { fileEditorSyntaxHighlighting.set($0) }))
-                    .labelsHidden()
-                    .controlSize(.small)
-                    .accessibilityIdentifier("SettingsFileEditorSyntaxHighlightingToggle")
-            }
-            SettingsCardDivider()
-
-            SettingsCardRow(
-                configurationReview: .json("fileEditor.lineNumbers"),
-                String(localized: "settings.app.fileEditorLineNumbers", defaultValue: "File Editor Line Numbers"),
-                subtitle: String(localized: "settings.app.fileEditorLineNumbers.subtitle", defaultValue: "Show a line-number gutter beside the built-in file editor.")
-            ) {
-                Toggle("", isOn: Binding(get: { fileEditorLineNumbers.current }, set: { fileEditorLineNumbers.set($0) }))
-                    .labelsHidden()
-                    .controlSize(.small)
-                    .accessibilityIdentifier("SettingsFileEditorLineNumbersToggle")
-            }
-            SettingsCardDivider()
-
-            SettingsCardRow(
-                configurationReview: .json("fileEditor.indentGuides"),
-                String(localized: "settings.app.fileEditorIndentGuides", defaultValue: "File Editor Indent Guides"),
-                subtitle: String(localized: "settings.app.fileEditorIndentGuides.subtitle", defaultValue: "Draw vertical guides at indent columns in the built-in file editor.")
-            ) {
-                Toggle("", isOn: Binding(get: { fileEditorIndentGuides.current }, set: { fileEditorIndentGuides.set($0) }))
-                    .labelsHidden()
-                    .controlSize(.small)
-                    .accessibilityIdentifier("SettingsFileEditorIndentGuidesToggle")
-            }
-            SettingsCardDivider()
-
-            SettingsCardRow(
-                configurationReview: .json("fileEditor.currentLineHighlight"),
-                String(localized: "settings.app.fileEditorCurrentLineHighlight", defaultValue: "File Editor Current Line Highlight"),
-                subtitle: String(localized: "settings.app.fileEditorCurrentLineHighlight.subtitle", defaultValue: "Highlight the line that contains the caret when nothing is selected.")
-            ) {
-                Toggle("", isOn: Binding(get: { fileEditorCurrentLineHighlight.current }, set: { fileEditorCurrentLineHighlight.set($0) }))
-                    .labelsHidden()
-                    .controlSize(.small)
-                    .accessibilityIdentifier("SettingsFileEditorCurrentLineHighlightToggle")
-            }
-            SettingsCardDivider()
-
-            SettingsCardRow(
-                configurationReview: .json("fileEditor.tabWidth"),
-                String(localized: "settings.app.fileEditorTabWidth", defaultValue: "File Editor Tab Width"),
-                subtitle: String(localized: "settings.app.fileEditorTabWidth.subtitle", defaultValue: "Columns per tab stop, used by indent guides.")
-            ) {
-                Stepper(
-                    value: Binding(
-                        get: { fileEditorTabWidth.current },
-                        set: { fileEditorTabWidth.set($0) }
-                    ),
-                    in: FileEditorCatalogSection.supportedTabWidthRange
-                ) {
-                    Text("\(fileEditorTabWidth.current)")
-                        .monospacedDigit()
-                }
-                .accessibilityLabel(
-                    String(localized: "settings.app.fileEditorTabWidth", defaultValue: "File Editor Tab Width")
-                )
-                .accessibilityIdentifier("SettingsFileEditorTabWidthStepper")
-            }
-            SettingsCardDivider()
-
-            // Open Files From Tree (fileExplorer.doubleClickAction). The same
-            // choice is on the Files header's Editor submenu; both write this key.
-            SettingsCardRow(
-                configurationReview: .json("fileExplorer.doubleClickAction"),
-                String(localized: "settings.fileExplorer.doubleClickAction", defaultValue: "Open Files From Tree In"),
-                subtitle: String(localized: "settings.fileExplorer.doubleClickAction.subtitle", defaultValue: "Where a file opens when activated in the file tree, the right sidebar, or a diff viewer. Terminal Editor runs the command below in a terminal in cmux.")
-            ) {
-                Picker("", selection: Binding(get: { fileExplorerDoubleClickAction.current }, set: { fileExplorerDoubleClickAction.set($0) })) {
-                    ForEach(FileExplorerDoubleClickAction.allCases, id: \.self) { option in
-                        Text(option.localizedTitle).tag(option)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("SettingsFileExplorerDoubleClickActionPicker")
-            }
-            SettingsCardDivider()
-
-            // Terminal Editor (fileEditor.terminalEditorCommand)
-            SettingsCardRow(
-                configurationReview: .json("fileEditor.terminalEditorCommand"),
-                String(localized: "settings.fileEditor.terminalEditorCommand", defaultValue: "Terminal Editor"),
-                subtitle: String(localized: "settings.fileEditor.terminalEditorCommand.subtitle", defaultValue: "Command run in a cmux terminal when Terminal Editor is chosen, followed by the file path. Leave empty to let your login shell use $VISUAL, then $EDITOR, then vi.")
-            ) {
-                TextField(
-                    String(localized: "settings.fileEditor.terminalEditorCommand.placeholder", defaultValue: "$EDITOR"),
-                    text: Binding(get: { fileEditorTerminalEditorCommand.current }, set: { fileEditorTerminalEditorCommand.set($0) })
-                )
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 200)
-                .accessibilityIdentifier("SettingsFileEditorTerminalEditorCommandField")
             }
             SettingsCardDivider()
 

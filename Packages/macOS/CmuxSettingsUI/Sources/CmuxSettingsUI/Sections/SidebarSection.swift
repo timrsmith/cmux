@@ -37,7 +37,6 @@ public struct SidebarSection: View {
     @State private var compactAgentStatus: DefaultsValueModel<Bool>
     @State private var rightMaxWidth: DefaultsValueModel<Double>
     @State private var rememberedRightMaxWidth: DefaultsValueModel<Double>
-    @State private var filesPanelPlacement: DefaultsValueModel<FilesPanelPlacement>
     public init(defaultsStore: UserDefaultsSettingsStore, catalog: SettingCatalog, hostActions: SettingsHostActions) {
         self.catalog = catalog
         self.hostActions = hostActions
@@ -70,7 +69,6 @@ public struct SidebarSection: View {
         _compactAgentStatus = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebar.compactAgentStatus))
         _rightMaxWidth = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebar.rightMaxWidth))
         _rememberedRightMaxWidth = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebar.rememberedRightMaxWidth))
-        _filesPanelPlacement = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.sidebar.filesPanelPlacement))
     }
     /// The rendered sidebar settings section.
     public var body: some View {
@@ -113,7 +111,6 @@ public struct SidebarSection: View {
             compactAgentStatus,
             rightMaxWidth,
             rememberedRightMaxWidth,
-            filesPanelPlacement,
         ]
         models.forEach { $0.startObserving() }
     }
@@ -233,25 +230,6 @@ public struct SidebarSection: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-            }
-            SettingsCardDivider()
-
-            SettingsCardRow(
-                configurationReview: .json("sidebar.filesPanelPlacement"),
-                String(localized: "settings.sidebar.filesPanelPlacement", defaultValue: "Files Panel"),
-                subtitle: String(localized: "settings.sidebar.filesPanelPlacement.subtitle", defaultValue: "Show the file tree as a tab of the right sidebar, as its own panel between the workspace sidebar and the panes, or above the workspace list inside the sidebar. Find, Changes, and the other tools stay in the right sidebar.")
-            ) {
-                Picker("", selection: Binding(
-                    get: { filesPanelPlacement.current },
-                    set: { filesPanelPlacement.set($0) }
-                )) {
-                    ForEach(FilesPanelPlacement.allCases, id: \.self) { placement in
-                        Text(placement.localizedTitle).tag(placement)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .fixedSize()
             }
             SettingsCardDivider()
 
