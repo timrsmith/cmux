@@ -113,15 +113,21 @@ extension TerminalController {
             return max(rawTarget, pinnedCount)
         }
 
+        /// Closes `tabIds` in order, skipping pinned tabs. Unless forced, a batch
+        /// that would terminate a live process or discard an editor's unsaved
+        /// edits is refused whole: automation cannot answer either prompt.
         func closeTabs(_ tabIds: [TabID]) -> ControlTabActionResolution {
-            let activeSurfaceIDs = tabIds.compactMap { tabId -> UUID? in
-                guard let targetPanelID = workspace.panelIdFromSurfaceId(tabId),
-                      !workspace.isPanelPinned(targetPanelID),
-                      workspace.panelNeedsConfirmClose(panelId: targetPanelID) else { return nil }
-                return targetPanelID
+            let closingPanelIds = tabIds.compactMap { tabId -> UUID? in
+                guard let panelId = workspace.panelIdFromSurfaceId(tabId),
+                      !workspace.isPanelPinned(panelId) else { return nil }
+                return panelId
             }
+            let activeSurfaceIDs = closingPanelIds.filter { workspace.panelNeedsConfirmClose(panelId: $0) }
             if !force, !activeSurfaceIDs.isEmpty {
                 return .confirmationRequired(activeSurfaceIDs)
+            }
+            if !force, let refusal = workspace.unsavedChangesRefusal(forClosingPanels: closingPanelIds) {
+                return .unsavedChanges(refusal.controlRefusal)
             }
             var closed = 0
             var skippedPinned = 0

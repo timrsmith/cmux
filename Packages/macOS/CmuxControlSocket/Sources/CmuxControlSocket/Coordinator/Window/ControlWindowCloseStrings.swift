@@ -15,10 +15,4 @@ public extension ControlWindowContext {
             confirmationRequired: "One or more workspaces or Dock surfaces have a running process; retry with --force"
         )
     }
-
-    func controlCloseWindow(id: UUID, force: Bool) -> ControlWindowCloseResolution {
-        controlCloseWindow(id: id)
-            ? .resolved
-            : .notFound
-    }
 }

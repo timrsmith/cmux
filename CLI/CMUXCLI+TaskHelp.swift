@@ -226,7 +226,7 @@ extension CMUXCLI {
         return """
         new-window
         focus-window --window <id>
-        close-window --window <id>
+        close-window --window <id> [--force]
         resize-window --window <id> [--width <points>] [--height <points>]
         move-workspace-to-window --workspace <id|ref> --window <id|ref>
         reorder-workspace --workspace <id|ref|index> (--index <n> | --before <id|ref|index> | --after <id|ref|index>) [--window <id|ref|index>] [--dry-run]
@@ -238,7 +238,7 @@ extension CMUXCLI {
         focus-pane --pane <id|ref|index> [--workspace <id|ref|index>] [--window <id|ref|index>]
         new-pane [--type <terminal|browser|simulator>] [--direction <left|right|up|down>] [--workspace <id|ref|index>] [--window <id|ref|index>] [--url <url>] \(String(localized: "cli.browser.profile.option", defaultValue: "[--profile <name|uuid>]")) [--command <text>] [--focus <true|false>]
         new-surface [--type <terminal|browser|simulator|agent-session>] [--pane <id|ref|index>] [--workspace <id|ref|index>] [--window <id|ref|index>] [--url <url>] [--provider <codex|claude|opencode>] [--renderer <react|solid>] [--command <text>] [--focus <true|false>]
-        close-surface [--surface <id|ref|index>] [--workspace <id|ref|index>] [--window <id|ref|index>]
+        close-surface [--surface <id|ref|index>] [--workspace <id|ref|index>] [--window <id|ref|index>] [--force]
         move-surface --surface <id|ref|index> [--pane <id|ref|index>] [--workspace <id|ref|index>] [--window <id|ref|index>] [--before <id|ref|index>] [--after <id|ref|index>] [--index <n>] [--focus <true|false>]
         split-off --surface <id|ref|index> <left|right|up|down> [--workspace <id|ref|index>] [--window <id|ref|index>] [--focus <true|false>]
         reorder-surface --surface <id|ref|index> (--index <n> | --before <id|ref|index> | --after <id|ref|index>) [--workspace <id|ref|index>] [--window <id|ref|index>] [--focus <true|false>]
@@ -248,7 +248,7 @@ extension CMUXCLI {
         refresh-surfaces
         list-panels [--workspace <id|ref|index>] [--window <id|ref|index>]
         focus-panel --panel <id|ref|index> [--workspace <id|ref|index>] [--window <id|ref|index>]
-        close-workspace --workspace <id|ref|index> [--window <id|ref|index>]
+        close-workspace --workspace <id|ref|index> [--window <id|ref|index>] [--force]
         select-workspace --workspace <id|ref|index> [--window <id|ref|index>]
         rename-workspace [--workspace <id|ref|index>] [--window <id|ref|index>] <title>
         rename-window [--workspace <id|ref|index>] [--window <id|ref|index>] <title>

@@ -630,6 +630,7 @@
 		C11757000000000000000042 /* CLIChildEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95C00A2330C34E7DA7630E4D /* CLIChildEnvironment.swift */; };
 		2E931B5728B0478CB9B4937F /* CLIChildEnvironmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC61257DCDCA431A908C55CC /* CLIChildEnvironmentTests.swift */; };
 		C11757000000000000000028 /* CLIClaudeHookTimeoutRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1175700000000000000000F /* CLIClaudeHookTimeoutRegressionTests.swift */; };
+		107A3B637AA1FF9465E978D6 /* CLICloseForceFlagTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B4A36CA15C0F1A93551614A /* CLICloseForceFlagTests.swift */; };
 		C11757000000000000000029 /* CLICoderouterBootstrapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11757000000000000000010 /* CLICoderouterBootstrapTests.swift */; };
 		C0DE60C0000000000000A032 /* CLICoderouterCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE60C0000000000000A031 /* CLICoderouterCommandTests.swift */; };
 		C1175700000000000000002A /* CLICodexHookPathQuotingRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11757000000000000000011 /* CLICodexHookPathQuotingRegressionTests.swift */; };
@@ -4116,6 +4117,7 @@
 		F08974740CE0240C221C42B1 /* UnsavedChangesCloseEntryPointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94B51EAA26F59A07AF220493 /* UnsavedChangesCloseEntryPointTests.swift */; };
 		4779B2FFE77CBEABB11B69B3 /* UnsavedChangesClosePlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77F0DE605ECE8CB550F11481 /* UnsavedChangesClosePlan.swift */; };
 		0E9C081448A922A532A2A73F /* UnsavedChangesClosePlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B6AACEF936588B0F688EEC6 /* UnsavedChangesClosePlanTests.swift */; };
+		EE0E15B49F3E5559B3341AAD /* UnsavedChangesNonInteractiveCloseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 996BCCCF457DF85063854168 /* UnsavedChangesNonInteractiveCloseTests.swift */; };
 		C9587721D49A6C085476816E /* UnsavedChangesPromptPresenting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7F711BC317321EB062B993 /* UnsavedChangesPromptPresenting.swift */; };
 		56C069AD4F4E45110A0EEDE4 /* UnsavedChangesTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 840B22F2E2340F6B106A6AB7 /* UnsavedChangesTestSupport.swift */; };
 		FA0E79E5137431B4D11DB152 /* UnsavedChangesTracking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3088469020D28397FF3E7F5A /* UnsavedChangesTracking.swift */; };
@@ -5211,6 +5213,7 @@
 		95C00A2330C34E7DA7630E4D /* CLIChildEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIChildEnvironment.swift; sourceTree = "<group>"; };
 		AC61257DCDCA431A908C55CC /* CLIChildEnvironmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIChildEnvironmentTests.swift; sourceTree = "<group>"; };
 		C1175700000000000000000F /* CLIClaudeHookTimeoutRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIClaudeHookTimeoutRegressionTests.swift; sourceTree = "<group>"; };
+		1B4A36CA15C0F1A93551614A /* CLICloseForceFlagTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLICloseForceFlagTests.swift; sourceTree = "<group>"; };
 		C11757000000000000000010 /* CLICoderouterBootstrapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLICoderouterBootstrapTests.swift; sourceTree = "<group>"; };
 		C0DE60C0000000000000A031 /* CLICoderouterCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLICoderouterCommandTests.swift; sourceTree = "<group>"; };
 		C11757000000000000000011 /* CLICodexHookPathQuotingRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLICodexHookPathQuotingRegressionTests.swift; sourceTree = "<group>"; };
@@ -8532,6 +8535,7 @@
 		94B51EAA26F59A07AF220493 /* UnsavedChangesCloseEntryPointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UnsavedChangesCloseEntryPointTests.swift"; sourceTree = "<group>"; };
 		77F0DE605ECE8CB550F11481 /* UnsavedChangesClosePlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnsavedChangesClosePlan.swift; sourceTree = "<group>"; };
 		9B6AACEF936588B0F688EEC6 /* UnsavedChangesClosePlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UnsavedChangesClosePlanTests.swift"; sourceTree = "<group>"; };
+		996BCCCF457DF85063854168 /* UnsavedChangesNonInteractiveCloseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UnsavedChangesNonInteractiveCloseTests.swift"; sourceTree = "<group>"; };
 		4C7F711BC317321EB062B993 /* UnsavedChangesPromptPresenting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnsavedChangesPromptPresenting.swift; sourceTree = "<group>"; };
 		840B22F2E2340F6B106A6AB7 /* UnsavedChangesTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UnsavedChangesTestSupport.swift"; sourceTree = "<group>"; };
 		3088469020D28397FF3E7F5A /* UnsavedChangesTracking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/UnsavedChangesTracking.swift; sourceTree = "<group>"; };
@@ -9139,6 +9143,7 @@
 				D945F0FC95EFD48BC4D6AA94 /* CLILocalZellijLifecycleTests.swift */,
 				A62542679E9A9BFDD99A7BC6 /* CodexAutoNamingArgumentsTests.swift */,
 				BDFFD7A7DDFCA73EF207C81D /* CLIVMReadyPollIntervalTests.swift */,
+				1B4A36CA15C0F1A93551614A /* CLICloseForceFlagTests.swift */,
 			);
 			path = cmuxCLITests;
 			sourceTree = "<group>";
@@ -13507,6 +13512,7 @@
 				840B22F2E2340F6B106A6AB7 /* UnsavedChangesTestSupport.swift */,
 				0E39AE0335BA0E8E75C95603 /* FilePreviewTabMetadataTestSupport.swift */,
 				C6EC76A5ECF54F93E8291A24 /* PrimaryTabManagerCloseConfirmationTests.swift */,
+				996BCCCF457DF85063854168 /* UnsavedChangesNonInteractiveCloseTests.swift */,
 			);
 			path = cmuxTests;
 			sourceTree = "<group>";
@@ -14248,6 +14254,7 @@
 				AE55A6E50000000000000005 /* CLIAgentMessageCommandTests.swift in Sources */,
 				C11757000000000000000042 /* CLIChildEnvironment.swift in Sources */,
 				C11757000000000000000028 /* CLIClaudeHookTimeoutRegressionTests.swift in Sources */,
+				107A3B637AA1FF9465E978D6 /* CLICloseForceFlagTests.swift in Sources */,
 				C11757000000000000000029 /* CLICoderouterBootstrapTests.swift in Sources */,
 				C1175700000000000000002A /* CLICodexHookPathQuotingRegressionTests.swift in Sources */,
 				C1175700000000000000002B /* CLICodexHookTimeoutRegressionTests.swift in Sources */,
@@ -18497,6 +18504,7 @@
 				30D8B7D6646FFD701B62F87E /* UnsavedChangesCloseConfirmationTests.swift in Sources */,
 				F08974740CE0240C221C42B1 /* UnsavedChangesCloseEntryPointTests.swift in Sources */,
 				0E9C081448A922A532A2A73F /* UnsavedChangesClosePlanTests.swift in Sources */,
+				EE0E15B49F3E5559B3341AAD /* UnsavedChangesNonInteractiveCloseTests.swift in Sources */,
 				56C069AD4F4E45110A0EEDE4 /* UnsavedChangesTestSupport.swift in Sources */,
 				F2000000A1B2C3D4E5F60718 /* UpdatePillReleaseVisibilityTests.swift in Sources */,
 				3AD574FB82F03F846DB54DE1 /* UpdateRelaunchAgentResumeTests.swift in Sources */,

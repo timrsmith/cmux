@@ -93,7 +93,12 @@ final class FakeWorkspaceControlCommandContext: ControlCommandContext {
     }
     func controlFocusWindow(id: UUID) -> Bool { false }
     func controlCreateWindowAndActivate(title: String?) -> UUID? { nil }
-    func controlCloseWindow(id: UUID) -> Bool { false }
+    var windowCloseResolution: ControlWindowCloseResolution = .notFound
+    var windowCloseForce: Bool?
+    func controlCloseWindow(id: UUID, force: Bool) -> ControlWindowCloseResolution {
+        windowCloseForce = force
+        return windowCloseResolution
+    }
     func controlAvailableDisplays() -> [ControlDisplayInfo] { [] }
     func controlWindowExists(id: UUID) -> Bool { false }
     func controlMoveWindow(id: UUID, toDisplayMatching query: String) -> String? { nil }

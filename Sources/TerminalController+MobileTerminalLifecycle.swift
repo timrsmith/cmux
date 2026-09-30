@@ -31,11 +31,18 @@ extension TerminalController {
                     workspaceID: workspace.id, surfaceID: surfaceID, paneID: nil
                 ),
                 surfaceID: surfaceID,
-                hasSurfaceIDParam: true
+                hasSurfaceIDParam: true,
+                force: false
             )
         }
         if case .lastSurface = resolution {
             return .err(code: "invalid_state", message: String(localized: "devices.host.lastSurface", defaultValue: "Cannot close the last surface"), data: nil)
+        }
+        if case .unsavedChanges(_, let refusal) = resolution {
+            return .err(code: ControlUnsavedChangesRefusal.errorCode, message: refusal.message, data: [
+                "surface_id": surfaceID.uuidString,
+                "files": refusal.fileNames,
+            ])
         }
         guard case .closed = resolution else {
             return .err(code: "internal_error", message: String(localized: "devices.host.closeFailed", defaultValue: "Failed to close surface"), data: [

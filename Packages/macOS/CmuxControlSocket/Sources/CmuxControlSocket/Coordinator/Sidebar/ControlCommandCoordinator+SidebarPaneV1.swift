@@ -261,6 +261,8 @@ extension ControlCommandCoordinator {
             return "ERROR: Cannot close the last surface"
         case .confirmationRequired:
             return "ERROR: \(sidebarContext?.controlSidebarCloseStrings().confirmationRequired ?? "Surface has a running process; retry with --force")"
+        case .unsavedChanges(let refusal):
+            return "ERROR: \(refusal.message)"
         case .closed:
             return "OK"
         }

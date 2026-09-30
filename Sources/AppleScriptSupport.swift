@@ -471,6 +471,14 @@ final class ScriptTab: NSObject {
             return nil
         }
 
+        // A script cannot answer the Save / Don't Save prompt, so a workspace
+        // holding an editor with unsaved edits raises instead of closing.
+        if let refusal = state.tabManager.unsavedChangesRefusal(forClosing: [workspace]) {
+            command.scriptErrorNumber = errAEEventFailed
+            command.scriptErrorString = refusal.message
+            return nil
+        }
+
         if state.tabManager.tabs.count > 1 {
             state.tabManager.closeWorkspace(workspace)
             return nil
@@ -644,6 +652,13 @@ final class ScriptTerminal: NSObject {
         }
 
         if workspace.panels.count == 1 {
+            // The terminal is the workspace's last panel, so the workspace (or
+            // window) goes with it: an editor in its Dock raises instead.
+            if let refusal = state.tabManager.unsavedChangesRefusal(forClosing: [workspace]) {
+                command.scriptErrorNumber = errAEEventFailed
+                command.scriptErrorString = refusal.message
+                return nil
+            }
             if state.tabManager.tabs.count > 1 {
                 state.tabManager.closeWorkspace(workspace)
                 return nil
@@ -659,6 +674,11 @@ final class ScriptTerminal: NSObject {
             return nil
         }
 
+        if let refusal = workspace.unsavedChangesRefusal(forClosingPanel: terminalId) {
+            command.scriptErrorNumber = errAEEventFailed
+            command.scriptErrorString = refusal.message
+            return nil
+        }
         guard workspace.closePanel(terminalId, force: true) else {
             command.scriptErrorNumber = errAEEventFailed
             command.scriptErrorString = AppleScriptStrings.terminalUnavailable

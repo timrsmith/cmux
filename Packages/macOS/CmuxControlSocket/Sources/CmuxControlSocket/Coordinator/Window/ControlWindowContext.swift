@@ -37,15 +37,13 @@ public protocol ControlWindowContext: AnyObject {
     /// - Returns: The new window's id, or `nil` if creation failed.
     func controlCreateWindowAndActivate(title: String?) -> UUID?
 
-    /// Closes the window with the given id for `window.close`.
+    /// Closes the window with the given id for `window.close`, refusing unless
+    /// `force` when an editor in it would lose unsaved edits.
     ///
-    /// - Parameter id: The window to close.
-    /// - Returns: Whether a matching window was found and closed.
-    func controlCloseWindow(id: UUID) -> Bool
-
-    /// Closes a window for a non-interactive caller, returning a safety outcome
-    /// when a live process would be terminated. The default preserves the
-    /// legacy boolean witness for test and transitional conformers.
+    /// - Parameters:
+    ///   - id: The window to close.
+    ///   - force: Whether to discard unsaved edits instead of refusing.
+    /// - Returns: The close resolution.
     func controlCloseWindow(id: UUID, force: Bool) -> ControlWindowCloseResolution
 
     /// App-bundle-resolved messages for non-interactive window close.

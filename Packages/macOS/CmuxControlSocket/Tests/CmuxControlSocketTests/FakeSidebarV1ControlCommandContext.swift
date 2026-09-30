@@ -36,6 +36,16 @@ final class FakeSidebarV1ControlCommandContext: ControlCommandContext {
         workState: ControlSidebarAgentWorkState?
     )?
 
+    var closeSurfaceResolution: ControlSidebarCloseSurfaceResolution = .noTabSelected
+
+    func controlSidebarTabManagerAvailable() -> Bool { true }
+
+    var closeSurfaceForce: Bool?
+    func controlSidebarCloseSurface(surfaceArg: String?, force: Bool) -> ControlSidebarCloseSurfaceResolution {
+        closeSurfaceForce = force
+        return closeSurfaceResolution
+    }
+
     nonisolated func controlSurfaceParseShellActivityState(
         _ rawState: String
     ) -> String? {

@@ -50,6 +50,7 @@ public struct SentryNoiseFilter: Sendable {
              "surface_unavailable",
              "tab_manager_unavailable",
              "unrecognized_method",
+             "unsaved_changes",
              "unsupported",
              "validation_failed":
             return true

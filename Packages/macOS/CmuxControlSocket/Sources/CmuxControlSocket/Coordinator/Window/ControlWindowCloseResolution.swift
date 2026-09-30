@@ -4,5 +4,7 @@ public import Foundation
 public enum ControlWindowCloseResolution: Sendable, Equatable {
     case resolved
     case confirmationRequired(workspaceIDs: [UUID])
+    /// The window holds unsaved edits and `force` was not passed.
+    case unsavedChanges(ControlUnsavedChangesRefusal)
     case notFound
 }

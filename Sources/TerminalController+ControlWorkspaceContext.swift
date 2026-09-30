@@ -111,10 +111,14 @@ extension TerminalController: ControlWorkspaceContext {
            tabManager.workspaceNeedsConfirmCloseForClose(ws) || windowDockNeedsConfirmation {
             return .confirmationRequired
         }
-        guard tabManager.closeWorkspaceNonInteractively(ws) else {
+        switch tabManager.closeWorkspaceNonInteractively(ws, force: force) {
+        case .refused(let refusal):
+            return .unsavedChanges(windowID: windowId, refusal: refusal.controlRefusal)
+        case .failed:
             return .closeFailed(windowID: windowId)
+        case .closed:
+            return .resolved(windowID: windowId)
         }
-        return .resolved(windowID: windowId)
     }
 
     func controlMoveWorkspaceToWindow(
@@ -1119,5 +1123,22 @@ extension TerminalController: ControlWorkspaceContext {
     private func controlWindowOrNull(_ uuid: UUID?) -> JSONValue {
         guard let uuid else { return .null }
         return .string(uuid.uuidString)
+    }
+}
+
+extension UnsavedChangesCloseRefusal {
+    /// The refusal as the control seam reports it: socket and CLI callers can
+    /// pass `--force`, so their message says so.
+    var controlRefusal: ControlUnsavedChangesRefusal {
+        ControlUnsavedChangesRefusal(fileNames: fileNames, message: commandLineMessage)
+    }
+
+    /// The refusal as a legacy `V2CallResult` error for the app-side v2 bodies
+    /// that have not moved onto the coordinator. `message` picks the wording:
+    /// the socket/CLI variant, or the plain one for the mobile companion.
+    func v2Error(message: String, identity: [String: Any] = [:]) -> TerminalController.V2CallResult {
+        var data = identity
+        data["files"] = fileNames
+        return .err(code: Self.socketErrorCode, message: message, data: data)
     }
 }

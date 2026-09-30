@@ -510,11 +510,23 @@ extension TerminalController {
 
     // MARK: - close
 
+    /// The teardown form for a pane the app replaces or discards itself (see
+    /// `SurfacePaneFactory.close`): not automation, so it discards edits like
+    /// every other internal teardown. Automation passes `force` explicitly.
     func controlSurfaceClose(
         routing: ControlRoutingSelectors,
         surfaceID: UUID?,
         hasSurfaceIDParam: Bool,
         force: Bool = false
+    ) -> ControlSurfaceCloseResolution {
+        controlSurfaceClose(routing: routing, surfaceID: surfaceID, hasSurfaceIDParam: hasSurfaceIDParam, force: true)
+    }
+
+    func controlSurfaceClose(
+        routing: ControlRoutingSelectors,
+        surfaceID: UUID?,
+        hasSurfaceIDParam: Bool,
+        force: Bool
     ) -> ControlSurfaceCloseResolution {
         guard let tabManager = resolveTabManager(routing: routing) else {
             return .tabManagerUnavailable
@@ -572,7 +584,12 @@ extension TerminalController {
                windowDock.panel(for: TabID(uuid: surfaceId)).map({ windowDock.dockPanelNeedsConfirmClose($0) }) == true {
                 return .confirmationRequired(surfaceId)
             }
-            guard windowDock.closePanel(surfaceId, force: force) else {
+            if !force,
+               let panel = windowDock.panels[surfaceId],
+               let refusal = windowDock.unsavedChangesCloseConfirmation.refusal(forClosing: [panel]) {
+                return .unsavedChanges(surfaceID: surfaceId, refusal: refusal.controlRefusal)
+            }
+            guard windowDock.closePanel(surfaceId, force: true) else {
                 return .closeFailed(surfaceId)
             }
             AppDelegate.shared?.notificationStore?.clearNotifications(
@@ -591,7 +608,10 @@ extension TerminalController {
                dock.dockPanelNeedsConfirmClose(panel) {
                 return .confirmationRequired(surfaceId)
             }
-            guard ws.closeDockPanelAndClearNotifications(surfaceId, force: force) else {
+            if !force, let refusal = ws.unsavedChangesRefusal(forClosingPanel: surfaceId) {
+                return .unsavedChanges(surfaceID: surfaceId, refusal: refusal.controlRefusal)
+            }
+            guard ws.closeDockPanelAndClearNotifications(surfaceId, force: true) else {
                 return .closeFailed(surfaceId)
             }
             return .closed(
@@ -606,10 +626,16 @@ extension TerminalController {
         if ws.panels.count <= 1 {
             return .lastSurface
         }
+        // The socket API is non-interactive: no close-confirmation prompt, and
+        // no unsaved-changes prompt either. Unless the caller forced the close,
+        // a live process or unsaved edits refuse it instead.
         if !force, ws.panelNeedsConfirmClose(panelId: surfaceId) {
             return .confirmationRequired(surfaceId)
         }
-        guard controlCloseSurfaceRecordingHistory(in: ws, surfaceId: surfaceId, force: force) else {
+        if !force, let refusal = ws.unsavedChangesRefusal(forClosingPanel: surfaceId) {
+            return .unsavedChanges(surfaceID: surfaceId, refusal: refusal.controlRefusal)
+        }
+        guard controlCloseSurfaceRecordingHistory(in: ws, surfaceId: surfaceId, force: true) else {
             return .closeFailed(surfaceId)
         }
         return .closed(

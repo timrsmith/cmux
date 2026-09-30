@@ -329,10 +329,16 @@ extension TerminalController {
             return .lastSurface
         }
 
+        // Socket commands are non-interactive: no close-confirmation prompt and
+        // no unsaved-changes prompt. Unless forced, a live process or an
+        // editor's unsaved edits refuse the close instead.
         if !force, tab.panelNeedsConfirmClose(panelId: targetSurfaceId) {
             return .confirmationRequired
         }
-        guard controlSidebarCloseSurfaceRecordingHistory(in: tab, surfaceId: targetSurfaceId, force: force) else {
+        if !force, let refusal = tab.unsavedChangesRefusal(forClosingPanel: targetSurfaceId) {
+            return .unsavedChanges(refusal.controlRefusal)
+        }
+        guard controlSidebarCloseSurfaceRecordingHistory(in: tab, surfaceId: targetSurfaceId, force: true) else {
             return .closeFailed
         }
         return .closed

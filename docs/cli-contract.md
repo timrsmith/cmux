@@ -118,7 +118,7 @@ Environment:
 | `current-window` | Print the selected window ID. |
 | `new-window` | Create a new window. |
 | `focus-window` | Focus a window by handle. |
-| `close-window` | Close a window by handle. |
+| `close-window` | Close a window by handle. Refuses with `unsaved_changes` when an editor in the window has unsaved changes; `--force` discards them. See [Unsaved editor changes](#unsaved-editor-changes). |
 | `resize-window` | Resize a window by handle, keeping its top-left corner fixed; prints the resulting frame size. With no `--width`/`--height`, reads the size without changing it. Does not steal focus. |
 | `window displays` | List connected displays (name, index, main flag). |
 | `window display <name\|index>` | Move the instance's window(s) onto a display by name (exact, substring) or index, preserving size. Does not steal focus. With `--window`, targets that window; otherwise moves all main windows. `--list` aliases `window displays`. |
@@ -126,8 +126,8 @@ Environment:
 | `move-workspace-to-window` | Move a workspace into a target window. |
 | `reorder-workspace` | Reorder a workspace inside a window. |
 | `reorder-workspaces` | Atomically reorder workspaces inside pinned and unpinned groups. |
-| `workspace-action` | Run workspace context-menu actions from the CLI. |
-| `workspace` | Namespace for workspace verbs: `list`, `create`, `env`, `close`, `rename`, `select`, `status`, `reconnect`, `disconnect`, `group`. `workspace status` prints the workspace's todo lifecycle status (effective, inferred, override); `workspace status set <todo\|working\|needs-attention\|review\|done\|auto>` pins a manual lane (`auto` clears it; a pinned lane auto-clears once the inferred lane changes). `workspace env` prints a workspace's configured environment variables (see [Workspace environment variables](#workspace-environment-variables)); pass `--mask` to redact the values. `workspace reconnect` manually reconnects a remote (SSH) workspace — including one whose automatic reconnect suspended because the host was unreachable — and `workspace disconnect` stops its remote connection. `env`, `reconnect`, and `disconnect` accept a positional workspace handle or `--workspace <id\|ref\|index>`, defaulting to the caller's workspace, then the selected one. |
+| `workspace-action` | Run workspace context-menu actions from the CLI. The `close-others`, `close-above` and `close-below` batches refuse with `unsaved_changes` when any workspace they would close holds an editor with unsaved changes. |
+| `workspace` | Namespace for workspace verbs: `list`, `create`, `env`, `close`, `rename`, `select`, `status`, `reconnect`, `disconnect`, `group`. `workspace status` prints the workspace's todo lifecycle status (effective, inferred, override); `workspace status set <todo\|working\|needs-attention\|review\|done\|auto>` pins a manual lane (`auto` clears it; a pinned lane auto-clears once the inferred lane changes). `workspace env` prints a workspace's configured environment variables (see [Workspace environment variables](#workspace-environment-variables)); pass `--mask` to redact the values. `workspace close` refuses with `unsaved_changes` when an editor in the workspace has unsaved changes; pass `--force` to discard them. `workspace reconnect` manually reconnects a remote (SSH) workspace — including one whose automatic reconnect suspended because the host was unreachable — and `workspace disconnect` stops its remote connection. `env`, `reconnect`, and `disconnect` accept a positional workspace handle or `--workspace <id\|ref\|index>`, defaulting to the caller's workspace, then the selected one. |
 | `workspace-group` | Sidebar workspace group namespace: `list`, `create`, `rename`, `ungroup`, `delete`, `collapse`, `expand`, `pin`, `unpin`, `add`, `remove`, `set-anchor`, `set-color`, `set-icon`, `move`, `focus`, `new-workspace`. `delete` only closes the grouped workspaces when `--close-workspaces` is passed; without it, it ungroups them exactly like `ungroup`. Both accept `--remove-generated-anchor`. |
 | `todo` | Per-workspace checklist namespace: `add "text" [--state <pending\|in-progress\|completed>] [--origin <user\|agent>]`, `list`, `check <index\|id>`, `uncheck <index\|id>`, `start <index\|id>` (in-progress), `edit <index\|id> "text"`, `rm <index\|id>`, `clear`, `set ['<json>']` (atomic replace from a JSON item array, inline or piped on stdin), `open` (open or focus the workspace's todo pane). Targets the caller's workspace by default with `--workspace <id\|ref\|index>` override; `<index>` is the 1-based number printed by `todo list`. Items cap at 50 per workspace. See [Workspace todos](#workspace-todos). |
 | `comments` | Diff review comments namespace: `list` (alias `ls`) `[--repo <path>] [--all] [--json]` — read-only listing of review comments saved from the diff viewer for one git repository (default: the repository containing the current directory). Pending comments only by default; `--all` includes comments already delivered to an agent through a TextBox submission. Backed by the socket v2 method `comments.list`. |
@@ -159,11 +159,11 @@ Environment:
 | `focus-pane` | Focus a pane. |
 | `new-pane` | Create a pane with terminal or browser content. `--command <text>` is accepted for terminal panes only; see [Initial terminal command](#initial-terminal-command). |
 | `new-surface` | Create a surface inside a pane. `--command <text>` is accepted for terminal surfaces only; see [Initial terminal command](#initial-terminal-command). |
-| `close-surface` | Close a surface. |
+| `close-surface` | Close a surface. Refuses with `unsaved_changes` when the surface is an editor with unsaved changes; `--force` discards them. See [Unsaved editor changes](#unsaved-editor-changes). |
 | `move-surface` | Move a surface to another pane, workspace, window, or index. |
 | `split-off` | Move a surface into a new split without changing focus by default. |
 | `reorder-surface` | Reorder a surface within its pane. |
-| `tab-action` | Run horizontal tab context-menu actions. |
+| `tab-action` | Run horizontal tab context-menu actions. The `close-left`, `close-right` and `close-others` batches refuse with `unsaved_changes` when any tab they would close is an editor with unsaved changes. |
 | `rename-tab` | Rename a tab. Compatibility wrapper for `tab-action rename`. |
 | `drag-surface-to-split` | Move a surface into a split direction. |
 | `canvas` | Canvas layout namespace: `info`, `mode`, `set-frame`, `align`, `reveal`, `overview`, `zoom`, `join`, `break`, `select-tab`, `set-viewport`, `new-pane`. Most take a required argument: `mode`, `align`, and `zoom` a direction or mode word, `set-frame` numeric `--x --y --width --height`, `set-viewport` numeric `--x --y` and an optional numeric `--zoom`, `join` a target. `set-frame`, `join`, `break`, and `select-tab` need a surface, positionally or with `--surface <id\|ref>`; `reveal` takes one optionally, and `align` takes none, because its positional is the align command. `new-pane` takes an optional `--type terminal\|browser\|simulator`. `--workspace <ref>` scopes the whole namespace. |
@@ -175,7 +175,7 @@ Environment:
 | `trigger-flash` | Trigger a visual flash on a workspace or surface. |
 | `list-panels` | List panels. Compatibility alias over pane/surface data. |
 | `focus-panel` | Focus a panel. Compatibility alias over surface focus. |
-| `close-workspace` | Close a workspace. |
+| `close-workspace` | Close a workspace. Refuses with `unsaved_changes` when an editor in the workspace has unsaved changes; `--force` discards them. See [Unsaved editor changes](#unsaved-editor-changes). |
 | `select-workspace` | Select a workspace. |
 | `rename-workspace`, `rename-window` | Rename a workspace. `rename-window` is a compatibility alias. |
 | `current-workspace` | Print current workspace information. |
@@ -839,6 +839,28 @@ surface selection, focus, creation, or closure. The stream is bounded: cmux keep
 slow subscribers after 1,024 pending events, and rotates `events.jsonl` with one
 16 MiB archive at `events.jsonl.1`.
 
+### Unsaved editor changes
+
+Interactive closes ask Save / Don't Save / Cancel. A CLI or socket close cannot
+answer that prompt, so it refuses instead: when a file editor or Markdown text
+editor it would close has unsaved changes, nothing closes and the command
+fails with the `unsaved_changes` error. The `message` names the file(s) and
+`data.files` lists them; the CLI prints the message and exits `1`, like a
+`protected` refusal.
+
+| Entry point | Refuses | Discards on request |
+| --- | --- | --- |
+| `cmux close-surface`, `surface.close`, legacy `close_surface` | the editor surface itself | `--force` / `"force": true` (legacy: no force) |
+| `cmux workspace close`, `cmux close-workspace`, `workspace.close`, legacy `close_workspace` | any editor in the workspace, its Dock, and the window Dock when it is the window's last workspace | `--force` / `"force": true` (legacy: no force) |
+| `cmux close-window`, `window.close`, legacy `close_window` | any editor in the window | `--force` / `"force": true` / legacy `close_window <id> force` |
+| `cmux tab-action close-left\|close-right\|close-others`, `cmux workspace-action close-others\|close-above\|close-below` | any editor in the batch (the whole batch is refused) | none; save first or close the editor with `close-surface --force` |
+| `cmux workspace-group delete --close-workspaces` | does not refuse | `--close-workspaces` is already the explicit destructive flag |
+
+`--force` skips only the unsaved-changes check; the pinned-workspace
+protection and the last-surface rule still apply. Internal teardown (a remote
+session ending, a window closing its last mirror) is not automation and keeps
+discarding.
+
 ## Control-socket admission and deadlines
 
 The app never lets one control command block the others. Every accepted
@@ -1029,6 +1051,7 @@ the expected text without connecting to a cmux socket.
 - `cmux new-window --help` -> `Usage: cmux new-window`
 - `cmux focus-window --help` -> `Usage: cmux focus-window --window <id|ref|index>`
 - `cmux close-window --help` -> `Usage: cmux close-window --window <id|ref|index>`
+- `cmux close-window --help` -> `--force`
 - `cmux resize-window --help` -> `Usage: cmux resize-window --window <id|ref|index> [--width <points>] [--height <points>]`
 - `cmux move-workspace-to-window --help` -> `Usage: cmux move-workspace-to-window`
 - `cmux move-surface --help` -> `Usage: cmux move-surface`
@@ -1066,6 +1089,7 @@ the expected text without connecting to a cmux socket.
 - `cmux new-surface --help` -> `Usage: cmux new-surface`
 - `cmux new-surface --help` -> `--command <text>`
 - `cmux close-surface --help` -> `Usage: cmux close-surface`
+- `cmux close-surface --help` -> `--force`
 - `cmux drag-surface-to-split --help` -> `Usage: cmux drag-surface-to-split`
 - `cmux refresh-surfaces --help` -> `Usage: cmux refresh-surfaces`
 - `cmux reload-config --help` -> `Usage: cmux reload-config`
@@ -1075,6 +1099,7 @@ the expected text without connecting to a cmux socket.
 - `cmux list-panels --help` -> `Usage: cmux list-panels`
 - `cmux focus-panel --help` -> `Usage: cmux focus-panel`
 - `cmux close-workspace --help` -> `Usage: cmux close-workspace`
+- `cmux close-workspace --help` -> `--force`
 - `cmux select-workspace --help` -> `Usage: cmux select-workspace`
 - `cmux rename-workspace --help` -> `Usage: cmux rename-workspace`
 - `cmux rename-window --help` -> `Usage: cmux rename-workspace`

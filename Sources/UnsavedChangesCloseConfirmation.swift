@@ -56,6 +56,21 @@ final class UnsavedChangesCloseConfirmation {
         }
     }
 
+    /// The one question every automation close asks before closing: which of
+    /// `panels` would lose unsaved edits. A socket, CLI, mobile-companion or
+    /// AppleScript close cannot answer the prompt, so it refuses with the
+    /// returned reason instead of prompting; `nil` means the close may proceed.
+    /// Clean panels are ignored, so callers pass candidates unfiltered. Pending
+    /// retries do not count: a non-interactive close is never a re-issued one.
+    func refusal(forClosing panels: [any Panel]) -> UnsavedChangesCloseRefusal? {
+        let dirtyPanels = panels.compactMap { panel -> (any UnsavedChangesTracking)? in
+            guard let tracking = panel as? any UnsavedChangesTracking, tracking.isDirty else { return nil }
+            return tracking
+        }
+        guard !dirtyPanels.isEmpty else { return nil }
+        return UnsavedChangesCloseRefusal(fileNames: dirtyPanels.map(\.unsavedChangesDisplayName))
+    }
+
     /// Whether `panels` belong to a close the user already answered through this
     /// prompt: the re-issued close after Save or Don't Save. That answer stands in
     /// for the close-warning confirmation, so the caller skips its
@@ -159,4 +174,58 @@ final class UnsavedChangesCloseConfirmation {
         }
         return .deferred
     }
+}
+
+/// Why a non-interactive close (socket, CLI, mobile companion, AppleScript)
+/// was refused: the files whose edits it would have discarded. Automation
+/// cannot answer the Save / Don't Save / Cancel prompt, so it is told which
+/// files to save first; a close carrying an explicit force flag skips this.
+struct UnsavedChangesCloseRefusal: Error, Equatable, Sendable {
+    /// The stable socket error code; an identifier, never localized.
+    static let socketErrorCode = "unsaved_changes"
+
+    /// The dirty file names, in close order.
+    let fileNames: [String]
+
+    /// The reason for callers without a force flag (mobile companion, AppleScript).
+    var message: String { Self.message(naming: fileNames, forceHint: false) }
+
+    /// The reason for socket and CLI callers, which can pass `--force` to discard.
+    var commandLineMessage: String { Self.message(naming: fileNames, forceHint: true) }
+
+    private static func message(naming fileNames: [String], forceHint: Bool) -> String {
+        if fileNames.count == 1, let name = fileNames.first {
+            let format = forceHint
+                ? String(
+                    localized: "close.unsavedChanges.refused.force.one",
+                    defaultValue: "“%@” has unsaved changes; save it first or pass --force."
+                )
+                : String(
+                    localized: "close.unsavedChanges.refused.one",
+                    defaultValue: "“%@” has unsaved changes; save it first."
+                )
+            return String(format: format, locale: .current, name)
+        }
+        let format = forceHint
+            ? String(
+                localized: "close.unsavedChanges.refused.force.other",
+                defaultValue: "%@ have unsaved changes; save them first or pass --force."
+            )
+            : String(
+                localized: "close.unsavedChanges.refused.other",
+                defaultValue: "%@ have unsaved changes; save them first."
+            )
+        return String(format: format, locale: .current, fileNames.joined(separator: ", "))
+    }
+}
+
+/// The result of a non-interactive close that refuses rather than discards.
+enum NonInteractiveCloseOutcome: Equatable {
+    /// The target closed.
+    case closed
+    /// The target could not be closed for a reason other than unsaved edits
+    /// (it was gone, pinned, or teardown did not complete).
+    case failed
+    /// Nothing closed: a panel holds unsaved edits and the close was not forced.
+    case refused(UnsavedChangesCloseRefusal)
 }

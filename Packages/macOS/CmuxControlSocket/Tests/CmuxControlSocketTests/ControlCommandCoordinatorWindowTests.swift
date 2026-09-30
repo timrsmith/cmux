@@ -40,11 +40,6 @@ private final class FakeControlCommandContext: ControlCommandContext {
         return createResult
     }
 
-    func controlCloseWindow(id: UUID) -> Bool {
-        closedID = id
-        return closeResult
-    }
-
     func controlCloseWindow(id: UUID, force: Bool) -> ControlWindowCloseResolution {
         closedID = id
         closedForce = force
@@ -229,15 +224,16 @@ struct ControlCommandCoordinatorWindowTests {
     @Test func windowCloseOkAndNotFound() {
         let (coordinator, context) = makeCoordinator()
         let windowID = UUID()
-        context.closeResult = true
+        context.closeResolution = .resolved
         #expect(coordinator.handle(request("window.close", ["window_id": .string(windowID.uuidString)]))
             == .ok(.object([
                 "window_id": .string(windowID.uuidString),
                 "window_ref": .string("window:1"),
             ])))
         #expect(context.closedID == windowID)
+        #expect(context.closedForce == false)
 
-        context.closeResult = false
+        context.closeResolution = .notFound
         let notFound = coordinator.handle(request("window.close", ["window_id": .string(windowID.uuidString)]))
         #expect(notFound == .err(code: "not_found", message: "Window not found", data: .object([
             "window_id": .string(windowID.uuidString),

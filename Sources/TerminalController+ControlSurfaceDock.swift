@@ -375,7 +375,12 @@ extension TerminalController {
            windowDock.dockPanelNeedsConfirmClose(panel) {
             return .confirmationRequired(surfaceId)
         }
-        guard windowDock.closePanel(surfaceId, force: force) else {
+        if !force,
+           let panel = windowDock.panels[surfaceId],
+           let refusal = windowDock.unsavedChangesCloseConfirmation.refusal(forClosing: [panel]) {
+            return .unsavedChanges(surfaceID: surfaceId, refusal: refusal.controlRefusal)
+        }
+        guard windowDock.closePanel(surfaceId, force: true) else {
             return .closeFailed(surfaceId)
         }
         AppDelegate.shared?.notificationStore?.clearNotifications(

@@ -298,7 +298,8 @@ extension CMUXCLI {
       env [workspace] [--mask]
                               Print a workspace's configured environment
                               variables (--mask redacts the values)
-      close <workspace>       Close a workspace
+      close <workspace> [--force]
+                              Close a workspace (--force discards unsaved edits)
       rename <workspace> --title <new>
       select <workspace>      Make a workspace active
       status [set <lane|auto>]

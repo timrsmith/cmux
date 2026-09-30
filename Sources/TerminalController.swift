@@ -5089,6 +5089,10 @@ class TerminalController {
             let windowId = v2ResolveWindowId(tabManager: tabManager)
             let force = v2Bool(params, "force") ?? false
 
+            /// Closes every candidate but the acted-on workspace. A batch that
+            /// would discard an editor's unsaved edits is refused whole (there is
+            /// no force flag on workspace actions): `result` carries the error
+            /// and `nil` comes back.
             @MainActor
             func closeWorkspaces(_ workspaces: [Workspace]) -> Int? {
                 let activeWorkspaceIDs = workspaces
@@ -5097,6 +5101,15 @@ class TerminalController {
                 guard force || activeWorkspaceIDs.isEmpty else {
                     result = .err(code: "confirmation_required", message: "One or more workspaces have a running process; retry with force=true", data: [
                         "workspace_ids": activeWorkspaceIDs.map { $0.uuidString }
+                    ])
+                    return nil
+                }
+                let closing = workspaces.filter { $0.id != workspace.id }
+                if !force, let refusal = tabManager.unsavedChangesRefusal(forClosing: closing) {
+                    result = refusal.v2Error(message: refusal.commandLineMessage, identity: [
+                        "action": action,
+                        "workspace_id": workspace.id.uuidString,
+                        "workspace_ref": v2Ref(kind: .workspace, uuid: workspace.id),
                     ])
                     return nil
                 }
@@ -12906,6 +12919,9 @@ class TerminalController {
         return "OK \(Int(size.width)) \(Int(size.height))"
     }
 
+    /// Legacy `close_window <id> [force]`: without `force`, a window holding
+    /// an editor with unsaved edits is refused (`cmux close-window --force`
+    /// appends the token).
     private func closeWindow(_ arg: String) -> String {
         let parts = arg.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
         guard let windowId = parts.first.flatMap(UUID.init(uuidString:)),
@@ -12913,14 +12929,15 @@ class TerminalController {
             return "ERROR: Invalid window id"
         }
         let force = parts.dropFirst().contains("--force")
-        let outcome = v2MainSync { controlCloseWindow(id: windowId, force: force) }
-        switch outcome {
+        switch v2MainSync({ controlCloseWindow(id: windowId, force: force) }) {
         case .resolved:
             return "OK"
         case .notFound:
             return "ERROR: Window not found"
         case .confirmationRequired:
             return "ERROR: \(controlWindowCloseStrings().confirmationRequired)"
+        case .unsavedChanges(let refusal):
+            return "ERROR: \(refusal.message)"
         }
     }
 
@@ -14249,8 +14266,17 @@ class TerminalController {
                     )
                     return
                 }
-                let closeFailure = String(localized: "cli.socket.error.workspaceNotClosed", defaultValue: "Workspace not closed")
-                result = tabManager.closeWorkspaceNonInteractively(tab) ? "OK" : "ERROR: \(closeFailure)"
+                // Unless forced, unsaved edits refuse the close; `--force` (and
+                // `workspace.close` with `force`) discards them.
+                switch tabManager.closeWorkspaceNonInteractively(tab, force: force) {
+                case .closed:
+                    result = "OK"
+                case .refused(let refusal):
+                    result = "ERROR: \(refusal.commandLineMessage)"
+                case .failed:
+                    let closeFailure = String(localized: "cli.socket.error.workspaceNotClosed", defaultValue: "Workspace not closed")
+                    result = "ERROR: \(closeFailure)"
+                }
             }
         }
         return result

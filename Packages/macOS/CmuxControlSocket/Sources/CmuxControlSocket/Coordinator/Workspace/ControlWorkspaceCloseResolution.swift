@@ -21,6 +21,10 @@ public enum ControlWorkspaceCloseResolution: Sendable, Equatable {
     /// The workspace resolved and was eligible to close, but local teardown did
     /// not complete. Carries the owning window id (may be absent).
     case closeFailed(windowID: UUID?)
+    /// An editor in the workspace (or a Dock it would close) holds unsaved edits
+    /// and `force` was not passed; nothing was closed. Carries the owning window
+    /// id (may be absent).
+    case unsavedChanges(windowID: UUID?, refusal: ControlUnsavedChangesRefusal)
     /// The workspace was closed. Carries the owning window id (may be absent).
     case resolved(windowID: UUID?)
 }

@@ -151,21 +151,18 @@ extension ControlCommandCoordinator {
         guard let windowID = uuid(params, "window_id") else {
             return .err(code: "invalid_params", message: "Missing or invalid window_id", data: nil)
         }
-        let identity: JSONValue = .object([
+        let identity: [String: JSONValue] = [
             "window_id": .string(windowID.uuidString),
             "window_ref": ref(.window, windowID),
-        ])
+        ]
         let force = bool(params, "force") ?? false
         switch context?.controlCloseWindow(id: windowID, force: force) ?? .notFound {
         case .resolved:
-            return .ok(identity)
+            return .ok(.object(identity))
         case .notFound:
-            return .err(code: "not_found", message: "Window not found", data: identity)
+            return .err(code: "not_found", message: "Window not found", data: .object(identity))
         case .confirmationRequired(let workspaceIDs):
-            var data: [String: JSONValue] = [
-                "window_id": .string(windowID.uuidString),
-                "window_ref": ref(.window, windowID),
-            ]
+            var data = identity
             data["workspace_ids"] = .array(workspaceIDs.map { .string($0.uuidString) })
             return .err(
                 code: "confirmation_required",
@@ -173,6 +170,8 @@ extension ControlCommandCoordinator {
                     ?? "One or more workspaces or Dock surfaces have a running process; retry with --force",
                 data: .object(data)
             )
+        case .unsavedChanges(let refusal):
+            return refusal.errorResult(identity)
         }
     }
 

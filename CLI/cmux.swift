@@ -6908,7 +6908,9 @@ struct CMUXCLI {
             guard let target = optionValue(commandArgs, name: "--window"), let windowID = try normalizeWindowHandle(target, client: client) else {
                 throw CLIError(message: "close-window requires --window")
             }
-            let force = commandArgs.contains("--force")
+            // Without --force the app refuses to close over a live process or an
+            // editor's unsaved edits.
+            let force = hasFlag(commandArgs, name: "--force")
             let response = try sendV1Command("close_window \(windowID)\(force ? " --force" : "")", client: client)
             print(response)
 
@@ -7433,7 +7435,9 @@ struct CMUXCLI {
                 sfId = try normalizeSurfaceHandle(surfaceRaw, client: client, workspaceHandle: wsId, windowHandle: winId)
             }
             if let sfId { params["surface_id"] = sfId }
-            params["force"] = commandArgs.contains("--force")
+            // Without --force the app refuses to close over a live process or an
+            // editor's unsaved edits.
+            params["force"] = hasFlag(commandArgs, name: "--force")
             let payload = try client.sendV2(method: "surface.close", params: params)
             if let closedWorkspaceId = (payload["workspace_id"] as? String) ?? wsId,
                let closedSurfaceId = (payload["surface_id"] as? String) ?? sfId {
@@ -11112,6 +11116,8 @@ struct CMUXCLI {
         if let winId { params["window_id"] = winId }
         let wsId = try normalizeWorkspaceHandle(target, client: client, windowHandle: winId)
         if let wsId { params["workspace_id"] = wsId }
+        // Without --force the app refuses to close over a live process or an
+        // editor's unsaved edits.
         if force { params["force"] = true }
         let payload = try client.sendV2(method: "workspace.close", params: params)
         if let closedWorkspaceId = (payload["workspace_id"] as? String) ?? wsId {
@@ -19650,15 +19656,16 @@ struct CMUXCLI {
             return """
             Usage: cmux close-window --window <id|ref|index> [--force]
 
-            Close the specified window.
+            Close the specified window. Refuses when an editor in the window has
+            unsaved changes unless --force is passed.
 
             Flags:
               --window <id|ref|index>   Window to close (required)
-              --force                   Close even when live processes would be terminated
+              --force                   Close even when live processes would be terminated or an editor has unsaved changes (discards them)
 
             Example:
               cmux close-window --window 0
-              cmux close-window --window window:1
+              cmux close-window --window window:1 --force
             """
         case "resize-window":
             return """
@@ -20329,17 +20336,20 @@ struct CMUXCLI {
             Usage: cmux close-surface [flags]
 
             Close a surface. Defaults to the focused surface if none specified.
+            Refuses when the surface is an editor with unsaved changes unless
+            --force is passed.
 
             Flags:
               --surface <id|ref|index>    Surface to close (default: $CMUX_SURFACE_ID)
               --panel <id|ref|index>      Alias for --surface
               --workspace <id|ref|index>  Workspace context (default: $CMUX_WORKSPACE_ID)
               --window <id|ref|index>     Window context for workspace/surface refs and indexes
-              --force                     Close even when a live process would be killed
+              --force                     Close even when a live process would be killed or the editor has unsaved changes (discards them)
 
             Example:
               cmux close-surface
               cmux close-surface --surface surface:3
+              cmux close-surface --surface surface:3 --force
             """
         case "drag-surface-to-split":
             return """
@@ -20506,16 +20516,19 @@ struct CMUXCLI {
             """
         case "close-workspace":
             return """
-            Usage: cmux close-workspace --workspace <id|ref|index> [--window <id|ref|index>]
+            Usage: cmux close-workspace --workspace <id|ref|index> [--window <id|ref|index>] [--force]
 
-            Close the specified workspace.
+            Close the specified workspace. Refuses when an editor in the workspace
+            has unsaved changes unless --force is passed.
 
             Flags:
               --workspace <id|ref|index>   Workspace to close (required)
               --window <id|ref|index>      Window context for workspace refs and indexes
+              --force                      Close even if an editor has unsaved changes (discards them)
 
             Example:
               cmux close-workspace --workspace workspace:2
+              cmux close-workspace --workspace workspace:2 --force
             """
         case "select-workspace":
             return """
