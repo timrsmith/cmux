@@ -10,17 +10,20 @@ import {
   type DiffViewerLabelResolver,
 } from "./labels";
 import {
+  WRITE_VERBS,
   externalPullRequestURL,
   pullRequestLabelKeys,
   pullRequestStateLabelKey,
   reviewDecisionLabelKey,
   validateCommitMessage,
   validatePullRequestDraft,
+  writeActionId,
   type CommitAvailability,
   type CommitMessageValidation,
-  type FileWriteAction,
   type PullRequestDraft,
   type PullRequestValidation,
+  type WriteVerb,
+  type WriteVerbDescriptor,
 } from "./worktree-actions";
 
 /**
@@ -30,12 +33,6 @@ import {
  * action asks for an inline confirmation first; nothing here talks to the
  * transport, the App owns the request and the reload.
  */
-
-const FILE_ACTION_ICON: Record<FileWriteAction, IconName> = {
-  revertFile: "revert",
-  stageFile: "stage",
-  unstageFile: "unstage",
-};
 
 /**
  * Per-file fold control, slotted at the front of the card header. The fold
@@ -112,24 +109,28 @@ export function FileSelectCheckbox({ checked, label, onToggle }: {
 }
 
 export function FileWriteActions({
-  actions,
   label,
   onAction,
   onCopyPath,
   onOpenInCmux,
   pending,
+  verbs,
 }: {
-  actions: readonly FileWriteAction[];
   label: DiffViewerLabelResolver;
-  onAction: (action: FileWriteAction) => void;
+  onAction: (verb: WriteVerb) => void;
   /** Copies the repository-relative path; always offered when present. */
   onCopyPath?: () => void;
   /** Opens the file in the hosting workspace; offered only on a host transport. */
   onOpenInCmux?: () => void;
   pending: boolean;
+  /** The view's write verbs (`writeVerbsForSource`), one button each. */
+  verbs: readonly WriteVerbDescriptor[];
 }) {
-  const [confirming, setConfirming] = useState(false);
-  if (actions.length === 0 && onCopyPath == null && onOpenInCmux == null) {
+  // The verb whose inline confirmation has replaced the buttons, if any.
+  const [confirming, setConfirming] = useState<WriteVerbDescriptor | null>(
+    null,
+  );
+  if (verbs.length === 0 && onCopyPath == null && onOpenInCmux == null) {
     return null;
   }
   return (
@@ -141,16 +142,16 @@ export function FileWriteActions({
       onPointerDown={stopHeaderPropagation}
       onKeyDown={stopHeaderToggleKeys}
     >
-      {confirming ? (
+      {confirming?.confirm ? (
         <InlineConfirmation
-          confirmLabel={label("confirmRevert")}
-          onCancel={() => setConfirming(false)}
+          confirmLabel={label(confirming.confirm.file.button)}
+          onCancel={() => setConfirming(null)}
           onConfirm={() => {
-            setConfirming(false);
-            onAction("revertFile");
+            setConfirming(null);
+            onAction(confirming.verb);
           }}
           pending={pending}
-          prompt={label("revertPrompt")}
+          prompt={label(confirming.confirm.file.prompt)}
           cancelLabel={label("cancel")}
         />
       ) : (
@@ -171,15 +172,17 @@ export function FileWriteActions({
               onClick={onCopyPath}
             />
           ) : null}
-          {actions.map((action) => (
+          {verbs.map((descriptor) => (
             <WorktreeActionButton
-              key={action}
-              action={action}
-              icon={FILE_ACTION_ICON[action]}
-              label={label(action)}
+              key={descriptor.verb}
+              action={writeActionId(descriptor.verb, "file")}
+              icon={descriptor.icon}
+              label={label(descriptor.label.file)}
               disabled={pending}
               onClick={() =>
-                action === "revertFile" ? setConfirming(true) : onAction(action)
+                descriptor.confirm
+                  ? setConfirming(descriptor)
+                  : onAction(descriptor.verb)
               }
             />
           ))}
@@ -224,11 +227,11 @@ function WorktreeActionButton({
 
 export function HunkWriteActions({
   label,
-  onRevert,
+  onDiscard,
   pending,
 }: {
   label: DiffViewerLabelResolver;
-  onRevert: () => void;
+  onDiscard: () => void;
   pending: boolean;
 }) {
   const [confirming, setConfirming] = useState(false);
@@ -243,7 +246,7 @@ export function HunkWriteActions({
           onCancel={() => setConfirming(false)}
           onConfirm={() => {
             setConfirming(false);
-            onRevert();
+            onDiscard();
           }}
           pending={pending}
           prompt={label("revertPrompt")}
@@ -257,7 +260,8 @@ export function HunkWriteActions({
           title={label("revertHunk")}
           onClick={() => setConfirming(true)}
         >
-          <Icon name="revert" />
+          {/* The same glyph as every other discard. */}
+          <Icon name={WRITE_VERBS.discard.icon} />
           <span>{label("revertHunk")}</span>
         </button>
       )}

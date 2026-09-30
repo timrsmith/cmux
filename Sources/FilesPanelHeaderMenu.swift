@@ -4,25 +4,24 @@ import SwiftUI
 
 /// The "…" menu on the Files header, wherever the tree lives: the right
 /// sidebar's Files tab, the leading panel, or the stacked region. Show
-/// Changes jumps to the right sidebar's Changes tab (offered while that tab
-/// is visible; with the tree docked elsewhere the two are no longer a tab
-/// switch apart) through the same action the Changes shortcut and the
-/// command palette run. The Placement submenu writes
+/// Changes jumps to the right sidebar's Changes tab through the same action
+/// the Changes shortcut and the command palette run; the caller decides
+/// whether to offer it (`onShowChanges`). The Placement submenu writes
 /// `sidebar.filesPanelPlacement` through the same live setting the Settings
 /// window edits, so the header and Settings never disagree. Every other file
 /// setting (where files open, the terminal editor, the file editor's
 /// display) lives in Settings > Files and Editing, which the last item opens.
 struct FilesPanelHeaderMenu: View {
     @LiveSetting(\.sidebar.filesPanelPlacement) private var placement
-    /// Shows the right sidebar on its Changes tab, or `nil` where the menu
-    /// sits inside that sidebar already (its Files tab) and Changes is a
-    /// neighbouring tab.
+    /// Shows the right sidebar on its Changes tab. `nil` where the item is
+    /// not offered: inside that sidebar already (its Files tab, where Changes
+    /// is a neighbouring tab), or while the Changes tab is hidden.
     var onShowChanges: (() -> Void)? = nil
 
     var body: some View {
         let placementTitle = String(localized: "filesPanel.header.placement", defaultValue: "Placement")
         Menu {
-            if let onShowChanges, RightSidebarMode.visibleModes().contains(.changes) {
+            if let onShowChanges {
                 Button(action: onShowChanges) {
                     Label(
                         String(localized: "filesPanel.header.showChanges", defaultValue: "Show Changes"),

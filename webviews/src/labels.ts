@@ -225,11 +225,12 @@ export function createDiffViewerLabelResolver(
  * The label keys that come as a `{count}` template plus a `...One` singular
  * (`stageSelected` / `stageSelectedOne`). The catalog's count strings carry
  * no plural variations (a `{count}` placeholder is not a printf argument), so
- * the singular is its own key and this picks between the two.
+ * the singular is its own key and `formatCountLabel` picks between the two.
  */
-export type CountLabelKey = {
-  [K in DiffViewerLabelKey]: `${K}One` extends DiffViewerLabelKey ? K : never;
-}[DiffViewerLabelKey];
+export type CountLabelKey =
+  | "discardSelected"
+  | "stageSelected"
+  | "unstageSelected";
 
 /** `label("<key>One")` for exactly one, otherwise `label(key)` with `{count}` filled in. */
 export function formatCountLabel(

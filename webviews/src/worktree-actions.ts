@@ -20,7 +20,8 @@ import type {
   WorktreeSessionRequest,
 } from "./diff/generated/protocol";
 import { filePath, previousFilePath, type DiffStats } from "./diff-stream";
-import type { DiffViewerLabelKey } from "./labels";
+import type { IconName } from "./icons";
+import type { CountLabelKey, DiffViewerLabelKey } from "./labels";
 
 /** Handshake capability the sidecar advertises when write commands exist. */
 export const WORKTREE_WRITE_CAPABILITY = "worktree.write";
@@ -44,17 +45,73 @@ export type WritableDiffSource = Extract<
   { kind: "unstaged" | "staged" }
 >;
 
-export type FileWriteAction = "stageFile" | "unstageFile" | "revertFile";
+/**
+ * The three per-path write verbs. Each exists at three scopes: one file (the
+ * card's button), the checked files (the header menu while files are
+ * selected), and the whole view (the header menu otherwise).
+ */
+export type WriteVerb = "stage" | "unstage" | "discard";
 
-/** Whole-session write actions, shown in the repository header while nothing is selected. */
-export type BulkWriteAction = "discardAll" | "stageAll" | "unstageAll";
+export type WriteScope = "file" | "selected" | "all";
+
+export type WriteVerbDescriptor = {
+  verb: WriteVerb;
+  icon: IconName;
+  /** The sidecar method per scope: `files` carries a path list, `all` the session. */
+  method: {
+    all: "worktreeDiscardAll" | "worktreeStageAll" | "worktreeUnstageAll";
+    files: "worktreeDiscardFiles" | "worktreeStageFiles" | "worktreeUnstageFiles";
+  };
+  /**
+   * Label keys per scope. `selected` is a `{count}` template with its own
+   * `...One` singular (`formatCountLabel`).
+   */
+  label: { file: DiffViewerLabelKey; all: DiffViewerLabelKey; selected: CountLabelKey };
+  /**
+   * Set for a verb that asks first: the confirmation's button and question
+   * per scope. Such a verb also renders as the danger item.
+   */
+  confirm: Record<
+    WriteScope,
+    { button: DiffViewerLabelKey; prompt: DiffViewerLabelKey }
+  > | null;
+};
+
+export const WRITE_VERBS: Record<WriteVerb, WriteVerbDescriptor> = {
+  stage: {
+    verb: "stage",
+    icon: "stage",
+    method: { all: "worktreeStageAll", files: "worktreeStageFiles" },
+    label: { file: "stageFile", all: "stageAll", selected: "stageSelected" },
+    confirm: null,
+  },
+  unstage: {
+    verb: "unstage",
+    icon: "unstage",
+    method: { all: "worktreeUnstageAll", files: "worktreeUnstageFiles" },
+    label: { file: "unstageFile", all: "unstageAll", selected: "unstageSelected" },
+    confirm: null,
+  },
+  discard: {
+    verb: "discard",
+    icon: "trash",
+    method: { all: "worktreeDiscardAll", files: "worktreeDiscardFiles" },
+    label: { file: "revertFile", all: "discardAll", selected: "discardSelected" },
+    confirm: {
+      file: { button: "confirmRevert", prompt: "revertPrompt" },
+      selected: { button: "confirmDiscardSelected", prompt: "discardSelectedPrompt" },
+      all: { button: "confirmDiscardAll", prompt: "discardAllPrompt" },
+    },
+  },
+};
 
 /**
- * Selection-scoped write actions: the header offers them in place of the
- * whole-session ones while files are selected. Each is one sidecar call
- * carrying every selected path.
+ * The `data-action` of a verb's control at a scope (`stageFile`, `stageFiles`,
+ * `stageAll`): what the tests and any styling hook onto.
  */
-export type SelectionWriteAction = "discardFiles" | "stageFiles" | "unstageFiles";
+export function writeActionId(verb: WriteVerb, scope: WriteScope): string {
+  return `${verb}${scope === "file" ? "File" : scope === "selected" ? "Files" : "All"}`;
+}
 
 /**
  * `enabled`: the view is the index, a commit records it as is. `stageAll`:
@@ -110,31 +167,6 @@ export type HunkActionTarget = {
   anchor: HunkActionAnchor;
 };
 
-/** The per-file button's request is the selection request for that one file. */
-const FILE_ACTION_SELECTION: Record<FileWriteAction, SelectionWriteAction> = {
-  revertFile: "discardFiles",
-  stageFile: "stageFiles",
-  unstageFile: "unstageFiles",
-};
-
-const BULK_ACTION_METHOD: Record<
-  BulkWriteAction,
-  "worktreeDiscardAll" | "worktreeStageAll" | "worktreeUnstageAll"
-> = {
-  discardAll: "worktreeDiscardAll",
-  stageAll: "worktreeStageAll",
-  unstageAll: "worktreeUnstageAll",
-};
-
-const SELECTION_ACTION_METHOD: Record<
-  SelectionWriteAction,
-  "worktreeDiscardFiles" | "worktreeStageFiles" | "worktreeUnstageFiles"
-> = {
-  discardFiles: "worktreeDiscardFiles",
-  stageFiles: "worktreeStageFiles",
-  unstageFiles: "worktreeUnstageFiles",
-};
-
 export function writableDiffSource(
   source: DiffSource | null | undefined,
 ): WritableDiffSource | null {
@@ -162,58 +194,25 @@ export function worktreeWriteAvailable(
   );
 }
 
-/** Header buttons per source kind, in render order. */
-export function fileActionsForSource(
-  source: DiffSource | null | undefined,
-): FileWriteAction[] {
-  switch (writableDiffSource(source)?.kind) {
-    case "unstaged":
-      return ["stageFile", "revertFile"];
-    case "staged":
-      return ["unstageFile", "revertFile"];
-    default:
-      return [];
-  }
-}
-
-/** The whole-session counterpart of the per-file stage / unstage button. */
-export function bulkStageActionForSource(
-  source: DiffSource | null | undefined,
-): Extract<BulkWriteAction, "stageAll" | "unstageAll"> | null {
-  switch (writableDiffSource(source)?.kind) {
-    case "unstaged":
-      return "stageAll";
-    case "staged":
-      return "unstageAll";
-    default:
-      return null;
-  }
-}
+const UNSTAGED_VERBS = [WRITE_VERBS.stage, WRITE_VERBS.discard];
+const STAGED_VERBS = [WRITE_VERBS.unstage, WRITE_VERBS.discard];
+const NO_VERBS: WriteVerbDescriptor[] = [];
 
 /**
- * The header's whole-session actions per source kind, in render order: the
- * stage / unstage counterpart of the per-file button, then discard (which
- * confirms first). Both working-tree views can discard; a staged discard
- * restores HEAD's copy the way the per-file Discard does.
+ * The write verbs a view offers, in render order, at every scope: stage
+ * (working tree) or unstage (index), then discard, which confirms first.
+ * Both working-tree views can discard; a staged discard restores HEAD's copy.
  */
-export function bulkActionsForSource(
+export function writeVerbsForSource(
   source: DiffSource | null | undefined,
-): BulkWriteAction[] {
-  const stage = bulkStageActionForSource(source);
-  return stage == null ? [] : [stage, "discardAll"];
-}
-
-/** The selection-scoped counterparts of {@link bulkActionsForSource}, same order. */
-export function selectionActionsForSource(
-  source: DiffSource | null | undefined,
-): SelectionWriteAction[] {
+): readonly WriteVerbDescriptor[] {
   switch (writableDiffSource(source)?.kind) {
     case "unstaged":
-      return ["stageFiles", "discardFiles"];
+      return UNSTAGED_VERBS;
     case "staged":
-      return ["unstageFiles", "discardFiles"];
+      return STAGED_VERBS;
     default:
-      return [];
+      return NO_VERBS;
   }
 }
 
@@ -234,8 +233,8 @@ export function commitAvailability(
 /**
  * Resolves the repository-relative target of a file diff, keyed the same way
  * comments key their file (`fileName`). Renames carry both names so stage /
- * unstage / revert can act on the pair; the sidecar validates the paths again
- * before touching Git.
+ * unstage / discard can act on the pair; the sidecar validates the paths
+ * again before touching Git.
  */
 export function worktreeFileTarget(
   fileDiff: WorktreeFileDiff | null | undefined,
@@ -353,18 +352,6 @@ function isHunkRanges(value: unknown): value is PierreHunkRanges {
   );
 }
 
-/** One file's stage / unstage / discard: a one-element selection request. */
-export function buildFileRequest(
-  action: FileWriteAction,
-  session: WorktreeSession,
-  source: WritableDiffSource,
-  target: WorktreeFileTarget,
-): DiffCommand {
-  return buildFilesRequest(FILE_ACTION_SELECTION[action], session, source, [
-    target,
-  ]);
-}
-
 /**
  * The file targets of the selected items, in item (diff) order. Items whose
  * diff carries no usable name have no target and are skipped, as the
@@ -406,9 +393,12 @@ export function selectionPaths(targets: readonly WorktreeFileTarget[]): string[]
   return paths;
 }
 
-/** One request for the whole selection; `targets` must not be empty. */
+/**
+ * One request for `targets` (a card's one file, or the whole selection);
+ * `targets` must not be empty.
+ */
 export function buildFilesRequest(
-  action: SelectionWriteAction,
+  verb: WriteVerb,
   session: WorktreeSession,
   source: WritableDiffSource,
   targets: readonly WorktreeFileTarget[],
@@ -419,7 +409,7 @@ export function buildFilesRequest(
     source,
     paths: selectionPaths(targets),
   };
-  return { method: SELECTION_ACTION_METHOD[action], params };
+  return { method: WRITE_VERBS[verb].method.files, params };
 }
 
 /**
@@ -479,13 +469,14 @@ function sessionParams(
   };
 }
 
+/** The verb over the whole view: the session command, no paths. */
 export function buildBulkRequest(
-  action: BulkWriteAction,
+  verb: WriteVerb,
   session: WorktreeSession,
   source: WritableDiffSource,
 ): DiffCommand {
   return {
-    method: BULK_ACTION_METHOD[action],
+    method: WRITE_VERBS[verb].method.all,
     params: sessionParams(session, source),
   };
 }

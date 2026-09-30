@@ -26,20 +26,18 @@ export const FILE_TREE_SELECTION_SPRITE = `<svg xmlns="http://www.w3.org/2000/sv
   </symbol>
 </svg>`;
 
+type DecorationIcon = Extract<FileTreeRowDecoration, { icon: unknown }>["icon"];
+
+const GLYPH = { width: 14, height: 14, viewBox: "0 0 20 20" } as const;
+const ICON_ON: DecorationIcon = { name: SELECTION_ICON_ON, ...GLYPH };
+const ICON_OFF: DecorationIcon = { name: SELECTION_ICON_OFF, ...GLYPH };
+
 /** The decoration for one file row: its checkbox glyph and accessible name. */
 export function selectionDecoration(
   selected: boolean,
   title: string,
 ): FileTreeRowDecoration {
-  return {
-    icon: {
-      name: selected ? SELECTION_ICON_ON : SELECTION_ICON_OFF,
-      width: 14,
-      height: 14,
-      viewBox: "0 0 20 20",
-    },
-    title,
-  };
+  return { icon: selected ? ICON_ON : ICON_OFF, title };
 }
 
 /**

@@ -38,6 +38,10 @@ SHORTCUT_ACTION = (
     REPO_ROOT / "Packages" / "macOS" / "CmuxSettings" / "Sources" / "CmuxSettings"
     / "Values" / "ShortcutAction.swift"
 )
+FILE_EXPLORER_DOUBLE_CLICK_ACTION = (
+    REPO_ROOT / "Packages" / "macOS" / "CmuxSettings" / "Sources" / "CmuxSettings"
+    / "Values" / "FileExplorerDoubleClickAction.swift"
+)
 SOURCE_ROOTS = (REPO_ROOT / "Sources", REPO_ROOT / "Packages")
 
 KEY_DECLARATION = re.compile(
@@ -226,6 +230,15 @@ def shortcut_action_ids():
     return ids
 
 
+def file_explorer_double_click_legacy_values():
+    """`FileExplorerDoubleClickAction.legacyRawValues` as {legacy raw: case}."""
+    text = FILE_EXPLORER_DOUBLE_CLICK_ACTION.read_text(encoding="utf-8")
+    body = re.search(
+        r"static let legacyRawValues:[^=]*=\s*\[(.*?)\n\s*\]", text, re.S
+    ).group(1)
+    return dict(re.findall(r'"([^"]+)":\s*\.([A-Za-z0-9_]+)', body))
+
+
 def literal_default(swift):
     """Return a Python value for a Bool/number/string literal, or None when not literal."""
     if swift in ("true", "false"):
@@ -324,6 +337,29 @@ class SchemaParityTests(unittest.TestCase):
             sorted(set(enum) - set(actions)),
             [],
             "schema shortcuts.bindings names that are not ShortcutAction cases",
+        )
+
+    def test_file_explorer_double_click_legacy_values_match_the_enum(self):
+        # The schema accepts the retired raw values without advertising them
+        # (`x-cmux-legacyValues`); the mapping must be the one the app decodes
+        # with, and every target must be a current choice.
+        node = self.paths["fileExplorer.doubleClickAction"]
+        swift = file_explorer_double_click_legacy_values()
+        self.assertGreater(len(swift), 0, "parsed no legacyRawValues entries")
+        self.assertEqual(
+            node.get("x-cmux-legacyValues"),
+            swift,
+            "x-cmux-legacyValues disagrees with FileExplorerDoubleClickAction.legacyRawValues",
+        )
+        self.assertEqual(
+            sorted(set(swift.values()) - set(node["enum"])),
+            [],
+            "legacy values map to a value that is not a current enum member",
+        )
+        self.assertEqual(
+            sorted(set(swift) & set(node["enum"])),
+            [],
+            "a legacy value must not also be advertised as a current choice",
         )
 
     def test_literal_catalog_defaults_match_schema_defaults(self):

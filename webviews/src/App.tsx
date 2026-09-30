@@ -69,7 +69,6 @@ import {
   pathsInRange,
   pruneSelection,
   selectAllState,
-  selectAllToggleSelects,
   setPathsSelected,
   toggleSelectedPath,
   visibleFilePaths,
@@ -118,14 +117,12 @@ import {
   buildBulkRequest,
   buildCommitRequest,
   buildCreatePullRequestRequest,
-  buildFileRequest,
   buildFilesRequest,
   buildHunkRequest,
   buildOpenFileRequest,
   buildPushRequest,
   buildRepositoryStatusRequest,
   commitAvailability,
-  fileActionsForSource,
   payloadRepoLabel,
   repositoryHeaderModel,
   selectedFileTargets,
@@ -135,11 +132,10 @@ import {
   worktreeFileTarget,
   worktreeWriteAvailable,
   writableDiffSource,
-  type BulkWriteAction,
-  type FileWriteAction,
+  writeVerbsForSource,
   type PullRequestDraft,
-  type SelectionWriteAction,
   type WritableDiffSource,
+  type WriteVerb,
 } from "./worktree-actions";
 import {
   FileCollapseToggle,
@@ -233,10 +229,10 @@ type AppAction =
   | { type: "set-file-filter"; filter: Partial<DiffFileFilter> }
   | { type: "set-generated-paths"; paths: string[] }
   | { type: "refresh"; status: DiffViewerStatus }
-  | { type: "reset-diff"; status: DiffViewerStatus; keepSelection?: boolean }
+  | { type: "reset-diff"; status: DiffViewerStatus }
   | { type: "remove-comment"; id: string }
   | { type: "rename-item"; oldId: string; newId: string }
-  | { type: "select-paths"; paths: string[]; selected: boolean; anchor?: string }
+  | { type: "select-paths"; paths: readonly string[]; selected: boolean; anchor?: string }
   | { type: "set-active-item"; itemId: string; treePath?: string }
   | { type: "replace-comments"; comments: DiffCommentRecord[] }
   | { type: "set-copy-feedback"; message: string }
@@ -420,8 +416,9 @@ function reducer(state: AppState, action: AppAction): AppState {
       ? state
       : { ...state, selectedPaths: EMPTY_SELECTION, selectionAnchor: null };
   case "reset-diff":
-    // A write reload keeps the selection (the paths acted on leave it
-    // when the stream completes); any other reset is a different view.
+    // The selection is not part of the reset: a write reload keeps it (the
+    // paths acted on leave it when the stream completes) and a view change
+    // clears it first (`clear-selection`).
     return {
       ...state,
       activeItemId: "",
@@ -431,8 +428,6 @@ function reducer(state: AppState, action: AppAction): AppState {
       items: [],
       languages: ["text"],
       metrics: null,
-      selectedPaths: action.keepSelection ? state.selectedPaths : EMPTY_SELECTION,
-      selectionAnchor: action.keepSelection ? state.selectionAnchor : null,
       status: action.status,
       treeSource: null,
     };
@@ -859,11 +854,12 @@ export function App({ config, initialStatus }: ConfigProps) {
     loadRepositoryStatusOnce();
   }, [loadRepositoryStatusOnce]);
   // Only a write action reload asks to restore the scroll offset; any other
-  // source change drops a pending restore so it cannot fire on the stream
-  // of an unrelated diff.
+  // source change is a different view, which drops a pending restore so it
+  // cannot fire on the stream of an unrelated diff, and clears the selection.
   const selectSessionSource = (source: DiffSource, restoreScroll = false) => {
     if (!restoreScroll) {
       restoreScrollRef.current = null;
+      dispatch({ type: "clear-selection" });
     }
     const currentSource = resolvedSessionSource ?? activeSessionSource;
     const selectedSource = source.kind === "branch"
@@ -875,7 +871,7 @@ export function App({ config, initialStatus }: ConfigProps) {
     }
     const status = createDiffViewerStatus(label("loadingDiff"), { pending: true });
     applyDiffViewerStatusToDocument(status);
-    dispatch({ type: "reset-diff", status, keepSelection: restoreScroll });
+    dispatch({ type: "reset-diff", status });
     setActivePatchURL(undefined);
     void closeActiveSession();
     setResolvedSessionSource(selectedSource);
@@ -978,15 +974,16 @@ export function App({ config, initialStatus }: ConfigProps) {
     }
     return session;
   };
-  const onFileWriteAction = (item: DiffItem, action: FileWriteAction) => {
+  // A card's button: the verb over that one file (a one-element list request).
+  const onFileWriteAction = (item: DiffItem, verb: WriteVerb) => {
     const target = worktreeFileTarget(item.fileDiff);
     const session = writeSession();
     if (!writeSource || !session || !target) {
       return;
     }
-    void runWorktreeWrite(buildFileRequest(action, session, writeSource, target), writeSource);
+    void runWorktreeWrite(buildFilesRequest(verb, session, writeSource, [target]), writeSource);
   };
-  const onHunkRevert = (item: DiffItem, hunk: HunkRef) => {
+  const onHunkDiscard = (item: DiffItem, hunk: HunkRef) => {
     const target = worktreeFileTarget(item.fileDiff);
     const session = writeSession();
     if (!writeSource || !session || !target) {
@@ -1001,12 +998,12 @@ export function App({ config, initialStatus }: ConfigProps) {
     }
     void runWorktreeWrite(buildCommitRequest(session, writeSource, message, stageAll), writeSource);
   };
-  const onBulkAction = (action: BulkWriteAction) => {
+  const onBulkAction = (verb: WriteVerb) => {
     const session = writeSession();
     if (!writeSource || !session) {
       return;
     }
-    void runWorktreeWrite(buildBulkRequest(action, session, writeSource), writeSource);
+    void runWorktreeWrite(buildBulkRequest(verb, session, writeSource), writeSource);
   };
   // The checked files, as item ids: only paths the stream has produced so
   // far count (the stored set is pruned once a reload completes). The
@@ -1029,13 +1026,13 @@ export function App({ config, initialStatus }: ConfigProps) {
   // One sidecar call for the whole selection (`worktreeStageFiles`,
   // `worktreeUnstageFiles`, `worktreeDiscardFiles`); the reload afterwards
   // drops the acted-on paths from the selection as they leave the view.
-  const onSelectionAction = (action: SelectionWriteAction) => {
+  const onSelectionAction = (verb: WriteVerb) => {
     const targets = selectedFileTargets(state.items, selectedItemIds);
     const session = writeSession();
     if (!writeSource || !session || targets.length === 0) {
       return;
     }
-    void runWorktreeWrite(buildFilesRequest(action, session, writeSource, targets), writeSource);
+    void runWorktreeWrite(buildFilesRequest(verb, session, writeSource, targets), writeSource);
   };
   const clearSelection = () => dispatch({ type: "clear-selection" });
   // A push from the header always creates a missing upstream: the button is
@@ -1119,7 +1116,7 @@ export function App({ config, initialStatus }: ConfigProps) {
       return (
         <HunkWriteActions
           label={label}
-          onRevert={() => onHunkRevert(item, metadata.hunk)}
+          onDiscard={() => onHunkDiscard(item, metadata.hunk)}
           pending={pendingWrite}
         />
       );
@@ -1143,7 +1140,7 @@ export function App({ config, initialStatus }: ConfigProps) {
     );
   };
 
-  const diffStreamComplete = Number.isFinite(state.metrics?.completedAt) && (state.metrics?.completedAt ?? 0) > 0;
+  const diffStreamComplete = streamCompleted(state.metrics);
   useEffect(() => {
     if (!diffStreamComplete || restoreScrollRef.current == null) {
       return;
@@ -1444,12 +1441,12 @@ export function App({ config, initialStatus }: ConfigProps) {
                   <>
                     {writeAvailable ? (
                       <FileWriteActions
-                        actions={fileActionsForSource(writeSource)}
                         label={label}
-                        onAction={(action) => onFileWriteAction(item as DiffItem, action)}
+                        onAction={(verb) => onFileWriteAction(item as DiffItem, verb)}
                         onCopyPath={() => onCopyPath(item as DiffItem)}
                         onOpenInCmux={onOpenInCmux ? () => onOpenInCmux(item as DiffItem) : undefined}
                         pending={pendingWrite}
+                        verbs={writeVerbsForSource(writeSource)}
                       />
                     ) : null}
                     <DiffHeaderMetadata fileDiff={(item as DiffItem).fileDiff} label={label} />
@@ -2347,9 +2344,14 @@ function FilesSidebar({
     }
     return treeModel.subscribe(() => setTreeVersion((version) => version + 1));
   }, [state.fileSearchOpen, treeModel]);
+  // The tree reassigns its match array rather than mutating it, so its
+  // identity is a safe memo key.
   const searchMatches = state.fileSearchOpen && treeModel?.isSearchOpen() ? treeModel.getSearchMatchingPaths() : null;
-  const visiblePaths = selectable && state.treeSource ? visibleFilePaths(state.treeSource.paths, searchMatches) : [];
-  const allState = selectAllState(state.selectedPaths, visiblePaths);
+  const visiblePaths = useMemo(
+    () => (selectable && treeSource ? visibleFilePaths(treeSource.paths, searchMatches) : NO_PATHS),
+    [searchMatches, selectable, treeSource],
+  );
+  const allState = useMemo(() => selectAllState(state.selectedPaths, visiblePaths), [state.selectedPaths, visiblePaths]);
   const toggleSelection = (path: string, range: boolean) => {
     if (range && state.selectionAnchor != null) {
       dispatch({ type: "select-paths", paths: pathsInRange(visiblePaths, state.selectionAnchor, path), selected: true, anchor: path });
@@ -2412,7 +2414,8 @@ function FilesSidebar({
                   node.indeterminate = allState === "some";
                 }
               }}
-              onChange={() => dispatch({ type: "select-paths", paths: visiblePaths, selected: selectAllToggleSelects(allState) })}
+              // Unchecked selects everything visible; some or all selected clears.
+              onChange={() => dispatch({ type: "select-paths", paths: visiblePaths, selected: allState === "none" })}
             />
           ) : null}
           <span>{label("files")}</span>
@@ -2524,6 +2527,8 @@ function FilesSidebar({
   );
 }
 
+const NO_PATHS: readonly string[] = [];
+
 function PierreFileTree({
   fileSearchOpen,
   fileSearchRequest,
@@ -2552,7 +2557,18 @@ function PierreFileTree({
   source: FileTreeSource;
   viewedStateByPath: ReadonlyMap<string, ViewedFileState>;
 }) {
-  const latest = useSyncedRef({ label, onSelectItem, onToggleSelection, selectable, selectedPaths, source, viewedStateByPath });
+  // `selectFile` is the row checkbox's name template, resolved once per
+  // render pass rather than once per row.
+  const latest = useSyncedRef({
+    label,
+    onSelectItem,
+    onToggleSelection,
+    selectable,
+    selectedPaths,
+    selectFile: label("selectFile"),
+    source,
+    viewedStateByPath,
+  });
   const [initialPreparedInput] = useState(() => preparePresortedFileTreeInput(source.paths));
   const { model } = useFileTree({
     flattenEmptyDirectories: false,
@@ -2586,7 +2602,7 @@ function PierreFileTree({
         }
         return selectionDecoration(
           current.selectedPaths.has(row.path),
-          formatLabel(current.label("selectFile"), { name: row.name }),
+          formatLabel(current.selectFile, { name: row.name }),
         );
       }
       const state = current.viewedStateByPath.get(row.path);
@@ -2617,8 +2633,14 @@ function PierreFileTree({
   // The tree renders its rows itself and reads the decoration renderer at
   // render time, so a selection change asks it to render again; reapplying
   // its own composition is the public way to do that. Runs after the
-  // synced ref above has the new set.
+  // synced ref above has the new set, and not at mount, when the tree has
+  // just rendered from the same values.
+  const mounted = useRef(false);
   useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
     model.setComposition(model.getComposition());
   }, [model, selectable, selectedPaths]);
 
@@ -2626,31 +2648,29 @@ function PierreFileTree({
   // capture phase above the tree's shadow root, so the tree never sees
   // them: checking a file must not navigate to it. Everything else
   // (the row name, folders, the search box) reaches the tree untouched.
+  // (React's `stopPropagation` stops the native event too.)
+  const takeCheckboxEvent = (event: React.SyntheticEvent, path: string, range: boolean) => {
+    event.preventDefault();
+    event.stopPropagation();
+    latest.current.onToggleSelection(path, range);
+  };
   const captureCheckboxClick = (event: React.MouseEvent) => {
     if (!latest.current.selectable) {
       return;
     }
     const path = selectionRowPathFromComposedPath(event.nativeEvent.composedPath());
-    if (path == null) {
-      return;
+    if (path != null) {
+      takeCheckboxEvent(event, path, event.shiftKey);
     }
-    event.preventDefault();
-    event.stopPropagation();
-    event.nativeEvent.stopPropagation();
-    latest.current.onToggleSelection(path, event.shiftKey);
   };
   const captureCheckboxKey = (event: React.KeyboardEvent) => {
     if (!latest.current.selectable || !isPlainSpace(event)) {
       return;
     }
     const path = focusedFileRowPath(event.nativeEvent.composedPath()[0] ?? null);
-    if (path == null) {
-      return;
+    if (path != null) {
+      takeCheckboxEvent(event, path, false);
     }
-    event.preventDefault();
-    event.stopPropagation();
-    event.nativeEvent.stopPropagation();
-    latest.current.onToggleSelection(path, false);
   };
 
   return (
@@ -3196,7 +3216,7 @@ function usePageDataAttributes(state: AppState) {
       document.body.dataset.streamFlushCount = String(state.metrics.flushCount ?? 0);
       document.body.dataset.streamMaxBatchSize = String(state.metrics.maxBatchSize ?? 0);
       document.body.dataset.streamTreeRefreshCount = String(state.metrics.treeRefreshCount ?? 0);
-      if (Number.isFinite(state.metrics.completedAt) && state.metrics.completedAt > 0) {
+      if (streamCompleted(state.metrics)) {
         document.body.dataset.streamElapsedMs = String(Math.round(state.metrics.completedAt - state.metrics.startedAt));
       }
     }

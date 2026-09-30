@@ -88,14 +88,6 @@ export function selectAllState(
 }
 
 /**
- * What a click on the select-all control does: from nothing selected it
- * selects every visible path; from some or all selected it clears them.
- */
-export function selectAllToggleSelects(state: SelectAllState): boolean {
-  return state === "none";
-}
-
-/**
  * The inclusive run of `order` between `anchor` and `target`, in list order,
  * for a shift-click. Without a usable anchor (none yet, or one no longer in
  * the list) the range is the target alone.
@@ -119,16 +111,17 @@ export function pathsInRange(
 }
 
 /**
- * The file paths a "select all" acts on: every file of the list, narrowed
- * to the search's matches while a file search is open (`searchMatches` is
- * `null` when it is not). Directory paths the search reports are dropped.
+ * The file paths a "select all" acts on: every file of the list (the list
+ * itself), narrowed to the search's matches while a file search is open
+ * (`searchMatches` is `null` when it is not). Directory paths the search
+ * reports are dropped.
  */
 export function visibleFilePaths(
   filePaths: readonly string[],
   searchMatches: readonly string[] | null,
-): string[] {
+): readonly string[] {
   if (searchMatches == null) {
-    return [...filePaths];
+    return filePaths;
   }
   const files = new Set(filePaths);
   return searchMatches.filter((path) => files.has(path));

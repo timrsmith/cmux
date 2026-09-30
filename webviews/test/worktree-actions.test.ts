@@ -10,21 +10,18 @@ import {
   MAX_HUNK_ACTION_ANNOTATIONS_PER_FILE,
   MAX_PULL_REQUEST_BODY_BYTES,
   MAX_PULL_REQUEST_TITLE_BYTES,
+  WRITE_VERBS,
   abbreviateHomePath,
   buildBulkRequest,
   buildCommitRequest,
   buildCreatePullRequestRequest,
-  buildFileRequest,
   buildFilesRequest,
   buildHunkRequest,
   buildOpenFileRequest,
   buildPushRequest,
   buildRepositoryStatusRequest,
-  bulkActionsForSource,
-  bulkStageActionForSource,
   commitAvailability,
   externalPullRequestURL,
-  fileActionsForSource,
   forgeActionAvailability,
   forgeActionHintKey,
   hunkActionAnchor,
@@ -36,7 +33,6 @@ import {
   repositoryHeaderModel,
   reviewDecisionLabelKey,
   selectedFileTargets,
-  selectionActionsForSource,
   selectionPaths,
   validateCommitMessage,
   validatePullRequestDraft,
@@ -45,6 +41,8 @@ import {
   worktreeErrorReloads,
   worktreeFileTarget,
   worktreeWriteAvailable,
+  writeActionId,
+  writeVerbsForSource,
 } from "../src/worktree-actions";
 import type { RepositoryStatus } from "../src/diff/generated/protocol";
 
@@ -61,13 +59,52 @@ const branch = {
 } as const;
 const patch = { kind: "patch", path: "/last-turn.patch" } as const;
 
+const verbs = (source: unknown) =>
+  writeVerbsForSource(source as any).map((descriptor) => descriptor.verb);
+
 describe("write action visibility by source kind", () => {
-  test("only unstaged and staged sources get file actions", () => {
-    expect(fileActionsForSource(unstaged)).toEqual(["stageFile", "revertFile"]);
-    expect(fileActionsForSource(staged)).toEqual(["unstageFile", "revertFile"]);
-    expect(fileActionsForSource(branch)).toEqual([]);
-    expect(fileActionsForSource(patch)).toEqual([]);
-    expect(fileActionsForSource(null)).toEqual([]);
+  test("only unstaged and staged sources get write verbs: stage or unstage, then discard", () => {
+    expect(verbs(unstaged)).toEqual(["stage", "discard"]);
+    expect(verbs(staged)).toEqual(["unstage", "discard"]);
+    expect(verbs(branch)).toEqual([]);
+    expect(verbs(patch)).toEqual([]);
+    expect(verbs(null)).toEqual([]);
+    expect(verbs(undefined)).toEqual([]);
+    // The same descriptors every render: a stable input for memoized props.
+    expect(writeVerbsForSource(unstaged)).toBe(writeVerbsForSource(unstaged));
+  });
+
+  test("one descriptor per verb carries its methods, labels, icon and confirmation", () => {
+    expect(WRITE_VERBS.stage).toMatchObject({
+      icon: "stage",
+      method: { all: "worktreeStageAll", files: "worktreeStageFiles" },
+      label: { file: "stageFile", all: "stageAll", selected: "stageSelected" },
+      confirm: null,
+    });
+    expect(WRITE_VERBS.unstage).toMatchObject({
+      icon: "unstage",
+      method: { all: "worktreeUnstageAll", files: "worktreeUnstageFiles" },
+      label: { file: "unstageFile", all: "unstageAll", selected: "unstageSelected" },
+      confirm: null,
+    });
+    // Discard is the one verb that asks first, with wording per scope, and
+    // draws the same glyph at every scope.
+    expect(WRITE_VERBS.discard).toMatchObject({
+      icon: "trash",
+      method: { all: "worktreeDiscardAll", files: "worktreeDiscardFiles" },
+      label: { file: "revertFile", all: "discardAll", selected: "discardSelected" },
+      confirm: {
+        file: { button: "confirmRevert", prompt: "revertPrompt" },
+        selected: { button: "confirmDiscardSelected", prompt: "discardSelectedPrompt" },
+        all: { button: "confirmDiscardAll", prompt: "discardAllPrompt" },
+      },
+    });
+    for (const descriptor of Object.values(WRITE_VERBS)) {
+      expect(WRITE_VERBS[descriptor.verb]).toBe(descriptor);
+    }
+    expect(writeActionId("stage", "file")).toBe("stageFile");
+    expect(writeActionId("unstage", "selected")).toBe("unstageFiles");
+    expect(writeActionId("discard", "all")).toBe("discardAll");
   });
 
   test("commit is enabled for staged, hinted for unstaged, hidden otherwise", () => {
@@ -329,21 +366,20 @@ describe("hunk references", () => {
 });
 
 describe("request envelopes", () => {
-  test("file requests are one-element selection requests, rename origin included", () => {
+  test("a single file's request is a one-element list, rename origin included", () => {
     expect(
-      buildFileRequest("stageFile", session, unstaged, { path: "src/a.ts" }),
+      buildFilesRequest("stage", session, unstaged, [{ path: "src/a.ts" }]),
     ).toEqual({
       method: "worktreeStageFiles",
       params: { ...session, source: unstaged, paths: ["src/a.ts"] },
     });
     expect(
-      buildFileRequest("unstageFile", session, staged, { path: "src/a.ts" }),
+      buildFilesRequest("unstage", session, staged, [{ path: "src/a.ts" }]),
     ).toMatchObject({ method: "worktreeUnstageFiles" });
     expect(
-      buildFileRequest("revertFile", session, staged, {
-        path: "new.ts",
-        previousPath: "old.ts",
-      }),
+      buildFilesRequest("discard", session, staged, [
+        { path: "new.ts", previousPath: "old.ts" },
+      ]),
     ).toEqual({
       method: "worktreeDiscardFiles",
       params: {
@@ -491,12 +527,12 @@ describe("bulk, push, status, and pull request envelopes", () => {
   };
 
   test("session-wide commands carry only the session and its source", () => {
-    for (const [action, method] of [
-      ["discardAll", "worktreeDiscardAll"],
-      ["stageAll", "worktreeStageAll"],
-      ["unstageAll", "worktreeUnstageAll"],
+    for (const [verb, method] of [
+      ["discard", "worktreeDiscardAll"],
+      ["stage", "worktreeStageAll"],
+      ["unstage", "worktreeUnstageAll"],
     ] as const) {
-      expect(buildBulkRequest(action, session, unstaged)).toEqual({
+      expect(buildBulkRequest(verb, session, unstaged)).toEqual({
         method,
         params: { ...session, source: unstaged },
       });
@@ -505,21 +541,6 @@ describe("bulk, push, status, and pull request envelopes", () => {
       method: "worktreeRepositoryStatus",
       params: { ...session, source: staged },
     });
-    expect(bulkStageActionForSource(unstaged)).toBe("stageAll");
-    expect(bulkStageActionForSource(staged)).toBe("unstageAll");
-    expect(bulkStageActionForSource(branch)).toBeNull();
-  });
-
-  test("the header's batch actions per view: stage or unstage, then discard; selection forms alike", () => {
-    expect(bulkActionsForSource(unstaged)).toEqual(["stageAll", "discardAll"]);
-    expect(bulkActionsForSource(staged)).toEqual(["unstageAll", "discardAll"]);
-    expect(bulkActionsForSource(branch)).toEqual([]);
-    expect(bulkActionsForSource(patch)).toEqual([]);
-    expect(bulkActionsForSource(null)).toEqual([]);
-    expect(selectionActionsForSource(unstaged)).toEqual(["stageFiles", "discardFiles"]);
-    expect(selectionActionsForSource(staged)).toEqual(["unstageFiles", "discardFiles"]);
-    expect(selectionActionsForSource(branch)).toEqual([]);
-    expect(selectionActionsForSource(undefined)).toEqual([]);
   });
 
   test("selection requests name every selected path once, rename origins included, in diff order", () => {
@@ -540,18 +561,18 @@ describe("bulk, push, status, and pull request envelopes", () => {
     // A rename whose origin is also selected on its own is still named once.
     expect(selectionPaths([{ path: "x" }, { path: "y", previousPath: "x" }])).toEqual(["x", "y"]);
     expect(selectedFileTargets(items, new Set())).toEqual([]);
-    for (const [action, method] of [
-      ["stageFiles", "worktreeStageFiles"],
-      ["unstageFiles", "worktreeUnstageFiles"],
-      ["discardFiles", "worktreeDiscardFiles"],
+    for (const [verb, method] of [
+      ["stage", "worktreeStageFiles"],
+      ["unstage", "worktreeUnstageFiles"],
+      ["discard", "worktreeDiscardFiles"],
     ] as const) {
-      expect(buildFilesRequest(action, session, staged, targets)).toEqual({
+      expect(buildFilesRequest(verb, session, staged, targets)).toEqual({
         method,
         params: { ...session, source: staged, paths: ["src/a.ts", "src/new.ts", "src/old.ts", "src/b.ts"] },
       });
     }
     // The envelope carries `paths` only, never a `path` / `previousPath` pair.
-    const envelope = buildFilesRequest("stageFiles", session, unstaged, targets) as { params: object };
+    const envelope = buildFilesRequest("stage", session, unstaged, targets) as { params: object };
     expect(Object.keys(envelope.params).sort()).toEqual(["capabilityToken", "paths", "sessionId", "source"]);
   });
 

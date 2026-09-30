@@ -4,7 +4,6 @@ import {
   pathsInRange,
   pruneSelection,
   selectAllState,
-  selectAllToggleSelects,
   setPathsSelected,
   toggleSelectedPath,
   visibleFilePaths,
@@ -54,10 +53,6 @@ describe("file selection model", () => {
     expect(selectAllState(new Set(["a.ts", "b.ts", "c.ts", "hidden.ts"]), visible)).toBe("all");
     // Nothing visible is never "all".
     expect(selectAllState(new Set(["a.ts"]), [])).toBe("none");
-    // Unchecked selects everything visible; some or all clears.
-    expect(selectAllToggleSelects("none")).toBe(true);
-    expect(selectAllToggleSelects("some")).toBe(false);
-    expect(selectAllToggleSelects("all")).toBe(false);
   });
 
   test("a shift-click range runs between the anchor and the target in list order, either way round", () => {
@@ -74,8 +69,7 @@ describe("file selection model", () => {
 
   test("the visible files are every file, or the search's matches that are files", () => {
     const files = ["src/a.ts", "src/b.ts", "README.md"];
-    expect(visibleFilePaths(files, null)).toEqual(files);
-    expect(visibleFilePaths(files, null)).not.toBe(files);
+    expect(visibleFilePaths(files, null)).toBe(files);
     // The search reports folders among its matches; only files are selectable.
     expect(visibleFilePaths(files, ["src", "src/a.ts", "src/b.ts"])).toEqual([
       "src/a.ts",
