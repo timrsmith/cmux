@@ -321,6 +321,72 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
         }
     }
 
+    func testPlacementChangeCarriesAShownTreeIntoTheRightSidebar() {
+        withSavedRightSidebarModeDefaults {
+            let defaults = UserDefaults.standard
+            defaults.set(FilesPanelPlacement.leading.rawValue, forKey: filesPanelPlacementKey)
+            defaults.set(true, forKey: filesPanelVisibleKey)
+            let state = FileExplorerState(sidebar: nil)
+            state.setVisible(false)
+            state.mode = .changes
+            XCTAssertTrue(state.filesAreShown())
+
+            // The setting has already flipped by the time the window observes it.
+            defaults.set(FilesPanelPlacement.rightSidebar.rawValue, forKey: filesPanelPlacementKey)
+            state.applyPlacementChange(from: .leading, to: .rightSidebar)
+
+            XCTAssertTrue(state.isVisible, "the right sidebar opens to keep the tree on screen")
+            XCTAssertEqual(state.mode, .files)
+            XCTAssertTrue(state.filesAreShown())
+        }
+    }
+
+    func testPlacementChangeCarriesAShownTreeOutOfTheRightSidebar() {
+        withSavedRightSidebarModeDefaults {
+            let defaults = UserDefaults.standard
+            defaults.set(FilesPanelPlacement.rightSidebar.rawValue, forKey: filesPanelPlacementKey)
+            defaults.set(false, forKey: filesPanelVisibleKey)
+            let sidebar = SidebarState(isVisible: false)
+            let state = FileExplorerState(sidebar: sidebar)
+            state.setVisible(true)
+            state.mode = .files
+            XCTAssertTrue(state.filesAreShown())
+
+            defaults.set(FilesPanelPlacement.stacked.rawValue, forKey: filesPanelPlacementKey)
+            state.applyPlacementChange(from: .rightSidebar, to: .stacked)
+
+            XCTAssertTrue(state.filesPanelVisible, "the stacked region opens")
+            XCTAssertTrue(sidebar.isVisible, "and the sidebar that hosts it")
+            XCTAssertFalse(state.isVisible, "a right sidebar that showed only Files closes")
+            XCTAssertTrue(state.filesAreShown())
+        }
+    }
+
+    func testPlacementChangeLeavesAHiddenTreeHiddenAndOtherTabsAlone() {
+        withSavedRightSidebarModeDefaults {
+            let defaults = UserDefaults.standard
+            defaults.set(FilesPanelPlacement.rightSidebar.rawValue, forKey: filesPanelPlacementKey)
+            defaults.set(false, forKey: filesPanelVisibleKey)
+            let state = FileExplorerState(sidebar: nil)
+            state.setVisible(true)
+            state.mode = .changes
+            XCTAssertFalse(state.filesAreShown())
+
+            defaults.set(FilesPanelPlacement.leading.rawValue, forKey: filesPanelPlacementKey)
+            state.applyPlacementChange(from: .rightSidebar, to: .leading)
+
+            XCTAssertFalse(state.filesPanelVisible, "a hidden tree stays hidden")
+            XCTAssertTrue(state.isVisible, "a right sidebar on another tab stays open")
+            XCTAssertEqual(state.mode, .changes)
+
+            // Back to the right sidebar with the tree still hidden: nothing opens.
+            defaults.set(FilesPanelPlacement.rightSidebar.rawValue, forKey: filesPanelPlacementKey)
+            state.setVisible(false)
+            state.applyPlacementChange(from: .leading, to: .rightSidebar)
+            XCTAssertFalse(state.isVisible)
+        }
+    }
+
     func testStackedSidebarStateIsHeldWeakly() {
         withSavedRightSidebarModeDefaults {
             let defaults = UserDefaults.standard

@@ -3814,7 +3814,9 @@ struct ContentView: View {
             }
         })
 
-        view = AnyView(view.onChange(of: filesPanelPlacement) { _, _ in
+        view = AnyView(view.onChange(of: filesPanelPlacement) { previous, next in
+            // The tree follows the user to its new home; a hidden tree stays hidden.
+            fileExplorerState.applyPlacementChange(from: previous, to: next)
             syncFileExplorerDirectory()
             if let observedWindow {
                 TerminalWindowPortalRegistry.scheduleExternalGeometrySynchronize(for: observedWindow)
