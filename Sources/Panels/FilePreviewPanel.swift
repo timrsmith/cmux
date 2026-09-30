@@ -1274,6 +1274,8 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
     var fileChangeReloadTask: Task<Void, Never>?
     /// The one container currently projecting this panel's tab metadata.
     weak var tabMetadataHost: (any FilePreviewTabMetadataHost)?
+    /// The most recent text save, so a close-time save can await one already running.
+    private(set) var latestTextSaveTask: Task<Void, Never>?
     var lastObservedFileState: FilePreviewFileState?
     var isClosed = false
     weak var textView: NSTextView? {
@@ -1660,7 +1662,7 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
         let textSaver = textSaver
         let fileContentChangeCoordinator = fileContentChangeCoordinator
         let fileContentObservationID = fileContentObservationID
-        return Task {
+        let saveTask = Task {
             [weak self, currentContent, fileURL, encoding, generation,
              textSaver, fileContentChangeCoordinator, fileContentObservationID] in
             let result = await fileContentChangeCoordinator.saveTextContent(
@@ -1694,6 +1696,8 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
             }
             await reconciliationTask?.value
         }
+        latestTextSaveTask = saveTask
+        return saveTask
     }
 
     /// Updates dirty state and emits only when the tab-facing value changes.

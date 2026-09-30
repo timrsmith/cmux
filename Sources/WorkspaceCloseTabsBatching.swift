@@ -57,15 +57,32 @@ extension Workspace {
         }
         guard !candidates.isEmpty else { return }
 
+        // Unsaved editor changes ask first; the batch is re-issued after the answer.
+        if unsavedChangesCloseConfirmation.deferCloseIfNeeded(
+            for: candidates.compactMap { candidate in candidate.panelId.flatMap { panels[$0] } },
+            retry: { [weak self] in self?.closeTabsFromContextMenu(tabIds, skipPinned: skipPinned) }
+        ) {
+            return
+        }
+
         let needsConfirmation = candidates.contains { candidate in
             guard let panelId = candidate.panelId else { return false }
             return panelNeedsConfirmClose(panelId: panelId)
         }
 
-        if CloseTabWarningStore(defaults: confirmationManager?.closeTabWarningDefaults ?? closeTabWarningDefaults).shouldConfirmCloseIncludingSafety(
-            requiresConfirmation: needsConfirmation,
-            source: .shortcut
-        ) {
+        // A batch the unsaved-changes prompt already confirmed skips the close warning.
+        let closeConfirmedByUnsavedChangesPrompt = unsavedChangesCloseConfirmation.isCloseConfirmed(
+            forPanelIds: candidates.compactMap(\.panelId)
+        )
+        let warningKinds: CloseWarningKinds = closeConfirmedByUnsavedChangesPrompt
+            ? []
+            : CloseTabWarningStore(
+                defaults: confirmationManager?.closeTabWarningDefaults ?? closeTabWarningDefaults
+            ).warningKindsIncludingSafety(
+                requiresConfirmation: needsConfirmation,
+                source: .shortcut
+            )
+        if !warningKinds.isEmpty {
             guard let confirmationManager else { return }
             let prompt = CloseOtherTabsConfirmationPrompt(
                 titles: candidates.map { candidate in
@@ -96,7 +113,10 @@ extension Workspace {
             case .notMirrorTab:
                 break
             }
-            _ = requestCloseTabRecordingHistory(candidate.tabId, force: needsConfirmation)
+            _ = requestCloseTabRecordingHistory(
+                candidate.tabId,
+                force: needsConfirmation || closeConfirmedByUnsavedChangesPrompt
+            )
         }
     }
 }

@@ -1,6 +1,598 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "dialog.unsavedChanges.title.other": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Save changes to %lld file?"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Save changes to %lld files?"
+                }
+              }
+            }
+          }
+        },
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Änderungen an %lld Datei sichern?"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Änderungen an %lld Dateien sichern?"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Enregistrer les modifications apportées à %lld fichier ?"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Enregistrer les modifications apportées à %lld fichiers ?"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Enregistrer les modifications apportées à %lld fichiers ?"
+                }
+              }
+            }
+          }
+        },
+        "ar": {
+          "variations": {
+            "plural": {
+              "zero": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "هل تريد حفظ التغييرات في %lld ملفات؟"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "هل تريد حفظ التغييرات في ملف واحد (%lld)؟"
+                }
+              },
+              "two": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "هل تريد حفظ التغييرات في ملفين (%lld)؟"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "هل تريد حفظ التغييرات في %lld ملفات؟"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "هل تريد حفظ التغييرات في %lld ملفًا؟"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "هل تريد حفظ التغييرات في %lld ملف؟"
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "¿Guardar los cambios en %lld archivo?"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "¿Guardar los cambios en %lld archivos?"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "¿Guardar los cambios en %lld archivos?"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hant": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "要儲存 %lld 個檔案的變更嗎？"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "要保存 %lld 个文件的更改吗？"
+                }
+              }
+            }
+          }
+        },
+        "ko": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "파일 %lld개의 변경 사항을 저장하겠습니까?"
+                }
+              }
+            }
+          }
+        },
+        "ja": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld個のファイルの変更を保存しますか？"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "dialog.unsavedChanges.title.one": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save changes to “%@”?"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen an „%@“ sichern?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enregistrer les modifications apportées à « %@ » ?"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "هل تريد حفظ التغييرات في ”%@“؟"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Guardar los cambios en “%@”?"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要儲存對「%@」的變更嗎？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要保存对“%@”的更改吗？"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”의 변경 사항을 저장하겠습니까?"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”の変更を保存しますか？"
+          }
+        }
+      }
+    },
+    "dialog.unsavedChanges.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your changes will be lost if you don't save them."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre Änderungen gehen verloren, wenn Sie sie nicht sichern."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vos modifications seront perdues si vous ne les enregistrez pas."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ستفقد تغييراتك إذا لم تحفظها."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sus cambios se perderán si no los guarda."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果不儲存，您的變更將會遺失。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果不保存，您的更改将会丢失。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장하지 않으면 변경 사항이 손실됩니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存しない場合、変更内容は失われます。"
+          }
+        }
+      }
+    },
+    "dialog.unsavedChanges.messageList": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your changes to these files will be lost if you don't save them:\n%@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre Änderungen an diesen Dateien gehen verloren, wenn Sie sie nicht sichern:\n%@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vos modifications apportées à ces fichiers seront perdues si vous ne les enregistrez pas :\n%@"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ستفقد تغييراتك في هذه الملفات إذا لم تحفظها:\n%@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sus cambios en estos archivos se perderán si no los guarda:\n%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果不儲存，您對這些檔案的變更將會遺失：\n%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果不保存，您对这些文件的更改将会丢失：\n%@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장하지 않으면 이 파일들의 변경 사항이 손실됩니다:\n%@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存しない場合、これらのファイルへの変更内容は失われます:\n%@"
+          }
+        }
+      }
+    },
+    "dialog.unsavedChanges.save": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enregistrer"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "حفظ"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存"
+          }
+        }
+      }
+    },
+    "dialog.unsavedChanges.saveFailed.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save Failed"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern fehlgeschlagen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Échec de l’enregistrement"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "فشل الحفظ"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error al guardar"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存失敗"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存失败"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장 실패"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存に失敗しました"
+          }
+        }
+      }
+    },
+    "dialog.unsavedChanges.saveFailed.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing was closed, and your changes are still open."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es wurde nichts geschlossen, und Ihre Änderungen sind weiterhin geöffnet."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rien n’a été fermé et vos modifications sont toujours ouvertes."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لم يتم إغلاق أي شيء، وتغييراتك لا تزال مفتوحة."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se cerró nada y sus cambios siguen abiertos."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有關閉任何項目，您的變更仍然開啟。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有关闭任何内容，您的更改仍然打开。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아무것도 닫히지 않았으며 변경 사항은 그대로 열려 있습니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "何も閉じられておらず、変更内容はそのまま開いています。"
+          }
+        }
+      }
+    },
+    "error.unsavedChanges.saveFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” could not be saved."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ konnte nicht gesichert werden."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible d’enregistrer « %@ »."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذّر حفظ ”%@“."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo guardar “%@”."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法儲存「%@」。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法保存“%@”。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”을(를) 저장할 수 없습니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”を保存できませんでした。"
+          }
+        }
+      }
+    },
     "settings.section.filesAndEditing": {
       "extractionState": "manual",
       "localizations": {

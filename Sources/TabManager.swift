@@ -503,6 +503,9 @@ class TabManager: ObservableObject {
     private var currentWindowTabBarLeadingInset: CGFloat?
     private var closeConfirmationInFlight = false
     let closeTabWarningDefaults: UserDefaults
+    /// Shared Save / Don't Save / Cancel flow for editors holding unsaved edits,
+    /// handed to every workspace and Dock this manager creates.
+    let unsavedChangesCloseConfirmation: UnsavedChangesCloseConfirmation
     let tabDragTransferRegistry: TabDragTransferRegistry
     /// File-backed panels in every workspace and Dock owned by this window
     /// share this injected invalidation pipeline.
@@ -591,6 +594,7 @@ class TabManager: ObservableObject {
         nativeSSHConnectionBroker: NativeSSHConnectionBroker = NativeSSHConnectionBroker(),
         agentChatResumeIntentRecorder: any AgentChatResumeIntentRecording = AgentChatTranscriptResumeIntentRecorder(),
         closeTabWarningDefaults: UserDefaults = .standard,
+        unsavedChangesCloseConfirmation: UnsavedChangesCloseConfirmation? = nil,
         managedDevicePolicy: ManagedDevicePolicy = ManagedDevicePolicy(),
         fileContentChangeCoordinator: FileContentChangeCoordinator? = nil,
         cloudWorkspaceSelection: CloudWorkspaceSelectionState? = nil
@@ -614,6 +618,8 @@ class TabManager: ObservableObject {
         self.panelTitleUpdateCoalescer = panelTitleUpdateCoalescer ?? NotificationBurstCoalescer()
         self.windowTitleWriter = windowTitleWriter ?? WindowTitleWriter()
         self.closeTabWarningDefaults = closeTabWarningDefaults
+        self.unsavedChangesCloseConfirmation = unsavedChangesCloseConfirmation
+            ?? UnsavedChangesCloseConfirmation(presenter: UnsavedChangesAlertPresenter())
         self.tabDragTransferRegistry = tabDragTransferRegistry
         self.fileContentChangeCoordinator =
             fileContentChangeCoordinator ?? FileContentChangeCoordinator()
@@ -1139,6 +1145,7 @@ class TabManager: ObservableObject {
             tabDragTransferRegistry: tabDragTransferRegistry,
             settings: settings,
             closeTabWarningDefaults: closeTabWarningDefaults,
+            unsavedChangesCloseConfirmation: unsavedChangesCloseConfirmation,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
             fileContentChangeCoordinator: fileContentChangeCoordinator,
             nativeSSHConnectionBroker: nativeSSHConnectionBroker
@@ -1160,6 +1167,7 @@ class TabManager: ObservableObject {
             tabDragTransferRegistry: tabDragTransferRegistry,
             settings: settings,
             closeTabWarningDefaults: closeTabWarningDefaults,
+            unsavedChangesCloseConfirmation: unsavedChangesCloseConfirmation,
             initialDetachedSurface: detachedSurface,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
             fileContentChangeCoordinator: fileContentChangeCoordinator,
@@ -1176,7 +1184,8 @@ class TabManager: ObservableObject {
             tabDragTransferRegistry: tabDragTransferRegistry,
             settings: settings,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
-            fileContentChangeCoordinator: fileContentChangeCoordinator
+            fileContentChangeCoordinator: fileContentChangeCoordinator,
+            unsavedChangesCloseConfirmation: unsavedChangesCloseConfirmation
         )
         windowDockTitleRoutingStores.setObject(
             store,
@@ -2772,17 +2781,28 @@ class TabManager: ObservableObject {
     func closeOtherTabsInFocusedPaneWithConfirmation() {
         guard !closeConfirmationInFlight else { return }
         guard let plan = closeOtherTabsInFocusedPanePlan() else { return }
-
-        let warningStore = CloseTabWarningStore(defaults: closeTabWarningDefaults)
-        let hasActiveProcess = plan.panelIds.contains {
-            plan.workspace.panelNeedsConfirmClose(panelId: $0)
+        // Unsaved editor changes ask first; the batch is re-issued after the answer.
+        if unsavedChangesCloseConfirmation.deferCloseIfNeeded(
+            for: plan.panelIds.compactMap { plan.workspace.panels[$0] },
+            retry: { [weak self] in self?.closeOtherTabsInFocusedPaneWithConfirmation() }
+        ) {
+            return
         }
-        var warningKinds = warningStore.warningKinds(
-            requiresConfirmation: true,
-            source: .shortcut
-        )
-        if hasActiveProcess {
-            warningKinds.insert(.safety)
+
+        // A batch the unsaved-changes prompt already confirmed skips the close warning.
+        let warningKinds: CloseWarningKinds
+        if unsavedChangesCloseConfirmation.isCloseConfirmed(forPanelIds: plan.panelIds) {
+            warningKinds = []
+        } else {
+            let hasActiveProcess = plan.panelIds.contains {
+                plan.workspace.panelNeedsConfirmClose(panelId: $0)
+            }
+            var kinds = CloseTabWarningStore(defaults: closeTabWarningDefaults)
+                .warningKinds(requiresConfirmation: true, source: .shortcut)
+            if hasActiveProcess {
+                kinds.insert(.safety)
+            }
+            warningKinds = kinds
         }
         if !warningKinds.isEmpty {
             let prompt = CloseOtherTabsConfirmationPrompt(titles: plan.titles)
@@ -2822,44 +2842,83 @@ class TabManager: ObservableObject {
 
     @discardableResult
     func closeWorkspaceWithConfirmation(_ workspace: Workspace) -> Bool {
+        if deferWorkspaceCloseForUnsavedChanges([workspace], retry: { [weak self] in
+            _ = self?.closeWorkspaceWithConfirmation(workspace)
+        }) {
+            return false
+        }
+        let closeConfirmedByUnsavedChangesPrompt = unsavedChangesCloseConfirmation.isCloseConfirmed(
+            for: workspace.closablePanelsIncludingDock
+        )
         if workspace.isPinned {
             let pinnedConfirmation = confirmPinnedWorkspaceClose(source: .workspace)
             guard pinnedConfirmation != .cancelled else { return false }
             return closeWorkspaceIfRunningProcess(
                 workspace,
                 requiresConfirmation: false,
-                closeAlreadyConfirmed: pinnedConfirmation == .confirmed
+                closeAlreadyConfirmed: pinnedConfirmation == .confirmed || closeConfirmedByUnsavedChangesPrompt
             )
         }
-        return closeWorkspaceIfRunningProcess(workspace)
+        // The unsaved-changes answer stands in for the "Close workspace?" prompt.
+        return closeWorkspaceIfRunningProcess(
+            workspace,
+            requiresConfirmation: !closeConfirmedByUnsavedChangesPrompt,
+            closeAlreadyConfirmed: closeConfirmedByUnsavedChangesPrompt
+        )
     }
 
     @discardableResult
     func closeWorkspaceFromCloseTabGesture(_ workspace: Workspace) -> Bool {
+        if deferWorkspaceCloseForUnsavedChanges([workspace], retry: { [weak self] in
+            _ = self?.closeWorkspaceFromCloseTabGesture(workspace)
+        }) {
+            return false
+        }
+        let closeConfirmedByUnsavedChangesPrompt = unsavedChangesCloseConfirmation.isCloseConfirmed(
+            for: workspace.closablePanelsIncludingDock
+        )
         if workspace.isPinned {
             let pinnedConfirmation = confirmPinnedWorkspaceClose(source: .tabClose)
             guard pinnedConfirmation != .cancelled else { return false }
             return closeWorkspaceIfRunningProcess(
                 workspace,
                 requiresConfirmation: false,
-                closeAlreadyConfirmed: pinnedConfirmation == .confirmed
+                closeAlreadyConfirmed: pinnedConfirmation == .confirmed || closeConfirmedByUnsavedChangesPrompt
             )
         }
-        return closeWorkspaceIfRunningProcess(workspace, source: .tabClose)
+        return closeWorkspaceIfRunningProcess(
+            workspace,
+            requiresConfirmation: !closeConfirmedByUnsavedChangesPrompt,
+            source: .tabClose,
+            closeAlreadyConfirmed: closeConfirmedByUnsavedChangesPrompt
+        )
     }
 
     @discardableResult
     func closeWorkspaceFromTabCloseButton(_ workspace: Workspace) -> Bool {
+        if deferWorkspaceCloseForUnsavedChanges([workspace], retry: { [weak self] in
+            _ = self?.closeWorkspaceFromTabCloseButton(workspace)
+        }) {
+            return false
+        }
+        let closeConfirmedByUnsavedChangesPrompt = unsavedChangesCloseConfirmation.isCloseConfirmed(
+            for: workspace.closablePanelsIncludingDock
+        )
         if workspace.isPinned {
             let pinnedConfirmation = confirmPinnedWorkspaceClose(source: .tabCloseButton)
             guard pinnedConfirmation != .cancelled else { return false }
             return closeWorkspaceIfRunningProcess(
                 workspace,
                 requiresConfirmation: false,
-                closeAlreadyConfirmed: pinnedConfirmation == .confirmed
+                closeAlreadyConfirmed: pinnedConfirmation == .confirmed || closeConfirmedByUnsavedChangesPrompt
             )
         }
-        return closeWorkspaceIfRunningProcess(workspace, source: .tabCloseButton)
+        return closeWorkspaceIfRunningProcess(
+            workspace,
+            requiresConfirmation: !closeConfirmedByUnsavedChangesPrompt,
+            source: .tabCloseButton,
+            closeAlreadyConfirmed: closeConfirmedByUnsavedChangesPrompt
+        )
     }
 
     @discardableResult
@@ -2887,13 +2946,23 @@ class TabManager: ObservableObject {
     func closeWorkspacesWithConfirmation(_ workspaceIds: [UUID], allowPinned: Bool) {
         let workspaces = orderedClosableWorkspaces(workspaceIds, allowPinned: allowPinned)
         guard !workspaces.isEmpty else { return }
+        if deferWorkspaceCloseForUnsavedChanges(workspaces, retry: { [weak self] in
+            self?.closeWorkspacesWithConfirmation(workspaceIds, allowPinned: allowPinned)
+        }) {
+            return
+        }
         guard workspaces.count > 1 else {
             closeWorkspaceFromCloseTabGesture(workspaces[0])
             return
         }
 
         let plan = closeWorkspacesPlan(for: workspaces)
-        var closeAlreadyConfirmed = false
+        // A batch the unsaved-changes prompt already confirmed skips the close
+        // warning; only the pinned protection below still asks.
+        let closeConfirmedByUnsavedChangesPrompt = unsavedChangesCloseConfirmation.isCloseConfirmed(
+            for: workspaces.flatMap(\.closablePanelsIncludingDock)
+        )
+        var closeAlreadyConfirmed = closeConfirmedByUnsavedChangesPrompt
         // Members close below without their own prompts, so a batch holding a
         // pinned workspace keeps the pinned gate instead of the workspace one.
         // Closing every workspace closes the window, so that "Close window?"
@@ -2924,7 +2993,7 @@ class TabManager: ObservableObject {
             dontAskAgain = .workspace
             if hasActiveProcess { dontAskAgain.insert(.safety) }
         }
-        if showsBatchConfirmation {
+        if showsBatchConfirmation, containsPinned || !closeConfirmedByUnsavedChangesPrompt {
             guard confirmClose(
                 title: plan.title,
                 message: plan.message,
@@ -6995,6 +7064,7 @@ extension TabManager {
                 tabDragTransferRegistry: tabDragTransferRegistry,
                 settings: settings,
                 closeTabWarningDefaults: closeTabWarningDefaults,
+                unsavedChangesCloseConfirmation: unsavedChangesCloseConfirmation,
                 agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
                 fileContentChangeCoordinator: fileContentChangeCoordinator,
                 nativeSSHConnectionBroker: nativeSSHConnectionBroker
@@ -7031,6 +7101,7 @@ extension TabManager {
                 tabDragTransferRegistry: tabDragTransferRegistry,
                 settings: settings,
                 closeTabWarningDefaults: closeTabWarningDefaults,
+                unsavedChangesCloseConfirmation: unsavedChangesCloseConfirmation,
                 agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
                 fileContentChangeCoordinator: fileContentChangeCoordinator,
                 nativeSSHConnectionBroker: nativeSSHConnectionBroker

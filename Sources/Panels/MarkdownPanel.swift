@@ -108,6 +108,10 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
     var fileContentObservationID: UUID?
     var fileContentObservationLifetime: FileContentObservationLifetime?
     var lastObservedFileState: FilePreviewFileState?
+    /// The one container currently projecting this panel's tab metadata.
+    weak var tabMetadataHost: (any FilePreviewTabMetadataHost)?
+    /// The most recent text save, so a close-time save can await one already running.
+    private(set) var latestTextSaveTask: Task<Void, Never>?
     private var originalTextContent: String = ""
     private var textEncoding: String.Encoding = .utf8
     private var saveGeneration: Int = 0
@@ -500,8 +504,17 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
         textEditGeneration &+= 1
         textContent = nextContent
         content = nextContent
-        isDirty = nextContent != originalTextContent
+        setTabMetadataDirtyState(nextContent != originalTextContent)
         GlobalSearchCoordinator.shared.captureMarkdownPanel(self)
+    }
+
+    /// Updates dirty state and emits to the tab only when the value changes.
+    /// Every `isDirty` mutation goes through here so the tab's modified dot
+    /// follows the buffer through the same seam the native file editor uses.
+    private func setTabMetadataDirtyState(_ nextValue: Bool) {
+        guard isDirty != nextValue else { return }
+        isDirty = nextValue
+        publishTabMetadataUpdate()
     }
 
     @discardableResult
@@ -516,7 +529,7 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
         guard currentContent != originalTextContent else {
             textContent = currentContent
             content = currentContent
-            isDirty = false
+            setTabMetadataDirtyState(false)
             GlobalSearchCoordinator.shared.captureMarkdownPanel(self)
             return nil
         }
@@ -527,7 +540,7 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
         let generation = saveGeneration
         textContent = currentContent
         content = currentContent
-        isDirty = true
+        setTabMetadataDirtyState(true)
         isSaving = true
         activeSaveGeneration = generation
         GlobalSearchCoordinator.shared.captureMarkdownPanel(self)
@@ -536,7 +549,7 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
         let fileContentChangeCoordinator = fileContentChangeCoordinator
         let fileContentObservationID = fileContentObservationID
 
-        return Task {
+        let saveTask = Task {
             [weak self, currentContent, fileURL, encoding, generation,
              fileContentChangeCoordinator, fileContentObservationID] in
             let result = await fileContentChangeCoordinator.saveTextContent(
@@ -559,7 +572,7 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
             switch result {
             case .saved:
                 self.originalTextContent = currentContent
-                self.isDirty = self.textContent != currentContent
+                self.setTabMetadataDirtyState(self.textContent != currentContent)
                 self.isFileUnavailable = false
                 GlobalSearchCoordinator.shared.captureMarkdownPanel(self)
             case .failed(let fileExists):
@@ -568,6 +581,8 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
             }
             await self.loadFileContent(replacingDirtyContent: false).value
         }
+        latestTextSaveTask = saveTask
+        return saveTask
     }
 
     // MARK: - File I/O
@@ -646,7 +661,7 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
             content = ""
             textContent = ""
             originalTextContent = ""
-            isDirty = false
+            setTabMetadataDirtyState(false)
             isFileUnavailable = true
             GlobalSearchCoordinator.shared.captureMarkdownPanel(self)
             return
@@ -655,7 +670,7 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
         if !replacingDirtyContent && isDirty {
             originalTextContent = newContent
             textEncoding = encoding
-            isDirty = textContent != newContent
+            setTabMetadataDirtyState(textContent != newContent)
             isFileUnavailable = false
             GlobalSearchCoordinator.shared.captureMarkdownPanel(self)
             return
@@ -665,7 +680,7 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
         textContent = newContent
         originalTextContent = newContent
         textEncoding = encoding
-        isDirty = false
+        setTabMetadataDirtyState(false)
         isFileUnavailable = false
         GlobalSearchCoordinator.shared.captureMarkdownPanel(self)
     }

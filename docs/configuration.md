@@ -124,6 +124,10 @@ Default: `always` for stable, nightly, and RC builds. DEV builds always behave a
 
 The older boolean `app.warnBeforeQuit` still works as a fallback when `app.confirmQuit` is not set. `true` maps to `always`; `false` maps to `never`.
 
+### Unsaved editor changes always prompt
+
+Closing a tab, pane, workspace or window, or quitting cmux, while a file editor or Markdown text editor holds unsaved changes first asks **Save**, **Don't Save** or **Cancel**: one dialog per close action, naming the file (or listing the files) that would lose edits. This prompt is independent of `app.confirmQuit` and of `app.warnBeforeClosingTab`, `app.warnBeforeClosingTabXButton`, `app.warnBeforeClosingWorkspace` and `app.warnBeforeClosingWindow`; it has no "Don't ask again" option because discarding edits is data loss rather than a preference. Save and Don't Save both confirm the close, so the matching close warning does not ask a second time; when nothing is dirty the warnings above apply as usual. Non-interactive closes (`surface.close` with `force`, `workspace.close` over the socket, and internal teardown) skip the prompt.
+
 ## `app.forkConversationDefaultDestination`
 
 Controls what the tab right-click `Fork Conversation` item does. The submenu still exposes every destination.

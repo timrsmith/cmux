@@ -45,14 +45,36 @@ extension DockSplitStore {
             discardDockClosedPanelHistory(tabId: tab.id)
             return true
         }
+        // Unsaved editor changes always ask first, independent of the close-warning
+        // settings; the same close is re-issued after the answer (see Workspace).
+        let tabId = tab.id
+        if unsavedChangesCloseConfirmation.deferCloseIfNeeded(
+            for: [panel],
+            retry: { [weak self] in
+                guard let self, self.panel(for: tabId) != nil else { return }
+                if tabCloseButtonClose {
+                    self.tabCloseButtonCloseDockTabIds.insert(tabId)
+                }
+                _ = self.bonsplitController.closeTab(tabId)
+            },
+            onCancel: { [weak self] in
+                self?.discardDockClosedPanelHistory(tabId: tabId)
+            }
+        ) {
+            return false
+        }
         let confirmationManager = dockCloseConfirmationManager()
         let closeWarningStore = CloseTabWarningStore(
             defaults: confirmationManager?.closeTabWarningDefaults ?? .standard
         )
-        guard closeWarningStore.shouldConfirmCloseIncludingSafety(
-            requiresConfirmation: dockPanelNeedsConfirmClose(panel),
-            source: closeSource
-        ) else {
+        // A close the unsaved-changes prompt already confirmed skips the close warning.
+        let warningKinds: CloseWarningKinds = unsavedChangesCloseConfirmation.isCloseConfirmed(for: [panel])
+            ? []
+            : closeWarningStore.warningKindsIncludingSafety(
+                requiresConfirmation: dockPanelNeedsConfirmClose(panel),
+                source: closeSource
+            )
+        guard !warningKinds.isEmpty else {
             if closeHistoryEligibleDockTabIds.contains(tab.id) {
                 stageDockClosedPanelHistory(
                     tabIds: Set([tab.id]),
@@ -69,7 +91,6 @@ extension DockSplitStore {
         }
 
         pendingCloseConfirmDockTabIds.insert(tab.id)
-        let tabId = tab.id
         Task { @MainActor [weak self] in
             guard let self else {
                 return
@@ -114,6 +135,17 @@ extension DockSplitStore {
         )
         guard !userCloseTabIds.isEmpty else { return true }
 
+        // Unsaved editor changes in the pane ask first (see `shouldCloseTab`).
+        let closingPanels = tabs.compactMap { tab -> (any Panel)? in
+            userCloseTabIds.contains(tab.id) ? panel(for: tab.id) : nil
+        }
+        if unsavedChangesCloseConfirmation.deferCloseIfNeeded(
+            for: closingPanels,
+            retry: { [weak self] in _ = self?.bonsplitController.closePane(pane) }
+        ) {
+            return false
+        }
+
         let confirmationManager = dockCloseConfirmationManager()
         let closeWarningStore = CloseTabWarningStore(
             defaults: confirmationManager?.closeTabWarningDefaults ?? .standard
@@ -124,10 +156,13 @@ extension DockSplitStore {
             let panel = panel(for: tab.id)
             paneTitles.append(CloseOtherTabsConfirmationPrompt.displayTitle(panel?.displayTitle ?? tab.title))
             guard userCloseTabIds.contains(tab.id), let panel else { continue }
-            if closeWarningStore.shouldConfirmCloseIncludingSafety(
-                requiresConfirmation: dockPanelNeedsConfirmClose(panel),
-                source: .shortcut
-            ) {
+            let tabWarningKinds: CloseWarningKinds = unsavedChangesCloseConfirmation.isCloseConfirmed(for: [panel])
+                ? []
+                : closeWarningStore.warningKindsIncludingSafety(
+                    requiresConfirmation: dockPanelNeedsConfirmClose(panel),
+                    source: .shortcut
+                )
+            if !tabWarningKinds.isEmpty {
                 confirmableTabIds.insert(tab.id)
             }
         }
