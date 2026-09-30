@@ -1408,7 +1408,7 @@
         },
         "fileExplorer": {
           "description": "Innstillinger for filutforskeren (filtreet) i høyre sidepanel.",
-          "doubleClickAction": "Hva aktivering av en fil åpner: dobbeltklikk eller Retur i filutforskeren, filforhåndsvisningen i høyre sidefelt og «Åpne i cmux» i diff-visningen. `preview` åpner den innebygde cmux-editoren (standard og tidligere oppførsel). `terminalEditor` åpner en terminal i cmux som kjører `fileEditor.terminalEditorCommand` (ellers `$VISUAL`, `$EDITOR`, `vi`) på filen. `defaultEditor` åpner med macOS-standardappen for filtypen. `preferredEditor` åpner med kommandoen `app.preferredEditor` og faller tilbake til standardappen når ingen er satt. Gjelder bare filer; mapper utvides/skjules alltid, og ikke-lokale (eksterne) filutforskere åpner alltid cmux-forhåndsvisningen."
+          "doubleClickAction": "Hva aktivering av en fil åpner: dobbeltklikk eller Retur i filutforskeren, filforhåndsvisningen i høyre sidefelt og «Åpne i cmux» i diff-visningen. `preview` åpner den innebygde cmux-editoren (standard og tidligere oppførsel). `terminalEditor` åpner en terminal i cmux som kjører `fileEditor.terminalEditorCommand` (ellers `$VISUAL`, `$EDITOR`, `vi`) på filen. Eldre verdier `defaultEditor` og `preferredEditor` åpner den innebygde editoren. Gjelder bare filer; mapper utvides/skjules alltid, og ikke-lokale (eksterne) filutforskere åpner alltid cmux-forhåndsvisningen."
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."

@@ -78,7 +78,9 @@ extension CmuxSettingsFileStore {
         snapshot: inout ResolvedSettingsSnapshot
     ) {
         if let raw = jsonString(section["doubleClickAction"]) {
-            if let action = FileExplorerDoubleClickAction(rawValue: raw) {
+            // decodeFromJSON folds the retired external-editor values into the
+            // choice that replaced them, so an older file keeps working silently.
+            if let action = FileExplorerDoubleClickAction.decodeFromJSON(raw) {
                 snapshot.managedUserDefaults[FileExplorerDoubleClickActionSettings.key] = .string(action.rawValue)
             } else {
                 logInvalid("fileExplorer.doubleClickAction", sourcePath: sourcePath)

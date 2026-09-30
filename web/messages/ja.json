@@ -2574,7 +2574,7 @@
         },
         "fileExplorer": {
           "description": "右サイドバーのファイルエクスプローラー（ファイルツリー）設定。",
-          "doubleClickAction": "ファイルを開いたときの動作: ファイルエクスプローラーでのダブルクリックや Return、右サイドバーのファイルプレビュー、diff ビューアの「cmux で開く」に適用されます。`preview` は内蔵の cmux エディタで開きます（既定であり従来の動作）。`terminalEditor` は cmux 内でターミナルを開き、`fileEditor.terminalEditorCommand`（未設定なら `$VISUAL`、`$EDITOR`、`vi`）でファイルを開きます。`defaultEditor` はファイル種別の macOS 既定アプリで開きます。`preferredEditor` は `app.preferredEditor` コマンドで開き、未設定なら既定アプリにフォールバックします。ファイルにのみ適用され、ディレクトリは常に展開/折りたたみ、ローカルでない（リモートの）エクスプローラーは常に cmux プレビューを開きます。"
+          "doubleClickAction": "ファイルを開いたときの動作: ファイルエクスプローラーでのダブルクリックや Return、右サイドバーのファイルプレビュー、diff ビューアの「cmux で開く」に適用されます。`preview` は内蔵の cmux エディタで開きます（既定であり従来の動作）。`terminalEditor` は cmux 内でターミナルを開き、`fileEditor.terminalEditorCommand`（未設定なら `$VISUAL`、`$EDITOR`、`vi`）でファイルを開きます。以前の `defaultEditor` と `preferredEditor` の値は内蔵エディタで開きます。ファイルにのみ適用され、ディレクトリは常に展開/折りたたみ、ローカルでない（リモートの）エクスプローラーは常に cmux プレビューを開きます。"
         },
         "diffViewer": {
           "defaultLayout": "新しく開く diff ビューアの既定レイアウトです。ツールバーのレイアウト切り替えはユーザーの最後の選択を保持し、明示的な `cmux diff --layout` オプションはその両方を上書きします。"

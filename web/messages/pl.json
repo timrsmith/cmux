@@ -1409,7 +1409,7 @@
         },
         "fileExplorer": {
           "description": "Ustawienia eksploratora plików (drzewa plików) w prawym pasku bocznym.",
-          "doubleClickAction": "Co otwiera aktywacja pliku: dwuklik lub Return w eksploratorze plików, podgląd pliku w prawym pasku bocznym oraz „Otwórz w cmux” w podglądzie różnic. `preview` otwiera wbudowany edytor cmux (domyślne i dotychczasowe zachowanie). `terminalEditor` otwiera w cmux terminal uruchamiający `fileEditor.terminalEditorCommand` (w przeciwnym razie `$VISUAL`, `$EDITOR`, `vi`) na pliku. `defaultEditor` otwiera domyślną aplikacją macOS dla typu pliku. `preferredEditor` otwiera poleceniem `app.preferredEditor`, a gdy nie jest ustawione, domyślną aplikacją. Dotyczy tylko plików; katalogi zawsze się rozwijają/zwijają, a nielokalne (zdalne) eksploratory zawsze otwierają podgląd cmux."
+          "doubleClickAction": "Co otwiera aktywacja pliku: dwuklik lub Return w eksploratorze plików, podgląd pliku w prawym pasku bocznym oraz „Otwórz w cmux” w podglądzie różnic. `preview` otwiera wbudowany edytor cmux (domyślne i dotychczasowe zachowanie). `terminalEditor` otwiera w cmux terminal uruchamiający `fileEditor.terminalEditorCommand` (w przeciwnym razie `$VISUAL`, `$EDITOR`, `vi`) na pliku. Starsze wartości `defaultEditor` i `preferredEditor` otwierają wbudowany edytor. Dotyczy tylko plików; katalogi zawsze się rozwijają/zwijają, a nielokalne (zdalne) eksploratory zawsze otwierają podgląd cmux."
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."

@@ -244,6 +244,39 @@ struct CmuxConfigSemanticValidatorTests {
         #expect(contains(future, path: "$.known", message: "expected boolean"))
     }
 
+    @Test("x-cmux-legacyValues keys pass an enum check; other strings still fail it")
+    func acceptsLegacyEnumValuesTheAppMigrates() {
+        let validator = CmuxConfigSemanticValidator(scope: .global)
+        let schema: [String: Any] = [
+            "type": "object",
+            "properties": [
+                "choice": [
+                    "type": "string",
+                    "enum": ["current", "other"],
+                    "x-cmux-legacyValues": ["retired": "current"],
+                ],
+            ],
+            "additionalProperties": false,
+        ]
+        for value in ["current", "other", "retired"] {
+            let result = validator.validateObject(["choice": value], schema: schema, path: "$", tolerateUnknownProperties: false)
+            #expect(result.isEmpty, "\(value) should be accepted")
+        }
+        let unknown = validator.validateObject(["choice": "gone"], schema: schema, path: "$", tolerateUnknownProperties: false)
+        #expect(contains(unknown, path: "$.choice", message: "must be one of"))
+        #expect(!unknown.contains { $0.message.contains("retired") }, "legacy values are not advertised as choices")
+    }
+
+    @Test("fileExplorer.doubleClickAction accepts the retired external-editor values")
+    func acceptsRetiredDoubleClickActionValues() throws {
+        for legacy in ["defaultEditor", "preferredEditor"] {
+            let result = try issues(["fileExplorer": ["doubleClickAction": legacy]])
+            #expect(result.isEmpty, "\(legacy) should be accepted silently")
+        }
+        let unknown = try issues(["fileExplorer": ["doubleClickAction": "finder"]])
+        #expect(contains(unknown, path: "$.fileExplorer.doubleClickAction", message: "must be one of"))
+    }
+
     @Test("project scope rejects global settings while keeping project hooks legal")
     func enforcesProjectScope() throws {
         let globalOnly = try issues(

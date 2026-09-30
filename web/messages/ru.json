@@ -1408,7 +1408,7 @@
         },
         "fileExplorer": {
           "description": "Настройки проводника файлов (дерева файлов) в правой боковой панели.",
-          "doubleClickAction": "Что открывает активация файла: двойной щелчок или Return в проводнике, предпросмотр файла в правой боковой панели и «Открыть в cmux» в просмотрщике diff. `preview` открывает встроенный редактор cmux (поведение по умолчанию). `terminalEditor` открывает в cmux терминал, запускающий `fileEditor.terminalEditorCommand` (иначе `$VISUAL`, `$EDITOR`, `vi`) для файла. `defaultEditor` открывает приложением macOS по умолчанию для типа файла. `preferredEditor` открывает командой `app.preferredEditor`, а если она не задана, приложением по умолчанию. Действует только для файлов; каталоги всегда разворачиваются/сворачиваются, а нелокальные (удалённые) проводники всегда открывают предпросмотр cmux."
+          "doubleClickAction": "Что открывает активация файла: двойной щелчок или Return в проводнике, предпросмотр файла в правой боковой панели и «Открыть в cmux» в просмотрщике diff. `preview` открывает встроенный редактор cmux (поведение по умолчанию). `terminalEditor` открывает в cmux терминал, запускающий `fileEditor.terminalEditorCommand` (иначе `$VISUAL`, `$EDITOR`, `vi`) для файла. Устаревшие значения `defaultEditor` и `preferredEditor` открывают встроенный редактор. Действует только для файлов; каталоги всегда разворачиваются/сворачиваются, а нелокальные (удалённые) проводники всегда открывают предпросмотр cmux."
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."

@@ -95,7 +95,7 @@ extension Array where Element == CuratedSettingEntry {
                 section: .filesAndEditing,
                 id: "file-explorer-double-click-action",
                 title: String(localized: "settings.fileExplorer.doubleClickAction", defaultValue: "Open Files From Tree In"),
-                synonyms: "fileExplorer.doubleClickAction " + String(localized: "settings.search.fileExplorer.doubleClickAction", defaultValue: "file tree files panel double click open native editor terminal editor default app preferred editor preview")
+                synonyms: "fileExplorer.doubleClickAction " + String(localized: "settings.search.fileExplorer.doubleClickAction", defaultValue: "file tree files panel double click open native editor terminal editor preview")
             ),
             .init(
                 section: .filesAndEditing,

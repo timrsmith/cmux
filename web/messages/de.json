@@ -1408,7 +1408,7 @@
         },
         "fileExplorer": {
           "description": "Einstellungen für den Datei-Explorer (Dateibaum) in der rechten Seitenleiste.",
-          "doubleClickAction": "Was das Aktivieren einer Datei öffnet: Doppelklick oder Return im Datei-Explorer, die Dateivorschau der rechten Seitenleiste und „In cmux öffnen“ im Diff-Viewer. `preview` öffnet den integrierten cmux-Editor (Standard und bisheriges Verhalten). `terminalEditor` öffnet ein Terminal in cmux, das `fileEditor.terminalEditorCommand` (sonst `$VISUAL`, `$EDITOR`, `vi`) mit der Datei ausführt. `defaultEditor` öffnet mit der macOS-Standard-App für den Dateityp. `preferredEditor` öffnet mit dem Befehl `app.preferredEditor` und fällt auf die Standard-App zurück, wenn keiner gesetzt ist. Gilt nur für Dateien; Ordner werden immer auf- und zugeklappt, und nicht lokale (entfernte) Datei-Explorer öffnen immer die cmux-Vorschau."
+          "doubleClickAction": "Was das Aktivieren einer Datei öffnet: Doppelklick oder Return im Datei-Explorer, die Dateivorschau der rechten Seitenleiste und „In cmux öffnen“ im Diff-Viewer. `preview` öffnet den integrierten cmux-Editor (Standard und bisheriges Verhalten). `terminalEditor` öffnet ein Terminal in cmux, das `fileEditor.terminalEditorCommand` (sonst `$VISUAL`, `$EDITOR`, `vi`) mit der Datei ausführt. Ältere Werte `defaultEditor` und `preferredEditor` öffnen den integrierten Editor. Gilt nur für Dateien; Ordner werden immer auf- und zugeklappt, und nicht lokale (entfernte) Datei-Explorer öffnen immer die cmux-Vorschau."
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."

@@ -126,7 +126,8 @@ public struct CmuxConfigSemanticValidator {
         }
 
         if let choices = schema["enum"] as? [Any],
-           !choices.contains(where: { jsonEqual(instance, $0) }) {
+           !choices.contains(where: { jsonEqual(instance, $0) }),
+           !isAcceptedLegacyValue(instance, schema: schema) {
             issues.append(
                 CmuxConfigSemanticIssue(
                     path: path,
@@ -269,6 +270,18 @@ public struct CmuxConfigSemanticValidator {
         }
 
         return deduplicated(issues)
+    }
+
+    /// Whether `instance` is a string the schema's `x-cmux-legacyValues` maps
+    /// onto a current `enum` choice. Earlier builds wrote such strings and the
+    /// app still reads them as their replacement, so they pass the enum check
+    /// without being listed among the choices a user should write today.
+    private func isAcceptedLegacyValue(_ instance: Any, schema: [String: Any]) -> Bool {
+        guard let legacyValues = schema["x-cmux-legacyValues"] as? [String: Any],
+              let string = instance as? String else {
+            return false
+        }
+        return legacyValues[string] != nil
     }
 
     private func usesFutureSchemaVersion(_ instance: Any) -> Bool {

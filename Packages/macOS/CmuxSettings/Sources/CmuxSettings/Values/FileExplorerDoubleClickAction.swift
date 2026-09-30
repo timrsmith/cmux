@@ -7,18 +7,47 @@ import Foundation
 /// file preview, the diff viewer's Open in cmux). Directories are unaffected:
 /// they always expand or collapse. The default, ``preview``, is the built-in
 /// cmux editor, so existing users see no change. Declaration order is the
-/// order the Settings picker and the Files header's Editor submenu list the
-/// choices in.
+/// order the Settings picker lists the choices in.
+///
+/// Both choices keep the file inside cmux. Earlier builds also offered
+/// `defaultEditor` (the macOS default app) and `preferredEditor` (the
+/// `app.preferredEditor` command); the native editor's header now offers Open
+/// With and Open Externally for the files it cannot edit, so those stored
+/// values decode as ``preview`` (see ``legacyRawValues``).
 public enum FileExplorerDoubleClickAction: String, CaseIterable, Sendable, SettingCodable {
     /// The built-in cmux file editor (the historical default).
     case preview
     /// A terminal surface in cmux running the user's terminal editor
     /// (`fileEditor.terminalEditorCommand`, else `$VISUAL`, `$EDITOR`, `vi`).
     case terminalEditor
-    /// The macOS default application for the file type, identical to the
-    /// file tree context menu's "Open in <App>" action.
-    case defaultEditor
-    /// The `app.preferredEditor` command, matching the terminal Cmd-click
-    /// path. Falls back to ``defaultEditor`` when no command is configured.
-    case preferredEditor
+
+    /// Raw values earlier builds stored for the removed external choices, each
+    /// paired with the choice it now resolves to. `web/data/cmux.schema.json`
+    /// carries the same mapping under `x-cmux-legacyValues`, so config
+    /// validation accepts these strings without advertising them as choices.
+    public static let legacyRawValues: [String: FileExplorerDoubleClickAction] = [
+        "defaultEditor": .preview,
+        "preferredEditor": .preview,
+    ]
+
+    /// Resolves a stored string: a current raw value, a legacy value folded
+    /// into its replacement, or `nil` for anything else so the key default
+    /// applies.
+    private static func resolved(_ string: String) -> FileExplorerDoubleClickAction? {
+        FileExplorerDoubleClickAction(rawValue: string) ?? legacyRawValues[string]
+    }
+
+    public static func decodeFromUserDefaults(_ raw: Any?) -> FileExplorerDoubleClickAction? {
+        (raw as? String).flatMap(resolved)
+    }
+
+    public func encodeForUserDefaults() -> Any { rawValue }
+
+    /// The cmux.json parser stores the decoded choice, so a legacy value in the
+    /// file is normalized to its replacement on import.
+    public static func decodeFromJSON(_ raw: Any?) -> FileExplorerDoubleClickAction? {
+        (raw as? String).flatMap(resolved)
+    }
+
+    public func encodeForJSON() -> Any { rawValue }
 }

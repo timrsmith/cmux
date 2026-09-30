@@ -1408,7 +1408,7 @@
         },
         "fileExplorer": {
           "description": "ការកំណត់កម្មវិធីរុករកឯកសារ (មែកធាងឯកសារ) នៅក្នុងរបារចំហៀងស្តាំ។",
-          "doubleClickAction": "អ្វីដែលបើកនៅពេលធ្វើឱ្យឯកសារសកម្ម៖ ចុចពីរដង ឬ Return ក្នុងកម្មវិធីរុករកឯកសារ ការមើលឯកសារជាមុននៅរបារចំហៀងខាងស្ដាំ និង “បើកក្នុង cmux” ក្នុងកម្មវិធីមើល diff។ `preview` បើកកម្មវិធីកែសម្រួល cmux ដែលភ្ជាប់មកជាមួយ (លំនាំដើម និងឥរិយាបថដើម)។ `terminalEditor` បើកស្ថានីយក្នុង cmux ដែលដំណើរការ `fileEditor.terminalEditorCommand` (បើគ្មាន ប្រើ `$VISUAL`, `$EDITOR`, `vi`) លើឯកសារ។ `defaultEditor` បើកដោយកម្មវិធីលំនាំដើមរបស់ macOS សម្រាប់ប្រភេទឯកសារ។ `preferredEditor` បើកដោយពាក្យបញ្ជា `app.preferredEditor` ហើយត្រឡប់ទៅកម្មវិធីលំនាំដើមនៅពេលមិនបានកំណត់។ អនុវត្តតែចំពោះឯកសារ; ថតតែងតែពង្រីក/បង្រួម ហើយកម្មវិធីរុករកឯកសារមិនមែនក្នុងម៉ាស៊ីន (ពីចម្ងាយ) តែងតែបើកការមើលជាមុនរបស់ cmux។"
+          "doubleClickAction": "អ្វីដែលបើកនៅពេលធ្វើឱ្យឯកសារសកម្ម៖ ចុចពីរដង ឬ Return ក្នុងកម្មវិធីរុករកឯកសារ ការមើលឯកសារជាមុននៅរបារចំហៀងខាងស្ដាំ និង “បើកក្នុង cmux” ក្នុងកម្មវិធីមើល diff។ `preview` បើកកម្មវិធីកែសម្រួល cmux ដែលភ្ជាប់មកជាមួយ (លំនាំដើម និងឥរិយាបថដើម)។ `terminalEditor` បើកស្ថានីយក្នុង cmux ដែលដំណើរការ `fileEditor.terminalEditorCommand` (បើគ្មាន ប្រើ `$VISUAL`, `$EDITOR`, `vi`) លើឯកសារ។ តម្លៃចាស់ `defaultEditor` និង `preferredEditor` បើកកម្មវិធីកែសម្រួលដែលភ្ជាប់មកជាមួយ។ អនុវត្តតែចំពោះឯកសារ; ថតតែងតែពង្រីក/បង្រួម ហើយកម្មវិធីរុករកឯកសារមិនមែនក្នុងម៉ាស៊ីន (ពីចម្ងាយ) តែងតែបើកការមើលជាមុនរបស់ cmux។"
         },
         "diffViewer": {
           "defaultLayout": "Default layout for newly opened diff viewers. The toolbar layout toggle persists the user's last choice; an explicit `cmux diff --layout` option overrides both."
