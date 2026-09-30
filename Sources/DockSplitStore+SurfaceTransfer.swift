@@ -251,7 +251,7 @@ extension DockSplitStore {
         appLinkHandoffCoordinator.cancel(sourcePanelID: panelId)
         panelCancellables[panelId]?.cancel()
         panelCancellables.removeValue(forKey: panelId)
-        (panel as? FilePreviewPanel)?.unbindTabMetadata()
+        (panel as? any TabMetadataPublishingPanel)?.unbindTabMetadata()
         removeSurfaceMapping(forSurfaceId: tabId)
         panels.removeValue(forKey: panelId)
 

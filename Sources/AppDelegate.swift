@@ -1373,6 +1373,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private let terminationWatchdog = TerminationWatchdog()
     private var activeQuitConfirmationAlertPresenter: QuitConfirmationAlertPresenter?
     private var activeQuitConfirmationOwnsTerminateRequest = false
+    /// Shared Save / Don't Save / Cancel flow for app quit; window closes use
+    /// their manager's instance.
+    lazy var unsavedChangesCloseConfirmation = UnsavedChangesCloseConfirmation(
+        presenter: UnsavedChangesAlertPresenter()
+    )
+    /// True while an app-quit request waits on the unsaved-changes prompt.
+    private var isAwaitingUnsavedChangesTerminateDecision = false
     private var didInstallLifecycleSnapshotObservers = false
     static let screenChangeReconcileNotification = Notification.Name("com.cmuxterm.app.screenChangeReconcile")
     static let displayReconfigurationNotification = Notification.Name("com.cmuxterm.app.displayReconfiguration")
@@ -2367,6 +2374,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         ) {
             return reply
         }
+        if isAwaitingUnsavedChangesTerminateDecision {
+            return .terminateLater
+        }
+        // Unsaved editor changes block quit even when `app.confirmQuit` is off:
+        // ask Save / Don't Save / Cancel, and let that answer stand in for the
+        // quit warning. A quit the user already confirmed (Cmd+Q dialog, last
+        // window close) does not ask again.
+        let dirtyPanels = isQuitWarningConfirmed
+            ? []
+            : unsavedChangesCloseConfirmation.unresolvedPanels(
+                in: unsavedChangesCandidatePanelsForQuit()
+            )
+        if !dirtyPanels.isEmpty {
+            isAwaitingUnsavedChangesTerminateDecision = true
+            StartupBreadcrumbLog.append(
+                "appDelegate.shouldTerminate.unsavedChanges",
+                fields: ["count": String(dirtyPanels.count)]
+            )
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let outcome = await self.unsavedChangesCloseConfirmation.confirmClose(of: dirtyPanels)
+                self.isAwaitingUnsavedChangesTerminateDecision = false
+                guard outcome == .proceed else {
+                    StartupBreadcrumbLog.append("appDelegate.shouldTerminate.reply", fields: ["shouldQuit": "0"])
+                    self.replyToTerminateOnce(false)
+                    return
+                }
+                self.isQuitWarningConfirmed = true
+                switch self.resolveApplicationShouldTerminatePolicy() {
+                case .terminateNow:
+                    self.replyToTerminateOnce(true)
+                case .terminateCancel:
+                    self.replyToTerminateOnce(false)
+                case .terminateLater:
+                    break
+                @unknown default:
+                    break
+                }
+            }
+            return .terminateLater
+        }
+        return resolveApplicationShouldTerminatePolicy()
+    }
+
+    /// The `app.confirmQuit` policy, shared by the direct terminate path and the
+    /// continuation that runs after the unsaved-changes prompt.
+    private func resolveApplicationShouldTerminatePolicy() -> NSApplication.TerminateReply {
         let buildFlavor = BuildFlavor.current
         let quitConfirmationStore = QuitConfirmationStore(defaults: .standard)
         let hasDirtyWorkspaces = hasQuitConfirmationDirtyWorkspaces()
@@ -6790,6 +6844,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             window.performClose(nil)
             return true
         }
+        // Unsaved editor changes anywhere in the window ask first, independent
+        // of `app.warnBeforeClosingWindow`; the close is re-issued after the answer.
+        if let context = mainWindowContext(forExactWindowIdentity: window),
+           context.tabManager.unsavedChangesCloseConfirmation.deferCloseIfNeeded(
+               for: unsavedChangesCandidatePanels(in: context),
+               retry: { [weak self] in _ = self?.closeWindowWithConfirmation(window) }
+           ) {
+            return true
+        }
+        // The unsaved-changes answer stands in for "Close window?" and, when this
+        // is the last window, for the quit warning that close turns into.
+        if let context = mainWindowContext(forExactWindowIdentity: window),
+           context.tabManager.unsavedChangesCloseConfirmation.isCloseConfirmed(
+               for: unsavedChangesCandidatePanels(in: context)
+           ) {
+            performPreconfirmedMainWindowClose(window)
+            return true
+        }
         // Ask only when something would be lost, counting the window Dock that
         // closes with the window. A close that skips the dialog is not
         // preconfirmed, so the last-window quit policy still applies. Without a
@@ -10394,6 +10466,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             workspaceCustomizationStore: self.tabManager?.workspaceCustomizationStore
                 ?? WorkspaceCustomizationStore(defaults: .standard),
             nativeSSHConnectionBroker: TerminalController.shared.nativeSSHConnectionBroker,
+            unsavedChangesCloseConfirmation: unsavedChangesCloseConfirmation,
             fileContentChangeCoordinator: self.tabManager?.fileContentChangeCoordinator,
             cloudWorkspaceSelection: cloudWorkspaceCoordinator?.makeSelectionState()
         )
@@ -14662,6 +14735,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             }
             return true
         }
+        // Unsaved editor changes ask before the quit warning, whatever `app.confirmQuit` says.
+        if unsavedChangesCloseConfirmation.deferCloseIfNeeded(
+            for: unsavedChangesCandidatePanelsForQuit(),
+            retry: { [weak self] in _ = self?.handleQuitShortcutWarning(onCancel: onCancel) },
+            onCancel: { onCancel?() }
+        ) {
+            return true
+        }
+        // The unsaved-changes answer stands in for the quit warning.
+        if unsavedChangesCloseConfirmation.isCloseConfirmed(for: unsavedChangesCandidatePanelsForQuit()) {
+            isQuitWarningConfirmed = true
+            Self.requestApplicationTermination()
+            return true
+        }
         if !QuitConfirmationStore(defaults: .standard).shouldShowConfirmation(
             isQuitWarningConfirmed: false,
             hasDirtyWorkspaces: hasQuitConfirmationDirtyWorkspaces(),
@@ -18628,16 +18715,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // that stale callback stand in for the surviving owner.
         guard !hasCommittedMainWindowClose(candidateWindow) else { return true }
 
+        // The window's close button: unsaved editor changes ask first, then the
+        // close is re-issued and continues into the last-window policy below.
+        if let context = mainWindowContext(forExactWindowIdentity: candidateWindow),
+           context.tabManager.unsavedChangesCloseConfirmation.deferCloseIfNeeded(
+               for: unsavedChangesCandidatePanels(in: context),
+               retry: { candidateWindow.performClose(nil) },
+               onCancel: { onCancel?() }
+           ) {
+            return false
+        }
+        let closeConfirmedByUnsavedChangesPrompt = mainWindowContext(forExactWindowIdentity: candidateWindow)
+            .map { context in
+                context.tabManager.unsavedChangesCloseConfirmation.isCloseConfirmed(
+                    for: unsavedChangesCandidatePanels(in: context)
+                )
+            } ?? false
+
         let authoritativeRoutes = mainWindowSessionPersistenceRoutes()
         guard authoritativeRoutes.count == 1,
               authoritativeRoutes[0].window === candidateWindow else {
             return true
         }
 
-        // The user already accepted a close dialog for this window, so that
-        // answer covers the quit it turns into. Asking again would show two
-        // dialogs for one action.
-        if closeAlreadyConfirmed {
+        // The user already accepted a close dialog for this window (or the
+        // unsaved-changes prompt), so that answer covers the quit it turns into.
+        // Asking again would show two dialogs for one action.
+        if closeAlreadyConfirmed || closeConfirmedByUnsavedChangesPrompt {
             isQuitWarningConfirmed = true
             Self.requestApplicationTermination()
             return false

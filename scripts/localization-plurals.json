@@ -244,6 +244,12 @@
       1
     ]
   },
+  "dialog.unsavedChanges.title.other": {
+    "source": "Save changes to %lld files?",
+    "arguments": [
+      1
+    ]
+  },
   "dialog.closeWorkspaces.message": {
     "source": "This will close %1$lld workspaces and all of their panels:\n%2$@",
     "arguments": [

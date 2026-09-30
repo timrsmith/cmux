@@ -2707,6 +2707,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
     @Published private(set) var surfaceTabBarDirectory: String?
     private(set) var preferredBrowserProfileID: UUID?
     let closeTabWarningDefaults, agentSessionAutoResumeDefaults: UserDefaults
+    /// Shared Save / Don't Save / Cancel flow for editors holding unsaved edits.
+    let unsavedChangesCloseConfirmation: UnsavedChangesCloseConfirmation
     let agentChatResumeIntentRecorder: any AgentChatResumeIntentRecording
     /// Supplies one authoritative agent index for a restore pass. Production
     /// restores request a fresh off-main scan; tests and composed restore flows
@@ -2753,6 +2755,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             agentSessionAutoResumeDefaults: agentSessionAutoResumeDefaults,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
             fileContentChangeCoordinator: fileContentChangeCoordinator,
+            unsavedChangesCloseConfirmation: unsavedChangesCloseConfirmation,
             restorableAgentIndexProvider: restorableAgentIndexProvider
         )
         store.terminalFontSizeChangeCoordinator =
@@ -4024,6 +4027,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         settings: any SettingsReading = UserDefaultsSettingsClient(defaults: .standard),
         managedDevicePolicy: ManagedDevicePolicy = ManagedDevicePolicy(),
         closeTabWarningDefaults: UserDefaults = .standard,
+        unsavedChangesCloseConfirmation: UnsavedChangesCloseConfirmation? = nil,
         agentSessionAutoResumeDefaults: UserDefaults = .standard,
         initialDetachedSurface: DetachedSurfaceTransfer? = nil,
         sessionRestorePolicy: WorkspaceSessionRestorePolicyService<SurfaceResumeBindingSnapshot>? = nil,
@@ -4047,6 +4051,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         self.settings = settings
         self.managedDevicePolicy = managedDevicePolicy
         self.closeTabWarningDefaults = closeTabWarningDefaults
+        self.unsavedChangesCloseConfirmation = unsavedChangesCloseConfirmation
+            ?? UnsavedChangesCloseConfirmation(presenter: UnsavedChangesAlertPresenter())
         self.agentSessionAutoResumeDefaults = agentSessionAutoResumeDefaults
         self.agentChatResumeIntentRecorder = agentChatResumeIntentRecorder
         self.restorableAgentIndexProvider = resolvedRestorableAgentIndexProvider
@@ -5172,36 +5178,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         return BrowserProfileStore.shared.effectiveLastUsedProfileID
     }
 
-    private func installMarkdownPanelSubscription(_ markdownPanel: MarkdownPanel) {
-        let subscription = Publishers.CombineLatest(
-            markdownPanel.$displayTitle.removeDuplicates(),
-            markdownPanel.$isDirty.removeDuplicates()
-        )
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self, weak markdownPanel] newTitle, isDirty in
-                guard let self,
-                      let markdownPanel,
-                      let tabId = self.surfaceIdFromPanelId(markdownPanel.id) else { return }
-                guard let existing = self.bonsplitController.tab(tabId) else { return }
-
-                if self.panelTitles[markdownPanel.id] != newTitle {
-                    self.panelTitles[markdownPanel.id] = newTitle
-                }
-                let resolvedTitle = self.resolvedPanelTitle(panelId: markdownPanel.id, fallback: newTitle)
-                let titleUpdate: String? = existing.title == resolvedTitle ? nil : resolvedTitle
-                let dirtyUpdate: Bool? = existing.isDirty == isDirty ? nil : isDirty
-                guard titleUpdate != nil || dirtyUpdate != nil else { return }
-                self.bonsplitController.updateTab(
-                    tabId,
-                    title: titleUpdate,
-                    hasCustomTitle: self.panelCustomTitles[markdownPanel.id] != nil,
-                    isDirty: dirtyUpdate
-                )
-            }
-        panelSubscriptions[markdownPanel.id] = subscription
-    }
-
-    /// Resolves the workspace tab currently owned by a file-preview panel.
+    /// Resolves the workspace tab currently owned by a text-editing panel.
     func filePreviewTabId(forPanelId panelId: UUID) -> TabID? {
         surfaceIdFromPanelId(panelId)
     }
@@ -10172,7 +10149,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             )
         }
 
-        installMarkdownPanelSubscription(markdownPanel)
+        markdownPanel.bindTabMetadata(to: self)
         return markdownPanel
     }
 
@@ -10228,7 +10205,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             )
         }
 
-        installMarkdownPanelSubscription(markdownPanel)
+        markdownPanel.bindTabMetadata(to: self)
         return markdownPanel
     }
 
@@ -10366,7 +10343,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
 
         bonsplitController.selectTab(newTab.id)
         focusPanel(markdownPanel.id)
-        installMarkdownPanelSubscription(markdownPanel)
+        markdownPanel.bindTabMetadata(to: self)
         return markdownPanel
     }
 
@@ -11430,12 +11407,9 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
                 id,
                 fileContentChangeCoordinator: fileContentChangeCoordinator
             )
-            if panelSubscriptions[markdownPanel.id] == nil {
-                installMarkdownPanelSubscription(markdownPanel)
-            }
         }
-        if let filePreviewPanel = detached.panel as? FilePreviewPanel {
-            filePreviewPanel.bindTabMetadata(to: self)
+        if let publishingPanel = detached.panel as? any TabMetadataPublishingPanel {
+            publishingPanel.bindTabMetadata(to: self)
         }
         if let agentPanel = detached.panel as? AgentSessionPanel {
             agentPanel.updateWorkspaceId(id)
@@ -14032,7 +14006,8 @@ extension Workspace: BonsplitDelegate {
 
         let tabCloseButtonClose = tabStripCloseButtonByTabId.removeValue(forKey: tab.id)
         let tabStripClose = tabCloseButtonClose != nil
-        let explicitUserClose = explicitUserCloseTabIds.remove(tab.id) != nil || tabStripClose
+        let explicitlyMarkedClose = explicitUserCloseTabIds.remove(tab.id) != nil
+        let explicitUserClose = explicitlyMarkedClose || tabStripClose
 
         // Remote tmux mirror tab closes route to tmux; tmux reports local removal.
         if isRemoteTmuxMirror, !forceCloseTabIds.contains(tab.id),
@@ -14166,6 +14141,37 @@ extension Workspace: BonsplitDelegate {
             return false
         }
 
+        // Unsaved editor changes always ask first, independent of the close-warning
+        // settings. The prompt (and any save) is asynchronous, so veto now and
+        // re-issue the same close once the user has answered; the re-entered
+        // request finds nothing left to ask and, because Save / Don't Save already
+        // confirmed the close, skips the close warning below. A forced close never
+        // reaches this point.
+        if let panelId = panelIdFromSurfaceId(tab.id),
+           let panel = panels[panelId] {
+            let tabId = tab.id
+            let deferred = unsavedChangesCloseConfirmation.deferCloseIfNeeded(
+                for: [panel],
+                retry: { [weak self] in
+                    guard let self, self.panelIdFromSurfaceId(tabId) == panelId else { return }
+                    if let tabCloseButtonClose {
+                        self.tabStripCloseButtonByTabId[tabId] = tabCloseButtonClose
+                    }
+                    if explicitlyMarkedClose {
+                        self.explicitUserCloseTabIds.insert(tabId)
+                    }
+                    _ = self.bonsplitController.closeTab(tabId)
+                },
+                onCancel: { [weak self] in
+                    self?.clearCloseHistoryEligibility(tabId: tabId, panelId: panelId)
+                }
+            )
+            if deferred {
+                clearStagedClosedBrowserRestoreSnapshot(for: tab.id)
+                return false
+            }
+        }
+
         if explicitUserClose && shouldCloseWorkspaceOnLastSurface(for: tab.id, tabStripClose: tabStripClose) {
             clearStagedClosedBrowserRestoreSnapshot(for: tab.id)
             clearCloseHistoryEligibility(tabId: tab.id)
@@ -14188,10 +14194,13 @@ extension Workspace: BonsplitDelegate {
         // Show an app-level confirmation, then re-attempt the close with forceCloseTabIds to bypass
         // this gating on the second pass.
         let confirmationSource: CloseTabCloseSource = tabCloseButtonClose == true ? .tabCloseButton : .shortcut
-        let warningKinds = CloseTabWarningStore(defaults: closeTabWarningDefaults).warningKinds(
-            requiresConfirmation: panelNeedsConfirmClose(panelId: panelId),
-            source: confirmationSource
-        )
+        // A close the unsaved-changes prompt already confirmed skips the close warning.
+        let warningKinds: CloseWarningKinds = unsavedChangesCloseConfirmation.isCloseConfirmed(forPanelIds: [panelId])
+            ? []
+            : CloseTabWarningStore(defaults: closeTabWarningDefaults).warningKinds(
+                requiresConfirmation: panelNeedsConfirmClose(panelId: panelId),
+                source: confirmationSource
+            )
         if !warningKinds.isEmpty {
             clearStagedClosedBrowserRestoreSnapshot(for: tab.id)
             if pendingCloseConfirmTabIds.contains(tab.id) {
@@ -14596,11 +14605,26 @@ extension Workspace: BonsplitDelegate {
     }
 
     func splitTabBar(_ controller: BonsplitController, shouldClosePane pane: PaneID) -> Bool {
-        // Check if any panel in this pane needs close confirmation
         let tabs = controller.tabs(inPane: pane)
+        // Unsaved editor changes in the pane ask first (see `shouldCloseTab`).
+        let closingPanels = tabs.compactMap { tab -> (any Panel)? in
+            guard !forceCloseTabIds.contains(tab.id),
+                  let panelId = panelIdFromSurfaceId(tab.id) else { return nil }
+            return panels[panelId]
+        }
+        if unsavedChangesCloseConfirmation.deferCloseIfNeeded(
+            for: closingPanels,
+            retry: { [weak self] in _ = self?.bonsplitController.closePane(pane) }
+        ) {
+            pendingPaneClosePanelIds.removeValue(forKey: pane.id)
+            pendingPaneCloseHistoryEntries.removeValue(forKey: pane.id)
+            return false
+        }
+        // Check if any panel in this pane needs close confirmation
         for tab in tabs {
             if forceCloseTabIds.contains(tab.id) { continue }
             if let panelId = panelIdFromSurfaceId(tab.id),
+               !unsavedChangesCloseConfirmation.isCloseConfirmed(forPanelIds: [panelId]),
                CloseTabWarningStore(defaults: closeTabWarningDefaults).shouldConfirmClose(
                    requiresConfirmation: panelNeedsConfirmClose(panelId: panelId),
                    source: .shortcut

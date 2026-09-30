@@ -132,6 +132,8 @@ final class DockSplitStore: BonsplitDelegate, FilePreviewTabMetadataHost {
     /// Mirrors `Workspace.isProgrammaticSplit`.
     @ObservationIgnored var isProgrammaticDockSplit = false
     @ObservationIgnored var forceCloseDockTabIds: Set<TabID> = []
+    /// Shared Save / Don't Save / Cancel flow for editors holding unsaved edits.
+    let unsavedChangesCloseConfirmation: UnsavedChangesCloseConfirmation
     @ObservationIgnored var pendingCloseConfirmDockTabIds: Set<TabID> = []
     @ObservationIgnored var tabCloseButtonCloseDockTabIds: Set<TabID> = []
     @ObservationIgnored var closeHistoryEligibleDockTabIds: Set<TabID> = []
@@ -318,6 +320,7 @@ final class DockSplitStore: BonsplitDelegate, FilePreviewTabMetadataHost {
         fileContentChangeCoordinator: FileContentChangeCoordinator? = nil,
         terminalWorkingDirectoryResolver: TerminalWorkingDirectoryResolver = TerminalWorkingDirectoryResolver(),
         closedItemHistoryStore: ClosedItemHistoryStore? = nil,
+        unsavedChangesCloseConfirmation: UnsavedChangesCloseConfirmation? = nil,
         restorableAgentIndexProvider: (@MainActor () -> RestorableAgentSessionIndex?)? = nil
     ) {
         let tabDragTransferRegistry = tabDragTransferRegistry ?? TabDragTransferRegistry()
@@ -341,6 +344,8 @@ final class DockSplitStore: BonsplitDelegate, FilePreviewTabMetadataHost {
             resumeIntentRecorder: agentChatResumeIntentRecorder
         )
         self.terminalWorkingDirectoryResolver = terminalWorkingDirectoryResolver
+        self.unsavedChangesCloseConfirmation = unsavedChangesCloseConfirmation
+            ?? UnsavedChangesCloseConfirmation(presenter: UnsavedChangesAlertPresenter())
         self.closedItemHistoryStore =
             closedItemHistoryStore
             ?? ClosedItemHistoryStore(
@@ -1215,9 +1220,9 @@ final class DockSplitStore: BonsplitDelegate, FilePreviewTabMetadataHost {
                 }
             panelCancellables[panel.id] = cancellable
             publishBrowserOpenTabSuggestion(for: browser)
-        } else if let filePreview = panel as? FilePreviewPanel {
+        } else if let publishingPanel = panel as? any TabMetadataPublishingPanel {
             panelCancellables.removeValue(forKey: panel.id)
-            filePreview.bindTabMetadata(to: self)
+            publishingPanel.bindTabMetadata(to: self)
         } else {
             panelCancellables.removeValue(forKey: panel.id)
         }

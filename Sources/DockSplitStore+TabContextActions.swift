@@ -127,6 +127,7 @@ extension DockSplitStore {
         inPane paneId: PaneID,
         confirmationPolicy: DockBatchCloseConfirmationPolicy
     ) -> Bool where S.Element == TabID {
+        let tabIds = Array(tabIds)
         let candidates = tabIds.compactMap { tabId -> (
             tabId: TabID,
             panelId: UUID,
@@ -154,6 +155,19 @@ extension DockSplitStore {
         guard manager?.isCloseConfirmationInFlight != true else {
             return true
         }
+        // Unsaved editor changes ask first; the batch is re-issued after the answer.
+        if unsavedChangesCloseConfirmation.deferCloseIfNeeded(
+            for: candidates.compactMap { panels[$0.panelId] },
+            retry: { [weak self] in
+                _ = self?.closeDockTabs(
+                    tabIds,
+                    inPane: paneId,
+                    confirmationPolicy: confirmationPolicy
+                )
+            }
+        ) {
+            return true
+        }
         let needsConfirmation: Bool
         switch confirmationPolicy {
         case .tabsRequiringConfirmation:
@@ -163,13 +177,19 @@ extension DockSplitStore {
         case .allTabs:
             needsConfirmation = true
         }
+        // A batch the unsaved-changes prompt already confirmed skips the close warning.
+        let closeConfirmedByUnsavedChangesPrompt = unsavedChangesCloseConfirmation.isCloseConfirmed(
+            forPanelIds: candidates.map(\.panelId)
+        )
         let warningStore = CloseTabWarningStore(
             defaults: manager?.closeTabWarningDefaults ?? .standard
         )
-        let warningKinds = warningStore.warningKinds(
-            requiresConfirmation: needsConfirmation,
-            source: .shortcut
-        )
+        let warningKinds: CloseWarningKinds = closeConfirmedByUnsavedChangesPrompt
+            ? []
+            : warningStore.warningKinds(
+                requiresConfirmation: needsConfirmation,
+                source: .shortcut
+            )
         if !warningKinds.isEmpty {
             guard let manager else { return false }
             let prompt = CloseOtherTabsConfirmationPrompt(
@@ -193,7 +213,7 @@ extension DockSplitStore {
         for candidate in candidates {
             if !closePanel(
                 candidate.panelId,
-                force: needsConfirmation
+                force: needsConfirmation || closeConfirmedByUnsavedChangesPrompt
             ) {
                 discardDockClosedPanelHistory(tabId: candidate.tabId)
             }
