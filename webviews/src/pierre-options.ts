@@ -179,6 +179,19 @@ export function fileTreeUnsafeCSS(): string {
     [data-item-section='git'] {
       opacity: 0.75;
     }
+    [data-item-section='decoration'] {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: color-mix(in lab, var(--trees-fg) 70%, var(--trees-bg));
+      cursor: pointer;
+    }
+    [data-item-section='decoration']:hover {
+      color: var(--trees-fg);
+    }
+    [data-item-section='decoration'] svg {
+      display: block;
+    }
     [data-item-type='folder'] {
       color: color-mix(in lab, var(--trees-fg) 85%, var(--trees-bg));
       font-weight: 500;

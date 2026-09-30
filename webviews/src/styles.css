@@ -1944,6 +1944,77 @@ svg[data-icon-fill] {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* Batch actions: Stage all / Unstage all and Discard all…, or, while files
+   are checked, Stage N files / Discard N files… and Clear selection. Same
+   height and border as the Commit split button. At narrow header widths
+   the text sheds and the icon stays, with the title naming the action. */
+.repo-header-bulk {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.header-action {
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in lab, var(--cmux-diff-fg) 14%, transparent);
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in lab, var(--cmux-diff-fg) 78%, var(--cmux-diff-bg));
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.header-action:hover:not(:disabled),
+.header-action[aria-expanded="true"] {
+  background: color-mix(in lab, var(--cmux-diff-fg) 9%, transparent);
+  color: var(--cmux-diff-fg);
+}
+.header-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.header-action[data-danger="true"]:not(:disabled) {
+  color: color-mix(in lab, #ff5f56 70%, var(--cmux-diff-fg));
+}
+.header-action svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+@container (max-width: 760px) {
+  .header-action {
+    padding: 0 5px;
+  }
+  .header-action-label {
+    display: none;
+  }
+}
+/* Selection checkboxes: the file list header's select-all and each card. */
+.file-select-checkbox {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: color-mix(in lab, var(--cmux-diff-fg) 70%, var(--cmux-diff-bg));
+  cursor: pointer;
+}
+.file-select-checkbox:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.file-tree-host {
+  height: 100%;
+  min-height: 0;
+}
 .repo-menu {
   position: absolute;
   top: calc(100% + 4px);

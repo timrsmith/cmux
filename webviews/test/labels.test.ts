@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createDiffViewerLabelResolver,
   DIFF_VIEWER_LABEL_KEYS,
+  formatCountLabel,
   formatLabel,
 } from "../src/labels";
 
@@ -108,6 +109,21 @@ describe("createDiffViewerLabelResolver", () => {
       "stageAll",
       "stageAllAndCommit",
       "unstageAll",
+      // Batch actions: the header's Discard all… text, the selection forms
+      // (template plus singular), the confirm, the select-all and the
+      // per-row checkbox names.
+      "clearSelection",
+      "confirmDiscardSelected",
+      "discardAllShort",
+      "discardSelected",
+      "discardSelectedOne",
+      "discardSelectedPrompt",
+      "selectAllFiles",
+      "selectFile",
+      "stageSelected",
+      "stageSelectedOne",
+      "unstageSelected",
+      "unstageSelectedOne",
     ] as const;
     for (const key of required) {
       expect(DIFF_VIEWER_LABEL_KEYS).toContain(key);
@@ -116,6 +132,34 @@ describe("createDiffViewerLabelResolver", () => {
     // Keys are unique and sorted for parity checks against the host's map.
     expect(new Set(DIFF_VIEWER_LABEL_KEYS).size).toBe(
       DIFF_VIEWER_LABEL_KEYS.length,
+    );
+  });
+});
+
+describe("formatCountLabel", () => {
+  test("picks the singular key for exactly one and fills {count} otherwise", () => {
+    const label = createDiffViewerLabelResolver(undefined);
+    expect(formatCountLabel(label, "stageSelected", 1)).toBe("Stage 1 file");
+    expect(formatCountLabel(label, "stageSelected", 2)).toBe("Stage 2 files");
+    expect(formatCountLabel(label, "unstageSelected", 12)).toBe(
+      "Unstage 12 files",
+    );
+    expect(formatCountLabel(label, "discardSelected", 1)).toBe(
+      "Discard 1 file…",
+    );
+    expect(formatCountLabel(label, "discardSelected", 0)).toBe(
+      "Discard 0 files…",
+    );
+    // Localized payloads win for both forms.
+    const localized = createDiffViewerLabelResolver({
+      stageSelected: "{count} Dateien stagen",
+      stageSelectedOne: "1 Datei stagen",
+    });
+    expect(formatCountLabel(localized, "stageSelected", 1)).toBe(
+      "1 Datei stagen",
+    );
+    expect(formatCountLabel(localized, "stageSelected", 3)).toBe(
+      "3 Dateien stagen",
     );
   });
 });

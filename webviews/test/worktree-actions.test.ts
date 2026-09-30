@@ -15,10 +15,12 @@ import {
   buildCommitRequest,
   buildCreatePullRequestRequest,
   buildFileRequest,
+  buildFilesRequest,
   buildHunkRequest,
   buildOpenFileRequest,
   buildPushRequest,
   buildRepositoryStatusRequest,
+  bulkActionsForSource,
   bulkStageActionForSource,
   commitAvailability,
   externalPullRequestURL,
@@ -33,6 +35,9 @@ import {
   pullRequestStateLabelKey,
   repositoryHeaderModel,
   reviewDecisionLabelKey,
+  selectedFileTargets,
+  selectionActionsForSource,
+  selectionPaths,
   validateCommitMessage,
   validatePullRequestDraft,
   worktreeErrorDetail,
@@ -504,6 +509,51 @@ describe("bulk, push, status, and pull request envelopes", () => {
     expect(bulkStageActionForSource(unstaged)).toBe("stageAll");
     expect(bulkStageActionForSource(staged)).toBe("unstageAll");
     expect(bulkStageActionForSource(branch)).toBeNull();
+  });
+
+  test("the header's batch actions per view: stage or unstage, then discard; selection forms alike", () => {
+    expect(bulkActionsForSource(unstaged)).toEqual(["stageAll", "discardAll"]);
+    expect(bulkActionsForSource(staged)).toEqual(["unstageAll", "discardAll"]);
+    expect(bulkActionsForSource(branch)).toEqual([]);
+    expect(bulkActionsForSource(patch)).toEqual([]);
+    expect(bulkActionsForSource(null)).toEqual([]);
+    expect(selectionActionsForSource(unstaged)).toEqual(["stageFiles", "discardFiles"]);
+    expect(selectionActionsForSource(staged)).toEqual(["unstageFiles", "discardFiles"]);
+    expect(selectionActionsForSource(branch)).toEqual([]);
+    expect(selectionActionsForSource(undefined)).toEqual([]);
+  });
+
+  test("selection requests name every selected path once, rename origins included, in diff order", () => {
+    const items = [
+      { id: "a", fileDiff: { name: "src/a.ts" } },
+      { id: "moved", fileDiff: { name: "src/new.ts", prevName: "src/old.ts" } },
+      { id: "skipped", fileDiff: { name: "src/skipped.ts" } },
+      { id: "nameless", fileDiff: {} },
+      { id: "b", fileDiff: { name: "src/b.ts" } },
+    ];
+    const targets = selectedFileTargets(items, new Set(["b", "nameless", "moved", "a", "missing"]));
+    expect(targets).toEqual([
+      { path: "src/a.ts" },
+      { path: "src/new.ts", previousPath: "src/old.ts" },
+      { path: "src/b.ts" },
+    ]);
+    expect(selectionPaths(targets)).toEqual(["src/a.ts", "src/new.ts", "src/old.ts", "src/b.ts"]);
+    // A rename whose origin is also selected on its own is still named once.
+    expect(selectionPaths([{ path: "x" }, { path: "y", previousPath: "x" }])).toEqual(["x", "y"]);
+    expect(selectedFileTargets(items, new Set())).toEqual([]);
+    for (const [action, method] of [
+      ["stageFiles", "worktreeStageFiles"],
+      ["unstageFiles", "worktreeUnstageFiles"],
+      ["discardFiles", "worktreeDiscardFiles"],
+    ] as const) {
+      expect(buildFilesRequest(action, session, staged, targets)).toEqual({
+        method,
+        params: { ...session, source: staged, paths: ["src/a.ts", "src/new.ts", "src/old.ts", "src/b.ts"] },
+      });
+    }
+    // The envelope never carries the single-file `path` / `previousPath` keys.
+    const envelope = buildFilesRequest("stageFiles", session, unstaged, targets) as { params: object };
+    expect(Object.keys(envelope.params).sort()).toEqual(["capabilityToken", "paths", "sessionId", "source"]);
   });
 
   test("commit carries stageAll only when asked", () => {

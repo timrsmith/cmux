@@ -2682,3 +2682,201 @@ fn rpc_bulk_actions_push_and_forge_flows_match_git() {
     assert!(!root.join(".server.json").exists());
     let _ = std::fs::remove_dir_all(root);
 }
+
+#[test]
+// One repository fixture walks the selection actions (stage, unstage and
+// discard a list of paths) in sequence; the shared state between steps is
+// the point of the test.
+#[allow(clippy::too_many_lines)]
+fn rpc_selection_writes_act_on_the_named_paths_only() {
+    let root = std::env::temp_dir().join(format!(
+        "cmux-diff-sidecar-selection-test-{}-{}",
+        std::process::id(),
+        uuid::Uuid::new_v4()
+    ));
+    std::fs::create_dir_all(&root).expect("create root");
+    #[cfg(unix)]
+    std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
+        .expect("secure root permissions");
+    let repo = root.join("repo");
+    init_repo(&repo);
+    let original = numbered_lines(12);
+    std::fs::write(repo.join("story.txt"), &original).expect("write story");
+    std::fs::write(repo.join("other.txt"), "other\n").expect("write other");
+    std::fs::write(repo.join("gone.txt"), "gone\n").expect("write gone");
+    std::fs::create_dir_all(repo.join("src")).expect("create src");
+    std::fs::write(repo.join("src/a.txt"), "a\n").expect("write src/a.txt");
+    run_git(&repo, &["add", "."]);
+    run_git(&repo, &["commit", "-q", "-m", "initial"]);
+    std::fs::write(repo.join("untracked.txt"), "keep me\n").expect("write untracked");
+
+    let token = "0123456789abcdef";
+    authorize_repos(&root, token, "selection-test", &[&repo]);
+    let unstaged = serde_json::json!({"kind": "unstaged", "repoRoot": repo});
+    let staged = serde_json::json!({"kind": "staged", "repoRoot": repo});
+    let files_params = |session: &str, source: &serde_json::Value, paths: &[&str]| {
+        serde_json::json!({
+            "sessionId": session,
+            "capabilityToken": token,
+            "source": source,
+            "paths": paths
+        })
+    };
+    let porcelain = || git_stdout(&repo, &["status", "--porcelain"]);
+    let modified = original.replacen("line 3\n", "line 3 changed\n", 1);
+
+    // Three tracked changes in the working tree: an edit, another edit, a
+    // deletion. Staging two of them leaves the third (and the untracked
+    // file) where they were.
+    std::fs::write(repo.join("story.txt"), &modified).expect("modify story");
+    std::fs::write(repo.join("other.txt"), "other changed\n").expect("modify other");
+    std::fs::remove_file(repo.join("gone.txt")).expect("delete gone");
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &unstaged, &UNSTAGED_GIT);
+
+    // Refused before anything runs: an empty list, a path outside the
+    // repository, a directory, an untracked file, and a list that names one
+    // unknown path among known ones. The page is current afterwards.
+    for (paths, what) in [
+        (&[][..], "empty"),
+        (&["../outside.txt"][..], "traversal"),
+        (&["/etc/passwd"][..], "absolute"),
+        (&["story.txt", "src"][..], "directory"),
+        (&["story.txt", "untracked.txt"][..], "untracked"),
+        (&["story.txt", "missing.txt"][..], "unknown"),
+    ] {
+        for method in [
+            "worktreeStageFiles",
+            "worktreeUnstageFiles",
+            "worktreeDiscardFiles",
+        ] {
+            let response = worktree_write(
+                &root,
+                method,
+                &files_params(&session, &unstaged, paths),
+                &[],
+            );
+            assert_eq!(
+                response["error"]["code"], "invalidPath",
+                "{method} {what}: {response}"
+            );
+            assert!(
+                response["error"].get("stateMayHaveChanged").is_none(),
+                "{method} {what}: {response}"
+            );
+        }
+    }
+    assert_eq!(
+        porcelain(),
+        " D gone.txt\n M other.txt\n M story.txt\n?? untracked.txt\n"
+    );
+
+    // A staged-view selection cannot ride an unstaged session.
+    let cross_kind = worktree_write(
+        &root,
+        "worktreeStageFiles",
+        &files_params(&session, &staged, &["story.txt"]),
+        &[],
+    );
+    assert_eq!(cross_kind["error"]["code"], "notAllowed", "{cross_kind}");
+
+    let staged_two = worktree_write(
+        &root,
+        "worktreeStageFiles",
+        &files_params(&session, &unstaged, &["story.txt", "gone.txt", "story.txt"]),
+        &[],
+    );
+    assert_eq!(
+        staged_two["result"]["type"], "worktreeMutated",
+        "{staged_two}"
+    );
+    assert_eq!(
+        git_stdout(&repo, &["diff", "--cached", "--name-only"]),
+        "gone.txt\nstory.txt\n"
+    );
+    assert_eq!(git_stdout(&repo, &["diff", "--name-only"]), "other.txt\n");
+    assert_eq!(
+        porcelain(),
+        "D  gone.txt\n M other.txt\nM  story.txt\n?? untracked.txt\n"
+    );
+
+    // Discarding a selection in the unstaged view restores the index copy of
+    // the named file only.
+    let discarded = worktree_write(
+        &root,
+        "worktreeDiscardFiles",
+        &files_params(&session, &unstaged, &["other.txt"]),
+        &[],
+    );
+    assert_eq!(
+        discarded["result"]["type"], "worktreeMutated",
+        "{discarded}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(repo.join("other.txt")).expect("other"),
+        "other\n"
+    );
+    assert_eq!(porcelain(), "D  gone.txt\nM  story.txt\n?? untracked.txt\n");
+    close_session(&root, token, &session, &request_path);
+
+    // Unstage one of the two staged paths from a staged session: the
+    // deletion (no index entry, known from HEAD) goes back to the working
+    // tree, the edit stays staged.
+    let (session, request_path) =
+        open_session_matches_git(&root, &repo, token, &staged, &STAGED_GIT);
+    let unstaged_one = worktree_write(
+        &root,
+        "worktreeUnstageFiles",
+        &files_params(&session, &staged, &["gone.txt"]),
+        &[],
+    );
+    assert_eq!(
+        unstaged_one["result"]["type"], "worktreeMutated",
+        "{unstaged_one}"
+    );
+    assert_eq!(porcelain(), " D gone.txt\nM  story.txt\n?? untracked.txt\n");
+
+    // Discard a staged selection: a file staged as new leaves the disk, a
+    // staged rename returns to its old name, the staged edit returns to
+    // HEAD; the path not named (the deletion) and the untracked file stay.
+    std::fs::write(repo.join("new.txt"), "new\n").expect("write new");
+    run_git(&repo, &["add", "new.txt"]);
+    run_git(&repo, &["mv", "src/a.txt", "src/moved.txt"]);
+    assert_eq!(
+        porcelain(),
+        " D gone.txt\nA  new.txt\nR  src/a.txt -> src/moved.txt\nM  story.txt\n?? untracked.txt\n"
+    );
+    let discarded = worktree_write(
+        &root,
+        "worktreeDiscardFiles",
+        &files_params(
+            &session,
+            &staged,
+            &["new.txt", "src/moved.txt", "src/a.txt", "story.txt"],
+        ),
+        &[],
+    );
+    assert_eq!(
+        discarded["result"]["type"], "worktreeMutated",
+        "{discarded}"
+    );
+    assert!(!repo.join("new.txt").exists());
+    assert!(!repo.join("src/moved.txt").exists());
+    assert_eq!(
+        std::fs::read_to_string(repo.join("src/a.txt")).expect("src/a.txt"),
+        "a\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(repo.join("story.txt")).expect("story"),
+        original
+    );
+    assert_eq!(porcelain(), " D gone.txt\n?? untracked.txt\n");
+    assert_eq!(
+        std::fs::read_to_string(repo.join("untracked.txt")).expect("untracked"),
+        "keep me\n"
+    );
+    close_session(&root, token, &session, &request_path);
+
+    assert!(!root.join(".server.json").exists());
+    let _ = std::fs::remove_dir_all(root);
+}

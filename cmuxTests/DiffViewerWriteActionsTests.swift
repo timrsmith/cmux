@@ -72,6 +72,9 @@ struct DiffViewerWriteActionsTests {
         for method in ["worktreeDiscardAll", "worktreeStageAll", "worktreeUnstageAll", "worktreePush", "worktreeCreatePullRequest"] {
             #expect(DiffSidecarRequestPolicy.writeMethods.contains(method), "\(method) is a write")
         }
+        for method in ["worktreeStageFiles", "worktreeUnstageFiles", "worktreeDiscardFiles"] {
+            #expect(DiffSidecarRequestPolicy.writeMethods.contains(method), "\(method) is a selection write")
+        }
         #expect(DiffSidecarRequestPolicy.readMethods.contains("worktreeRepositoryStatus"))
         #expect(DiffSidecarRequestPolicy.hostMethods == ["hostOpenFile"])
         let open = body("hostOpenFile", params: ["path": "src/main.swift"])
@@ -234,6 +237,30 @@ struct DiffViewerWriteActionsTests {
             frameToken: frameToken,
             panelAssociated: true
         ) == .tokenMismatch)
+    }
+
+    /// The selection (batch) methods take the same gate as their single-file
+    /// counterparts: the frame's token and a live workspace association. The
+    /// policy forwards the `paths` list as posted; the sidecar validates each
+    /// entry against the session's repository, so an unmapped repository or
+    /// a path outside it is refused there, never admitted here on its own.
+    @Test
+    func selectionWriteMethodsAreGatedLikeSingleFileWrites() {
+        let otherToken = "fedcba9876543210"
+        for method in ["worktreeStageFiles", "worktreeUnstageFiles", "worktreeDiscardFiles"] {
+            let params: [String: Any] = [
+                "sessionId": "01234567-89ab-cdef-0123-456789abcdef",
+                "source": ["kind": "unstaged", "repoRoot": "/tmp/repo"],
+                "paths": ["story.txt", "src/a.txt"],
+            ]
+            #expect(rejection(body(method, params: params), frameToken: frameToken, panelAssociated: true) == nil, "\(method)")
+            #expect(rejection(body(method, params: params), frameToken: frameToken, panelAssociated: false) == .unassociatedPanel, "\(method)")
+            #expect(rejection(body(method, token: otherToken, params: params), frameToken: frameToken, panelAssociated: true) == .tokenMismatch, "\(method)")
+            #expect(rejection(body(method, token: nil, params: params), frameToken: frameToken, panelAssociated: true) == .tokenMismatch, "\(method)")
+            #expect(rejection(body(method, params: params), frameToken: nil, panelAssociated: true) == .tokenMismatch, "\(method)")
+            // A near-miss name is not a known method.
+            #expect(rejection(body(method.lowercased(), params: params), frameToken: frameToken, panelAssociated: true) == .unknownMethod, "\(method)")
+        }
     }
 
     @Test
