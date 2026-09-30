@@ -14,6 +14,9 @@ final class RecordingUnsavedChangesPresenter: UnsavedChangesPromptPresenting {
     private(set) var saveFailures: [String] = []
     /// Answers consumed in order; an exhausted script answers Cancel.
     var responses: [UnsavedChangesPromptResponse]
+    /// Runs while the prompt is "up", before the answer is returned: the point
+    /// between the user's click and the close-time save that follows it.
+    var onPrompt: (@MainActor () -> Void)?
 
     init(responses: [UnsavedChangesPromptResponse] = []) {
         self.responses = responses
@@ -21,6 +24,7 @@ final class RecordingUnsavedChangesPresenter: UnsavedChangesPromptPresenting {
 
     func presentUnsavedChangesPrompt(_ prompt: UnsavedChangesPrompt) -> UnsavedChangesPromptResponse {
         prompts.append(prompt)
+        onPrompt?()
         guard !responses.isEmpty else { return .cancel }
         return responses.removeFirst()
     }

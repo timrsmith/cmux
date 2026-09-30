@@ -187,30 +187,70 @@ struct FilePreviewTextEditingTests {
     // MARK: Comments
 
     @Test("toggle line comment comments at the shallowest indent and uncomments when every line is commented")
-    func toggleLineComment() {
+    func toggleLineComment() throws {
         let text = "  a\n    b\n\n  c\n"
-        let commented = editing(text).toggleLineComment(in: NSRange(location: 0, length: 14), token: "//")
+        let commented = try #require(editing(text).toggleLineComment(in: NSRange(location: 0, length: 14), token: "//"))
         #expect(apply(commented, to: text) == "  // a\n  //   b\n\n  // c\n")
         #expect(commented.selection == NSRange(location: 0, length: 23))
 
         let all = "  // a\n  //   b\n\n  // c\n"
-        let uncommented = editing(all).toggleLineComment(in: NSRange(location: 0, length: 23), token: "//")
+        let uncommented = try #require(editing(all).toggleLineComment(in: NSRange(location: 0, length: 23), token: "//"))
         #expect(apply(uncommented, to: all) == text)
 
         let mixed = "# a\nb\n"
-        let mixedResult = editing(mixed).toggleLineComment(in: NSRange(location: 0, length: 6), token: "#")
+        let mixedResult = try #require(editing(mixed).toggleLineComment(in: NSRange(location: 0, length: 6), token: "#"))
         #expect(apply(mixedResult, to: mixed) == "# # a\n# b\n", "one uncommented line comments the whole block")
 
-        let caret = editing("let x = 1").toggleLineComment(in: NSRange(location: 4, length: 0), token: "//")
+        let caret = try #require(editing("let x = 1").toggleLineComment(in: NSRange(location: 4, length: 0), token: "//"))
         #expect(apply(caret, to: "let x = 1") == "// let x = 1")
         #expect(caret.selection == NSRange(location: 7, length: 0))
 
-        let blank = editing("").toggleLineComment(in: NSRange(location: 0, length: 0), token: "--")
-        #expect(apply(blank, to: "") == "-- ")
-        #expect(blank.selection == NSRange(location: 3, length: 0))
+        let blankLine = "a\n\nb"
+        let blank = try #require(editing(blankLine).toggleLineComment(in: NSRange(location: 2, length: 0), token: "--"))
+        #expect(apply(blank, to: blankLine) == "a\n-- \nb", "a blank line inside the text takes the token")
+        #expect(blank.selection == NSRange(location: 5, length: 0))
 
-        let noSpace = editing("//x").toggleLineComment(in: NSRange(location: 0, length: 0), token: "//")
+        let whitespace = try #require(editing("   ").toggleLineComment(in: NSRange(location: 1, length: 0), token: "#"))
+        #expect(apply(whitespace, to: "   ") == "#    ")
+
+        let noSpace = try #require(editing("//x").toggleLineComment(in: NSRange(location: 0, length: 0), token: "//"))
         #expect(apply(noSpace, to: "//x") == "x")
+    }
+
+    @Test("an empty document and the empty line after a trailing newline take no whole-line command")
+    func emptyBufferEdges() {
+        // Nothing to duplicate, delete, or comment: the commands report "does
+        // not apply" instead of inserting a line break or registering an
+        // empty undo step.
+        #expect(editing("").duplicateLines(in: NSRange(location: 0, length: 0)) == nil)
+        #expect(editing("").deleteLines(in: NSRange(location: 0, length: 0)) == nil)
+        #expect(editing("").toggleLineComment(in: NSRange(location: 0, length: 0), token: "--") == nil)
+        #expect(editing("").moveLines(in: NSRange(location: 0, length: 0), up: false) == nil)
+
+        let trailing = "a\n"
+        let phantom = NSRange(location: 2, length: 0)
+        #expect(editing(trailing).duplicateLines(in: phantom) == nil)
+        #expect(editing(trailing).toggleLineComment(in: phantom, token: "#") == nil)
+
+        let textView = SavingTextView.makeFilePreviewTextView()
+        textView.filePreviewLineCommentToken = FilePreviewLineCommentToken(language: "swift")
+        textView.string = ""
+        #expect(!textView.performFilePreviewEditorAction(.duplicateLine))
+        #expect(!textView.performFilePreviewEditorAction(.deleteLine))
+        #expect(!textView.performFilePreviewEditorAction(.toggleLineComment))
+        #expect(textView.string == "")
+    }
+
+    @Test("delete line on the empty line after a trailing newline removes that newline")
+    func deleteLinesOnThePhantomLastLine() throws {
+        // The one whole-line command that does apply there: the user asked for
+        // the empty last line to go, so the file stops ending in a line break.
+        let result = try #require(editing("a\n").deleteLines(in: NSRange(location: 2, length: 0)))
+        #expect(apply(result, to: "a\n") == "a")
+        #expect(result.selection == NSRange(location: 0, length: 0))
+
+        let crlf = try #require(editing("a\r\n").deleteLines(in: NSRange(location: 3, length: 0)))
+        #expect(apply(crlf, to: "a\r\n") == "a", "the whole CRLF terminator goes")
     }
 
     @Test("comment tokens follow the highlighter language with file-name fallbacks")
@@ -276,39 +316,97 @@ struct FilePreviewTextEditingTests {
     }
 
     @Test("duplicate line inserts the copy below and selects it")
-    func duplicateLines() {
+    func duplicateLines() throws {
         let text = "a\nb"
-        let first = editing(text).duplicateLines(in: NSRange(location: 0, length: 0))
+        let first = try #require(editing(text).duplicateLines(in: NSRange(location: 0, length: 0)))
         #expect(apply(first, to: text) == "a\na\nb")
         #expect(first.selection == NSRange(location: 2, length: 0))
 
-        let last = editing(text).duplicateLines(in: NSRange(location: 3, length: 0))
+        let last = try #require(editing(text).duplicateLines(in: NSRange(location: 3, length: 0)))
         #expect(apply(last, to: text) == "a\nb\nb")
         #expect(last.selection == NSRange(location: 5, length: 0))
 
-        let block = editing("a\nb\nc").duplicateLines(in: NSRange(location: 0, length: 3))
+        let block = try #require(editing("a\nb\nc").duplicateLines(in: NSRange(location: 0, length: 3)))
         #expect(apply(block, to: "a\nb\nc") == "a\nb\na\nb\nc")
         #expect(block.selection == NSRange(location: 4, length: 3))
     }
 
     @Test("delete line removes the block and keeps the caret column")
-    func deleteLines() {
+    func deleteLines() throws {
         let text = "one\ntwo\nthree"
-        let middle = editing(text).deleteLines(in: NSRange(location: 6, length: 0))
+        let middle = try #require(editing(text).deleteLines(in: NSRange(location: 6, length: 0)))
         #expect(apply(middle, to: text) == "one\nthree")
         #expect(middle.selection == NSRange(location: 6, length: 0))
 
-        let last = editing(text).deleteLines(in: NSRange(location: 12, length: 0))
+        let last = try #require(editing(text).deleteLines(in: NSRange(location: 12, length: 0)))
         #expect(apply(last, to: text) == "one\ntwo")
         #expect(last.selection == NSRange(location: 7, length: 0), "column clamps to the previous line")
 
-        let only = editing("solo").deleteLines(in: NSRange(location: 2, length: 0))
+        let only = try #require(editing("solo").deleteLines(in: NSRange(location: 2, length: 0)))
         #expect(apply(only, to: "solo") == "")
         #expect(only.selection == NSRange(location: 0, length: 0))
 
-        let block = editing(text).deleteLines(in: NSRange(location: 1, length: 4))
+        let block = try #require(editing(text).deleteLines(in: NSRange(location: 1, length: 4)))
         #expect(apply(block, to: text) == "three")
         #expect(block.selection == NSRange(location: 1, length: 0))
+    }
+
+    // MARK: CRLF documents
+
+    @Test("whole-line commands splice the document's own line terminator into CRLF files")
+    func crlfLineTerminators() throws {
+        // Delete the terminator-less last line: the whole preceding CRLF goes,
+        // never just its "\n".
+        let deleted = try #require(editing("two\r\nthree").deleteLines(in: NSRange(location: 7, length: 0)))
+        #expect(apply(deleted, to: "two\r\nthree") == "two")
+        #expect(deleted.selection == NSRange(location: 2, length: 0), "the column is kept on the previous line")
+
+        // Move Line Up onto the terminator-less last line.
+        let movedUp = try #require(editing("one\r\ntwo").moveLines(in: NSRange(location: 5, length: 0), up: true))
+        #expect(apply(movedUp, to: "one\r\ntwo") == "two\r\none")
+        #expect(movedUp.selection == NSRange(location: 0, length: 0))
+
+        // Move Line Down onto the terminator-less last line.
+        let movedDown = try #require(editing("one\r\ntwo").moveLines(in: NSRange(location: 1, length: 0), up: false))
+        #expect(apply(movedDown, to: "one\r\ntwo") == "two\r\none")
+        #expect(movedDown.selection == NSRange(location: 6, length: 0))
+
+        // Duplicate the terminator-less last line.
+        let duplicated = try #require(editing("a\r\nb").duplicateLines(in: NSRange(location: 3, length: 0)))
+        #expect(apply(duplicated, to: "a\r\nb") == "a\r\nb\r\nb")
+        #expect(duplicated.selection == NSRange(location: 6, length: 0))
+
+        // Return inserts CRLF plus the indentation.
+        let newline = editing("  x\r\n  y").newlineInsertion(at: NSRange(location: 8, length: 0))
+        #expect(newline.edits.first?.replacement == "\r\n  ")
+        #expect(newline.selection == NSRange(location: 12, length: 0))
+        let deeper = editing("f {\r\n").newlineInsertion(at: NSRange(location: 3, length: 0))
+        #expect(deeper.edits.first?.replacement == "\r\n    ")
+    }
+
+    @Test("a mixed-ending document follows its first line break; LF files keep \"\\n\"")
+    func mixedLineTerminatorsFollowTheFirstBreak() throws {
+        let lfFirst = "a\nb\r\nc"
+        let lfDuplicate = try #require(editing(lfFirst).duplicateLines(in: NSRange(location: 5, length: 0)))
+        #expect(apply(lfDuplicate, to: lfFirst) == "a\nb\r\nc\nc")
+        #expect(editing(lfFirst).newlineInsertion(at: NSRange(location: 6, length: 0)).edits.first?.replacement == "\n")
+
+        let crlfFirst = "a\r\nb\nc"
+        let crlfDuplicate = try #require(editing(crlfFirst).duplicateLines(in: NSRange(location: 5, length: 0)))
+        #expect(apply(crlfDuplicate, to: crlfFirst) == "a\r\nb\nc\r\nc")
+        // A move permutes lines and relocates the break that already separated
+        // them, so it never changes which terminators the file contains.
+        let crlfMove = try #require(editing(crlfFirst).moveLines(in: NSRange(location: 5, length: 0), up: true))
+        #expect(apply(crlfMove, to: crlfFirst) == "a\r\nc\nb")
+        let crlfMoveDown = try #require(editing(crlfFirst).moveLines(in: NSRange(location: 3, length: 0), up: false))
+        #expect(apply(crlfMoveDown, to: crlfFirst) == "a\r\nc\nb")
+
+        // Deleting through a mixed block removes exactly the terminator that
+        // precedes it, whatever the document's first break is.
+        let deleted = try #require(editing(crlfFirst).deleteLines(in: NSRange(location: 5, length: 0)))
+        #expect(apply(deleted, to: crlfFirst) == "a\r\nb")
+
+        #expect(editing("no breaks").newlineInsertion(at: NSRange(location: 2, length: 0)).edits.first?.replacement == "\n")
     }
 
     // MARK: Go to line
