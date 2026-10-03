@@ -505,9 +505,54 @@ fn open_session_matches_git(
         .output()
         .expect("run expected git");
     assert!(expected.status.success());
-    assert_eq!(generated, expected.stdout);
+    let mut expected_patch = expected.stdout;
+    if source["kind"] == "unstaged" {
+        // The sidecar appends untracked (non-ignored) files to an unstaged
+        // session as added-file patches, which plain `git diff` omits.
+        expected_patch.extend(untracked_file_patches(repo));
+    }
+    assert_eq!(generated, expected_patch);
 
     (session_id, request_path)
+}
+
+/// The added-file patches `run_git_patch` appends for an unstaged source:
+/// `git diff --no-index -- /dev/null <path>` per untracked path, in
+/// `git ls-files --others` order.
+fn untracked_file_patches(repo: &Path) -> Vec<u8> {
+    let listing = Command::new("/usr/bin/git")
+        .arg("-C")
+        .arg(repo)
+        .args(["ls-files", "--others", "--exclude-standard", "-z"])
+        .output()
+        .expect("list untracked files");
+    assert!(listing.status.success());
+    let mut patches = Vec::new();
+    for entry in listing.stdout.split(|byte| *byte == 0) {
+        if entry.is_empty() {
+            continue;
+        }
+        let path = String::from_utf8_lossy(entry).into_owned();
+        let patch = Command::new("/usr/bin/git")
+            .arg("-C")
+            .arg(repo)
+            .args([
+                "diff",
+                "--no-ext-diff",
+                "--no-color",
+                "--binary",
+                "--no-index",
+                "--",
+                "/dev/null",
+            ])
+            .arg(&path)
+            .output()
+            .expect("diff untracked file");
+        // `--no-index` exits 1 when the files differ, which an added file always does.
+        assert!(matches!(patch.status.code(), Some(0 | 1)), "{path}");
+        patches.extend(patch.stdout);
+    }
+    patches
 }
 
 fn close_session(root: &Path, token: &str, session_id: &str, request_path: &str) {
