@@ -513,11 +513,12 @@ extension TerminalController {
     /// The teardown form for a pane the app replaces or discards itself (see
     /// `SurfacePaneFactory.close`): not automation, so it discards edits like
     /// every other internal teardown. Automation passes `force` explicitly.
+    /// This concrete overload takes precedence over the protocol extension's
+    /// non-forced default for app-owned callers.
     func controlSurfaceClose(
         routing: ControlRoutingSelectors,
         surfaceID: UUID?,
-        hasSurfaceIDParam: Bool,
-        force: Bool = false
+        hasSurfaceIDParam: Bool
     ) -> ControlSurfaceCloseResolution {
         controlSurfaceClose(routing: routing, surfaceID: surfaceID, hasSurfaceIDParam: hasSurfaceIDParam, force: true)
     }
