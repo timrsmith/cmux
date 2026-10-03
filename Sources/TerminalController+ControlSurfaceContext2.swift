@@ -582,13 +582,13 @@ extension TerminalController {
                 return .surfaceNotFound(surfaceId)
             }
             if !force,
-               windowDock.panel(for: TabID(uuid: surfaceId)).map({ windowDock.dockPanelNeedsConfirmClose($0) }) == true {
-                return .confirmationRequired(surfaceId)
-            }
-            if !force,
                let panel = windowDock.panels[surfaceId],
                let refusal = windowDock.unsavedChangesCloseConfirmation.refusal(forClosing: [panel]) {
                 return .unsavedChanges(surfaceID: surfaceId, refusal: refusal.controlRefusal)
+            }
+            if !force,
+               windowDock.panel(for: TabID(uuid: surfaceId)).map({ windowDock.dockPanelNeedsConfirmClose($0) }) == true {
+                return .confirmationRequired(surfaceId)
             }
             guard windowDock.closePanel(surfaceId, force: true) else {
                 return .closeFailed(surfaceId)
@@ -603,14 +603,14 @@ extension TerminalController {
                 surfaceID: surfaceId
             )
         } else if ws.containsDockPanel(surfaceId) {
+            if !force, let refusal = ws.unsavedChangesRefusal(forClosingPanel: surfaceId) {
+                return .unsavedChanges(surfaceID: surfaceId, refusal: refusal.controlRefusal)
+            }
             if !force,
                let dock = ws.dockSplit,
                let panel = dock.panel(for: TabID(uuid: surfaceId)),
                dock.dockPanelNeedsConfirmClose(panel) {
                 return .confirmationRequired(surfaceId)
-            }
-            if !force, let refusal = ws.unsavedChangesRefusal(forClosingPanel: surfaceId) {
-                return .unsavedChanges(surfaceID: surfaceId, refusal: refusal.controlRefusal)
             }
             guard ws.closeDockPanelAndClearNotifications(surfaceId, force: true) else {
                 return .closeFailed(surfaceId)
@@ -630,11 +630,11 @@ extension TerminalController {
         // The socket API is non-interactive: no close-confirmation prompt, and
         // no unsaved-changes prompt either. Unless the caller forced the close,
         // a live process or unsaved edits refuse it instead.
-        if !force, ws.panelNeedsConfirmClose(panelId: surfaceId) {
-            return .confirmationRequired(surfaceId)
-        }
         if !force, let refusal = ws.unsavedChangesRefusal(forClosingPanel: surfaceId) {
             return .unsavedChanges(surfaceID: surfaceId, refusal: refusal.controlRefusal)
+        }
+        if !force, ws.panelNeedsConfirmClose(panelId: surfaceId) {
+            return .confirmationRequired(surfaceId)
         }
         guard controlCloseSurfaceRecordingHistory(in: ws, surfaceId: surfaceId, force: true) else {
             return .closeFailed(surfaceId)

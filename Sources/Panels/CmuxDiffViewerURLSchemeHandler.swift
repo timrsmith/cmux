@@ -168,13 +168,15 @@ final class CmuxDiffViewerURLSchemeHandler: NSObject, WKURLSchemeHandler {
         )
     }
 
-    /// Cache-only lookup, plus one manifest refresh for an unknown path: typed
-    /// sidecar sessions append their generated patch after the page's manifest
-    /// has already been installed, so the in-memory allowlist must see that
-    /// new entry before the request can fail.
+    /// Cache-only lookup, plus one manifest refresh for a `diff-session-*.patch` miss: typed
+    /// sidecar sessions append their generated patch to the on-disk manifest after the page's
+    /// manifest was installed, so the in-memory allowlist must see that new entry before the
+    /// request can fail. Ordinary misses stay cache-only.
     func registeredFileRefreshingSessionPatch(for url: URL, token: String) async -> RegisteredFile? {
         if let file = registeredFile(for: url) { return file }
-        guard await registerFromManifest(token: token) else { return nil }
+        let path = URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedPath ?? url.path
+        guard path.hasPrefix("/diff-session-"), path.hasSuffix(".patch"),
+              await registerFromManifest(token: token) else { return nil }
         return registeredFile(for: url)
     }
 

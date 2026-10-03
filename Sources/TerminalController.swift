@@ -5095,21 +5095,21 @@ class TerminalController {
             /// and `nil` comes back.
             @MainActor
             func closeWorkspaces(_ workspaces: [Workspace]) -> Int? {
-                let activeWorkspaceIDs = workspaces
-                    .filter { $0.needsConfirmClose() }
-                    .map { $0.id }
-                guard force || activeWorkspaceIDs.isEmpty else {
-                    result = .err(code: "confirmation_required", message: "One or more workspaces have a running process; retry with force=true", data: [
-                        "workspace_ids": activeWorkspaceIDs.map { $0.uuidString }
-                    ])
-                    return nil
-                }
                 let closing = workspaces.filter { $0.id != workspace.id }
                 if !force, let refusal = tabManager.unsavedChangesRefusal(forClosing: closing) {
                     result = refusal.v2Error(message: refusal.commandLineMessage, identity: [
                         "action": action,
                         "workspace_id": workspace.id.uuidString,
                         "workspace_ref": v2Ref(kind: .workspace, uuid: workspace.id),
+                    ])
+                    return nil
+                }
+                let activeWorkspaceIDs = workspaces
+                    .filter { $0.needsConfirmClose() }
+                    .map { $0.id }
+                guard force || activeWorkspaceIDs.isEmpty else {
+                    result = .err(code: "confirmation_required", message: "One or more workspaces have a running process; retry with force=true", data: [
+                        "workspace_ids": activeWorkspaceIDs.map { $0.uuidString }
                     ])
                     return nil
                 }
@@ -14259,6 +14259,12 @@ class TerminalController {
                     result = "ERROR: \(workspaceCloseProtectedMessage())"
                     return
                 }
+                // Unless forced, unsaved edits refuse the close first, naming the
+                // files; `--force` (and `workspace.close` with `force`) discards them.
+                if !force, let refusal = tabManager.unsavedChangesRefusal(forClosing: [tab]) {
+                    result = "ERROR: \(refusal.commandLineMessage)"
+                    return
+                }
                 if !force, tabManager.workspaceNeedsConfirmCloseForClose(tab) {
                     result = "ERROR: " + String(
                         localized: "cli.socket.error.workspaceCloseConfirmationRequired",
@@ -14266,8 +14272,6 @@ class TerminalController {
                     )
                     return
                 }
-                // Unless forced, unsaved edits refuse the close; `--force` (and
-                // `workspace.close` with `force`) discards them.
                 switch tabManager.closeWorkspaceNonInteractively(tab, force: force) {
                 case .closed:
                     result = "OK"

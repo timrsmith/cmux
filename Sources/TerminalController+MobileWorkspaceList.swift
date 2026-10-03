@@ -354,17 +354,6 @@ extension TerminalController {
                 )
                 return
             }
-            if !force, tabManager.workspaceNeedsConfirmCloseForClose(workspace) {
-                result = .err(
-                    code: "confirmation_required",
-                    message: String(
-                        localized: "cli.socket.error.workspaceCloseConfirmationRequired",
-                        defaultValue: "Workspace has a running process; retry with --force"
-                    ),
-                    data: ["workspace_id": workspaceID.uuidString]
-                )
-                return
-            }
             // The phone cannot answer the Save / Don't Save prompt, so a
             // workspace holding an editor with unsaved edits is refused the same
             // way a pinned one is; the row's error names the file.
@@ -375,6 +364,17 @@ extension TerminalController {
                     "window_id": v2OrNull(windowID?.uuidString),
                     "window_ref": v2Ref(kind: .window, uuid: windowID),
                 ])
+                return
+            }
+            if !force, tabManager.workspaceNeedsConfirmCloseForClose(workspace) {
+                result = .err(
+                    code: "confirmation_required",
+                    message: String(
+                        localized: "cli.socket.error.workspaceCloseConfirmationRequired",
+                        defaultValue: "Workspace has a running process; retry with --force"
+                    ),
+                    data: ["workspace_id": workspaceID.uuidString]
+                )
                 return
             }
             _ = tabManager.closeWorkspaceNonInteractively(workspace, force: true)

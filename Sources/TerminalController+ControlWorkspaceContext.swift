@@ -105,6 +105,9 @@ extension TerminalController: ControlWorkspaceContext {
         guard tabManager.canCloseWorkspace(ws) else {
             return .protected(windowID: windowId)
         }
+        if !force, let refusal = tabManager.unsavedChangesRefusal(forClosing: [ws]) {
+            return .unsavedChanges(windowID: windowId, refusal: refusal.controlRefusal)
+        }
         let windowDockNeedsConfirmation = tabManager.tabs.count == 1
             && AppDelegate.shared?.existingWindowDock(for: tabManager)?.needsConfirmClose() == true
         if !force,

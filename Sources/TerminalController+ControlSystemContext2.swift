@@ -122,12 +122,12 @@ extension TerminalController {
                       !workspace.isPanelPinned(panelId) else { return nil }
                 return panelId
             }
+            if !force, let refusal = workspace.unsavedChangesRefusal(forClosingPanels: closingPanelIds) {
+                return .unsavedChanges(refusal.controlRefusal)
+            }
             let activeSurfaceIDs = closingPanelIds.filter { workspace.panelNeedsConfirmClose(panelId: $0) }
             if !force, !activeSurfaceIDs.isEmpty {
                 return .confirmationRequired(activeSurfaceIDs)
-            }
-            if !force, let refusal = workspace.unsavedChangesRefusal(forClosingPanels: closingPanelIds) {
-                return .unsavedChanges(refusal.controlRefusal)
             }
             var closed = 0
             var skippedPinned = 0

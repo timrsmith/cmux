@@ -371,14 +371,14 @@ extension TerminalController {
             return .closeFailed(surfaceId)
         }
         if !force,
-           let panel = windowDock.panel(for: TabID(uuid: surfaceId)),
-           windowDock.dockPanelNeedsConfirmClose(panel) {
-            return .confirmationRequired(surfaceId)
-        }
-        if !force,
            let panel = windowDock.panels[surfaceId],
            let refusal = windowDock.unsavedChangesCloseConfirmation.refusal(forClosing: [panel]) {
             return .unsavedChanges(surfaceID: surfaceId, refusal: refusal.controlRefusal)
+        }
+        if !force,
+           let panel = windowDock.panel(for: TabID(uuid: surfaceId)),
+           windowDock.dockPanelNeedsConfirmClose(panel) {
+            return .confirmationRequired(surfaceId)
         }
         guard windowDock.closePanel(surfaceId, force: true) else {
             return .closeFailed(surfaceId)
