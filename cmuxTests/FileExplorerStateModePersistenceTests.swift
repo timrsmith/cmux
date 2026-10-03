@@ -136,6 +136,8 @@ final class FileExplorerStateModePersistenceTests: XCTestCase {
         XCTAssertEqual(state.customSidebarName, "next-board")
         XCTAssertEqual(defaults.string(forKey: customSidebarNameKey), "next-board")
         XCTAssertEqual(defaults.string(forKey: modeKey), RightSidebarMode.customSidebar.rawValue)
+    }
+
     // MARK: - sidebar.filesPanelPlacement = leading
 
     func testLeadingPlacementDropsFilesFromTheModeBar() {
