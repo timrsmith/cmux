@@ -1,4 +1,5 @@
 import CmuxSettings
+import CmuxSidebar
 import Foundation
 import XCTest
 
