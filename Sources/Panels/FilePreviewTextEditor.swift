@@ -536,6 +536,31 @@ extension NSTextView {
 }
 
 final class SavingTextView: NSTextView {
+    /// Hands the pointer back to the arrow when it leaves the text: the
+    /// SwiftUI chrome around the editor has no cursor handling of its own,
+    /// so the I-beam otherwise lingers over the header and its buttons.
+    private var exitCursorTrackingArea: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let exitCursorTrackingArea {
+            removeTrackingArea(exitCursorTrackingArea)
+        }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.inVisibleRect, .activeInKeyWindow, .mouseEnteredAndExited],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        exitCursorTrackingArea = area
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        NSCursor.arrow.set()
+    }
+
     private static let defaultPreviewFontSize: CGFloat = 13
     private static let minimumPreviewFontSize: CGFloat = 8
     private static let maximumPreviewFontSize: CGFloat = 36

@@ -60,6 +60,7 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
     private var observedStorage: NSTextStorage?
     private var storageObserver: (any NSObjectProtocol)?
     private var clipBoundsObserver: (any NSObjectProtocol)?
+    private var cursorTrackingArea: NSTrackingArea?
     /// The line a gutter drag started on; the selection runs from it.
     private var selectionAnchorLine: Int?
     /// The hunk a marker click opened the menu for, until an item runs.
@@ -645,11 +646,26 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
     }
 
     /// The numbers select lines, so the pointer is an arrow over them, not
-    /// the text view's I-beam.
-    override func resetCursorRects() {
-        super.resetCursorRects()
-        addCursorRect(bounds, cursor: .arrow)
+    /// the text view's I-beam. A tracking area, not a cursor rect: inside
+    /// the SwiftUI-hosted editor only tracking areas reach the cursor.
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let cursorTrackingArea {
+            removeTrackingArea(cursorTrackingArea)
+        }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.inVisibleRect, .activeInKeyWindow, .cursorUpdate, .mouseEnteredAndExited, .mouseMoved],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        cursorTrackingArea = area
     }
+
+    override func cursorUpdate(with event: NSEvent) { NSCursor.arrow.set() }
+    override func mouseEntered(with event: NSEvent) { NSCursor.arrow.set() }
+    override func mouseMoved(with event: NSEvent) { NSCursor.arrow.set() }
 
     // MARK: - Prompt button
 
