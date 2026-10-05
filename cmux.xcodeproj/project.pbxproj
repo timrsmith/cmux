@@ -3038,6 +3038,7 @@
 		BB8CB1EFD62C8CAE14293195 /* RestoredStartupInputOwnershipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D41A7FBA0A3B1A9109982B /* RestoredStartupInputOwnershipTests.swift */; };
 		9200B0019200B0019200B001 /* ResumeLauncherCwdConsistencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9200B0019200B0019200B002 /* ResumeLauncherCwdConsistencyTests.swift */; };
 		55B0F794E0EC3651434F0A4D /* RightSidebarChangesFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02FA86A9581599B9884A378C /* RightSidebarChangesFingerprint.swift */; };
+		AEA46A5C7C84EE472816FB5E /* RightSidebarChangesKeyboardFocusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34E34BE275A31BC442317C60 /* RightSidebarChangesKeyboardFocusView.swift */; };
 		FFB570089C8DA007A19B1FD6 /* RightSidebarChangesPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8316BE03E1AE4DBE907B778F /* RightSidebarChangesPanelView.swift */; };
 		72697117E284977EA0E98973 /* RightSidebarChangesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1900AF4ED7E25939ADAA326E /* RightSidebarChangesStore.swift */; };
 		604817B02AD026F924A06A5D /* RightSidebarChangesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1F94BEE2C23CB028816305 /* RightSidebarChangesStoreTests.swift */; };
@@ -7464,6 +7465,7 @@
 		D1D41A7FBA0A3B1A9109982B /* RestoredStartupInputOwnershipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RestoredStartupInputOwnershipTests.swift"; sourceTree = "<group>"; };
 		9200B0019200B0019200B002 /* ResumeLauncherCwdConsistencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResumeLauncherCwdConsistencyTests.swift; sourceTree = "<group>"; };
 		02FA86A9581599B9884A378C /* RightSidebarChangesFingerprint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarChangesFingerprint.swift; sourceTree = "<group>"; };
+		34E34BE275A31BC442317C60 /* RightSidebarChangesKeyboardFocusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarChangesKeyboardFocusView.swift; sourceTree = "<group>"; };
 		8316BE03E1AE4DBE907B778F /* RightSidebarChangesPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarChangesPanelView.swift; sourceTree = "<group>"; };
 		1900AF4ED7E25939ADAA326E /* RightSidebarChangesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarChangesStore.swift; sourceTree = "<group>"; };
 		DD1F94BEE2C23CB028816305 /* RightSidebarChangesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RightSidebarChangesStoreTests.swift"; sourceTree = "<group>"; };
@@ -11960,6 +11962,7 @@
 				730034CA6B50C3FADBDBC944 /* GitStatusRepositoryWatch.swift */,
 				350D47155710E5A2D34C08AA /* DiffSidecarRequestPolicy.swift */,
 				8316BE03E1AE4DBE907B778F /* RightSidebarChangesPanelView.swift */,
+				34E34BE275A31BC442317C60 /* RightSidebarChangesKeyboardFocusView.swift */,
 				1900AF4ED7E25939ADAA326E /* RightSidebarChangesStore.swift */,
 				5345F62D0F6FB0CEE8963356 /* FilesPanelPlacementLayout.swift */,
 				7942A063AD0D347A170FCB05 /* FilesPanelView.swift */,
@@ -15920,6 +15923,7 @@
 				C7C5FAF2145342F395DB4C40 /* RestoredAgentLifecycleCoordinator.swift in Sources */,
 				F6572072A1B2C3D4E5F60718 /* RestoredAgentLiveness.swift in Sources */,
 				55B0F794E0EC3651434F0A4D /* RightSidebarChangesFingerprint.swift in Sources */,
+				AEA46A5C7C84EE472816FB5E /* RightSidebarChangesKeyboardFocusView.swift in Sources */,
 				FFB570089C8DA007A19B1FD6 /* RightSidebarChangesPanelView.swift in Sources */,
 				72697117E284977EA0E98973 /* RightSidebarChangesStore.swift in Sources */,
 				B7F9A600B7F9A600B7F9A600 /* RightSidebarChromeGeometryReporting.swift in Sources */,

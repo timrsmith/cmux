@@ -267,7 +267,7 @@ struct RightSidebarChangesWebView: NSViewRepresentable {
         Coordinator()
     }
 
-    func makeNSView(context: Context) -> CmuxWebView {
+    func makeNSView(context: Context) -> RightSidebarChangesKeyboardFocusView {
         let configuration = WKWebViewConfiguration()
         BrowserPanel.configureWebViewConfiguration(
             configuration,
@@ -290,10 +290,11 @@ struct RightSidebarChangesWebView: NSViewRepresentable {
         context.coordinator.reloadGeneration = reloadGeneration
         associateWorkspace(with: webView, coordinator: context.coordinator)
         load(url, in: webView, coordinator: context.coordinator)
-        return webView
+        return RightSidebarChangesKeyboardFocusView(webView: webView)
     }
 
-    func updateNSView(_ webView: CmuxWebView, context: Context) {
+    func updateNSView(_ host: RightSidebarChangesKeyboardFocusView, context: Context) {
+        let webView = host.webView
         associateWorkspace(with: webView, coordinator: context.coordinator)
         if context.coordinator.loadedURL != url {
             load(url, in: webView, coordinator: context.coordinator)

@@ -5,6 +5,7 @@ import AppKit
 import Carbon.HIToolbox
 import Combine
 import SwiftUI
+import WebKit
 @testable import CmuxSettingsUI
 
 #if canImport(cmux_DEV)
@@ -11214,6 +11215,93 @@ final class AppDelegateShortcutRoutingTests: XCTestCase {
         textView.clearContent()
 
         XCTAssertFalse(textView.canAcceptPendingAttachmentUpload(validationToken: token))
+    }
+
+    /// A review comment typed into the right sidebar's docked Changes diff
+    /// viewer belongs to that web view. The focused-terminal key repair must
+    /// leave the keystroke alone instead of making the terminal first
+    /// responder, which sent everything after the first character to the
+    /// agent's prompt.
+    func testPlainTypingIntoDockedChangesWebViewIsNotRepairedToTheTerminal() throws {
+        guard let appDelegate = AppDelegate.shared else {
+            XCTFail("Expected AppDelegate.shared")
+            return
+        }
+
+        let windowId = appDelegate.createMainWindow()
+        defer { closeWindow(withId: windowId) }
+
+        guard let window = window(withId: windowId),
+              let manager = appDelegate.tabManagerFor(windowId: windowId),
+              let workspace = manager.selectedWorkspace,
+              let panelId = workspace.focusedPanelId,
+              let terminalPanel = workspace.terminalPanel(for: panelId) else {
+            XCTFail("Expected focused terminal surface")
+            return
+        }
+
+        // The terminal only needs to be a live repair target: visible, active
+        // and attached to the window. It does not need to own focus first.
+        window.makeKeyAndOrderFront(nil)
+        terminalPanel.hostedView.setVisibleInUI(true)
+        terminalPanel.hostedView.setActive(true)
+        let attachDeadline = Date(timeIntervalSinceNow: 1)
+        repeat {
+            window.displayIfNeeded()
+            if terminalPanel.hostedView.surfaceView.window === window { break }
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
+        } while Date() < attachDeadline
+        XCTAssertTrue(terminalPanel.hostedView.surfaceView.window === window, "Expected the terminal surface in the window")
+
+        let webView = CmuxWebView(
+            frame: NSRect(x: 0, y: 0, width: 240, height: 240),
+            configuration: WKWebViewConfiguration(),
+            host: CmuxWebViewAppHost()
+        )
+        let host = RightSidebarChangesKeyboardFocusView(webView: webView)
+        host.frame = NSRect(x: 0, y: 0, width: 240, height: 240)
+        (window.contentView?.superview ?? window.contentView)?.addSubview(host)
+        defer { host.removeFromSuperview() }
+        XCTAssertTrue(webView.window === window, "Expected the docked diff viewer in the main window")
+        XCTAssertTrue(window.makeFirstResponder(webView), "Expected the docked diff viewer to take keyboard focus")
+        XCTAssertTrue(window.firstResponder === webView, "Expected the docked diff viewer as first responder")
+        XCTAssertFalse(
+            terminalPanel.hostedView.isSurfaceViewFirstResponder(),
+            "Expected the terminal surface to yield first responder to the diff viewer"
+        )
+
+#if DEBUG
+        appDelegate.debugSetShortcutRoutingKeyRepairFirstResponderForTesting(webView)
+        defer { appDelegate.debugSetShortcutRoutingKeyRepairFirstResponderForTesting(nil) }
+
+        let repairProbe = installFocusedTerminalRepairProbeForTesting(appDelegate: appDelegate, keyCode: 17)
+        defer { repairProbe.restore() }
+#else
+        throw XCTSkip("DEBUG-only simulated responder override is required for deterministic key-repair coverage")
+#endif
+
+        let keyDown = try XCTUnwrap(
+            makeKeyDownEvent(key: "t", modifiers: [], keyCode: 17, windowNumber: window.windowNumber),
+            "Failed to construct typing event"
+        )
+        window.sendEvent(keyDown)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+
+#if DEBUG
+        XCTAssertEqual(
+            repairProbe.repairCount(),
+            0,
+            "Typing into the docked Changes diff viewer must not be rerouted to the terminal"
+        )
+#endif
+        XCTAssertTrue(
+            window.firstResponder === webView,
+            "The docked diff viewer should keep keyboard focus while a comment is typed"
+        )
+        XCTAssertFalse(
+            terminalPanel.hostedView.isSurfaceViewFirstResponder(),
+            "The terminal surface must not take the keystroke away from the diff viewer"
+        )
     }
 
     func testTerminalFirstResponderGuardBlocksMoveFocusWhenRightSidebarOwnsKeyboardFocus() {
