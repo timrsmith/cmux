@@ -22,6 +22,17 @@ export type DiffViewerOptions = {
  */
 export const HUNK_SEPARATOR_HEIGHT = 28;
 
+/**
+ * Border-box height of a file card's header: the 30px `[data-diffs-header]`
+ * band plus the card's 1px top and bottom borders. Pierre's virtual model
+ * sizes a collapsed file to `diffHeaderHeight` (44 by default); when that
+ * exceeds the rendered header, every collapsed card is taller in the model
+ * than on screen and the render window, which Pierre positions from the
+ * model, is pushed down by the sum of the differences whenever the whole
+ * list fits on screen (seven collapsed files showed an 84px gap).
+ */
+export const FILE_HEADER_HEIGHT = 32;
+
 export function codeViewOptions(
   options: DiffViewerOptions,
   appearance: DiffViewerAppearance,
@@ -30,7 +41,7 @@ export function codeViewOptions(
     // A visible gap between file cards: with hunk action rows at the bottom
     // of each card, a hairline made the row read as the next file's header.
     layout: { paddingTop: 0, gap: 12, paddingBottom: 12 },
-    itemMetrics: { hunkSeparatorHeight: HUNK_SEPARATOR_HEIGHT },
+    itemMetrics: { diffHeaderHeight: FILE_HEADER_HEIGHT, hunkSeparatorHeight: HUNK_SEPARATOR_HEIGHT },
     diffStyle: options.layout,
     diffIndicators: options.diffIndicators,
     overflow: options.wordWrap ? "wrap" : "scroll",

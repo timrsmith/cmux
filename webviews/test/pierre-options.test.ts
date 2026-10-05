@@ -3,6 +3,7 @@ import {
   codeViewOptions,
   codeViewUnsafeCSS,
   fileTreeUnsafeCSS,
+  FILE_HEADER_HEIGHT,
   HUNK_SEPARATOR_HEIGHT,
   shikiThemeFromGhostty,
   workerHighlighterOptions,
@@ -85,8 +86,15 @@ test("collapsed-context separators are a band whose height virtualization reserv
   expect(css).not.toMatch(/\[data-separator-first\]|\[data-separator-last\]/);
 
   const options = codeViewOptions(VIEWER_OPTIONS, {});
-  expect(options.itemMetrics).toEqual({ hunkSeparatorHeight: HUNK_SEPARATOR_HEIGHT });
+  expect(options.itemMetrics).toEqual({
+    diffHeaderHeight: FILE_HEADER_HEIGHT,
+    hunkSeparatorHeight: HUNK_SEPARATOR_HEIGHT,
+  });
   expect(HUNK_SEPARATOR_HEIGHT).toBe(28);
+  // The header band is 30px plus the card's two 1px borders; a taller model
+  // than the DOM pushes the render window down when every file is collapsed.
+  expect(FILE_HEADER_HEIGHT).toBe(32);
+  expect(css).toContain("min-height: 30px;");
 });
 
 test("file tree sticky overlays use a non-transparent surface", () => {
