@@ -1196,6 +1196,84 @@ final class CMUXOpenCommandTests: XCTestCase {
         XCTAssertEqual(pagePayload["repoLabel"] as? String, expectedLabel, result.stdout)
     }
 
+    func testDiffViewerPageCommandOffersTheWorkspaceNewestLastTurn() throws {
+        // The docked Changes panel follows a whole workspace, not one agent
+        // pane, so its page verb carries no surface. Last turn must still be
+        // offered there, scoped to the newest turn any pane in the workspace
+        // recorded; it used to arrive disabled because the baseline lookup
+        // demanded a surface.
+        let cliPath = try bundledCLIPath()
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let repoURL = rootURL.appendingPathComponent("repo", isDirectory: true)
+        let stateURL = rootURL.appendingPathComponent("hook-state", isDirectory: true)
+        let fileURL = repoURL.appendingPathComponent("story.txt")
+        try FileManager.default.createDirectory(at: repoURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: stateURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        try runGit(["init"], in: repoURL)
+        try runGit(["checkout", "-b", "main"], in: repoURL)
+        try runGit(["config", "user.name", "cmux tests"], in: repoURL)
+        try runGit(["config", "user.email", "cmux@example.invalid"], in: repoURL)
+        try "one\n".write(to: fileURL, atomically: true, encoding: .utf8)
+        try runGit(["add", "story.txt"], in: repoURL)
+        try runGit(["commit", "-m", "initial"], in: repoURL)
+        let initialCommit = try runGitStdout(["rev-parse", "HEAD"], in: repoURL)
+        try "one\ntwo\n".write(to: fileURL, atomically: true, encoding: .utf8)
+        try runGit(["add", "story.txt"], in: repoURL)
+        try runGit(["commit", "-m", "second"], in: repoURL)
+        let secondCommit = try runGitStdout(["rev-parse", "HEAD"], in: repoURL)
+        try "one\ntwo\nthree\n".write(to: fileURL, atomically: true, encoding: .utf8)
+
+        // Two agent panes in the workspace: an older turn at the initial commit
+        // and a newer one at the second commit. The panel follows the newest.
+        let workspaceId = UUID().uuidString.lowercased()
+        let now = Date().timeIntervalSince1970
+        try writeDiffBaselineStore(
+            stateDirectoryURL: stateURL,
+            repoURL: repoURL,
+            workspaceId: workspaceId,
+            records: [
+                (surfaceId: UUID().uuidString.lowercased(), baseCommit: initialCommit, capturedAt: now - 60),
+                (surfaceId: UUID().uuidString.lowercased(), baseCommit: secondCommit, capturedAt: now)
+            ]
+        )
+
+        let result = runDiffCLIExpectingNoOpen(
+            cliPath: cliPath,
+            arguments: ["__diff-viewer-page", "--cwd", repoURL.path, "--workspace", workspaceId],
+            environmentOverrides: ["CMUX_AGENT_HOOK_STATE_DIR": stateURL.path]
+        )
+        XCTAssertEqual(result.status, 0, result.stderr)
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(result.stdout.utf8)) as? [String: Any],
+            result.stdout
+        )
+        let url = try XCTUnwrap(URL(string: try XCTUnwrap(payload["url"] as? String)))
+        let files = try XCTUnwrap(payload["allowed_files"] as? [[String: Any]])
+        let page = try XCTUnwrap(files.first { ($0["request_path"] as? String) == url.path }, result.stdout)
+        let pagePath = try XCTUnwrap(page["file_path"] as? String)
+        let pagePayload = try diffViewerPayload(from: try String(contentsOfFile: pagePath, encoding: .utf8))
+        let sourceOptions = try XCTUnwrap(pagePayload["sourceOptions"] as? [[String: Any]])
+        let lastTurn = try XCTUnwrap(
+            sourceOptions.first { ($0["value"] as? String) == "last-turn" },
+            "\(sourceOptions)"
+        )
+        XCTAssertEqual(lastTurn["disabled"] as? Bool, false, "\(lastTurn)")
+        let lastTurnSource = try XCTUnwrap(lastTurn["sessionSource"] as? [String: Any], "\(lastTurn)")
+        XCTAssertEqual(lastTurnSource["kind"] as? String, "patch")
+        // The patch that option opens is the diff since the newest turn: the
+        // uncommitted "+three" only, not the older pane's committed "+two".
+        let patchPath = URL(fileURLWithPath: pagePath)
+            .deletingPathExtension()
+            .appendingPathExtension("patch")
+            .path
+        let patch = try String(contentsOfFile: patchPath, encoding: .utf8)
+        XCTAssertTrue(patch.contains("+three"), patch)
+        XCTAssertFalse(patch.contains("+two"), patch)
+    }
+
     func testDiffCommandShowsFriendlyEmptyStateWhenEveryGitSourceIsEmpty() throws {
         let cliPath = try bundledCLIPath()
         let rootURL = FileManager.default.temporaryDirectory
@@ -3130,6 +3208,33 @@ final class CMUXOpenCommandTests: XCTestCase {
         let payload: [String: Any] = [
             "version": 1,
             "records": [record]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
+        try data.write(to: stateDirectoryURL.appendingPathComponent("agent-turn-diff-baselines.json"), options: .atomic)
+    }
+
+    /// A store with one record per agent pane of `workspaceId`, each at its
+    /// own baseline commit and capture time, without untracked snapshots.
+    private func writeDiffBaselineStore(
+        stateDirectoryURL: URL,
+        repoURL: URL,
+        workspaceId: String,
+        records: [(surfaceId: String, baseCommit: String, capturedAt: TimeInterval)]
+    ) throws {
+        let payload: [String: Any] = [
+            "version": 1,
+            "records": records.map { record -> [String: Any] in
+                [
+                    "workspaceId": workspaceId,
+                    "surfaceId": record.surfaceId,
+                    "sessionId": "session-\(record.surfaceId)",
+                    "turnId": "turn-1",
+                    "agent": "codex",
+                    "repoRoot": repoURL.standardizedFileURL.path,
+                    "baseCommit": record.baseCommit,
+                    "capturedAt": record.capturedAt
+                ]
+            }
         ]
         let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
         try data.write(to: stateDirectoryURL.appendingPathComponent("agent-turn-diff-baselines.json"), options: .atomic)
