@@ -46,9 +46,9 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
     private static let horizontalPadding: CGFloat = 10
     /// Leading strip that holds the change markers.
     static let markerStripWidth: CGFloat = 6
-    private static let promptButtonSize: CGFloat = 16
+    private static let promptButtonSize: CGFloat = 18
     /// Trailing column the prompt button sits in, so it never covers a number.
-    static let promptButtonColumnWidth: CGFloat = 20
+    static let promptButtonColumnWidth: CGFloat = 24
 
     private var lineIndex = FilePreviewLineIndex(string: "")
     /// Set when edits were skipped (ruler hidden) and the index must be
@@ -578,9 +578,8 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         let button = NSButton(frame: NSRect(x: 0, y: 0, width: Self.promptButtonSize, height: Self.promptButtonSize))
         button.isBordered = false
         button.imagePosition = .imageOnly
-        button.image = NSImage(systemSymbolName: "bubble.left.fill", accessibilityDescription: label)?
-            .withSymbolConfiguration(.init(pointSize: 9, weight: .bold))
-        button.contentTintColor = .white
+        button.image = Self.speechBubbleImage()
+        button.imageScaling = .scaleNone
         button.wantsLayer = true
         button.layer?.cornerRadius = 4
         button.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
@@ -591,6 +590,39 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         button.isHidden = true
         addSubview(button)
         return button
+    }
+
+    /// The diff viewer's bubble, drawn here at 11pt in white: a rounded
+    /// body with a tail at the bottom left. A system symbol this small
+    /// loses its shape.
+    private static func speechBubbleImage() -> NSImage {
+        let size = NSSize(width: 11, height: 11)
+        let image = NSImage(size: size, flipped: false) { _ in
+            let path = NSBezierPath()
+            // Body, as the diff viewer's SVG path, scaled from 24 to 11.
+            let s: CGFloat = 11 / 24
+            func point(_ x: CGFloat, _ y: CGFloat) -> NSPoint {
+                NSPoint(x: x * s, y: (24 - y) * s)
+            }
+            path.move(to: point(4, 2))
+            path.line(to: point(20, 2))
+            path.curve(to: point(22, 4), controlPoint1: point(21.1, 2), controlPoint2: point(22, 2.9))
+            path.line(to: point(22, 16))
+            path.curve(to: point(20, 18), controlPoint1: point(22, 17.1), controlPoint2: point(21.1, 18))
+            path.line(to: point(12, 18))
+            path.line(to: point(8, 22))
+            path.line(to: point(8, 18))
+            path.line(to: point(4, 18))
+            path.curve(to: point(2, 16), controlPoint1: point(2.9, 18), controlPoint2: point(2, 17.1))
+            path.line(to: point(2, 4))
+            path.curve(to: point(4, 2), controlPoint1: point(2, 2.9), controlPoint2: point(2.9, 2))
+            path.close()
+            NSColor.white.setFill()
+            path.fill()
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 
     @objc private func insertPromptReferenceForSelection(_ sender: Any?) {
