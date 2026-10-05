@@ -11,6 +11,12 @@ import CmuxSyntaxHighlighting
 /// notifications (`NSText.didProcessEditingNotification`) so typing never
 /// rescans the whole buffer; a keystroke splices a few line-start offsets
 /// instead of walking up to 16 MB of text on the main actor.
+///
+/// Beyond the numbers, the ruler keeps the diff in view while the file is
+/// edited: the working-tree changes against git's index are drawn as
+/// markers in a strip at its leading edge (a click on one offers to revert
+/// the hunk), a click or drag on the numbers selects whole lines, and a
+/// button floats on the selection to hand those lines to the agent prompt.
 final class FilePreviewLineNumberGutterView: NSRulerView {
     var tokenTheme: TokenTheme = .dark {
         didSet { needsDisplay = true }
@@ -21,7 +27,21 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
     var drawsEditorBackground = true {
         didSet { applySurfaceFill() }
     }
+    /// Working-tree changes to mark; nil draws no markers.
+    var changeHunks: FilePreviewChangeHunks? {
+        didSet { if changeHunks != oldValue { needsDisplay = true } }
+    }
+    /// Reverts one hunk; a click on its marker offers it from a menu.
+    var onRevertHunk: ((FilePreviewChangeHunk) -> Void)?
+    /// Hands the selected lines (1-based, inclusive) to the agent prompt.
+    /// Without it the prompt button never shows.
+    var onInsertPromptReference: ((_ startLine: Int, _ endLine: Int) -> Void)? {
+        didSet { updatePromptButton() }
+    }
     private static let horizontalPadding: CGFloat = 10
+    /// Leading strip that holds the change markers.
+    static let markerStripWidth: CGFloat = 6
+    private static let promptButtonSize: CGFloat = 18
 
     private var lineIndex = FilePreviewLineIndex(string: "")
     /// Set when edits were skipped (ruler hidden) and the index must be
@@ -29,6 +49,12 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
     private var needsFullRebuild = true
     private var observedStorage: NSTextStorage?
     private var storageObserver: (any NSObjectProtocol)?
+    private var clipBoundsObserver: (any NSObjectProtocol)?
+    /// The line a gutter drag started on; the selection runs from it.
+    private var selectionAnchorLine: Int?
+    /// The hunk a marker click opened the menu for, until an item runs.
+    private var pendingMenuHunk: FilePreviewChangeHunk?
+    private lazy var promptButton: NSButton = makePromptButton()
 
     override var isOpaque: Bool {
         drawsEditorBackground && editorBackgroundColor.alphaComponent >= 0.999
@@ -48,6 +74,7 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         reservedThicknessForAccessoryView = 0
         wantsLayer = true
         applySurfaceFill()
+        observeClipBounds(of: scrollView)
     }
 
     required init(coder: NSCoder) {
@@ -57,6 +84,9 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
     deinit {
         if let storageObserver {
             NotificationCenter.default.removeObserver(storageObserver)
+        }
+        if let clipBoundsObserver {
+            NotificationCenter.default.removeObserver(clipBoundsObserver)
         }
     }
 
@@ -109,6 +139,25 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         }
     }
 
+    /// The prompt button sits on a document line, so scrolling moves it.
+    private func observeClipBounds(of scrollView: NSScrollView?) {
+        if let clipBoundsObserver {
+            NotificationCenter.default.removeObserver(clipBoundsObserver)
+        }
+        clipBoundsObserver = nil
+        guard let clipView = scrollView?.contentView else { return }
+        clipView.postsBoundsChangedNotifications = true
+        clipBoundsObserver = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification,
+            object: clipView,
+            queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.updatePromptButton()
+            }
+        }
+    }
+
     /// Applies one storage edit to the index. Skips maintenance while the
     /// ruler is hidden (the index is unread then) and flags a rebuild for the
     /// next time it becomes visible.
@@ -136,7 +185,7 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         let labelWidth = (String(repeating: "8", count: digits) as NSString).size(
             withAttributes: [.font: font]
         ).width
-        let nextThickness = ceil(labelWidth) + Self.horizontalPadding
+        let nextThickness = ceil(labelWidth) + Self.horizontalPadding + Self.markerStripWidth
         if abs(ruleThickness - nextThickness) > 0.5 {
             ruleThickness = nextThickness
         }
@@ -308,9 +357,9 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         let documentPoint = NSPoint(x: 0, y: y)
         let rulerPoint = convert(documentPoint, from: textView)
         let labelRect = NSRect(
-            x: 4,
+            x: 4 + Self.markerStripWidth,
             y: rulerPoint.y,
-            width: max(0, ruleThickness - 10),
+            width: max(0, ruleThickness - 10 - Self.markerStripWidth),
             height: max(height, font.capHeight + 4)
         )
         let color = currentLine == lineNumber
@@ -322,5 +371,221 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
             .paragraphStyle: paragraphStyle
         ]
         NSString(string: String(lineNumber)).draw(in: labelRect, withAttributes: attributes)
+        drawChangeMarker(forLine: lineNumber, rulerY: rulerPoint.y, height: height)
+    }
+
+    // MARK: - Change markers
+
+    /// The hunk whose marker sits on `line`: its own lines, or for a deletion
+    /// the line it used to precede. A deletion past the last line is drawn
+    /// under that line.
+    func markerHunk(forLine line: Int) -> FilePreviewChangeHunk? {
+        guard let hunks = changeHunks else { return nil }
+        if let hunk = hunks.hunk(atCurrentLine: line) { return hunk }
+        if line == lineIndex.lineCount,
+           let last = hunks.hunks.last,
+           last.currentCount == 0,
+           last.currentStart == line + 1 {
+            return last
+        }
+        return nil
+    }
+
+    private func drawChangeMarker(forLine line: Int, rulerY: CGFloat, height: CGFloat) {
+        guard let hunk = markerHunk(forLine: line) else { return }
+        switch hunk.kind {
+        case .added, .modified:
+            let bar = NSRect(x: 1, y: rulerY + 0.5, width: Self.markerStripWidth - 2, height: max(1, height - 1))
+            (hunk.kind == .added ? NSColor.systemGreen : NSColor.systemBlue).setFill()
+            NSBezierPath(roundedRect: bar, xRadius: 1, yRadius: 1).fill()
+        case .deleted:
+            // A wedge on the edge the lines vanished from: the top of this
+            // line, or its bottom when they followed the last line.
+            let edgeY = hunk.currentStart > line ? rulerY + height : rulerY
+            let wedge = NSBezierPath()
+            wedge.move(to: NSPoint(x: 0, y: edgeY - 4))
+            wedge.line(to: NSPoint(x: Self.markerStripWidth + 1, y: edgeY))
+            wedge.line(to: NSPoint(x: 0, y: edgeY + 4))
+            wedge.close()
+            NSColor.systemRed.setFill()
+            wedge.fill()
+        }
+    }
+
+    private func showRevertMenu(for hunk: FilePreviewChangeHunk, with event: NSEvent) {
+        let menu = NSMenu()
+        let item = NSMenuItem(
+            title: String(localized: "filePreview.revertChange", defaultValue: "Revert Change"),
+            action: #selector(revertPendingHunk(_:)),
+            keyEquivalent: ""
+        )
+        item.target = self
+        menu.addItem(item)
+        pendingMenuHunk = hunk
+        NSMenu.popUpContextMenu(menu, with: event, for: self)
+    }
+
+    @objc private func revertPendingHunk(_ sender: Any?) {
+        let hunk = pendingMenuHunk
+        pendingMenuHunk = nil
+        if let hunk {
+            onRevertHunk?(hunk)
+        }
+    }
+
+    // MARK: - Line selection
+
+    /// The 1-based line under `point` (in the ruler's coordinates); the last
+    /// line below the text.
+    func lineNumber(atGutterPoint point: NSPoint) -> Int? {
+        guard let textView = clientView as? NSTextView,
+              let layoutManager = textView.layoutManager,
+              let container = textView.textContainer else { return nil }
+        let textPoint = convert(point, to: textView)
+        let containerPoint = NSPoint(x: 0, y: textPoint.y - textView.textContainerOrigin.y)
+        guard containerPoint.y >= 0 else { return 1 }
+        let usedRect = layoutManager.usedRect(for: container)
+        if containerPoint.y >= usedRect.maxY {
+            return lineIndex.lineCount
+        }
+        let glyphIndex = layoutManager.glyphIndex(for: containerPoint, in: container)
+        let characterIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
+        return min(lineIndex.lineNumber(containingUTF16Offset: characterIndex), lineIndex.lineCount)
+    }
+
+    /// Selects whole lines `anchor` through `line` in either order, with the
+    /// line break that closes the last of them when another line follows.
+    func selectLines(from anchor: Int, to line: Int, in textView: NSTextView) {
+        let lineCount = lineIndex.lineCount
+        let first = max(1, min(anchor, line, lineCount))
+        let last = max(first, min(lineCount, max(anchor, line)))
+        let start = lineIndex.offset(forLine: first)
+        let end = last < lineCount
+            ? lineIndex.offset(forLine: last + 1)
+            : (textView.string as NSString).length
+        textView.setSelectedRange(NSRange(location: start, length: max(0, end - start)))
+    }
+
+    /// The 1-based lines the text view's selection touches; nil when empty.
+    /// A selection that ends exactly at a line start does not include that line.
+    func selectedLineRange(in textView: NSTextView) -> ClosedRange<Int>? {
+        let range = textView.selectedRange()
+        guard range.length > 0 else { return nil }
+        let first = lineIndex.lineNumber(containingUTF16Offset: range.location)
+        let endOffset = range.location + range.length
+        var last = lineIndex.lineNumber(containingUTF16Offset: endOffset)
+        if last > first, lineIndex.offset(forLine: last) == endOffset {
+            last -= 1
+        }
+        return first...max(first, last)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard let textView = clientView as? NSTextView else {
+            super.mouseDown(with: event)
+            return
+        }
+        let point = convert(event.locationInWindow, from: nil)
+        guard let line = lineNumber(atGutterPoint: point) else { return }
+        if point.x <= Self.markerStripWidth + 2,
+           onRevertHunk != nil,
+           let hunk = markerHunk(forLine: line) {
+            showRevertMenu(for: hunk, with: event)
+            return
+        }
+        let anchor: Int
+        if event.modifierFlags.contains(.shift), let existing = selectedLineRange(in: textView) {
+            // Shift extends from the far end of what is selected.
+            anchor = line >= existing.upperBound ? existing.lowerBound : existing.upperBound
+        } else {
+            anchor = line
+        }
+        selectionAnchorLine = anchor
+        selectLines(from: anchor, to: line, in: textView)
+        window?.makeFirstResponder(textView)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let anchor = selectionAnchorLine,
+              let textView = clientView as? NSTextView else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        guard let line = lineNumber(atGutterPoint: point) else { return }
+        selectLines(from: anchor, to: line, in: textView)
+        textView.autoscroll(with: event)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        selectionAnchorLine = nil
+    }
+
+    // MARK: - Prompt button
+
+    private func makePromptButton() -> NSButton {
+        let label = String(localized: "filePreview.addToPrompt", defaultValue: "Add to prompt")
+        let button = NSButton(frame: NSRect(x: 0, y: 0, width: Self.promptButtonSize, height: Self.promptButtonSize))
+        button.isBordered = false
+        button.imagePosition = .imageOnly
+        button.image = NSImage(systemSymbolName: "bubble.left.fill", accessibilityDescription: label)?
+            .withSymbolConfiguration(.init(pointSize: 11, weight: .semibold))
+        button.contentTintColor = .controlAccentColor
+        button.toolTip = label
+        button.setAccessibilityLabel(label)
+        button.target = self
+        button.action = #selector(insertPromptReferenceForSelection(_:))
+        button.isHidden = true
+        addSubview(button)
+        return button
+    }
+
+    @objc private func insertPromptReferenceForSelection(_ sender: Any?) {
+        guard let textView = clientView as? NSTextView,
+              let lines = selectedLineRange(in: textView) else { return }
+        onInsertPromptReference?(lines.lowerBound, lines.upperBound)
+    }
+
+    /// Whether the prompt button is showing on a selection.
+    var isPromptButtonVisible: Bool {
+        !promptButton.isHidden
+    }
+
+    /// Moves the prompt button onto the selection's last line, or hides it
+    /// when nothing is selected or no prompt takes references.
+    func updatePromptButton() {
+        guard onInsertPromptReference != nil,
+              let textView = clientView as? NSTextView,
+              let lines = selectedLineRange(in: textView),
+              let y = rulerY(forLine: lines.upperBound) else {
+            promptButton.isHidden = true
+            return
+        }
+        promptButton.frame = NSRect(
+            x: max(0, ruleThickness - Self.promptButtonSize - 1),
+            y: y,
+            width: Self.promptButtonSize,
+            height: Self.promptButtonSize
+        )
+        promptButton.isHidden = false
+    }
+
+    /// Presses the prompt button; for tests.
+    func performPromptButtonClick() {
+        guard isPromptButtonVisible else { return }
+        insertPromptReferenceForSelection(promptButton)
+    }
+
+    private func rulerY(forLine line: Int) -> CGFloat? {
+        guard let textView = clientView as? NSTextView,
+              let layoutManager = textView.layoutManager else { return nil }
+        let offset = lineIndex.offset(forLine: line)
+        let rect: NSRect
+        if offset < (textView.string as NSString).length {
+            let glyphIndex = layoutManager.glyphIndexForCharacter(at: offset)
+            rect = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: nil)
+        } else {
+            rect = layoutManager.extraLineFragmentRect
+            guard rect.height > 0 else { return nil }
+        }
+        let top = convert(NSPoint(x: 0, y: rect.minY + textView.textContainerOrigin.y), from: textView).y
+        return top + max(0, (rect.height - Self.promptButtonSize) / 2)
     }
 }

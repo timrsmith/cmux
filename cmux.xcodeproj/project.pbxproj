@@ -2051,6 +2051,8 @@
 		633D33A30709BEB9EB0E0962 /* FileExplorerWorkspaceObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B194E800BD6F9561D6AFB9 /* FileExplorerWorkspaceObservation.swift */; };
 		CFSF00000000000000000004 /* FileExplorerWorkspaceRootResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFSR00000000000000000004 /* FileExplorerWorkspaceRootResolver.swift */; };
 		A5001441A5001441A5001441 /* FileOpenSocketSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5001440A5001440A5001440 /* FileOpenSocketSupport.swift */; };
+		9EC445370E145B7D1474FA57 /* FilePreviewChangeBase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57B473C1ACAB6A9EDA6C1507 /* FilePreviewChangeBase.swift */; };
+		A07C022B1A97955672E11A04 /* FilePreviewChangeMarkersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C55F1009A4BDC06727A7D3E /* FilePreviewChangeMarkersTests.swift */; };
 		C01E00070000000000000001 /* FilePreviewCodeViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C01E00070000000000000002 /* FilePreviewCodeViewTests.swift */; };
 		C01E00060000000000000001 /* FilePreviewEditorChromeOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C01E00060000000000000002 /* FilePreviewEditorChromeOverlay.swift */; };
 		C01E00010000000000000001 /* FilePreviewEditorSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C01E00010000000000000002 /* FilePreviewEditorSettings.swift */; };
@@ -2078,6 +2080,7 @@
 		C0DE86520000000000000117 /* FilePreviewNativeRefreshStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE86520000000000000118 /* FilePreviewNativeRefreshStateTests.swift */; };
 		904D6350B3BB50DEDED3F410 /* FilePreviewNativeViewSessions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81E3615490F822CA0C8527C9 /* FilePreviewNativeViewSessions.swift */; };
 		10200F1E000000000000000D /* FilePreviewObserverReloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10200F1E000000000000000E /* FilePreviewObserverReloadTests.swift */; };
+		6A3F3A08B9570DFB52EF9275 /* FilePreviewPanel+ChangeTracking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24C867C032E5C4183464C778 /* FilePreviewPanel+ChangeTracking.swift */; };
 		14F4298FE812ABEC64FC06DA /* FilePreviewPanel+FindablePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD592A1AC4A79F6395F0DEF7 /* FilePreviewPanel+FindablePanel.swift */; };
 		C0DE86520000000000000003 /* FilePreviewPanel+Reload.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE86520000000000000004 /* FilePreviewPanel+Reload.swift */; };
 		9B63B81B28B506CB9A7B89E1 /* FilePreviewPanel+TabMetadataPublishing.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC12A1472C54F9375A28F5F5 /* FilePreviewPanel+TabMetadataPublishing.swift */; };
@@ -6497,6 +6500,8 @@
 		F8B194E800BD6F9561D6AFB9 /* FileExplorerWorkspaceObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileExplorerWorkspaceObservation.swift"; sourceTree = "<group>"; };
 		CFSR00000000000000000004 /* FileExplorerWorkspaceRootResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileExplorerWorkspaceRootResolver.swift; sourceTree = "<group>"; };
 		A5001440A5001440A5001440 /* FileOpenSocketSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileOpenSocketSupport.swift; sourceTree = "<group>"; };
+		57B473C1ACAB6A9EDA6C1507 /* FilePreviewChangeBase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewChangeBase.swift; sourceTree = "<group>"; };
+		7C55F1009A4BDC06727A7D3E /* FilePreviewChangeMarkersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FilePreviewChangeMarkersTests.swift"; sourceTree = "<group>"; };
 		C01E00070000000000000002 /* FilePreviewCodeViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePreviewCodeViewTests.swift; sourceTree = "<group>"; };
 		C01E00060000000000000002 /* FilePreviewEditorChromeOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewEditorChromeOverlay.swift; sourceTree = "<group>"; };
 		C01E00010000000000000002 /* FilePreviewEditorSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewEditorSettings.swift; sourceTree = "<group>"; };
@@ -6524,6 +6529,7 @@
 		C0DE86520000000000000118 /* FilePreviewNativeRefreshStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePreviewNativeRefreshStateTests.swift; sourceTree = "<group>"; };
 		81E3615490F822CA0C8527C9 /* FilePreviewNativeViewSessions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FilePreviewNativeViewSessions.swift; sourceTree = "<group>"; };
 		10200F1E000000000000000E /* FilePreviewObserverReloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePreviewObserverReloadTests.swift; sourceTree = "<group>"; };
+		24C867C032E5C4183464C778 /* FilePreviewPanel+ChangeTracking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Panels/FilePreviewPanel+ChangeTracking.swift"; sourceTree = "<group>"; };
 		AD592A1AC4A79F6395F0DEF7 /* FilePreviewPanel+FindablePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Panels/FilePreviewPanel+FindablePanel.swift"; sourceTree = "<group>"; };
 		C0DE86520000000000000004 /* FilePreviewPanel+Reload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Panels/FilePreviewPanel+Reload.swift"; sourceTree = "<group>"; };
 		AC12A1472C54F9375A28F5F5 /* FilePreviewPanel+TabMetadataPublishing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Panels/FilePreviewPanel+TabMetadataPublishing.swift"; sourceTree = "<group>"; };
@@ -11417,6 +11423,8 @@
 				EB5AA34D9EB1EDDDD15DD0B7 /* FilePreviewGoToLinePopover.swift */,
 				A6075BDFF3CF4F3FF9127414 /* FilePreviewWordCompletion.swift */,
 				2587FBE3C9F115C3EBACF525 /* FilePreviewLineLocator.swift */,
+				24C867C032E5C4183464C778 /* FilePreviewPanel+ChangeTracking.swift */,
+				57B473C1ACAB6A9EDA6C1507 /* FilePreviewChangeBase.swift */,
 				FF100FFD795F938BD7E03D68 /* FilePreviewLineCommentToken.swift */,
 				4C00E8D6241DB57898A968F5 /* FilePreviewIndentation.swift */,
 				F99C8E9B94439B18A712A1AC /* FilePreviewTextEditing.swift */,
@@ -13522,6 +13530,7 @@
 				0E39AE0335BA0E8E75C95603 /* FilePreviewTabMetadataTestSupport.swift */,
 				C6EC76A5ECF54F93E8291A24 /* PrimaryTabManagerCloseConfirmationTests.swift */,
 				996BCCCF457DF85063854168 /* UnsavedChangesNonInteractiveCloseTests.swift */,
+				7C55F1009A4BDC06727A7D3E /* FilePreviewChangeMarkersTests.swift */,
 			);
 			path = cmuxTests;
 			sourceTree = "<group>";
@@ -15312,6 +15321,7 @@
 				633D33A30709BEB9EB0E0962 /* FileExplorerWorkspaceObservation.swift in Sources */,
 				CFSF00000000000000000004 /* FileExplorerWorkspaceRootResolver.swift in Sources */,
 				A5001441A5001441A5001441 /* FileOpenSocketSupport.swift in Sources */,
+				9EC445370E145B7D1474FA57 /* FilePreviewChangeBase.swift in Sources */,
 					C01E00060000000000000001 /* FilePreviewEditorChromeOverlay.swift in Sources */,
 					C01E00010000000000000001 /* FilePreviewEditorSettings.swift in Sources */,
 				C0DE8652000000000000000F /* FilePreviewFileState.swift in Sources */,
@@ -15334,6 +15344,7 @@
 				C986A0110000000000000001 /* FilePreviewNativeDragOwnership.swift in Sources */,
 				C986A0130000000000000001 /* FilePreviewNativeDragPendingOwnership.swift in Sources */,
 				904D6350B3BB50DEDED3F410 /* FilePreviewNativeViewSessions.swift in Sources */,
+				6A3F3A08B9570DFB52EF9275 /* FilePreviewPanel+ChangeTracking.swift in Sources */,
 				14F4298FE812ABEC64FC06DA /* FilePreviewPanel+FindablePanel.swift in Sources */,
 				C0DE86520000000000000003 /* FilePreviewPanel+Reload.swift in Sources */,
 				9B63B81B28B506CB9A7B89E1 /* FilePreviewPanel+TabMetadataPublishing.swift in Sources */,
@@ -17958,6 +17969,7 @@
 				B37A0000000000000000000B /* FileExplorerStateModePersistenceTests.swift in Sources */,
 				FE002102 /* FileExplorerStoreTests.swift in Sources */,
 				828800010000000000000002 /* FileExplorerStyleContrastTests.swift in Sources */,
+				A07C022B1A97955672E11A04 /* FilePreviewChangeMarkersTests.swift in Sources */,
 				C01E00070000000000000001 /* FilePreviewCodeViewTests.swift in Sources */,
 				6D455DCA5E812B153965D82E /* FilePreviewEditorTestSupport.swift in Sources */,
 				C0DE49950000000000000001 /* FilePreviewKindResolverTests.swift in Sources */,

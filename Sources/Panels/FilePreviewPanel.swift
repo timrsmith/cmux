@@ -1,6 +1,7 @@
 import CmuxFoundation
 import AppKit
 import Bonsplit
+import CmuxFilePreviewCore
 import Combine
 import Foundation
 import PDFKit
@@ -1259,6 +1260,15 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
     @Published private(set) var isSaving = false
     @Published private(set) var focusFlashToken = 0
     @Published private(set) var previewMode: FilePreviewMode
+    /// Working-tree changes against git's index, shown in the editor's gutter.
+    @Published var changeHunks: FilePreviewChangeHunks?
+    var changeBase: FilePreviewChangeBase?
+    var changeBaseLoadTask: Task<Void, Never>?
+    var changeRecomputeTask: Task<Void, Never>?
+    let changeBaseReader: @Sendable (URL) -> FilePreviewChangeBase?
+    let changeRecomputeDelay: Duration
+    /// Replaces the workspace prompt lookup for a line reference; tests inject it.
+    let promptInsertionOverride: (@MainActor (PromptLineReference) -> Bool)?
     let previewRevisionState = FilePreviewRevision()
     private let textContentRevisionState = FilePreviewRevision()
 
@@ -1325,7 +1335,12 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
         },
         modeResolver: @escaping @Sendable (URL) async -> FilePreviewMode = { url in
             await FilePreviewKindResolver.resolveMode(url: url)
-        }
+        },
+        changeBaseReader: @escaping @Sendable (URL) -> FilePreviewChangeBase? = { url in
+            FilePreviewChangeBaseReader().read(fileURL: url)
+        },
+        changeRecomputeDelay: Duration = .milliseconds(150),
+        promptInsertion: (@MainActor (PromptLineReference) -> Bool)? = nil
     ) {
         self.id = UUID()
         self.workspaceId = workspaceId
@@ -1336,6 +1351,9 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
         self.textLoader = textLoader
         self.textSaver = textSaver
         self.modeResolver = modeResolver
+        self.changeBaseReader = changeBaseReader
+        self.changeRecomputeDelay = changeRecomputeDelay
+        self.promptInsertionOverride = promptInsertion
         let fileURL = URL(fileURLWithPath: filePath)
         let initialPreviewMode = FilePreviewKindResolver.initialMode(for: fileURL)
         self.previewMode = initialPreviewMode
@@ -1354,6 +1372,7 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
 
     func focus() {
         _ = restoreFocusIntent(preferredFocusIntentForActivation())
+        refreshChangeBaseIfTracked()
     }
 
     func unfocus() {
@@ -1367,6 +1386,8 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
         isClosed = true
         unbindTabMetadata()
         stopWatchingForFileChanges()
+        changeBaseLoadTask?.cancel()
+        changeRecomputeTask?.cancel()
         textLoadCoordinator.cancel()
         modeLoadCoordinator.cancel()
         selectionReader.close()
@@ -1514,6 +1535,7 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
         guard textContent != nextContent else { return false }
         textContent = nextContent
         textContentRevisionState.increment()
+        scheduleChangeHunksRecompute()
         return true
     }
 
@@ -1624,6 +1646,10 @@ final class FilePreviewPanel: Panel, ObservableObject, FilePreviewTextEditingPan
             isFileUnavailable = true
             return
         case .loaded(let content, let encoding):
+            // Every load re-reads the git base: a refresh, a reload after an
+            // external edit, or the reload after a save may follow an index
+            // change.
+            defer { startChangeTracking() }
             if !replacingDirtyContent && isDirty {
                 originalTextContent = content
                 textEncoding = encoding

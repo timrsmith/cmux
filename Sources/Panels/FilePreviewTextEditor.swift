@@ -1,4 +1,5 @@
 import AppKit
+import CmuxFilePreviewCore
 import CmuxFoundation
 import CmuxSettings
 import CmuxSettingsUI
@@ -19,10 +20,20 @@ protocol FilePreviewTextEditingPanel: AnyObject {
     func updateTextContent(_ nextContent: String)
     @discardableResult
     func saveTextContent() -> Task<Void, Never>?
+    /// Working-tree changes against git's index for the gutter's markers;
+    /// nil for a panel that does not track them.
+    var changeHunks: FilePreviewChangeHunks? { get }
+    /// Puts the base lines back in place of `hunk`.
+    func revertChangeHunk(_ hunk: FilePreviewChangeHunk)
+    /// Hands the lines (1-based, inclusive) to the workspace's agent prompt.
+    func insertPromptReference(startLine: Int, endLine: Int)
 }
 
 extension FilePreviewTextEditingPanel {
     var textContentRevision: Int { 0 }
+    var changeHunks: FilePreviewChangeHunks? { nil }
+    func revertChangeHunk(_ hunk: FilePreviewChangeHunk) {}
+    func insertPromptReference(startLine: Int, endLine: Int) {}
 
     // MARK: - Find in the text editor
     //
@@ -117,6 +128,7 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         scrollView.documentView = textView
         textView.applyFilePreviewWordWrap(wordWrap, scrollView: scrollView)
         Self.installChrome(on: scrollView, textView: textView)
+        Self.bindChangeMarkers(on: scrollView, panel: panel)
         Self.applyTheme(
             to: scrollView,
             backgroundColor: themeBackgroundColor,
@@ -162,6 +174,11 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         context.coordinator.panel = panel
         context.coordinator.panelIdentity = panelIdentity
         textView.panel = panel
+        if panelChanged {
+            Self.bindChangeMarkers(on: scrollView, panel: panel)
+        } else if let gutter = scrollView.verticalRulerView as? FilePreviewLineNumberGutterView {
+            gutter.changeHunks = panel.changeHunks
+        }
         if filePathChanged {
             textView.filePreviewLineCommentToken = Self.lineCommentToken(forFilePath: filePath)
         }
@@ -279,6 +296,18 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         }
     }
 
+    /// Points the gutter's markers, revert and prompt actions at `panel`.
+    static func bindChangeMarkers(on scrollView: NSScrollView, panel: PanelModel) {
+        guard let gutter = scrollView.verticalRulerView as? FilePreviewLineNumberGutterView else { return }
+        gutter.changeHunks = panel.changeHunks
+        gutter.onRevertHunk = { [weak panel] hunk in
+            panel?.revertChangeHunk(hunk)
+        }
+        gutter.onInsertPromptReference = { [weak panel] startLine, endLine in
+            panel?.insertPromptReference(startLine: startLine, endLine: endLine)
+        }
+    }
+
     static func applyChromeSettings(
         to scrollView: NSScrollView,
         lineNumbers: Bool,
@@ -370,6 +399,7 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
             if let gutter = textView.enclosingScrollView?.verticalRulerView
                 as? FilePreviewLineNumberGutterView {
                 gutter.needsDisplay = true
+                gutter.updatePromptButton()
             }
         }
 
