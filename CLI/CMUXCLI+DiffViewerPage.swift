@@ -16,6 +16,9 @@ extension CMUXCLI {
     /// in a docked web view. `reloadable` reports whether a `reload()`
     /// recomputes the diff (typed sidecar session) or the page is a static
     /// snapshot to regenerate. Stdout carries only this document.
+    ///
+    /// The verb carries no surface, so its Last turn source is workspace-wide:
+    /// the newest turn any agent pane in the workspace recorded.
     func runDiffViewerPageCommand(commandArgs: [String], socketPath: String) throws {
         let usage = "Usage: cmux __diff-viewer-page --cwd <repository path> [--workspace <id|ref|index>]"
         // Same option grammar as `cmux diff`, restricted to what the panel

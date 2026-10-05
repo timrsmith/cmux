@@ -1544,10 +1544,13 @@ extension CMUXCLI {
             patch = try gitStdout(gitDiffPatchArguments([mergeBase, "--"]), in: repoRoot)
             sourceLabel = "git branch \(baseRef)"
         case .lastTurn:
-            guard let workspaceId = normalizedDiffSourceValue(context.workspaceId),
-                  let surfaceId = normalizedDiffSourceValue(context.surfaceId) else {
-                throw CLIError(message: "cmux diff --last-turn requires a workspace and surface context. Run it from a cmux terminal or pass --workspace and --surface.")
+            guard let workspaceId = normalizedDiffSourceValue(context.workspaceId) else {
+                throw CLIError(message: "cmux diff --last-turn requires a workspace context. Run it from a cmux terminal or pass --workspace.")
             }
+            // A surface narrows the baseline to one agent pane. Without one
+            // (the docked Changes panel follows the whole workspace) the newest
+            // turn any pane in the workspace recorded is the baseline.
+            let surfaceId = normalizedDiffSourceValue(context.surfaceId)
             let sessionId = normalizedDiffSourceValue(context.sessionId)
             let env = ProcessInfo.processInfo.environment
             let baselineStorePath = CMUXAgentTurnDiffBaselineFile.path(env: env)
@@ -1569,7 +1572,7 @@ extension CMUXCLI {
                 // switcher) instead of throwing a developer-facing CLI error.
                 patch = ""
             }
-            sourceLabel = "git last-turn \(workspaceId) \(surfaceId)"
+            sourceLabel = ["git last-turn", workspaceId, surfaceId].compactMap { $0 }.joined(separator: " ")
         }
         return DiffInput(
             patch: patch,
@@ -3246,7 +3249,9 @@ extension CMUXCLI {
     }
 
     /// Returns the most recent last-turn diff baseline recorded for the given
-    /// workspace/surface, or `nil` when no baseline has been recorded yet.
+    /// workspace, narrowed to one surface when `surfaceId` is given and spanning
+    /// every pane in the workspace otherwise, or `nil` when no baseline has
+    /// been recorded yet.
     ///
     /// A missing baseline is not an error: it means there is simply nothing to
     /// diff for the last turn, so callers render the friendly empty diff state
@@ -3254,7 +3259,7 @@ extension CMUXCLI {
     private func latestAgentTurnDiffBaseline(
         repoRoot: String,
         workspaceId: String,
-        surfaceId: String,
+        surfaceId: String?,
         sessionId: String?,
         env: [String: String]
     ) throws -> CMUXAgentTurnDiffBaselineRecord? {
@@ -3263,7 +3268,7 @@ extension CMUXCLI {
         let candidates = store.records.filter { record in
             standardizedDiffSourcePath(record.repoRoot) == repoRoot
                 && diffScopeIdentifierEquals(record.workspaceId, workspaceId)
-                && diffScopeIdentifierEquals(record.surfaceId, surfaceId)
+                && (surfaceId.map { diffScopeIdentifierEquals(record.surfaceId, $0) } ?? true)
                 && (sessionId == nil || record.sessionId == sessionId)
         }
         return candidates.max(by: { $0.capturedAt < $1.capturedAt })
