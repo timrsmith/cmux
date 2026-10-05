@@ -1830,6 +1830,10 @@ struct FilePreviewPanelView: View {
             )
 
             FileExternalOpenMenu(fileURL: panel.fileURL, isDisabled: panel.isFileUnavailable)
+
+            if panel.previewMode == .text {
+                FileEditorHeaderMenu(panel: panel)
+            }
         }
     }
 

@@ -172,7 +172,7 @@ struct FilePreviewChangeMarkersTests {
         // "TWO\n" is line 2 (modified: green tint, with the old "two" in a
         // red gap above it); "new\n" is line 4 (added: green tint only).
         #expect(overlay.changedLineRanges == [NSRange(location: 4, length: 4), NSRange(location: 14, length: 4)])
-        #expect(overlay.deletedLineBlocks == [.init(offset: 4, lines: ["two"])])
+        #expect(overlay.deletedLineBlocks == [.init(offset: 4, baseStart: 2, lines: ["two"])])
         let ranges = gutter.changeRanges()
         #expect(ranges.changed == overlay.changedLineRanges)
         #expect(ranges.deleted == overlay.deletedLineBlocks)
@@ -196,7 +196,7 @@ struct FilePreviewChangeMarkersTests {
         gutter.reloadLineIndex(from: panel.textContent, textFont: editor.textView.font)
         gutter.changeHunks = panel.changeHunks
         #expect(overlay.changedLineRanges.isEmpty)
-        #expect(overlay.deletedLineBlocks == [.init(offset: 8, lines: ["three", "four"])])
+        #expect(overlay.deletedLineBlocks == [.init(offset: 8, baseStart: 3, lines: ["three", "four"])])
         layoutManager.ensureLayout(for: editor.textView.textContainer!)
         let lastGlyph = layoutManager.numberOfGlyphs - 1
         let lastFragment = layoutManager.lineFragmentRect(forGlyphAt: lastGlyph, effectiveRange: nil)
@@ -221,6 +221,13 @@ struct FilePreviewChangeMarkersTests {
         #expect(gutter.markerHunk(forLine: 2)?.kind == .modified)
         let added = try #require(gutter.markerHunk(forLine: 4))
         #expect(added.kind == .added)
+        // A right-click on a changed line's number offers that hunk; an
+        // unchanged line offers nothing.
+        // The ghost gap above line 2 changed the layout; a click in the app
+        // always follows a display pass, so lay out before hit-testing.
+        editor.textView.layoutManager?.ensureLayout(for: editor.textView.textContainer!)
+        #expect(gutter.revertMenuHunk(atGutterPoint: gutterPoint(forLine: 4, in: gutter, textView: editor.textView)) == added)
+        #expect(gutter.revertMenuHunk(atGutterPoint: gutterPoint(forLine: 1, in: gutter, textView: editor.textView)) == nil)
         gutter.onRevertHunk?(added)
         #expect(editor.textView.string == "one\nTWO\nthree\nfour\n")
     }

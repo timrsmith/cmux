@@ -2010,6 +2010,7 @@
 		C82094EE9C3CFA5BE97C4833 /* FileDropOverlayViewLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EB37A3E26005F130A2E0F04 /* FileDropOverlayViewLifecycleTests.swift */; };
 		D0B10018A1B2C3D4E5F60001 /* FileDropOverlayViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B10019A1B2C3D4E5F60001 /* FileDropOverlayViewTests.swift */; };
 		D12925020000000000000001 /* FileDropPaneTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = D12925020000000000000002 /* FileDropPaneTarget.swift */; };
+		DE03E0E3F6E5E166EBB0A537 /* FileEditorHeaderMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = E008F3BC14852F7E2FDA8507 /* FileEditorHeaderMenu.swift */; };
 		F12748000000000000000001 /* FileEditorWordWrapShortcutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F12748000000000000000002 /* FileEditorWordWrapShortcutTests.swift */; };
 		FE5996010000000000000002 /* FileExplorerCellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE5996010000000000000001 /* FileExplorerCellView.swift */; };
 		58577BB461FB6F36BB3ACF86 /* FileExplorerContainerView+SearchStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BF8AA8182149D0EC033A391 /* FileExplorerContainerView+SearchStatus.swift */; };
@@ -6459,6 +6460,7 @@
 		7EB37A3E26005F130A2E0F04 /* FileDropOverlayViewLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileDropOverlayViewLifecycleTests.swift"; sourceTree = "<group>"; };
 		D0B10019A1B2C3D4E5F60001 /* FileDropOverlayViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDropOverlayViewTests.swift; sourceTree = "<group>"; };
 		D12925020000000000000002 /* FileDropPaneTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDropPaneTarget.swift; sourceTree = "<group>"; };
+		E008F3BC14852F7E2FDA8507 /* FileEditorHeaderMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FileEditorHeaderMenu.swift; sourceTree = "<group>"; };
 		F12748000000000000000002 /* FileEditorWordWrapShortcutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileEditorWordWrapShortcutTests.swift; sourceTree = "<group>"; };
 		FE5996010000000000000001 /* FileExplorerCellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileExplorerCellView.swift; sourceTree = "<group>"; };
 		5BF8AA8182149D0EC033A391 /* FileExplorerContainerView+SearchStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileExplorerContainerView+SearchStatus.swift"; sourceTree = "<group>"; };
@@ -11423,6 +11425,7 @@
 				EB5AA34D9EB1EDDDD15DD0B7 /* FilePreviewGoToLinePopover.swift */,
 				A6075BDFF3CF4F3FF9127414 /* FilePreviewWordCompletion.swift */,
 				2587FBE3C9F115C3EBACF525 /* FilePreviewLineLocator.swift */,
+				E008F3BC14852F7E2FDA8507 /* FileEditorHeaderMenu.swift */,
 				24C867C032E5C4183464C778 /* FilePreviewPanel+ChangeTracking.swift */,
 				57B473C1ACAB6A9EDA6C1507 /* FilePreviewChangeBase.swift */,
 				FF100FFD795F938BD7E03D68 /* FilePreviewLineCommentToken.swift */,
@@ -15294,6 +15297,7 @@
 				D0B10020A1B2C3D4E5F60001 /* FileDropOverlayView.swift in Sources */,
 				D0B10022A1B2C3D4E5F60001 /* FileDropOverlayViewHitTesting.swift in Sources */,
 				D12925020000000000000001 /* FileDropPaneTarget.swift in Sources */,
+				DE03E0E3F6E5E166EBB0A537 /* FileEditorHeaderMenu.swift in Sources */,
 				FE5996010000000000000002 /* FileExplorerCellView.swift in Sources */,
 				58577BB461FB6F36BB3ACF86 /* FileExplorerContainerView+SearchStatus.swift in Sources */,
 				C40410010000000000000021 /* FileExplorerDoubleClickActionSettings.swift in Sources */,

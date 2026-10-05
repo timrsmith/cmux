@@ -24,6 +24,8 @@ final class FilePreviewEditorChromeOverlay: NSView {
     struct DeletedLineBlock: Equatable {
         /// UTF-16 start of the line the deleted lines sat before.
         let offset: Int
+        /// The first deleted line's number in the base, for the gutter.
+        let baseStart: Int
         let lines: [String]
     }
     var deletedLineBlocks: [DeletedLineBlock] = [] {
@@ -207,7 +209,7 @@ final class FilePreviewEditorChromeOverlay: NSView {
                   gap.intersects(dirtyRect) else { continue }
             deletedLineColor.setFill()
             NSRect(x: 0, y: gap.minY, width: width, height: gap.height).fill()
-            drawGhostLines(block.lines, in: gap, textView: textView, layoutManager: layoutManager)
+            drawGhostLines(block, in: gap, textView: textView, layoutManager: layoutManager)
         }
     }
 
@@ -261,19 +263,24 @@ final class FilePreviewEditorChromeOverlay: NSView {
         storage.addAttribute(.paragraphStyle, value: style, range: range)
     }
 
-    /// One row per deleted line, or its wrapped height when the editor wraps.
-    private func ghostGapHeight(for block: DeletedLineBlock, textView: NSTextView) -> CGFloat {
-        guard let layoutManager = textView.layoutManager, !block.lines.isEmpty else { return 0 }
+    /// The height each deleted line takes in its gap: one row, or its wrapped
+    /// height when the editor wraps. The gutter numbers the rows from these.
+    func ghostRowHeights(for block: DeletedLineBlock) -> [CGFloat] {
+        guard let textView, let layoutManager = textView.layoutManager else { return [] }
         let font = textView.font ?? NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
         let rowHeight = layoutManager.defaultLineHeight(for: font)
         guard let wrapWidth = ghostWrapWidth(in: textView) else {
-            return rowHeight * CGFloat(block.lines.count)
+            return Array(repeating: rowHeight, count: block.lines.count)
         }
-        return block.lines.reduce(0) { total, line in
+        return block.lines.map { line in
             let measured = NSAttributedString(string: line.isEmpty ? " " : line, attributes: [.font: font])
                 .boundingRect(with: NSSize(width: wrapWidth, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin])
-            return total + max(rowHeight, ceil(measured.height / rowHeight) * rowHeight)
+            return max(rowHeight, ceil(measured.height / rowHeight) * rowHeight)
         }
+    }
+
+    private func ghostGapHeight(for block: DeletedLineBlock, textView: NSTextView) -> CGFloat {
+        ghostRowHeights(for: block).reduce(0, +)
     }
 
     /// The width ghost lines wrap at; nil when the editor does not wrap.
@@ -309,23 +316,18 @@ final class FilePreviewEditorChromeOverlay: NSView {
     }
 
     private func drawGhostLines(
-        _ lines: [String],
+        _ block: DeletedLineBlock,
         in gap: NSRect,
         textView: NSTextView,
         layoutManager: NSLayoutManager
     ) {
         let font = textView.font ?? NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
-        let rowHeight = layoutManager.defaultLineHeight(for: font)
         let color = (textView.textColor ?? .textColor).withAlphaComponent(0.75)
         let x = textView.textContainerOrigin.x + (textView.textContainer?.lineFragmentPadding ?? 0)
-        let wrapWidth = ghostWrapWidth(in: textView)
+        let width = ghostWrapWidth(in: textView) ?? CGFloat.greatestFiniteMagnitude
         var y = gap.minY
-        for line in lines {
+        for (line, height) in zip(block.lines, ghostRowHeights(for: block)) {
             let text = NSAttributedString(string: line, attributes: [.font: font, .foregroundColor: color])
-            let width = wrapWidth ?? CGFloat.greatestFiniteMagnitude
-            let height = wrapWidth == nil
-                ? rowHeight
-                : max(rowHeight, ceil(text.boundingRect(with: NSSize(width: width, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin]).height / rowHeight) * rowHeight)
             text.draw(with: NSRect(x: x, y: y, width: width, height: height), options: [.usesLineFragmentOrigin])
             y += height
         }

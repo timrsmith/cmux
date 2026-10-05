@@ -44,9 +44,12 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         didSet { updatePromptButton() }
     }
     private static let horizontalPadding: CGFloat = 10
-    /// Leading strip that holds the change markers.
-    static let markerStripWidth: CGFloat = 6
     private static let promptButtonSize: CGFloat = 18
+    /// The deleted lines shown in gaps, with their base line numbers.
+    private var deletedBlocks: [FilePreviewEditorChromeOverlay.DeletedLineBlock] = []
+    /// The selected lines during one draw pass, so each number cell can
+    /// take the selection colour without re-reading the selection.
+    private var selectedLinesForDrawing: ClosedRange<Int>?
     /// Trailing column the prompt button sits in, so it never covers a number.
     static let promptButtonColumnWidth: CGFloat = 24
 
@@ -193,8 +196,7 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         let labelWidth = (String(repeating: "8", count: digits) as NSString).size(
             withAttributes: [.font: font]
         ).width
-        let nextThickness = ceil(labelWidth) + Self.horizontalPadding + Self.markerStripWidth
-            + Self.promptButtonColumnWidth
+        let nextThickness = ceil(labelWidth) + Self.horizontalPadding + Self.promptButtonColumnWidth
         if abs(ruleThickness - nextThickness) > 0.5 {
             ruleThickness = nextThickness
         }
@@ -246,30 +248,42 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         let currentLine = selected.length == 0
             ? lineIndex.lineNumber(containingUTF16Offset: selected.location)
             : nil
+        selectedLinesForDrawing = selectedLineRange(in: textView)
+        defer { selectedLinesForDrawing = nil }
         let lineCount = lineIndex.lineCount
         var drewTrailingLine = false
 
+        let stringLength = (textView.string as NSString).length
         layoutManager.enumerateLineFragments(forGlyphRange: glyphRange) { rect, usedRect, _, fragmentGlyphRange, _ in
-            // Paragraph spacing is the gap that holds deleted lines: the
-            // fragment rect includes it, the used rect does not. Mark it red.
-            if usedRect.minY > rect.minY {
-                self.drawDeletedLinesBar(
-                    atTextViewY: rect.minY + textView.textContainerOrigin.y,
-                    height: usedRect.minY - rect.minY,
-                    in: textView
-                )
-            }
-            if rect.maxY > usedRect.maxY {
-                self.drawDeletedLinesBar(
-                    atTextViewY: usedRect.maxY + textView.textContainerOrigin.y,
-                    height: rect.maxY - usedRect.maxY,
-                    in: textView
-                )
-            }
             let characterRange = layoutManager.characterRange(
                 forGlyphRange: fragmentGlyphRange,
                 actualGlyphRange: nil
             )
+            // Paragraph spacing is the gap that holds deleted lines: the
+            // fragment rect includes it, the used rect does not. Number the
+            // gap with the base lines it shows.
+            if usedRect.minY > rect.minY,
+               let block = self.deletedBlocks.first(where: { $0.offset == characterRange.location }) {
+                self.drawDeletedLines(
+                    block,
+                    atTextViewY: rect.minY + textView.textContainerOrigin.y,
+                    height: usedRect.minY - rect.minY,
+                    in: textView,
+                    font: font,
+                    paragraphStyle: paragraphStyle
+                )
+            }
+            if rect.maxY > usedRect.maxY,
+               let block = self.deletedBlocks.first(where: { $0.offset >= stringLength }) {
+                self.drawDeletedLines(
+                    block,
+                    atTextViewY: usedRect.maxY + textView.textContainerOrigin.y,
+                    height: rect.maxY - usedRect.maxY,
+                    in: textView,
+                    font: font,
+                    paragraphStyle: paragraphStyle
+                )
+            }
             let lineNumber = self.lineIndex.lineNumber(
                 containingUTF16Offset: characterRange.location
             )
@@ -381,22 +395,75 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
     ) {
         let documentPoint = NSPoint(x: 0, y: y)
         let rulerPoint = convert(documentPoint, from: textView)
+        let cellWidth = numberCellWidth
+        let cell = NSRect(x: 0, y: rulerPoint.y, width: cellWidth, height: height)
+        // A new or changed line wears the diff's green: a tinted cell and a
+        // green number.
+        let changed = markerHunk(forLine: lineNumber).map { $0.currentCount > 0 } ?? false
+        if changed {
+            NSColor.systemGreen.withAlphaComponent(0.14).setFill()
+            cell.fill()
+        }
+        // Selected lines select their numbers too, in the selection colour.
+        if let selectedLines = selectedLinesForDrawing, selectedLines.contains(lineNumber) {
+            NSColor.selectedContentBackgroundColor.withAlphaComponent(0.35).setFill()
+            cell.fill()
+        }
         let labelRect = NSRect(
-            x: 4 + Self.markerStripWidth,
+            x: 4,
             y: rulerPoint.y,
-            width: max(0, ruleThickness - 10 - Self.markerStripWidth - Self.promptButtonColumnWidth),
+            width: max(0, cellWidth - 8),
             height: max(height, font.capHeight + 4)
         )
-        let color = currentLine == lineNumber
-            ? tokenTheme.gutterCurrentLineColor
-            : tokenTheme.gutterDefaultColor
+        let color: NSColor
+        if changed {
+            color = .systemGreen
+        } else if currentLine == lineNumber {
+            color = tokenTheme.gutterCurrentLineColor
+        } else {
+            color = tokenTheme.gutterDefaultColor
+        }
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: color,
             .paragraphStyle: paragraphStyle
         ]
         NSString(string: String(lineNumber)).draw(in: labelRect, withAttributes: attributes)
-        drawChangeMarker(forLine: lineNumber, rulerY: rulerPoint.y, height: height)
+    }
+
+    /// The number cells' width: the ruler less the prompt button's column.
+    private var numberCellWidth: CGFloat {
+        max(0, ruleThickness - Self.promptButtonColumnWidth)
+    }
+
+    /// The diff's red for a gap of deleted lines: a tinted cell carrying
+    /// each deleted line's base number in red, row by row.
+    private func drawDeletedLines(
+        _ block: FilePreviewEditorChromeOverlay.DeletedLineBlock,
+        atTextViewY y: CGFloat,
+        height: CGFloat,
+        in textView: NSTextView,
+        font: NSFont,
+        paragraphStyle: NSParagraphStyle
+    ) {
+        let top = convert(NSPoint(x: 0, y: y), from: textView).y
+        let cellWidth = numberCellWidth
+        NSColor.systemRed.withAlphaComponent(0.14).setFill()
+        NSRect(x: 0, y: top, width: cellWidth, height: height).fill()
+        let fallbackRow = textView.layoutManager?.defaultLineHeight(for: textView.font ?? font) ?? height
+        let rowHeights = FilePreviewEditorChromeOverlay.installed(in: textView)?.ghostRowHeights(for: block)
+            ?? Array(repeating: fallbackRow, count: block.lines.count)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.systemRed,
+            .paragraphStyle: paragraphStyle
+        ]
+        var rowY = top
+        for (index, rowHeight) in rowHeights.enumerated() {
+            let labelRect = NSRect(x: 4, y: rowY, width: max(0, cellWidth - 8), height: max(rowHeight, font.capHeight + 4))
+            NSString(string: String(block.baseStart + index)).draw(in: labelRect, withAttributes: attributes)
+            rowY += rowHeight
+        }
     }
 
     // MARK: - Change markers
@@ -417,20 +484,20 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
     }
 
     /// The same colours as the diff: green on the lines that are new or
-    /// changed; the deleted lines sit in their own gap, barred red by the
-    /// fragment loop, so a modification shows red above its green.
-    private func drawChangeMarker(forLine line: Int, rulerY: CGFloat, height: CGFloat) {
-        guard let hunk = markerHunk(forLine: line), hunk.currentCount > 0 else { return }
-        let bar = NSRect(x: 1, y: rulerY + 0.5, width: Self.markerStripWidth - 2, height: max(1, height - 1))
-        NSColor.systemGreen.setFill()
-        NSBezierPath(roundedRect: bar, xRadius: 1, yRadius: 1).fill()
+    /// The hunk a right-click on `point` offers to revert: the one on that
+    /// line, or the one whose deleted lines fill the gap above it.
+    func revertMenuHunk(atGutterPoint point: NSPoint) -> FilePreviewChangeHunk? {
+        guard let line = lineNumber(atGutterPoint: point) else { return nil }
+        return markerHunk(forLine: line)
     }
 
-    private func drawDeletedLinesBar(atTextViewY y: CGFloat, height: CGFloat, in textView: NSTextView) {
-        let rulerY = convert(NSPoint(x: 0, y: y), from: textView).y
-        let bar = NSRect(x: 1, y: rulerY + 0.5, width: Self.markerStripWidth - 2, height: max(1, height - 1))
-        NSColor.systemRed.setFill()
-        NSBezierPath(roundedRect: bar, xRadius: 1, yRadius: 1).fill()
+    override func rightMouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        guard onRevertHunk != nil, let hunk = revertMenuHunk(atGutterPoint: point) else {
+            super.rightMouseDown(with: event)
+            return
+        }
+        showRevertMenu(for: hunk, with: event)
     }
 
     /// The text ranges the overlay tints (one per hunk with current lines)
@@ -452,16 +519,24 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
                 changed.append(NSRange(location: start, length: max(0, end - start)))
             }
             if !hunk.baseLines.isEmpty {
-                deleted.append(.init(offset: start, lines: hunk.baseLines))
+                deleted.append(.init(offset: start, baseStart: hunk.baseStart, lines: hunk.baseLines))
             }
         }
         return (changed, deleted)
+    }
+
+    private func pushDeletedBlocks(_ blocks: [FilePreviewEditorChromeOverlay.DeletedLineBlock]) {
+        if deletedBlocks != blocks {
+            deletedBlocks = blocks
+            needsDisplay = true
+        }
     }
 
     private func pushChangeRangesToOverlay() {
         guard let textView = clientView as? NSTextView,
               let overlay = FilePreviewEditorChromeOverlay.installed(in: textView) else { return }
         let ranges = changeRanges()
+        pushDeletedBlocks(ranges.deleted)
         overlay.changedLineRanges = ranges.changed
         overlay.deletedLineBlocks = ranges.deleted
         // The text may have been replaced under unchanged blocks; the gaps
@@ -544,12 +619,6 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         }
         let point = convert(event.locationInWindow, from: nil)
         guard let line = lineNumber(atGutterPoint: point) else { return }
-        if point.x <= Self.markerStripWidth + 2,
-           onRevertHunk != nil,
-           let hunk = markerHunk(forLine: line) {
-            showRevertMenu(for: hunk, with: event)
-            return
-        }
         let anchor: Int
         if event.modifierFlags.contains(.shift), let existing = selectedLineRange(in: textView) {
             // Shift extends from the far end of what is selected.
@@ -573,6 +642,13 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
 
     override func mouseUp(with event: NSEvent) {
         selectionAnchorLine = nil
+    }
+
+    /// The numbers select lines, so the pointer is an arrow over them, not
+    /// the text view's I-beam.
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        addCursorRect(bounds, cursor: .arrow)
     }
 
     // MARK: - Prompt button
@@ -673,8 +749,10 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         let offset = lineIndex.offset(forLine: line)
         let rect: NSRect
         if offset < (textView.string as NSString).length {
+            // The used rect leaves out the ghost gap above the line, so the
+            // button sits on the line itself, not on the deleted lines.
             let glyphIndex = layoutManager.glyphIndexForCharacter(at: offset)
-            rect = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: nil)
+            rect = layoutManager.lineFragmentUsedRect(forGlyphAt: glyphIndex, effectiveRange: nil)
         } else {
             rect = layoutManager.extraLineFragmentRect
             guard rect.height > 0 else { return nil }
