@@ -246,6 +246,20 @@ final class DiffCommentsBridge: NSObject, WKScriptMessageHandlerWithReply {
             }
             DiffCommentSubmissionPool.shared.removePending(commentId: id)
             return ["deleted": store.delete(id: id, repoRoot: repoRoot)]
+        case "prompt.insertLineReference":
+            // The gutter button: the file and line range go into the prompt
+            // the workspace's agent reads, where the question about those
+            // lines is asked, instead of into a comment box.
+            guard let filePath = (params["filePath"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !filePath.isEmpty,
+                  let startLine = params["startLine"] as? Int,
+                  let endLine = params["endLine"] as? Int,
+                  startLine >= 1, endLine >= 1 else {
+                throw BridgeError.invalidRequest("Malformed line reference")
+            }
+            let workspace = try resolveWorkspace(for: webView)
+            let reference = PromptLineReference(filePath: filePath, startLine: startLine, endLine: endLine)
+            return ["inserted": insertIntoPrompt(workspace, reference.promptText)]
         default:
             throw BridgeError.invalidRequest("Unsupported method '\(method)'")
         }

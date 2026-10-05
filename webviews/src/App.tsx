@@ -26,6 +26,7 @@ import {
 import { CommentComposer } from "./comments/CommentComposer";
 import { CommentsSidebarSection } from "./comments/CommentsSection";
 import { commentSubmissionText } from "./comments/format";
+import { insertLineReferenceIntoPrompt } from "./prompt-reference";
 import { resolveCommentLabels, type DiffCommentLabels } from "./comments/labels";
 import { SavedComment } from "./comments/SavedComment";
 import type {
@@ -1616,8 +1617,9 @@ export function FilesSidebarBackdrop({
 }
 
 /**
- * Bundles the diff comment handlers: loading persisted comments, opening a
- * draft from the gutter utility, and saving/editing/deleting. Saved comments
+ * Bundles the diff comment handlers: loading persisted comments, the gutter
+ * utility (a prompt reference in cmux, a draft elsewhere), and
+ * saving/editing/deleting. Saved comments
  * carry a precomputed `submissionText`; native code pools them per workspace
  * and consumes the pool on TextBox submit.
  */
@@ -1640,15 +1642,17 @@ function useDiffComments({
 
   const onGutterUtilityClick = (range: SelectedLineRange, context: { item: DiffItem }) => {
     const side: DiffCommentSide = range.side === "deletions" ? "deletions" : "additions";
-    dispatch({
-      type: "set-draft",
-      draft: {
-        itemId: context.item.id,
-        side,
-        startLine: Math.min(range.start, range.end),
-        endLine: Math.max(range.start, range.end),
-      },
-    });
+    const startLine = Math.min(range.start, range.end);
+    const endLine = Math.max(range.start, range.end);
+    // In cmux the gutter button hands the file and lines to the agent's
+    // prompt, where the question about them is asked. The in-page comment
+    // box remains for a host without the bridge.
+    if (bridgeAvailable && repoRoot != null) {
+      insertLineReferenceIntoPrompt(repoRoot, fileName(context.item.fileDiff, ""), startLine, endLine)
+        .catch((error) => console.warn("cmux diff prompt reference failed", error));
+      return;
+    }
+    dispatch({ type: "set-draft", draft: { itemId: context.item.id, side, startLine, endLine } });
   };
 
   const saveDraft = (item: DiffItem, message: string) => {

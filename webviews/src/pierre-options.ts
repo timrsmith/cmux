@@ -94,6 +94,11 @@ export function codeViewUnsafeCSS(): string {
       --diffs-bg-deletion-override: color-mix(in srgb, var(--diffs-deletion-base) 34%, transparent);
       --diffs-bg-addition-emphasis-override: color-mix(in srgb, var(--diffs-addition-base) 30%, transparent);
       --diffs-bg-deletion-emphasis-override: color-mix(in srgb, var(--diffs-deletion-base) 30%, transparent);
+      /* Line selection (a click or drag on the line numbers): Pierre mixes
+         this into the line background, which is transparent here, so the
+         accent reads as a clear tint instead of a trace of its amber. */
+      --diffs-bg-selection-override: var(--cmux-diff-accent, light-dark(#0a84ff, #7ab7ff));
+      --diffs-bg-selection-number-override: var(--cmux-diff-accent, light-dark(#0a84ff, #7ab7ff));
     }
     :host,
     pre,
@@ -169,9 +174,18 @@ export function codeViewUnsafeCSS(): string {
     [data-utility-button]:hover {
       transform: scale(1.1);
     }
+    /* The button hands the line to the agent's prompt, so it wears a speech
+       bubble (drawn from a mask) rather than Pierre's plus. */
     [data-utility-button] [data-icon] {
+      display: none;
+    }
+    [data-utility-button]::before {
+      content: "";
       width: 12px;
       height: 12px;
+      background: currentColor;
+      -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' fill='none' stroke='black' stroke-width='2.4' stroke-linejoin='round'/></svg>") center / contain no-repeat;
+      mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' fill='none' stroke='black' stroke-width='2.4' stroke-linejoin='round'/></svg>") center / contain no-repeat;
     }
     [data-separator='line-info'] [data-separator-wrapper],
     [data-separator='line-info'] [data-separator-content],

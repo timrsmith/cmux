@@ -20,6 +20,20 @@ const VIEWER_OPTIONS = {
   wordWrap: false,
 } as const;
 
+test("selected lines tint with the accent over the transparent line background", () => {
+  const css = codeViewUnsafeCSS();
+  expect(css).toContain("--diffs-bg-selection-override: var(--cmux-diff-accent");
+  expect(css).toContain("--diffs-bg-selection-number-override: var(--cmux-diff-accent");
+});
+
+test("the gutter button wears a speech bubble, not Pierre's plus", () => {
+  const css = codeViewUnsafeCSS();
+  expect(css).toContain("[data-utility-button] [data-icon] {\n      display: none;");
+  expect(css).toContain("[data-utility-button]::before");
+  expect(css).toContain("mask: url(\"data:image/svg+xml;utf8,<svg");
+  expect(css).toContain("M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z");
+});
+
 test("code view CSS keeps Pierre structural surfaces transparent", () => {
   const css = codeViewUnsafeCSS();
 
