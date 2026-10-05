@@ -26,6 +26,23 @@ final class RightSidebarChangesKeyboardFocusView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
 
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        registerWithKeyboardFocusCoordinatorIfNeeded()
+    }
+
+    override func layout() {
+        super.layout()
+        registerWithKeyboardFocusCoordinatorIfNeeded()
+    }
+
+    /// The coordinator is per window, so the host re-registers whenever it
+    /// lands in one, the same way the sidebar's other mode hosts do.
+    func registerWithKeyboardFocusCoordinatorIfNeeded() {
+        guard let window else { return }
+        AppDelegate.shared?.keyboardFocusCoordinator(for: window)?.registerChangesHost(self)
+    }
+
     /// Whether `responder` is this host, its web view, or anything inside it.
     func ownsKeyboardFocus(_ responder: NSResponder) -> Bool {
         if responder === self || responder === webView { return true }

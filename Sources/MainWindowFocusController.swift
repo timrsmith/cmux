@@ -57,6 +57,7 @@ final class MainWindowFocusController {
     private weak var fileSearchHost: FileExplorerContainerView?
     private weak var feedHost: FeedKeyboardFocusView?
     private weak var dockHost: DockKeyboardFocusView?
+    private weak var changesHost: RightSidebarChangesKeyboardFocusView?
 
     private(set) var intent: MainWindowKeyboardFocusIntent? {
         didSet {
@@ -142,6 +143,11 @@ final class MainWindowFocusController {
     func registerDockHost(_ host: DockKeyboardFocusView) {
         dockHost = host
         focusRegisteredRightSidebarEndpointIfNeeded(mode: .dock)
+    }
+
+    func registerChangesHost(_ host: RightSidebarChangesKeyboardFocusView) {
+        changesHost = host
+        focusRegisteredRightSidebarEndpointIfNeeded(mode: .changes)
     }
 
     func noteRightSidebarInteraction(mode: RightSidebarMode) {
@@ -239,6 +245,9 @@ final class MainWindowFocusController {
             return true
         }
         if dockHost?.ownsKeyboardFocus(responder) == true {
+            return true
+        }
+        if changesHost?.ownsKeyboardFocus(responder) == true {
             return true
         }
         return false
@@ -781,8 +790,10 @@ final class MainWindowFocusController {
             return fileSearchHost?.focusSearchField() == true
         case .sessions, .customSidebar:
             return mode == .customSidebar ? focusFallbackRightSidebarHost() : false
-        case .machines, .changes:
+        case .machines:
             return focusFallbackRightSidebarHost()
+        case .changes:
+            return changesHost?.focusHostFromCoordinator() == true || focusFallbackRightSidebarHost()
         case .feed:
             if target == .firstItem {
                 feedHost?.focusFirstItemFromCoordinator()
