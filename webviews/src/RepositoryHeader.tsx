@@ -335,7 +335,7 @@ export function RepositoryHeader({
           aria-pressed={files.visible}
           onClick={files.onToggle}
         >
-          <Icon name="files" />
+          <Icon name={files.visible ? "filesHide" : "files"} />
         </button>
         <button
           id="repo-overflow-button"

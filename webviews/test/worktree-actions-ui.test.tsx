@@ -636,6 +636,21 @@ test("header Discard confirms first, then sends worktreeDiscardFiles", async () 
   await waitForReload(document, requests);
 });
 
+test("the files toggle points left to show the column and right to hide it", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderWithStatus(unstagedSource, MOCK_REPOSITORY_STATUS, requests);
+  const toggle = () => document.querySelector<HTMLButtonElement>("#files-toggle")!;
+  const glyph = () => toggle().querySelector("svg path")?.getAttribute("d") ?? "";
+  expect(toggle().getAttribute("aria-pressed")).toBe("true");
+  const hideGlyph = glyph();
+  click(toggle());
+  await waitFor(() => toggle().getAttribute("aria-pressed") === "false", "the column hidden");
+  expect(glyph()).not.toBe(hideGlyph);
+  // The arrow faces the way the column will move: hide points right, show points left.
+  expect(hideGlyph.startsWith("M6.823")).toBe(true);
+  expect(glyph().startsWith("m4.177")).toBe(true);
+});
+
 test("hunk row Discard (unstaged view) confirms first, then sends worktreeDiscardHunk with the hunk's header ranges", async () => {
   const requests: SidecarRequest[] = [];
   const document = await renderApp(

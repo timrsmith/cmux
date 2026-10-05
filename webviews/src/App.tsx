@@ -2004,7 +2004,7 @@ function Toolbar({
             aria-pressed={state.filesVisible}
             onClick={() => dispatch({ type: "set-files-visible", visible: !state.filesVisible })}
           >
-            <Icon name="files" />
+            <Icon name={state.filesVisible ? "filesHide" : "files"} />
           </button>
         ) : null}
       </div>
