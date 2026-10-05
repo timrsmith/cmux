@@ -1,5 +1,6 @@
 import CmuxDiffComments
 import Foundation
+import WebKit
 import XCTest
 
 #if canImport(cmux_DEV)
@@ -163,6 +164,63 @@ final class DiffCommentSubmissionPoolTests: XCTestCase {
         pool.removePending(commentId: id)
         XCTAssertEqual(pool.pendingCount(workspaceId: workspace), 0)
         XCTAssertEqual(pool.pendingCount(workspaceId: nil), 0)
+    }
+}
+
+/// The diff viewer's gutter button hands a file and line range to the
+/// workspace's agent prompt instead of opening a comment box: the bridge
+/// formats the reference and inserts it through the injected prompt writer.
+@MainActor
+final class DiffCommentsBridgePromptInsertionTests: XCTestCase {
+    private func request(filePath: String, startLine: Int, endLine: Int) -> [String: Any] {
+        [
+            "method": "prompt.insertLineReference",
+            "params": [
+                "repoRoot": "/tmp/repo",
+                "filePath": filePath,
+                "startLine": startLine,
+                "endLine": endLine,
+            ],
+        ]
+    }
+
+    func testGutterLineReferenceLandsInTheWorkspacePrompt() throws {
+        let previousApp = AppDelegate.shared
+        let app = AppDelegate()
+        defer { AppDelegate.shared = previousApp }
+        let manager = TabManager(autoWelcomeIfNeeded: false)
+        defer { manager.finalizeAllWorkspacesForWindowClose() }
+        app.tabManager = manager
+        let workspace = try XCTUnwrap(manager.selectedWorkspace)
+        let webView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
+        DiffCommentsBridge.associateHostOwned(workspaceId: workspace.id, with: webView)
+
+        var inserted: [(workspaceId: UUID, text: String)] = []
+        let bridge = DiffCommentsBridge(
+            store: DiffCommentStore(directoryURL: nil),
+            insertIntoPrompt: { workspace, text in
+                inserted.append((workspace.id, text))
+                return true
+            }
+        )
+
+        let single = try bridge.handle(body: request(filePath: "libs/composed_cards.jsonl", startLine: 4, endLine: 4), webView: webView)
+        XCTAssertEqual((single as? [String: Any])?["inserted"] as? Bool, true)
+        XCTAssertEqual(inserted.map(\.text), ["libs/composed_cards.jsonl:4 "])
+        XCTAssertEqual(inserted.first?.workspaceId, workspace.id)
+
+        // A range selected upwards reads start-end, and the reference ends
+        // in a space so the question typed next does not touch the number.
+        _ = try bridge.handle(body: request(filePath: "libs/composed_cards.jsonl", startLine: 9, endLine: 4), webView: webView)
+        XCTAssertEqual(inserted.last?.text, "libs/composed_cards.jsonl:4-9 ")
+
+        // A web view with no live workspace, or a malformed reference,
+        // inserts nothing.
+        let stray = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
+        XCTAssertThrowsError(try bridge.handle(body: request(filePath: "libs/a.jsonl", startLine: 1, endLine: 1), webView: stray))
+        XCTAssertThrowsError(try bridge.handle(body: request(filePath: "   ", startLine: 1, endLine: 1), webView: webView))
+        XCTAssertThrowsError(try bridge.handle(body: request(filePath: "libs/a.jsonl", startLine: 0, endLine: 1), webView: webView))
+        XCTAssertEqual(inserted.count, 2)
     }
 }
 

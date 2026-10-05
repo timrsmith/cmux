@@ -59,17 +59,24 @@ final class DiffCommentsBridge: NSObject, WKScriptMessageHandlerWithReply {
     private let store: DiffCommentStore
     private let preferencesStore: DiffViewerPreferencesStore
     private let viewedFilesStore: DiffViewerViewedFilesStore
+    /// Puts text where the workspace's agent reads its next prompt. Injected
+    /// so tests observe the text without a live terminal.
+    private let insertIntoPrompt: @MainActor (Workspace, String) -> Bool
 
     init(
         store: DiffCommentStore? = nil,
         preferencesStore: DiffViewerPreferencesStore? = nil,
-        viewedFilesStore: DiffViewerViewedFilesStore? = nil
+        viewedFilesStore: DiffViewerViewedFilesStore? = nil,
+        insertIntoPrompt: (@MainActor (Workspace, String) -> Bool)? = nil
     ) {
         // Defaults resolved in the MainActor body: a `.shared` default argument
         // would evaluate in the caller's nonisolated context and warn.
         self.store = store ?? DiffCommentStore.shared
         self.preferencesStore = preferencesStore ?? DiffViewerPreferencesStore.shared
         self.viewedFilesStore = viewedFilesStore ?? DiffViewerViewedFilesStore.shared
+        self.insertIntoPrompt = insertIntoPrompt ?? { workspace, text in
+            workspace.insertIntoAgentPrompt(text)
+        }
     }
 
     /// Adds the reply handler to a user content controller exactly once.
@@ -181,7 +188,9 @@ final class DiffCommentsBridge: NSObject, WKScriptMessageHandlerWithReply {
         return parts[0]
     }
 
-    private func handle(body: Any, webView: WKWebView?) throws -> Any {
+    /// Dispatches one bridge request. Internal so tests can drive the handler
+    /// without a script message.
+    func handle(body: Any, webView: WKWebView?) throws -> Any {
         guard let body = body as? [String: Any],
               let method = body["method"] as? String else {
             throw BridgeError.invalidRequest("Malformed bridge request")

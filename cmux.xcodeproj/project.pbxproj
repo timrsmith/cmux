@@ -2820,6 +2820,7 @@
 		A5C0DE0000000000000000B4 /* ProjectPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C0DE0000000000000000B3 /* ProjectPanelView.swift */; };
 		A5C0DE0000000000000000BC /* ProjectSchemesTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C0DE0000000000000000BB /* ProjectSchemesTabView.swift */; };
 		A5C0DE0000000000000000B8 /* ProjectTargetsTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C0DE0000000000000000B7 /* ProjectTargetsTabView.swift */; };
+		00A4A01B59C2D329D8DA0A9D /* PromptLineReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D267C58E287362BA5A6412 /* PromptLineReference.swift */; };
 		0A110711000000000000001A /* PromptTurnNotificationHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A110711000000000000001B /* PromptTurnNotificationHandler.swift */; };
 		C986A0050000000000000001 /* ProvisionalDragWriterOwnership.swift in Sources */ = {isa = PBXBuildFile; fileRef = C986A0060000000000000001 /* ProvisionalDragWriterOwnership.swift */; };
 		C986A00E0000000000000001 /* ProvisionalDragWriterOwnershipToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = C986A00D0000000000000001 /* ProvisionalDragWriterOwnershipToken.swift */; };
@@ -4391,6 +4392,7 @@
 		5732A0055732A0055732A005 /* WorkspacePresentationModeChangeObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5732B0055732B0055732B005 /* WorkspacePresentationModeChangeObserver.swift */; };
 		5732A0065732A0065732A006 /* WorkspacePresentationModeContentTopPaddingModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5732B0065732B0065732B006 /* WorkspacePresentationModeContentTopPaddingModifier.swift */; };
 		5732A0105732A0105732A010 /* WorkspacePresentationModeRuntimeCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5732B0105732B0105732B010 /* WorkspacePresentationModeRuntimeCache.swift */; };
+		A79C48CE11B5C3376D5B6894 /* WorkspacePromptInsertion.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6733F03D02C9A8C64DF4337 /* WorkspacePromptInsertion.swift */; };
 		1A1B2C3D4E5F607180000001 /* WorkspacePromptSubmit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3D4E5F607180000002 /* WorkspacePromptSubmit.swift */; };
 		1A1B2C3D4E5F607180000003 /* WorkspacePromptSubmitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3D4E5F607180000004 /* WorkspacePromptSubmitTests.swift */; };
 		DCC935C5F55C1DCB33E25521 /* WorkspacePullRequestSidebarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14A7DC53B9CA33BE2A421711 /* WorkspacePullRequestSidebarTests.swift */; };
@@ -7253,6 +7255,7 @@
 		A5C0DE0000000000000000B3 /* ProjectPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/ProjectPanelView.swift; sourceTree = "<group>"; };
 		A5C0DE0000000000000000BB /* ProjectSchemesTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/ProjectSchemesTabView.swift; sourceTree = "<group>"; };
 		A5C0DE0000000000000000B7 /* ProjectTargetsTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/ProjectTargetsTabView.swift; sourceTree = "<group>"; };
+		E4D267C58E287362BA5A6412 /* PromptLineReference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptLineReference.swift; sourceTree = "<group>"; };
 		0A110711000000000000001B /* PromptTurnNotificationHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptTurnNotificationHandler.swift; sourceTree = "<group>"; };
 		C986A0060000000000000001 /* ProvisionalDragWriterOwnership.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvisionalDragWriterOwnership.swift; sourceTree = "<group>"; };
 		C986A00D0000000000000001 /* ProvisionalDragWriterOwnershipToken.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvisionalDragWriterOwnershipToken.swift; sourceTree = "<group>"; };
@@ -8806,6 +8809,7 @@
 		5732B0055732B0055732B005 /* WorkspacePresentationModeChangeObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspacePresentationModeChangeObserver.swift; sourceTree = "<group>"; };
 		5732B0065732B0065732B006 /* WorkspacePresentationModeContentTopPaddingModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspacePresentationModeContentTopPaddingModifier.swift; sourceTree = "<group>"; };
 		5732B0105732B0105732B010 /* WorkspacePresentationModeRuntimeCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspacePresentationModeRuntimeCache.swift; sourceTree = "<group>"; };
+		A6733F03D02C9A8C64DF4337 /* WorkspacePromptInsertion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspacePromptInsertion.swift; sourceTree = "<group>"; };
 		1A1B2C3D4E5F607180000002 /* WorkspacePromptSubmit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspacePromptSubmit.swift; sourceTree = "<group>"; };
 		1A1B2C3D4E5F607180000004 /* WorkspacePromptSubmitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspacePromptSubmitTests.swift; sourceTree = "<group>"; };
 		14A7DC53B9CA33BE2A421711 /* WorkspacePullRequestSidebarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspacePullRequestSidebarTests.swift; sourceTree = "<group>"; };
@@ -11962,6 +11966,8 @@
 				730034CA6B50C3FADBDBC944 /* GitStatusRepositoryWatch.swift */,
 				350D47155710E5A2D34C08AA /* DiffSidecarRequestPolicy.swift */,
 				8316BE03E1AE4DBE907B778F /* RightSidebarChangesPanelView.swift */,
+				A6733F03D02C9A8C64DF4337 /* WorkspacePromptInsertion.swift */,
+				E4D267C58E287362BA5A6412 /* PromptLineReference.swift */,
 				34E34BE275A31BC442317C60 /* RightSidebarChangesKeyboardFocusView.swift */,
 				1900AF4ED7E25939ADAA326E /* RightSidebarChangesStore.swift */,
 				5345F62D0F6FB0CEE8963356 /* FilesPanelPlacementLayout.swift */,
@@ -15796,6 +15802,7 @@
 					A5C0DE0000000000000000B4 /* ProjectPanelView.swift in Sources */,
 					A5C0DE0000000000000000BC /* ProjectSchemesTabView.swift in Sources */,
 					A5C0DE0000000000000000B8 /* ProjectTargetsTabView.swift in Sources */,
+				00A4A01B59C2D329D8DA0A9D /* PromptLineReference.swift in Sources */,
 				0A110711000000000000001A /* PromptTurnNotificationHandler.swift in Sources */,
 				C986A0050000000000000001 /* ProvisionalDragWriterOwnership.swift in Sources */,
 				C986A00E0000000000000001 /* ProvisionalDragWriterOwnershipToken.swift in Sources */,
@@ -16904,6 +16911,7 @@
 					5732A0055732A0055732A005 /* WorkspacePresentationModeChangeObserver.swift in Sources */,
 					5732A0065732A0065732A006 /* WorkspacePresentationModeContentTopPaddingModifier.swift in Sources */,
 					5732A0105732A0105732A010 /* WorkspacePresentationModeRuntimeCache.swift in Sources */,
+				A79C48CE11B5C3376D5B6894 /* WorkspacePromptInsertion.swift in Sources */,
 				1A1B2C3D4E5F607180000001 /* WorkspacePromptSubmit.swift in Sources */,
 				E307B0000000000000000002 /* WorkspaceRemoteHostProbeOutcome.swift in Sources */,
 				E30790000000000000000002 /* WorkspaceRemoteReconnectPolicy.swift in Sources */,
