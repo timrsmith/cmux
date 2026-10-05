@@ -1,6 +1,7 @@
 import { callDiffComments, diffCommentsBridgeAvailable } from "./comments/bridge";
 import type { DiffSource } from "./diff/generated/protocol";
 import { fileName } from "./diff-stream";
+import { writableDiffSource } from "./worktree-actions";
 
 /**
  * Per-file "Viewed" review state (GitHub "Files changed" parity).
@@ -190,6 +191,17 @@ export function viewedScopeFor(
 
 export function viewedScopeKey(scope: ViewedScope | null): string {
   return scope == null ? "" : `${scope.repoRoot}\n${scope.source}`;
+}
+
+/**
+ * Whether the "Viewed" marks apply to `source`. They track review progress
+ * through a change under review (a branch, a patch, a turn, a remote PR), so
+ * the working-tree views of the user's own edits (unstaged, staged) render
+ * none of the Viewed UI and neither fold nor filter on the stored marks. The
+ * marks themselves stay persisted; a review view shows them again.
+ */
+export function viewedMarksApply(source: DiffSource | null | undefined): boolean {
+  return writableDiffSource(source) == null;
 }
 
 function nonEmptyString(value: unknown): string | null {

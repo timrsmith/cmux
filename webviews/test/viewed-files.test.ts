@@ -8,6 +8,7 @@ import {
   recordViewedChange,
   toggleViewedItem,
   viewedFileState,
+  viewedMarksApply,
   viewedProgress,
   viewedScopeFor,
 } from "../src/viewed-files";
@@ -60,6 +61,17 @@ test("viewedScopeFor keys typed git sources by repo and source identity", () => 
   expect(viewedScopeFor(null, { externalURL: "https://github.com/o/r/pull/1", patchURL: "http://127.0.0.1/x.patch" }))
     .toEqual({ repoRoot: "https://github.com/o/r/pull/1", source: "external" });
   expect(viewedScopeFor(null, {})).toBeNull();
+});
+
+test("viewedMarksApply holds for review sources, never for the working-tree views", () => {
+  expect(viewedMarksApply({ kind: "branch", repoRoot: "/tmp/repo", baseRef: "main" })).toBe(true);
+  expect(viewedMarksApply({ kind: "branch", repoRoot: "/tmp/repo" })).toBe(true);
+  expect(viewedMarksApply({ kind: "patch", path: "/last-turn.patch" })).toBe(true);
+  // Remote PR pages and status-only pages have no typed source.
+  expect(viewedMarksApply(null)).toBe(true);
+  expect(viewedMarksApply(undefined)).toBe(true);
+  expect(viewedMarksApply({ kind: "unstaged", repoRoot: "/tmp/repo" })).toBe(false);
+  expect(viewedMarksApply({ kind: "staged", repoRoot: "/tmp/repo" })).toBe(false);
 });
 
 test("viewedProgress counts only files whose stored fingerprint still matches", () => {

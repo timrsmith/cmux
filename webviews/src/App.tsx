@@ -91,6 +91,7 @@ import {
   persistViewedChange,
   recordViewedChange,
   toggleViewedItem,
+  viewedMarksApply,
   viewedProgress,
   viewedScopeFor,
   viewedScopeKey,
@@ -223,6 +224,8 @@ type AppState = {
   viewedByPath: Map<string, ViewedFileEntry>;
   /** Toggles made in this scope; they win over a later stored-marks reply. */
   viewedLocalEdits: Map<string, ViewedFileEntry | null>;
+  /** `viewedMarksApply` for the current source: a working-tree view never folds on a mark. */
+  viewedMarksApply: boolean;
   viewedScopeKey: string;
 };
 
@@ -230,7 +233,7 @@ type AppAction =
   | { type: "append-items"; items: DiffItem[] }
   | { type: "apply-persisted-options"; prefs: ViewerPrefs; allowLayout: boolean }
   | { type: "apply-viewed"; items: DiffItem[]; change: ViewedChange }
-  | { type: "begin-viewed-load"; scopeKey: string }
+  | { type: "begin-viewed-load"; scopeKey: string; marksApply: boolean }
   | { type: "clear-selection" }
   | { type: "expand-item"; itemId: string }
   | { type: "replace-viewed"; scopeKey: string; entries: ViewedFileEntry[] }
@@ -309,14 +312,16 @@ function initialAppState(config: DiffViewerConfig, initialStatus: DiffViewerStat
     treeSource: null,
     viewedByPath: new Map(),
     viewedLocalEdits: new Map(),
+    viewedMarksApply: viewedMarksApply(validDiffSource(payload.sessionSource) ? payload.sessionSource : null),
     viewedScopeKey: "",
   };
 }
 
 /**
  * Generated and large files start collapsed (GitHub "Load diff" behavior),
- * and a file whose stored viewed fingerprint still matches starts collapsed
- * too. `collapsed` is otherwise the session-wide collapse-all toggle.
+ * and, where the Viewed marks apply, a file whose stored viewed fingerprint
+ * still matches starts collapsed too. `collapsed` is otherwise the
+ * session-wide collapse-all toggle.
  */
 function prepareAppendedItem(item: DiffItem, state: AppState, generatedPaths: ReadonlySet<string>): DiffItem {
   const diff = item.fileDiff ?? {};
@@ -330,7 +335,7 @@ function prepareAppendedItem(item: DiffItem, state: AppState, generatedPaths: Re
   if (reason != null) {
     diff.cmuxDeferredReason = reason;
   }
-  const viewed = viewedStateOfItem(item, state.viewedByPath) === "viewed";
+  const viewed = state.viewedMarksApply && viewedStateOfItem(item, state.viewedByPath) === "viewed";
   return state.options.collapsed || reason != null || viewed ? { ...item, collapsed: true } : item;
 }
 
@@ -346,7 +351,13 @@ function reducer(state: AppState, action: AppAction): AppState {
   }
   case "begin-viewed-load": {
     const session = beginViewedLoad(action.scopeKey);
-    return { ...state, viewedByPath: session.viewedByPath, viewedLocalEdits: session.localEdits, viewedScopeKey: session.scopeKey };
+    return {
+      ...state,
+      viewedByPath: session.viewedByPath,
+      viewedLocalEdits: session.localEdits,
+      viewedMarksApply: action.marksApply,
+      viewedScopeKey: session.scopeKey,
+    };
   }
   case "expand-item":
     return {
@@ -362,8 +373,9 @@ function reducer(state: AppState, action: AppAction): AppState {
     }
     const { viewedByPath } = session;
     // Files already streamed collapse once their stored mark turns out to
-    // still match, the same way a late-arriving batch would.
-    const items = state.items.map((item) => {
+    // still match, the same way a late-arriving batch would; a view where
+    // the marks do not apply keeps its cards as they are.
+    const items = !state.viewedMarksApply ? state.items : state.items.map((item) => {
       const viewed = viewedStateOfItem(item, viewedByPath) === "viewed";
       return viewed && !item.collapsed ? { ...item, collapsed: true, version: (item.version ?? 0) + 1 } : item;
     });
@@ -735,12 +747,20 @@ export function App({ config, initialStatus }: ConfigProps) {
 
   // Review-parity state: per-file "Viewed" marks (native, scoped by repo +
   // source identity) and the sidebar file filter, which hides diff sections
-  // as well as tree rows so `visibleItems` is the single visible list.
-  const viewedScope = viewedScopeFor(resolvedSessionSource ?? activeSessionSource, payload);
+  // as well as tree rows so `visibleItems` is the single visible list. The
+  // marks apply to review views only (`viewedMarksApply`): a working-tree
+  // view renders none of the Viewed UI, and its "hide viewed" is inert.
+  const viewedSource = resolvedSessionSource ?? activeSessionSource;
+  const viewedScope = viewedScopeFor(viewedSource, payload);
+  const viewedEnabled = viewedMarksApply(viewedSource);
   const viewedStateOf = (item: DiffItem): ViewedFileState => viewedStateOfItem(item, state.viewedByPath);
   const visibleItems = useMemo(
-    () => filterDiffItems(state.items, state.fileFilter, (item) => viewedStateOfItem(item, state.viewedByPath)),
-    [state.fileFilter, state.items, state.viewedByPath],
+    () => filterDiffItems(
+      state.items,
+      state.fileFilter,
+      (item) => (viewedEnabled ? viewedStateOfItem(item, state.viewedByPath) : "unviewed"),
+    ),
+    [state.fileFilter, state.items, state.viewedByPath, viewedEnabled],
   );
   const visibleItemsRef = useSyncedRef(visibleItems);
   const filteredTreeSource = useMemo(
@@ -749,7 +769,12 @@ export function App({ config, initialStatus }: ConfigProps) {
   );
   const progress = viewedProgress(state.items, state.viewedByPath);
   const viewedScopeRef = useSyncedRef(viewedScope);
+  const viewedEnabledRef = useSyncedRef(viewedEnabled);
+  // Every toggle (header control, tree menu, `v`, the native action) passes here.
   const toggleViewed = useCallback((itemId: string) => {
+    if (!viewedEnabledRef.current) {
+      return;
+    }
     const current = latestState.current;
     const result = toggleViewedItem(current.items, current.viewedByPath, itemId);
     if (result.change == null) {
@@ -757,7 +782,7 @@ export function App({ config, initialStatus }: ConfigProps) {
     }
     dispatch({ type: "apply-viewed", items: result.items, change: result.change });
     persistViewedChange(viewedScopeRef.current, result.change);
-  }, [latestState, viewedScopeRef]);
+  }, [latestState, viewedEnabledRef, viewedScopeRef]);
   const toggleViewedPath = useCallback((path: string) => {
     const itemId = latestState.current.treeSource?.pathToItemId.get(path);
     if (itemId) {
@@ -783,7 +808,7 @@ export function App({ config, initialStatus }: ConfigProps) {
   const restoreScrollRef = useRef<number | null>(null);
 
   usePageDataAttributes(state);
-  useViewedFilesBootstrap(viewedScope, dispatch);
+  useViewedFilesBootstrap(viewedScope, viewedEnabled, dispatch);
   usePendingReplacement(payload, label, dispatch, transport);
   useRenderDiff(
     config,
@@ -1471,6 +1496,7 @@ export function App({ config, initialStatus }: ConfigProps) {
           selectable={header != null}
           selectedPath={selectedTreePath}
           treeSource={filteredTreeSource}
+          viewedEnabled={viewedEnabled}
           viewedStateOf={viewedStateOf}
           visibleItemCount={visibleItems.length}
           dispatch={dispatch}
@@ -1536,7 +1562,7 @@ export function App({ config, initialStatus }: ConfigProps) {
                       label={label}
                       onLoadDiff={() => dispatch({ type: "expand-item", itemId: item.id })}
                       onToggleViewed={() => toggleViewed(item.id)}
-                      viewedState={viewedStateOf(item as DiffItem)}
+                      viewedState={viewedEnabled ? viewedStateOf(item as DiffItem) : null}
                     />
                   </>
                 )}
@@ -1737,13 +1763,17 @@ function useViewerPrefsBootstrap(payload: any, dispatch: React.Dispatch<AppActio
  * (repo + source) changes. Cleanup invalidates an older load so a slow reply
  * cannot overwrite marks after a source switch; an unknown scope clears them.
  */
-function useViewedFilesBootstrap(scope: ViewedScope | null, dispatch: React.Dispatch<AppAction>): void {
+function useViewedFilesBootstrap(
+  scope: ViewedScope | null,
+  marksApply: boolean,
+  dispatch: React.Dispatch<AppAction>,
+): void {
   const scopeKey = viewedScopeKey(scope);
   useEffect(() => {
     const currentScope = scope;
     // Clear the previous scope's marks before the new diff streams in, so no
     // file of the new source collapses on a mark that belongs to the old one.
-    dispatch({ type: "begin-viewed-load", scopeKey });
+    dispatch({ type: "begin-viewed-load", scopeKey, marksApply });
     if (currentScope == null || scopeKey === "") {
       return;
     }
@@ -1764,12 +1794,13 @@ function useViewedFilesBootstrap(scope: ViewedScope | null, dispatch: React.Disp
     };
     // `scope` is a fresh object per render; `scopeKey` is its identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispatch, scopeKey]);
+  }, [dispatch, marksApply, scopeKey]);
 }
 
 /**
  * Per-file review controls rendered into Pierre's header metadata slot: the
- * "Viewed" checkbox with its "changed since viewed" badge, and the generated /
+ * "Viewed" checkbox with its "changed since viewed" badge (a `null` state is a
+ * view where the marks do not apply: neither renders), and the generated /
  * large badge with a "Load diff" button while such a file is still collapsed.
  * Clicks stop propagating so Pierre's own header collapse toggle stays put.
  */
@@ -1784,12 +1815,15 @@ function FileReviewControls({
   label: DiffViewerLabelResolver;
   onLoadDiff: () => void;
   onToggleViewed: () => void;
-  viewedState: ViewedFileState;
+  viewedState: ViewedFileState | null;
 }) {
   const reason = item.fileDiff?.cmuxDeferredReason as DeferredDiffReason | undefined;
+  if (viewedState == null && reason == null) {
+    return null;
+  }
   const viewed = viewedState === "viewed";
   return (
-    <span className="file-review-controls" data-viewed-state={viewedState}>
+    <span className="file-review-controls" data-viewed-state={viewedState ?? undefined}>
       {reason != null ? (
         <span className="file-review-badge" data-deferred-reason={reason}>
           {reason === "generated" ? label("generatedFile") : label("largeDiff")}
@@ -1811,19 +1845,21 @@ function FileReviewControls({
       {viewedState === "changed" ? (
         <span className="file-review-badge" data-changed-since-viewed="true">{label("changedSinceViewed")}</span>
       ) : null}
-      <button
-        type="button"
-        className="file-review-viewed"
-        aria-pressed={viewed}
-        title={viewed ? label("markNotViewed") : label("markViewed")}
-        onClick={(event) => {
-          event.stopPropagation();
-          onToggleViewed();
-        }}
-      >
-        <span className="file-review-checkbox" aria-hidden="true">{viewed ? <Icon name="check" /> : null}</span>
-        <span className="file-review-viewed-label">{label("viewed")}</span>
-      </button>
+      {viewedState != null ? (
+        <button
+          type="button"
+          className="file-review-viewed"
+          aria-pressed={viewed}
+          title={viewed ? label("markNotViewed") : label("markViewed")}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleViewed();
+          }}
+        >
+          <span className="file-review-checkbox" aria-hidden="true">{viewed ? <Icon name="check" /> : null}</span>
+          <span className="file-review-viewed-label">{label("viewed")}</span>
+        </button>
+      ) : null}
     </span>
   );
 }
@@ -2391,6 +2427,7 @@ function FilesSidebar({
   selectedPath,
   state,
   treeSource,
+  viewedEnabled,
   viewedStateOf,
   visibleItemCount,
 }: {
@@ -2408,6 +2445,8 @@ function FilesSidebar({
   selectedPath: string;
   state: AppState;
   treeSource: FileTreeSource | null;
+  /** Review views: the Viewed progress, the hide-viewed toggle and the tree's marks; a working-tree view has none. */
+  viewedEnabled: boolean;
   viewedStateOf: (item: DiffItem) => ViewedFileState;
   visibleItemCount: number;
 }) {
@@ -2421,9 +2460,10 @@ function FilesSidebar({
     default: return label("filterModifiedFiles");
     }
   };
-  // Viewed marks by tree path so the tree row decorations can look them up.
+  // Viewed marks by tree path so the tree row decorations can look them up;
+  // none where the marks do not apply.
   const viewedStateByPath = new Map<string, ViewedFileState>();
-  for (const item of state.items) {
+  for (const item of viewedEnabled ? state.items : []) {
     const treePath = state.treeSource?.treePathByItemId.get(item.id);
     if (treePath != null) {
       viewedStateByPath.set(treePath, viewedStateOf(item));
@@ -2528,9 +2568,11 @@ function FilesSidebar({
         </span>
       </div>
       <div id="files-review-bar" data-filter-active={filterActive}>
-        <span id="files-viewed-progress" aria-live="polite">
-          {formatViewedProgress(label("filesViewedProgress"), progress)}
-        </span>
+        {viewedEnabled ? (
+          <span id="files-viewed-progress" aria-live="polite">
+            {formatViewedProgress(label("filesViewedProgress"), progress)}
+          </span>
+        ) : null}
         <div id="files-filter">
           <input
             id="file-filter-input"
@@ -2570,17 +2612,19 @@ function FilesSidebar({
               <Icon name={statusIconName[status]} />
             </button>
           ))}
-          <button
-            id="hide-viewed-toggle"
-            type="button"
-            className="files-filter-button"
-            title={filter.hideViewed ? label("showViewedFiles") : label("hideViewedFiles")}
-            aria-label={filter.hideViewed ? label("showViewedFiles") : label("hideViewedFiles")}
-            aria-pressed={filter.hideViewed}
-            onClick={() => dispatch({ type: "set-file-filter", filter: { hideViewed: !filter.hideViewed } })}
-          >
-            <Icon name={filter.hideViewed ? "eyeClosed" : "eye"} />
-          </button>
+          {viewedEnabled ? (
+            <button
+              id="hide-viewed-toggle"
+              type="button"
+              className="files-filter-button"
+              title={filter.hideViewed ? label("showViewedFiles") : label("hideViewedFiles")}
+              aria-label={filter.hideViewed ? label("showViewedFiles") : label("hideViewedFiles")}
+              aria-pressed={filter.hideViewed}
+              onClick={() => dispatch({ type: "set-file-filter", filter: { hideViewed: !filter.hideViewed } })}
+            >
+              <Icon name={filter.hideViewed ? "eyeClosed" : "eye"} />
+            </button>
+          ) : null}
         </div>
       </div>
       <div id="file-list">
@@ -2597,6 +2641,7 @@ function FilesSidebar({
             selectedPath={selectedPath}
             selectedPaths={state.selectedPaths}
             source={treeSource}
+            viewedEnabled={viewedEnabled}
             viewedStateByPath={viewedStateByPath}
           />
         ) : treeSource && filterActive ? (
@@ -2631,6 +2676,7 @@ function PierreFileTree({
   selectedPath,
   selectedPaths,
   source,
+  viewedEnabled,
   viewedStateByPath,
 }: {
   fileSearchOpen: boolean;
@@ -2645,6 +2691,8 @@ function PierreFileTree({
   selectedPath: string;
   selectedPaths: FileSelection;
   source: FileTreeSource;
+  /** Review views: rows carry the Viewed mark and a "Mark as viewed" menu; a working-tree view has neither. */
+  viewedEnabled: boolean;
   viewedStateByPath: ReadonlyMap<string, ViewedFileState>;
 }) {
   // `selectFile` is the row checkbox's name template, resolved once per
@@ -2657,6 +2705,7 @@ function PierreFileTree({
     selectedPaths,
     selectFile: label("selectFile"),
     source,
+    viewedEnabled,
     viewedStateByPath,
   });
   const [initialPreparedInput] = useState(() => preparePresortedFileTreeInput(source.paths));
@@ -2675,14 +2724,18 @@ function PierreFileTree({
     gitStatus: source.gitStatus as any,
     sort: () => 0,
     unsafeCSS: fileTreeUnsafeCSS(),
-    composition: { contextMenu: { enabled: true, triggerMode: "right-click" } },
+    // The row context menu holds the viewed toggle, so only a review view
+    // has one: an enabled menu with nothing to render would still open its
+    // click-eating wash on a right-click.
+    composition: viewedEnabled ? { contextMenu: { enabled: true, triggerMode: "right-click" } } : undefined,
     // The row decoration lane is shared. On selectable (working-tree) views
-    // it is the row checkbox, drawn from the selection sprite; everywhere
-    // else it is the "Viewed" mark. Pierre tree rows accept a text/icon
-    // decoration, not custom children, so the viewed toggle lives in the
-    // row's context menu (the header checkbox and `v` are the primary
-    // controls). Read through the ref so a re-render after a selection
-    // change (below) sees the current set.
+    // it is the row checkbox, drawn from the selection sprite; on review
+    // views it is the "Viewed" mark; other working-tree views leave it
+    // empty. Pierre tree rows accept a text/icon decoration, not custom
+    // children, so the viewed toggle lives in the row's context menu (the
+    // header checkbox and `v` are the primary controls). Read through the
+    // ref so a re-render after a selection change (below) sees the current
+    // set.
     icons: { set: "complete", spriteSheet: FILE_TREE_SELECTION_SPRITE },
     renderRowDecoration({ row }) {
       const current = latest.current;
@@ -2694,6 +2747,9 @@ function PierreFileTree({
           current.selectedPaths.has(row.path),
           formatLabel(current.selectFile, { name: row.name }),
         );
+      }
+      if (!current.viewedEnabled) {
+        return null;
       }
       const state = current.viewedStateByPath.get(row.path);
       if (state === "viewed") {
@@ -2773,7 +2829,7 @@ function PierreFileTree({
       <FileTree
         model={model}
         style={{ height: "100%" }}
-        renderContextMenu={(item, context) => {
+        renderContextMenu={!viewedEnabled ? undefined : (item, context) => {
           if (item.kind !== "file") {
             return null;
           }

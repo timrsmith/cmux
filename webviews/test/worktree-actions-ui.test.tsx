@@ -2289,10 +2289,10 @@ test("a double-click on a header control stays the control's own", async () => {
   click(foldToggle(card));
   await waitFor(() => codeBlocksIn(card) === 1, "the card to unfold");
   expect(doubleClick(foldToggle(card))).toBe(false);
-  // A write action and the Viewed control, in the metadata slot.
+  // A write action, in the metadata slot (the Viewed control, a review
+  // view's, is covered in viewed-scope-ui.test.tsx).
   expect(doubleClick(card.querySelector('[data-action="copyPath"]'))).toBe(false);
   expect(doubleClick(card.querySelector('[data-action="copyPath"]'), { metaKey: true })).toBe(false);
-  expect(doubleClick(card.querySelector(".file-review-viewed"))).toBe(false);
   await new Promise((resolve) => setTimeout(resolve, 20));
   expect(codeBlocksIn(card)).toBe(1);
   expect(isExpanded(card)).toBe(true);
