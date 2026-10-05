@@ -161,6 +161,33 @@ struct FilePreviewChangeMarkersTests {
         #expect(!gutter.isPromptButtonVisible)
     }
 
+    @Test("The text area tints changed lines and rules deletion points, like the diff")
+    func overlayRangesFollowTheHunks() async throws {
+        let panel = try await makePanel(contents: Self.edited)
+        let (editor, gutter) = makeGutterEditor(text: panel.textContent)
+        defer { editor.close() }
+        FilePreviewTextEditor<FilePreviewPanel>.bindChangeMarkers(on: editor.scrollView, panel: panel)
+        let overlay = try #require(FilePreviewEditorChromeOverlay.installed(in: editor.textView))
+
+        // "TWO\n" is line 2 (modified: green tint, red rule above); "new\n"
+        // is line 4 (added: green tint only).
+        #expect(overlay.changedLineRanges == [NSRange(location: 4, length: 4), NSRange(location: 14, length: 4)])
+        #expect(overlay.deletionLineOffsets == [4])
+
+        let ranges = gutter.changeRanges()
+        #expect(ranges.changed == overlay.changedLineRanges)
+        #expect(ranges.deletions == overlay.deletionLineOffsets)
+
+        // Lines deleted after the last line rule at the end of the text.
+        panel.updateTextContent("one\ntwo\n")
+        await panel.awaitChangeTracking()
+        editor.textView.string = panel.textContent
+        gutter.reloadLineIndex(from: panel.textContent, textFont: editor.textView.font)
+        gutter.changeHunks = panel.changeHunks
+        #expect(overlay.changedLineRanges.isEmpty)
+        #expect(overlay.deletionLineOffsets == [8])
+    }
+
     @Test("A marker click reverts through the bound panel")
     func markerLookupThroughTheGutter() async throws {
         let panel = try await makePanel(contents: Self.edited)

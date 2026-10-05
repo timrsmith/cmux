@@ -12,6 +12,19 @@ final class FilePreviewEditorChromeOverlay: NSView {
     var tabWidth = 4
     var currentLineColor = NSColor.selectedContentBackgroundColor.withAlphaComponent(0.12)
     var indentGuideColor = NSColor.separatorColor.withAlphaComponent(0.55)
+    /// UTF-16 ranges of the lines that differ from git's index, tinted like
+    /// the diff viewer's added lines. The gutter keeps them current.
+    var changedLineRanges: [NSRange] = [] {
+        didSet { if changedLineRanges != oldValue { needsDisplay = true } }
+    }
+    /// UTF-16 line starts where base lines were deleted; a red rule is drawn
+    /// along the top of each. An offset at the end of the text marks lines
+    /// deleted after the last line.
+    var deletionLineOffsets: [Int] = [] {
+        didSet { if deletionLineOffsets != oldValue { needsDisplay = true } }
+    }
+    var changedLineColor = NSColor.systemGreen.withAlphaComponent(0.14)
+    var deletionRuleColor = NSColor.systemRed.withAlphaComponent(0.9)
 
     deinit {}
 
@@ -25,6 +38,7 @@ final class FilePreviewEditorChromeOverlay: NSView {
         guard let textView, let layoutManager = textView.layoutManager,
               let textContainer = textView.textContainer else { return }
 
+        drawChangeHighlights(in: dirtyRect, textView: textView, layoutManager: layoutManager)
         if showsCurrentLine {
             drawCurrentLine(in: textView, layoutManager: layoutManager)
         }
@@ -137,6 +151,88 @@ final class FilePreviewEditorChromeOverlay: NSView {
         guard string.length > 0 else { return false }
         let last = string.character(at: string.length - 1)
         return last == 0x0A || last == 0x0D || last == 0x2028 || last == 0x2029
+    }
+
+    /// Tints the changed lines and rules the deletion points, fragment by
+    /// fragment, without forcing layout: a fragment TextKit has not laid out
+    /// yet paints once it is.
+    private func drawChangeHighlights(
+        in dirtyRect: NSRect,
+        textView: NSTextView,
+        layoutManager: NSLayoutManager
+    ) {
+        guard !changedLineRanges.isEmpty || !deletionLineOffsets.isEmpty else { return }
+        let origin = textView.textContainerOrigin
+        let nsString = textView.string as NSString
+        let stringLength = nsString.length
+        let glyphCount = layoutManager.numberOfGlyphs
+        let width = max(bounds.width, textView.bounds.width)
+
+        changedLineColor.setFill()
+        for range in changedLineRanges where range.length > 0 && range.location < stringLength {
+            var glyphIndex = layoutManager.glyphIndexForCharacter(at: range.location)
+            let endGlyph = layoutManager.glyphIndexForCharacter(at: min(NSMaxRange(range), stringLength))
+            while glyphIndex < min(endGlyph, glyphCount) {
+                var fragmentRange = NSRange()
+                let rect = layoutManager.lineFragmentRect(
+                    forGlyphAt: glyphIndex,
+                    effectiveRange: &fragmentRange,
+                    withoutAdditionalLayout: true
+                )
+                guard Self.isUsableLineRect(rect), fragmentRange.length > 0 else { break }
+                let band = NSRect(x: 0, y: rect.minY + origin.y, width: width, height: rect.height)
+                if band.intersects(dirtyRect) {
+                    band.fill()
+                }
+                glyphIndex = NSMaxRange(fragmentRange)
+            }
+        }
+
+        deletionRuleColor.setFill()
+        for offset in deletionLineOffsets {
+            guard let y = lineTop(atCharacterOffset: offset, textView: textView, layoutManager: layoutManager) else { continue }
+            let rule = NSRect(x: 0, y: y - 1, width: width, height: 2)
+            if rule.intersects(dirtyRect) {
+                rule.fill()
+            }
+        }
+    }
+
+    /// The top of the line starting at `offset`, or the bottom of the text
+    /// for an offset at its end, in the overlay's coordinates.
+    private func lineTop(
+        atCharacterOffset offset: Int,
+        textView: NSTextView,
+        layoutManager: NSLayoutManager
+    ) -> CGFloat? {
+        let origin = textView.textContainerOrigin
+        let nsString = textView.string as NSString
+        let stringLength = nsString.length
+        let glyphCount = layoutManager.numberOfGlyphs
+        if offset < stringLength {
+            let glyphIndex = layoutManager.glyphIndexForCharacter(at: offset)
+            guard glyphIndex < glyphCount else { return nil }
+            let rect = layoutManager.lineFragmentRect(
+                forGlyphAt: glyphIndex,
+                effectiveRange: nil,
+                withoutAdditionalLayout: true
+            )
+            return Self.isUsableLineRect(rect) ? rect.minY + origin.y : nil
+        }
+        if stringLength == 0 {
+            return origin.y
+        }
+        if Self.endsWithLineBreak(nsString) {
+            let extra = layoutManager.extraLineFragmentRect
+            return Self.isUsableLineRect(extra) ? extra.minY + origin.y : nil
+        }
+        guard glyphCount > 0 else { return nil }
+        let last = layoutManager.lineFragmentRect(
+            forGlyphAt: glyphCount - 1,
+            effectiveRange: nil,
+            withoutAdditionalLayout: true
+        )
+        return Self.isUsableLineRect(last) ? last.maxY + origin.y : nil
     }
 
     private func fillCurrentLineBand(atY y: CGFloat, height: CGFloat, in textView: NSTextView) {

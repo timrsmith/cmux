@@ -27,9 +27,14 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
     var drawsEditorBackground = true {
         didSet { applySurfaceFill() }
     }
-    /// Working-tree changes to mark; nil draws no markers.
+    /// Working-tree changes to mark; nil draws no markers. The overlay in
+    /// the text area is kept in step so the changed lines tint there too.
     var changeHunks: FilePreviewChangeHunks? {
-        didSet { if changeHunks != oldValue { needsDisplay = true } }
+        didSet {
+            guard changeHunks != oldValue else { return }
+            needsDisplay = true
+            pushChangeRangesToOverlay()
+        }
     }
     /// Reverts one hunk; a click on its marker offers it from a menu.
     var onRevertHunk: ((FilePreviewChangeHunk) -> Void)?
@@ -41,7 +46,9 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
     private static let horizontalPadding: CGFloat = 10
     /// Leading strip that holds the change markers.
     static let markerStripWidth: CGFloat = 6
-    private static let promptButtonSize: CGFloat = 18
+    private static let promptButtonSize: CGFloat = 16
+    /// Trailing column the prompt button sits in, so it never covers a number.
+    static let promptButtonColumnWidth: CGFloat = 20
 
     private var lineIndex = FilePreviewLineIndex(string: "")
     /// Set when edits were skipped (ruler hidden) and the index must be
@@ -102,6 +109,7 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         }
         updateRuleThickness(for: textFont)
         needsDisplay = true
+        pushChangeRangesToOverlay()
     }
 
     /// Subscribes to the client text view's storage edits.
@@ -186,6 +194,7 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
             withAttributes: [.font: font]
         ).width
         let nextThickness = ceil(labelWidth) + Self.horizontalPadding + Self.markerStripWidth
+            + Self.promptButtonColumnWidth
         if abs(ruleThickness - nextThickness) > 0.5 {
             ruleThickness = nextThickness
         }
@@ -359,7 +368,7 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         let labelRect = NSRect(
             x: 4 + Self.markerStripWidth,
             y: rulerPoint.y,
-            width: max(0, ruleThickness - 10 - Self.markerStripWidth),
+            width: max(0, ruleThickness - 10 - Self.markerStripWidth - Self.promptButtonColumnWidth),
             height: max(height, font.capHeight + 4)
         )
         let color = currentLine == lineNumber
@@ -391,25 +400,67 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         return nil
     }
 
+    /// The same colours as the diff: green on the lines that are new or
+    /// changed, red where base lines are gone. A modification is both, so it
+    /// wears the red wedge on its first line's top edge above its green bar.
     private func drawChangeMarker(forLine line: Int, rulerY: CGFloat, height: CGFloat) {
         guard let hunk = markerHunk(forLine: line) else { return }
         switch hunk.kind {
         case .added, .modified:
             let bar = NSRect(x: 1, y: rulerY + 0.5, width: Self.markerStripWidth - 2, height: max(1, height - 1))
-            (hunk.kind == .added ? NSColor.systemGreen : NSColor.systemBlue).setFill()
+            NSColor.systemGreen.setFill()
             NSBezierPath(roundedRect: bar, xRadius: 1, yRadius: 1).fill()
+            if hunk.kind == .modified, line == hunk.currentStart {
+                drawDeletionWedge(atY: rulerY)
+            }
         case .deleted:
-            // A wedge on the edge the lines vanished from: the top of this
-            // line, or its bottom when they followed the last line.
-            let edgeY = hunk.currentStart > line ? rulerY + height : rulerY
-            let wedge = NSBezierPath()
-            wedge.move(to: NSPoint(x: 0, y: edgeY - 4))
-            wedge.line(to: NSPoint(x: Self.markerStripWidth + 1, y: edgeY))
-            wedge.line(to: NSPoint(x: 0, y: edgeY + 4))
-            wedge.close()
-            NSColor.systemRed.setFill()
-            wedge.fill()
+            // On the edge the lines vanished from: the top of this line, or
+            // its bottom when they followed the last line.
+            drawDeletionWedge(atY: hunk.currentStart > line ? rulerY + height : rulerY)
         }
+    }
+
+    private func drawDeletionWedge(atY edgeY: CGFloat) {
+        let wedge = NSBezierPath()
+        wedge.move(to: NSPoint(x: 0, y: edgeY - 4))
+        wedge.line(to: NSPoint(x: Self.markerStripWidth + 1, y: edgeY))
+        wedge.line(to: NSPoint(x: 0, y: edgeY + 4))
+        wedge.close()
+        NSColor.systemRed.setFill()
+        wedge.fill()
+    }
+
+    /// The text ranges the overlay tints (one per hunk with current lines)
+    /// and the line starts it rules red (where base lines were deleted; a
+    /// modification counts, its base lines are gone too).
+    func changeRanges() -> (changed: [NSRange], deletions: [Int]) {
+        guard let hunks = changeHunks, let textView = clientView as? NSTextView else { return ([], []) }
+        let lineCount = lineIndex.lineCount
+        let utf16Length = (textView.string as NSString).length
+        func lineStart(_ line: Int) -> Int {
+            line <= lineCount ? lineIndex.offset(forLine: line) : utf16Length
+        }
+        var changed: [NSRange] = []
+        var deletions: [Int] = []
+        for hunk in hunks.hunks {
+            let start = lineStart(hunk.currentStart)
+            if hunk.currentCount > 0 {
+                let end = lineStart(hunk.currentStart + hunk.currentCount)
+                changed.append(NSRange(location: start, length: max(0, end - start)))
+            }
+            if hunk.kind != .added {
+                deletions.append(start)
+            }
+        }
+        return (changed, deletions)
+    }
+
+    private func pushChangeRangesToOverlay() {
+        guard let textView = clientView as? NSTextView,
+              let overlay = FilePreviewEditorChromeOverlay.installed(in: textView) else { return }
+        let ranges = changeRanges()
+        overlay.changedLineRanges = ranges.changed
+        overlay.deletionLineOffsets = ranges.deletions
     }
 
     private func showRevertMenu(for hunk: FilePreviewChangeHunk, with event: NSEvent) {
@@ -522,12 +573,17 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
 
     private func makePromptButton() -> NSButton {
         let label = String(localized: "filePreview.addToPrompt", defaultValue: "Add to prompt")
+        // Same look as the diff viewer's gutter button: a small accent tile
+        // with a white speech bubble.
         let button = NSButton(frame: NSRect(x: 0, y: 0, width: Self.promptButtonSize, height: Self.promptButtonSize))
         button.isBordered = false
         button.imagePosition = .imageOnly
         button.image = NSImage(systemSymbolName: "bubble.left.fill", accessibilityDescription: label)?
-            .withSymbolConfiguration(.init(pointSize: 11, weight: .semibold))
-        button.contentTintColor = .controlAccentColor
+            .withSymbolConfiguration(.init(pointSize: 9, weight: .bold))
+        button.contentTintColor = .white
+        button.wantsLayer = true
+        button.layer?.cornerRadius = 4
+        button.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
         button.toolTip = label
         button.setAccessibilityLabel(label)
         button.target = self
@@ -559,7 +615,7 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
             return
         }
         promptButton.frame = NSRect(
-            x: max(0, ruleThickness - Self.promptButtonSize - 1),
+            x: max(0, ruleThickness - Self.promptButtonColumnWidth + 2),
             y: y,
             width: Self.promptButtonSize,
             height: Self.promptButtonSize
