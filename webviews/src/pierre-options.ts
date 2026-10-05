@@ -100,6 +100,8 @@ export function codeViewUnsafeCSS(): string {
     code {
       background-color: transparent;
     }
+    /* A double-click on the header band folds the card (App), so it must
+       not select the file name; Copy Path still copies it. */
     [data-diffs-header] {
       container-type: scroll-state;
       container-name: sticky-header;
@@ -107,6 +109,8 @@ export function codeViewUnsafeCSS(): string {
       background-color: var(--cmux-diff-header-bg) !important;
       -webkit-backdrop-filter: blur(8px) saturate(1.08);
       backdrop-filter: blur(8px) saturate(1.08);
+      -webkit-user-select: none;
+      user-select: none;
     }
     /* The App's selection checkbox takes the file-type icon's place after
        the fold chevron; a rename's arrow (data-rename-icon) stays. */

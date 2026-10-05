@@ -40,6 +40,10 @@ test("code view CSS keeps Pierre structural surfaces transparent", () => {
   expect(css).toContain("-webkit-backdrop-filter: blur(8px) saturate(1.08)");
   expect(css).toContain("backdrop-filter: blur(8px) saturate(1.08)");
   expect(css).toContain("min-height: 30px");
+  // A double-click folds the card, so it must not select the file name.
+  expect(css).toMatch(
+    /\[data-diffs-header\] \{[^}]*-webkit-user-select: none;\n\s*user-select: none;[^}]*\}/,
+  );
   // The card's file-type icon gives its slot to the selection checkbox; the
   // rename arrow is not touched.
   expect(css).toContain("[data-diffs-header] [data-change-icon] {\n      display: none;\n    }");

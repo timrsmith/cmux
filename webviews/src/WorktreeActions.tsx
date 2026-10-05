@@ -3,6 +3,7 @@ import type {
   PullRequestSummary,
   RepositoryHostKind,
 } from "./diff/generated/protocol";
+import { FOLD_ITEM_ATTRIBUTE } from "./file-header-fold";
 import { Icon, type IconName } from "./icons";
 import {
   formatLabel,
@@ -38,14 +39,18 @@ import {
  * Per-file fold control, slotted at the front of the card header. The fold
  * state is the item's controlled `collapsed` (the App's reducer owns it and
  * CodeView re-renders the card), so this is a plain button reporting the
- * click; the header itself never toggles anything.
+ * click; the header itself never toggles anything. It names its item
+ * (`FOLD_ITEM_ATTRIBUTE`): a double-click on the header band, taken by the
+ * App above the card, finds the card's item through it.
  */
 export function FileCollapseToggle({
   collapsed,
+  itemId,
   label,
   onToggle,
 }: {
   collapsed: boolean;
+  itemId: string;
   label: DiffViewerLabelResolver;
   onToggle: () => void;
 }) {
@@ -54,6 +59,7 @@ export function FileCollapseToggle({
     <button
       type="button"
       className="file-collapse-toggle"
+      {...{ [FOLD_ITEM_ATTRIBUTE]: itemId }}
       aria-expanded={!collapsed}
       aria-label={title}
       title={title}

@@ -47,6 +47,7 @@ import {
   type DiffFileFilter,
   type DiffFileStatus,
 } from "./file-filter";
+import { foldTargetFromComposedPath } from "./file-header-fold";
 import { applyPierreFileTreeGitStatus, planPierreFileTreeRefresh, selectPierreFileTreePath } from "./file-tree-refresh";
 import {
   FILE_TREE_SELECTION_SPRITE,
@@ -1327,6 +1328,27 @@ export function App({ config, initialStatus }: ConfigProps) {
       saveViewerPrefs({ [key]: value });
     }
   };
+  // A double-click on a card's header band (not on one of its controls)
+  // folds or unfolds that file, as its chevron does. With Cmd held, the
+  // file's new state becomes every file's through the collapse-all option
+  // the options menu sets, so the menu's label follows. Taken in the capture
+  // phase above the card's shadow root, like the tree's checkbox lane, and
+  // prevented so the double-click selects no header text.
+  const captureHeaderDoubleClick = (event: React.MouseEvent) => {
+    const itemId = foldTargetFromComposedPath(event.nativeEvent.composedPath());
+    if (itemId == null) {
+      return;
+    }
+    event.preventDefault();
+    if (!event.metaKey) {
+      dispatch({ type: "toggle-item-collapsed", itemId });
+      return;
+    }
+    const item = state.items.find((candidate) => candidate.id === itemId);
+    if (item != null) {
+      setOption("collapsed", item.collapsed !== true);
+    }
+  };
   const refresh = () => {
     // Pages with nothing to re-stream (baked status messages, or a pending
     // replacement without a typed session) still need the full reload so a
@@ -1454,7 +1476,7 @@ export function App({ config, initialStatus }: ConfigProps) {
           dispatch={dispatch}
           state={state}
         />
-        <main id="viewer" aria-label={label("diffViewer")}>
+        <main id="viewer" aria-label={label("diffViewer")} onDoubleClickCapture={captureHeaderDoubleClick}>
           {state.findOpen ? (
             <FindBar
               controller={find}
@@ -1480,6 +1502,7 @@ export function App({ config, initialStatus }: ConfigProps) {
                   <>
                     <FileCollapseToggle
                       collapsed={(item as DiffItem).collapsed === true}
+                      itemId={item.id}
                       label={label}
                       onToggle={() => dispatch({ type: "toggle-item-collapsed", itemId: item.id })}
                     />

@@ -2052,6 +2052,60 @@ function isExpanded(card: HTMLElement): boolean {
   return foldToggle(card).getAttribute("aria-expanded") === "true";
 }
 
+/**
+ * The card's header band. The library renders it in its worker, which never
+ * runs here, so a stand-in with the library's shape (`[data-diffs-header]`
+ * holding the prefix slot, the file name and the metadata slot) is placed in
+ * the card's shadow root, where a double-click composes through it, and
+ * through the slots to the App's header controls, as it does on the real
+ * header.
+ */
+function headerOf(card: HTMLElement): HTMLElement {
+  const root = card.shadowRoot;
+  expect(root).toBeTruthy();
+  let header = root!.querySelector<HTMLElement>("[data-diffs-header]");
+  if (header == null) {
+    header = card.ownerDocument.createElement("div");
+    header.setAttribute("data-diffs-header", "default");
+    header.innerHTML =
+      '<div data-header-content=""><slot name="header-prefix"></slot>' +
+      '<div data-title=""><bdi>file</bdi></div></div>' +
+      '<div data-metadata=""><slot name="header-metadata"></slot></div>';
+    root!.prepend(header);
+  }
+  return header;
+}
+
+/** The header band's file name, where a double-click lands on no control. */
+function headerTitle(card: HTMLElement): HTMLElement {
+  return headerOf(card).querySelector<HTMLElement>("[data-title]")!;
+}
+
+/**
+ * Double-clicks `target` as the browser does after two clicks (composed, so
+ * it crosses the card's shadow root) and reports whether the page prevented
+ * its default, the text selection.
+ */
+function doubleClick(
+  target: Element | null | undefined,
+  init: MouseEventInit = {},
+): boolean {
+  expect(target).toBeTruthy();
+  const window = target!.ownerDocument.defaultView!;
+  let prevented = false;
+  flushSync(() => {
+    prevented = !target!.dispatchEvent(
+      new window.MouseEvent("dblclick", {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        ...init,
+      }),
+    );
+  });
+  return prevented;
+}
+
 /** The card's file path, learned from its host open request (never a reload). */
 async function pathOf(card: HTMLElement, requests: SidecarRequest[]): Promise<string> {
   const before = requestsFor(requests, "hostOpenFile").length;
@@ -2149,6 +2203,102 @@ test("collapse all then a per-file expand reopens only that card, and both survi
   click(foldToggle(other));
   await waitFor(() => codeBlocksIn(other) === 0, "the second card to fold");
   expect(renderedCodeBlocks(document)).toBe(1);
+});
+
+test("a file card folds and unfolds from a double-click on its header band", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderApp(
+    unstagedSource,
+    sidecarMock(requests, ["worktree.write"]),
+    { patch: ONE_FILE_PATCH },
+  );
+  await waitFor(() => renderedCodeBlocks(document) === 1, "the file's code");
+  const [card] = cards(document);
+  expect(isExpanded(card)).toBe(true);
+  // The double-click is the page's (no header text gets selected) and folds
+  // the card the way its chevron does.
+  expect(doubleClick(headerTitle(card))).toBe(true);
+  await waitFor(() => codeBlocksIn(card) === 0, "the card to fold");
+  await waitFor(() => !isExpanded(card), "the chevron to report the fold");
+  expect(foldToggle(card).title).toBe("Expand file");
+  // A single fold leaves the collapse-all option alone.
+  await openOptionsMenu(document);
+  expect(findButton(document, "Collapse all diffs")).toBeTruthy();
+  expect(findButton(document, "Expand all diffs")).toBeUndefined();
+  expect(doubleClick(headerTitle(card))).toBe(true);
+  await waitFor(() => codeBlocksIn(card) === 1, "the card to unfold");
+  await waitFor(() => isExpanded(card), "the chevron to report the unfold");
+  expect(sessionOpens(requests)).toBe(1);
+});
+
+test("Cmd+double-click on a header band gives every card the card's new fold", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderApp(
+    unstagedSource,
+    sidecarMock(requests, ["worktree.write"]),
+    { patch: TWO_FILE_PATCH },
+  );
+  await waitFor(() => renderedCodeBlocks(document) === 2, "both files' code");
+  const [first, second] = cards(document);
+  // A per-file fold first, so collapse-all has an override to reset.
+  doubleClick(headerTitle(second));
+  await waitFor(() => codeBlocksIn(second) === 0, "the second card to fold");
+  // Folding the open card with Cmd folds every card: the collapse-all option
+  // the options menu offers, so the menu now offers the expand.
+  expect(doubleClick(headerTitle(first), { metaKey: true })).toBe(true);
+  await waitFor(() => renderedCodeBlocks(document) === 0, "every card to fold");
+  expect(cards(document).every((card) => !isExpanded(card))).toBe(true);
+  await openOptionsMenu(document);
+  expect(findButton(document, "Expand all diffs")).toBeTruthy();
+  expect(findButton(document, "Collapse all diffs")).toBeUndefined();
+  // Unfolding a folded card with Cmd unfolds every card, the override too.
+  expect(doubleClick(headerTitle(cards(document)[1]), { metaKey: true })).toBe(true);
+  await waitFor(() => renderedCodeBlocks(document) === 2, "every card to unfold");
+  expect(cards(document).every(isExpanded)).toBe(true);
+  await openOptionsMenu(document);
+  expect(findButton(document, "Collapse all diffs")).toBeTruthy();
+  expect(findButton(document, "Expand all diffs")).toBeUndefined();
+  // No fold ever touches the session.
+  expect(sessionOpens(requests)).toBe(1);
+});
+
+test("a double-click on a header control stays the control's own", async () => {
+  const requests: SidecarRequest[] = [];
+  const document = await renderApp(
+    unstagedSource,
+    sidecarMock(requests, ["worktree.write"]),
+    { patch: ONE_FILE_PATCH },
+  );
+  await waitFor(() => renderedCodeBlocks(document) === 1, "the file's code");
+  const [card] = cards(document);
+  // The header stand-in slots the controls into the band, so each one's
+  // composed path crosses the header.
+  headerOf(card);
+  const checkbox = card.querySelector<HTMLButtonElement>(".file-select-toggle");
+  expect(checkbox?.closest("[slot]")?.assignedSlot?.name).toBe("header-prefix");
+  // The selection checkbox: two clicks toggled it twice, and the double-click
+  // that follows them is not a fold.
+  click(checkbox);
+  click(checkbox);
+  expect(doubleClick(checkbox)).toBe(false);
+  expect(checkbox!.getAttribute("aria-checked")).toBe("false");
+  // The fold chevron: two clicks folded and unfolded; the double-click leaves
+  // the card open.
+  click(foldToggle(card));
+  await waitFor(() => codeBlocksIn(card) === 0, "the card to fold");
+  click(foldToggle(card));
+  await waitFor(() => codeBlocksIn(card) === 1, "the card to unfold");
+  expect(doubleClick(foldToggle(card))).toBe(false);
+  // A write action and the Viewed control, in the metadata slot.
+  expect(doubleClick(card.querySelector('[data-action="copyPath"]'))).toBe(false);
+  expect(doubleClick(card.querySelector('[data-action="copyPath"]'), { metaKey: true })).toBe(false);
+  expect(doubleClick(card.querySelector(".file-review-viewed"))).toBe(false);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(codeBlocksIn(card)).toBe(1);
+  expect(isExpanded(card)).toBe(true);
+  expect(checkbox!.getAttribute("aria-checked")).toBe("false");
+  await openOptionsMenu(document);
+  expect(findButton(document, "Collapse all diffs")).toBeTruthy();
 });
 
 // MARK: Repo picker only with a choice; host in-place refresh
