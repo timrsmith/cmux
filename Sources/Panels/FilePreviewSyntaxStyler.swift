@@ -181,6 +181,9 @@ final class FilePreviewSyntaxStyler {
             appliedHighlighted = false
         }
         storage.endEditing()
+        // The sweep above rewrote paragraph styles; the ghost gaps for
+        // deleted lines live there and must be put back.
+        FilePreviewEditorChromeOverlay.installed(in: textView)?.applyGhostGapSpacing()
         restoreSelection(selectedRanges, in: textView)
         return appliedHighlighted
     }

@@ -38,5 +38,8 @@ extension NSTextView {
             savingTextView.appliedFilePreviewTabWidth = columns
             savingTextView.appliedFilePreviewTabStopInterval = interval
         }
+        // One style was just written over every paragraph; put the ghost
+        // gaps for deleted lines back.
+        FilePreviewEditorChromeOverlay.installed(in: self)?.applyGhostGapSpacing()
     }
 }

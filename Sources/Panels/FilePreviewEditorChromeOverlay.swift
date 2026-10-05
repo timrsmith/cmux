@@ -17,14 +17,26 @@ final class FilePreviewEditorChromeOverlay: NSView {
     var changedLineRanges: [NSRange] = [] {
         didSet { if changedLineRanges != oldValue { needsDisplay = true } }
     }
-    /// UTF-16 line starts where base lines were deleted; a red rule is drawn
-    /// along the top of each. An offset at the end of the text marks lines
-    /// deleted after the last line.
-    var deletionLineOffsets: [Int] = [] {
-        didSet { if deletionLineOffsets != oldValue { needsDisplay = true } }
+    /// Lines deleted from git's index, shown read-only in a gap above the
+    /// line they used to precede, or below the last line for an offset at
+    /// the end of the text. The gap is paragraph spacing on that line, so
+    /// the document, its numbering and its undo stack never contain them.
+    struct DeletedLineBlock: Equatable {
+        /// UTF-16 start of the line the deleted lines sat before.
+        let offset: Int
+        let lines: [String]
+    }
+    var deletedLineBlocks: [DeletedLineBlock] = [] {
+        didSet {
+            guard deletedLineBlocks != oldValue else { return }
+            applyGhostGapSpacing()
+            needsDisplay = true
+        }
     }
     var changedLineColor = NSColor.systemGreen.withAlphaComponent(0.14)
-    var deletionRuleColor = NSColor.systemRed.withAlphaComponent(0.9)
+    var deletedLineColor = NSColor.systemRed.withAlphaComponent(0.14)
+    /// Paragraphs carrying ghost-gap spacing, cleared before the next apply.
+    private var ghostParagraphRanges: [NSRange] = []
 
     deinit {}
 
@@ -124,7 +136,9 @@ final class FilePreviewEditorChromeOverlay: NSView {
         let glyphIndex = layoutManager.glyphIndexForCharacter(at: characterIndex)
         guard glyphIndex >= 0, glyphIndex < glyphCount else { return }
         var lineRange = NSRange()
-        let fragment = layoutManager.lineFragmentRect(
+        // The used rect excludes paragraph spacing, so the band stays off a
+        // ghost gap above the line.
+        let fragment = layoutManager.lineFragmentUsedRect(
             forGlyphAt: glyphIndex,
             effectiveRange: &lineRange,
             withoutAdditionalLayout: true
@@ -153,18 +167,18 @@ final class FilePreviewEditorChromeOverlay: NSView {
         return last == 0x0A || last == 0x0D || last == 0x2028 || last == 0x2029
     }
 
-    /// Tints the changed lines and rules the deletion points, fragment by
-    /// fragment, without forcing layout: a fragment TextKit has not laid out
-    /// yet paints once it is.
+    /// Tints the changed lines, fragment by fragment, and paints the deleted
+    /// lines into their gaps, without forcing layout: a fragment TextKit has
+    /// not laid out yet paints once it is. The used rect excludes paragraph
+    /// spacing, so a changed line's tint never covers the gap above it.
     private func drawChangeHighlights(
         in dirtyRect: NSRect,
         textView: NSTextView,
         layoutManager: NSLayoutManager
     ) {
-        guard !changedLineRanges.isEmpty || !deletionLineOffsets.isEmpty else { return }
+        guard !changedLineRanges.isEmpty || !deletedLineBlocks.isEmpty else { return }
         let origin = textView.textContainerOrigin
-        let nsString = textView.string as NSString
-        let stringLength = nsString.length
+        let stringLength = (textView.string as NSString).length
         let glyphCount = layoutManager.numberOfGlyphs
         let width = max(bounds.width, textView.bounds.width)
 
@@ -174,13 +188,13 @@ final class FilePreviewEditorChromeOverlay: NSView {
             let endGlyph = layoutManager.glyphIndexForCharacter(at: min(NSMaxRange(range), stringLength))
             while glyphIndex < min(endGlyph, glyphCount) {
                 var fragmentRange = NSRange()
-                let rect = layoutManager.lineFragmentRect(
+                let used = layoutManager.lineFragmentUsedRect(
                     forGlyphAt: glyphIndex,
                     effectiveRange: &fragmentRange,
                     withoutAdditionalLayout: true
                 )
-                guard Self.isUsableLineRect(rect), fragmentRange.length > 0 else { break }
-                let band = NSRect(x: 0, y: rect.minY + origin.y, width: width, height: rect.height)
+                guard Self.isUsableLineRect(used), fragmentRange.length > 0 else { break }
+                let band = NSRect(x: 0, y: used.minY + origin.y, width: width, height: used.height)
                 if band.intersects(dirtyRect) {
                     band.fill()
                 }
@@ -188,51 +202,133 @@ final class FilePreviewEditorChromeOverlay: NSView {
             }
         }
 
-        deletionRuleColor.setFill()
-        for offset in deletionLineOffsets {
-            guard let y = lineTop(atCharacterOffset: offset, textView: textView, layoutManager: layoutManager) else { continue }
-            let rule = NSRect(x: 0, y: y - 1, width: width, height: 2)
-            if rule.intersects(dirtyRect) {
-                rule.fill()
-            }
+        for block in deletedLineBlocks {
+            guard let gap = ghostGapRect(for: block, textView: textView, layoutManager: layoutManager),
+                  gap.intersects(dirtyRect) else { continue }
+            deletedLineColor.setFill()
+            NSRect(x: 0, y: gap.minY, width: width, height: gap.height).fill()
+            drawGhostLines(block.lines, in: gap, textView: textView, layoutManager: layoutManager)
         }
     }
 
-    /// The top of the line starting at `offset`, or the bottom of the text
-    /// for an offset at its end, in the overlay's coordinates.
-    private func lineTop(
-        atCharacterOffset offset: Int,
+    // MARK: - Ghost gaps
+
+    /// Reserves each block's gap as paragraph spacing before the line it
+    /// precedes, or after the last paragraph for a block at the end of the
+    /// text. Direct storage attribute writes: no undo entry, no text change.
+    /// Called again after any sweep that rewrites paragraph styles.
+    func applyGhostGapSpacing() {
+        guard let textView, let storage = textView.textStorage else { return }
+        let nsString = storage.string as NSString
+        let length = nsString.length
+        storage.beginEditing()
+        for range in ghostParagraphRanges where range.length > 0 && NSMaxRange(range) <= length {
+            setGhostSpacing(before: 0, after: 0, in: range, storage: storage, textView: textView)
+        }
+        ghostParagraphRanges = []
+        for block in deletedLineBlocks {
+            let height = ghostGapHeight(for: block, textView: textView)
+            guard height > 0 else { continue }
+            if block.offset < length {
+                let paragraph = nsString.paragraphRange(for: NSRange(location: block.offset, length: 0))
+                guard paragraph.length > 0 else { continue }
+                setGhostSpacing(before: height, after: nil, in: paragraph, storage: storage, textView: textView)
+                ghostParagraphRanges.append(paragraph)
+            } else if length > 0 {
+                let paragraph = nsString.paragraphRange(for: NSRange(location: length - 1, length: 0))
+                setGhostSpacing(before: nil, after: height, in: paragraph, storage: storage, textView: textView)
+                ghostParagraphRanges.append(paragraph)
+            }
+        }
+        storage.endEditing()
+        needsDisplay = true
+    }
+
+    private func setGhostSpacing(
+        before: CGFloat?,
+        after: CGFloat?,
+        in range: NSRange,
+        storage: NSTextStorage,
+        textView: NSTextView
+    ) {
+        let existing = storage.attribute(.paragraphStyle, at: range.location, effectiveRange: nil) as? NSParagraphStyle
+            ?? textView.defaultParagraphStyle
+            ?? NSParagraphStyle.default
+        let style = NSMutableParagraphStyle()
+        style.setParagraphStyle(existing)
+        if let before { style.paragraphSpacingBefore = before }
+        if let after { style.paragraphSpacing = after }
+        storage.addAttribute(.paragraphStyle, value: style, range: range)
+    }
+
+    /// One row per deleted line, or its wrapped height when the editor wraps.
+    private func ghostGapHeight(for block: DeletedLineBlock, textView: NSTextView) -> CGFloat {
+        guard let layoutManager = textView.layoutManager, !block.lines.isEmpty else { return 0 }
+        let font = textView.font ?? NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        let rowHeight = layoutManager.defaultLineHeight(for: font)
+        guard let wrapWidth = ghostWrapWidth(in: textView) else {
+            return rowHeight * CGFloat(block.lines.count)
+        }
+        return block.lines.reduce(0) { total, line in
+            let measured = NSAttributedString(string: line.isEmpty ? " " : line, attributes: [.font: font])
+                .boundingRect(with: NSSize(width: wrapWidth, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin])
+            return total + max(rowHeight, ceil(measured.height / rowHeight) * rowHeight)
+        }
+    }
+
+    /// The width ghost lines wrap at; nil when the editor does not wrap.
+    private func ghostWrapWidth(in textView: NSTextView) -> CGFloat? {
+        guard let container = textView.textContainer, container.widthTracksTextView else { return nil }
+        let width = container.size.width - 2 * container.lineFragmentPadding
+        return width.isFinite && width > 0 ? width : nil
+    }
+
+    /// The gap a block occupies, in the overlay's coordinates: the spacing
+    /// above its line's first fragment, or below the last fragment.
+    private func ghostGapRect(
+        for block: DeletedLineBlock,
         textView: NSTextView,
         layoutManager: NSLayoutManager
-    ) -> CGFloat? {
+    ) -> NSRect? {
         let origin = textView.textContainerOrigin
-        let nsString = textView.string as NSString
-        let stringLength = nsString.length
+        let stringLength = (textView.string as NSString).length
         let glyphCount = layoutManager.numberOfGlyphs
-        if offset < stringLength {
-            let glyphIndex = layoutManager.glyphIndexForCharacter(at: offset)
-            guard glyphIndex < glyphCount else { return nil }
-            let rect = layoutManager.lineFragmentRect(
-                forGlyphAt: glyphIndex,
-                effectiveRange: nil,
-                withoutAdditionalLayout: true
-            )
-            return Self.isUsableLineRect(rect) ? rect.minY + origin.y : nil
-        }
-        if stringLength == 0 {
-            return origin.y
-        }
-        if Self.endsWithLineBreak(nsString) {
-            let extra = layoutManager.extraLineFragmentRect
-            return Self.isUsableLineRect(extra) ? extra.minY + origin.y : nil
-        }
         guard glyphCount > 0 else { return nil }
-        let last = layoutManager.lineFragmentRect(
-            forGlyphAt: glyphCount - 1,
-            effectiveRange: nil,
-            withoutAdditionalLayout: true
-        )
-        return Self.isUsableLineRect(last) ? last.maxY + origin.y : nil
+        if block.offset < stringLength {
+            let glyphIndex = layoutManager.glyphIndexForCharacter(at: block.offset)
+            guard glyphIndex < glyphCount else { return nil }
+            let rect = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: nil, withoutAdditionalLayout: true)
+            let used = layoutManager.lineFragmentUsedRect(forGlyphAt: glyphIndex, effectiveRange: nil, withoutAdditionalLayout: true)
+            guard Self.isUsableLineRect(rect), Self.isUsableLineRect(used), used.minY > rect.minY else { return nil }
+            return NSRect(x: 0, y: rect.minY + origin.y, width: bounds.width, height: used.minY - rect.minY)
+        }
+        let rect = layoutManager.lineFragmentRect(forGlyphAt: glyphCount - 1, effectiveRange: nil, withoutAdditionalLayout: true)
+        let used = layoutManager.lineFragmentUsedRect(forGlyphAt: glyphCount - 1, effectiveRange: nil, withoutAdditionalLayout: true)
+        guard Self.isUsableLineRect(rect), Self.isUsableLineRect(used), rect.maxY > used.maxY else { return nil }
+        return NSRect(x: 0, y: used.maxY + origin.y, width: bounds.width, height: rect.maxY - used.maxY)
+    }
+
+    private func drawGhostLines(
+        _ lines: [String],
+        in gap: NSRect,
+        textView: NSTextView,
+        layoutManager: NSLayoutManager
+    ) {
+        let font = textView.font ?? NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        let rowHeight = layoutManager.defaultLineHeight(for: font)
+        let color = (textView.textColor ?? .textColor).withAlphaComponent(0.75)
+        let x = textView.textContainerOrigin.x + (textView.textContainer?.lineFragmentPadding ?? 0)
+        let wrapWidth = ghostWrapWidth(in: textView)
+        var y = gap.minY
+        for line in lines {
+            let text = NSAttributedString(string: line, attributes: [.font: font, .foregroundColor: color])
+            let width = wrapWidth ?? CGFloat.greatestFiniteMagnitude
+            let height = wrapWidth == nil
+                ? rowHeight
+                : max(rowHeight, ceil(text.boundingRect(with: NSSize(width: width, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin]).height / rowHeight) * rowHeight)
+            text.draw(with: NSRect(x: x, y: y, width: width, height: height), options: [.usesLineFragmentOrigin])
+            y += height
+        }
     }
 
     private func fillCurrentLineBand(atY y: CGFloat, height: CGFloat, in textView: NSTextView) {

@@ -249,7 +249,23 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         let lineCount = lineIndex.lineCount
         var drewTrailingLine = false
 
-        layoutManager.enumerateLineFragments(forGlyphRange: glyphRange) { _, usedRect, _, fragmentGlyphRange, _ in
+        layoutManager.enumerateLineFragments(forGlyphRange: glyphRange) { rect, usedRect, _, fragmentGlyphRange, _ in
+            // Paragraph spacing is the gap that holds deleted lines: the
+            // fragment rect includes it, the used rect does not. Mark it red.
+            if usedRect.minY > rect.minY {
+                self.drawDeletedLinesBar(
+                    atTextViewY: rect.minY + textView.textContainerOrigin.y,
+                    height: usedRect.minY - rect.minY,
+                    in: textView
+                )
+            }
+            if rect.maxY > usedRect.maxY {
+                self.drawDeletedLinesBar(
+                    atTextViewY: usedRect.maxY + textView.textContainerOrigin.y,
+                    height: rect.maxY - usedRect.maxY,
+                    in: textView
+                )
+            }
             let characterRange = layoutManager.characterRange(
                 forGlyphRange: fragmentGlyphRange,
                 actualGlyphRange: nil
@@ -401,39 +417,26 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
     }
 
     /// The same colours as the diff: green on the lines that are new or
-    /// changed, red where base lines are gone. A modification is both, so it
-    /// wears the red wedge on its first line's top edge above its green bar.
+    /// changed; the deleted lines sit in their own gap, barred red by the
+    /// fragment loop, so a modification shows red above its green.
     private func drawChangeMarker(forLine line: Int, rulerY: CGFloat, height: CGFloat) {
-        guard let hunk = markerHunk(forLine: line) else { return }
-        switch hunk.kind {
-        case .added, .modified:
-            let bar = NSRect(x: 1, y: rulerY + 0.5, width: Self.markerStripWidth - 2, height: max(1, height - 1))
-            NSColor.systemGreen.setFill()
-            NSBezierPath(roundedRect: bar, xRadius: 1, yRadius: 1).fill()
-            if hunk.kind == .modified, line == hunk.currentStart {
-                drawDeletionWedge(atY: rulerY)
-            }
-        case .deleted:
-            // On the edge the lines vanished from: the top of this line, or
-            // its bottom when they followed the last line.
-            drawDeletionWedge(atY: hunk.currentStart > line ? rulerY + height : rulerY)
-        }
+        guard let hunk = markerHunk(forLine: line), hunk.currentCount > 0 else { return }
+        let bar = NSRect(x: 1, y: rulerY + 0.5, width: Self.markerStripWidth - 2, height: max(1, height - 1))
+        NSColor.systemGreen.setFill()
+        NSBezierPath(roundedRect: bar, xRadius: 1, yRadius: 1).fill()
     }
 
-    private func drawDeletionWedge(atY edgeY: CGFloat) {
-        let wedge = NSBezierPath()
-        wedge.move(to: NSPoint(x: 0, y: edgeY - 4))
-        wedge.line(to: NSPoint(x: Self.markerStripWidth + 1, y: edgeY))
-        wedge.line(to: NSPoint(x: 0, y: edgeY + 4))
-        wedge.close()
+    private func drawDeletedLinesBar(atTextViewY y: CGFloat, height: CGFloat, in textView: NSTextView) {
+        let rulerY = convert(NSPoint(x: 0, y: y), from: textView).y
+        let bar = NSRect(x: 1, y: rulerY + 0.5, width: Self.markerStripWidth - 2, height: max(1, height - 1))
         NSColor.systemRed.setFill()
-        wedge.fill()
+        NSBezierPath(roundedRect: bar, xRadius: 1, yRadius: 1).fill()
     }
 
     /// The text ranges the overlay tints (one per hunk with current lines)
-    /// and the line starts it rules red (where base lines were deleted; a
-    /// modification counts, its base lines are gone too).
-    func changeRanges() -> (changed: [NSRange], deletions: [Int]) {
+    /// and the deleted lines it shows in gaps (a modification's base lines
+    /// are gone too, so it has both).
+    func changeRanges() -> (changed: [NSRange], deleted: [FilePreviewEditorChromeOverlay.DeletedLineBlock]) {
         guard let hunks = changeHunks, let textView = clientView as? NSTextView else { return ([], []) }
         let lineCount = lineIndex.lineCount
         let utf16Length = (textView.string as NSString).length
@@ -441,18 +444,18 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
             line <= lineCount ? lineIndex.offset(forLine: line) : utf16Length
         }
         var changed: [NSRange] = []
-        var deletions: [Int] = []
+        var deleted: [FilePreviewEditorChromeOverlay.DeletedLineBlock] = []
         for hunk in hunks.hunks {
             let start = lineStart(hunk.currentStart)
             if hunk.currentCount > 0 {
                 let end = lineStart(hunk.currentStart + hunk.currentCount)
                 changed.append(NSRange(location: start, length: max(0, end - start)))
             }
-            if hunk.kind != .added {
-                deletions.append(start)
+            if !hunk.baseLines.isEmpty {
+                deleted.append(.init(offset: start, lines: hunk.baseLines))
             }
         }
-        return (changed, deletions)
+        return (changed, deleted)
     }
 
     private func pushChangeRangesToOverlay() {
@@ -460,7 +463,10 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
               let overlay = FilePreviewEditorChromeOverlay.installed(in: textView) else { return }
         let ranges = changeRanges()
         overlay.changedLineRanges = ranges.changed
-        overlay.deletionLineOffsets = ranges.deletions
+        overlay.deletedLineBlocks = ranges.deleted
+        // The text may have been replaced under unchanged blocks; the gaps
+        // live in its paragraph styles and must be written again.
+        overlay.applyGhostGapSpacing()
     }
 
     private func showRevertMenu(for hunk: FilePreviewChangeHunk, with event: NSEvent) {

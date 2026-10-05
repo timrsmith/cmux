@@ -169,23 +169,43 @@ struct FilePreviewChangeMarkersTests {
         FilePreviewTextEditor<FilePreviewPanel>.bindChangeMarkers(on: editor.scrollView, panel: panel)
         let overlay = try #require(FilePreviewEditorChromeOverlay.installed(in: editor.textView))
 
-        // "TWO\n" is line 2 (modified: green tint, red rule above); "new\n"
-        // is line 4 (added: green tint only).
+        // "TWO\n" is line 2 (modified: green tint, with the old "two" in a
+        // red gap above it); "new\n" is line 4 (added: green tint only).
         #expect(overlay.changedLineRanges == [NSRange(location: 4, length: 4), NSRange(location: 14, length: 4)])
-        #expect(overlay.deletionLineOffsets == [4])
-
+        #expect(overlay.deletedLineBlocks == [.init(offset: 4, lines: ["two"])])
         let ranges = gutter.changeRanges()
         #expect(ranges.changed == overlay.changedLineRanges)
-        #expect(ranges.deletions == overlay.deletionLineOffsets)
+        #expect(ranges.deleted == overlay.deletedLineBlocks)
 
-        // Lines deleted after the last line rule at the end of the text.
+        // The gap is paragraph spacing on line 2: one row for one old line,
+        // reserved above the used rect, and nothing is added to the text.
+        let layoutManager = try #require(editor.textView.layoutManager)
+        layoutManager.ensureLayout(for: editor.textView.textContainer!)
+        let rowHeight = layoutManager.defaultLineHeight(for: editor.textView.font!)
+        let glyph = layoutManager.glyphIndexForCharacter(at: 4)
+        let fragment = layoutManager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+        let used = layoutManager.lineFragmentUsedRect(forGlyphAt: glyph, effectiveRange: nil)
+        #expect(abs((used.minY - fragment.minY) - rowHeight) < 0.5)
+        #expect(editor.textView.string == Self.edited)
+
+        // Lines deleted after the last line get their gap below it, and the
+        // earlier gap is cleared.
         panel.updateTextContent("one\ntwo\n")
         await panel.awaitChangeTracking()
         editor.textView.string = panel.textContent
         gutter.reloadLineIndex(from: panel.textContent, textFont: editor.textView.font)
         gutter.changeHunks = panel.changeHunks
         #expect(overlay.changedLineRanges.isEmpty)
-        #expect(overlay.deletionLineOffsets == [8])
+        #expect(overlay.deletedLineBlocks == [.init(offset: 8, lines: ["three", "four"])])
+        layoutManager.ensureLayout(for: editor.textView.textContainer!)
+        let lastGlyph = layoutManager.numberOfGlyphs - 1
+        let lastFragment = layoutManager.lineFragmentRect(forGlyphAt: lastGlyph, effectiveRange: nil)
+        let lastUsed = layoutManager.lineFragmentUsedRect(forGlyphAt: lastGlyph, effectiveRange: nil)
+        #expect(abs((lastFragment.maxY - lastUsed.maxY) - 2 * rowHeight) < 0.5)
+        let secondGlyph = layoutManager.glyphIndexForCharacter(at: 4)
+        let secondFragment = layoutManager.lineFragmentRect(forGlyphAt: secondGlyph, effectiveRange: nil)
+        let secondUsed = layoutManager.lineFragmentUsedRect(forGlyphAt: secondGlyph, effectiveRange: nil)
+        #expect(abs(secondUsed.minY - secondFragment.minY) < 0.5)
     }
 
     @Test("A marker click reverts through the bound panel")
