@@ -185,6 +185,13 @@ struct FilePreviewChangeMarkersTests {
         gutter.selectLines(from: 2, to: 3, in: editor.textView)
         gutter.updatePromptButton()
         #expect(gutter.isPromptButtonVisible)
+        // On the last selected line's number cell, not in a column beside the
+        // numbers: the gutter is no wider than its numbers need.
+        let buttonFrame = try #require(gutter.promptButtonFrame)
+        #expect(buttonFrame.maxX <= gutter.ruleThickness)
+        #expect(gutter.ruleThickness < 30)
+        let buttonPoint = NSPoint(x: buttonFrame.midX, y: buttonFrame.midY)
+        #expect(gutter.lineNumber(atGutterPoint: buttonPoint) == 3)
 
         gutter.performPromptButtonClick()
         #expect(inserted.map(\.promptText) == ["docs/story.txt:2-3 "])

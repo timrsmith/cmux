@@ -50,8 +50,10 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
     /// The selected lines during one draw pass, so each number cell can
     /// take the selection colour without re-reading the selection.
     private var selectedLinesForDrawing: ClosedRange<Int>?
-    /// Trailing column the prompt button sits in, so it never covers a number.
-    static let promptButtonColumnWidth: CGFloat = 24
+    /// The line whose number cell the prompt button covers while it shows,
+    /// as the diff viewer's bubble covers its line number; that number is
+    /// not drawn under it.
+    private var promptButtonLine: Int?
 
     private var lineIndex = FilePreviewLineIndex(string: "")
     /// Set when edits were skipped (ruler hidden) and the index must be
@@ -197,7 +199,7 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         let labelWidth = (String(repeating: "8", count: digits) as NSString).size(
             withAttributes: [.font: font]
         ).width
-        let nextThickness = ceil(labelWidth) + Self.horizontalPadding + Self.promptButtonColumnWidth
+        let nextThickness = ceil(labelWidth) + Self.horizontalPadding
         if abs(ruleThickness - nextThickness) > 0.5 {
             ruleThickness = nextThickness
         }
@@ -424,6 +426,10 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         } else {
             color = tokenTheme.gutterDefaultColor
         }
+        // The prompt button covers this cell; its number waits underneath.
+        if promptButtonLine == lineNumber, !promptButton.isHidden {
+            return
+        }
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: color,
@@ -432,9 +438,9 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         NSString(string: String(lineNumber)).draw(in: labelRect, withAttributes: attributes)
     }
 
-    /// The number cells' width: the ruler less the prompt button's column.
+    /// The number cells span the ruler; the prompt button sits on one of them.
     private var numberCellWidth: CGFloat {
-        max(0, ruleThickness - Self.promptButtonColumnWidth)
+        ruleThickness
     }
 
     /// The diff's red for a gap of deleted lines: a tinted cell carrying
@@ -734,23 +740,35 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         !promptButton.isHidden
     }
 
-    /// Moves the prompt button onto the selection's last line, or hides it
-    /// when nothing is selected or no prompt takes references.
+    /// Moves the prompt button onto the selection's last line, over its
+    /// number cell, or hides it when nothing is selected or no prompt takes
+    /// references.
     func updatePromptButton() {
+        let previousLine = promptButtonLine
+        let wasHidden = promptButton.isHidden
         guard onInsertPromptReference != nil,
               let textView = clientView as? NSTextView,
               let lines = selectedLineRange(in: textView),
               let y = rulerY(forLine: lines.upperBound) else {
             promptButton.isHidden = true
+            promptButtonLine = nil
+            if !wasHidden { needsDisplay = true }
             return
         }
         promptButton.frame = NSRect(
-            x: max(0, ruleThickness - Self.promptButtonColumnWidth + 2),
+            x: max(0, (ruleThickness - Self.promptButtonSize) / 2),
             y: y,
             width: Self.promptButtonSize,
             height: Self.promptButtonSize
         )
         promptButton.isHidden = false
+        promptButtonLine = lines.upperBound
+        if wasHidden || previousLine != lines.upperBound { needsDisplay = true }
+    }
+
+    /// Where the prompt button shows, in the ruler's coordinates; for tests.
+    var promptButtonFrame: NSRect? {
+        promptButton.isHidden ? nil : promptButton.frame
     }
 
     /// Presses the prompt button; for tests.
