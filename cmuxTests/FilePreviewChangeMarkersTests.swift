@@ -136,6 +136,39 @@ struct FilePreviewChangeMarkersTests {
         #expect(gutter.selectedLineRange(in: textView) == 1...3)
     }
 
+    /// Opening a long file showed its text flush against the gutter, and the
+    /// first click on a line number shifted the whole document right: when
+    /// the ruler widened, the scroll view re-tiled the editor, the next
+    /// word-wrap pass snapped the frame back to the clip width, and AppKit's
+    /// frame-size handler scrolled the caret into view, which parked the
+    /// viewport on the text container's padded origin. Snapping the width
+    /// must leave the viewport where it was.
+    @Test("Snapping the editor's width to the clip keeps the viewport in place")
+    func wordWrapWidthSnapKeepsTheViewport() {
+        let text = (1...200).map { "line \($0)" }.joined(separator: "\n") + "\n"
+        let (editor, gutter) = makeGutterEditor(text: text)
+        defer { editor.close() }
+        let textView = editor.textView
+        let scrollView = editor.scrollView
+        let clipView = scrollView.contentView
+        editor.window.makeFirstResponder(textView)
+        textView.applyFilePreviewWordWrap(true, scrollView: scrollView)
+        editor.window.layoutIfNeeded()
+
+        // The scroll view re-tiles the editor narrower than the clip, as it
+        // does when the ruler widens, with the viewport at its home position.
+        textView.setFrameSize(NSSize(width: scrollView.contentSize.width - 60, height: textView.frame.height))
+        let home = NSPoint(x: -gutter.ruleThickness, y: 0)
+        clipView.scroll(to: home)
+        scrollView.reflectScrolledClipView(clipView)
+        #expect(clipView.bounds.origin == home)
+
+        textView.applyFilePreviewWordWrap(true, scrollView: scrollView)
+
+        #expect(textView.frame.width == scrollView.contentSize.width)
+        #expect(clipView.bounds.origin == home)
+    }
+
     @Test("The prompt button shows on a selection and hands the lines to the panel's prompt")
     func promptButtonHandsLinesToThePrompt() async throws {
         var inserted: [PromptLineReference] = []
