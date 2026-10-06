@@ -652,8 +652,9 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
     }
 
     /// The numbers select lines, so the pointer is an arrow over them, not
-    /// the text view's I-beam. A tracking area, not a cursor rect: inside
-    /// the SwiftUI-hosted editor only tracking areas reach the cursor.
+    /// the text view's I-beam: the pointing hand, as over the diff viewer's
+    /// line numbers and its button. A tracking area, not a cursor rect:
+    /// inside the SwiftUI-hosted editor only tracking areas reach the cursor.
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let cursorTrackingArea {
@@ -669,9 +670,9 @@ final class FilePreviewLineNumberGutterView: NSRulerView {
         cursorTrackingArea = area
     }
 
-    override func cursorUpdate(with event: NSEvent) { NSCursor.arrow.set() }
-    override func mouseEntered(with event: NSEvent) { NSCursor.arrow.set() }
-    override func mouseMoved(with event: NSEvent) { NSCursor.arrow.set() }
+    override func cursorUpdate(with event: NSEvent) { NSCursor.pointingHand.set() }
+    override func mouseEntered(with event: NSEvent) { NSCursor.pointingHand.set() }
+    override func mouseMoved(with event: NSEvent) { NSCursor.pointingHand.set() }
 
     // MARK: - Prompt button
 

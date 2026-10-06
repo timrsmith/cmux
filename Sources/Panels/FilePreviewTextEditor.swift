@@ -564,18 +564,25 @@ final class SavingTextView: NSTextView {
     /// As first responder this view receives every mouse-moved event the
     /// window sends, and NSTextView answers each with the I-beam, even for
     /// a pointer over the gutter or the header. Only points inside the text
-    /// reach that handling; the rest keep the arrow.
+    /// reach that handling; the gutter keeps its pointing hand and the rest
+    /// the arrow.
     override func mouseMoved(with event: NSEvent) {
         // The window's own pointer position against this view's frame in
         // window coordinates: the event's location is not reliable for a
         // pointer beside the view (the gutter) in this hosted layout.
         guard let window else { return }
+        let location = window.mouseLocationOutsideOfEventStream
         // `bounds`, not `visibleRect`: the scroll view's content insets make
         // the visible rect wider than the view, so it would also cover the
         // gutter beside it.
         let visibleFrame = convert(bounds, to: nil)
-        guard visibleFrame.contains(window.mouseLocationOutsideOfEventStream) else {
-            NSCursor.arrow.set()
+        guard visibleFrame.contains(location) else {
+            if let ruler = enclosingScrollView?.verticalRulerView,
+               ruler.convert(ruler.bounds, to: nil).contains(location) {
+                NSCursor.pointingHand.set()
+            } else {
+                NSCursor.arrow.set()
+            }
             return
         }
         super.mouseMoved(with: event)
