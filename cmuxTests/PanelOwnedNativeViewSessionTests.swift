@@ -186,6 +186,60 @@ struct PanelOwnedNativeViewSessionTests {
         #expect(container.livePreviewView() == nil)
     }
 
+    /// Quitting with a Quick Look preview open crashed: the container retires
+    /// its preview when told it will leave the window, then the window's
+    /// first-responder change reaches SwiftUI mid-detachment, the update
+    /// asks the container for a preview, and it created a fresh one inside
+    /// the departing window, which Quick Look aborts on when the item is
+    /// set. While leaving, the container hands out no preview; once the move
+    /// has happened it does again.
+    @Test
+    func quickLookContainerCreatesNoPreviewWhileLeavingItsWindow() throws {
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("cmux-quicklook-leaving-\(UUID().uuidString).txt")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try "leaving".write(to: url, atomically: true, encoding: .utf8)
+        let panel = FilePreviewPanel(workspaceId: UUID(), filePath: url.path)
+        let session = FilePreviewQuickLookSession()
+        let container = try #require(session.view(
+            panel: panel,
+            revision: 1,
+            isVisibleInUI: true,
+            backgroundColor: .clear,
+            drawsBackground: false
+        ) as? FilePreviewQuickLookContainerView)
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        defer {
+            session.dismantle(container)
+            window.close()
+        }
+        window.contentView = container
+        #expect(container.livePreviewView() != nil)
+
+        // The notice AppKit sends before the move: the preview is retired
+        // and nothing replaces it until the move has happened.
+        container.viewWillMove(toWindow: nil)
+        #expect(container.livePreviewView() == nil)
+        session.update(
+            container,
+            panel: panel,
+            revision: 2,
+            isVisibleInUI: true,
+            backgroundColor: .clear,
+            drawsBackground: false
+        )
+        #expect(container.livePreviewView() == nil)
+
+        container.viewDidMoveToWindow()
+        #expect(container.livePreviewView() != nil)
+    }
+
     @Test
     func quickLookUpdateAfterRetainedWindowCloseReusesAppOwnedPreview() throws {
         let firstURL = URL(fileURLWithPath: NSTemporaryDirectory())

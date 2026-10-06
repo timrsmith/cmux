@@ -10,6 +10,12 @@ import Quartz
 final class FilePreviewQuickLookContainerView: NSView {
     private var previewView: QLPreviewView?
     private var isDismantled = false
+    /// Set between the window-transition notice and the move itself. The
+    /// preview is retired at the notice; a SwiftUI update that runs during
+    /// the detachment (the window's first-responder change reaches the
+    /// hosting view) must not create a replacement inside the departing
+    /// window, which Quick Look aborts on when the item is set.
+    private var isLeavingWindow = false
 
     /// Creates an empty stable host for a replaceable inner preview.
     static func make() -> FilePreviewQuickLookContainerView {
@@ -19,17 +25,24 @@ final class FilePreviewQuickLookContainerView: NSView {
     override func viewWillMove(toWindow newWindow: NSWindow?) {
         if let currentWindow = window, currentWindow !== newWindow {
             retireLivePreview(reason: "window-transition")
+            isLeavingWindow = true
         }
         super.viewWillMove(toWindow: newWindow)
     }
 
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        isLeavingWindow = false
+    }
+
     /// Returns the preview owned by this mounted host, creating it when needed.
-    /// A dismantled representable cannot create or re-adopt a preview.
+    /// A dismantled representable cannot create or re-adopt a preview, and
+    /// neither can one that is on its way out of a window.
     func livePreviewView() -> QLPreviewView? {
         if let previewView {
             return previewView
         }
-        guard !isDismantled else { return nil }
+        guard !isDismantled, !isLeavingWindow else { return nil }
 
         guard let previewView = QLPreviewView(frame: bounds, style: .normal) else {
             return nil
