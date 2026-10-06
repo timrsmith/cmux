@@ -213,6 +213,19 @@ final class CloudTreeNSOutlineView: NSOutlineView {
     }
     var onNativeDragPointerBoundary: (() -> Void)?
     var onDocumentContentChanged: (() -> Void)?
+    /// Lays out the host that sizes the document to its rows.
+    var layoutHost: (() -> Void)?
+    /// Lets the outline scroll this much further above and below its rows,
+    /// for a drag that keeps a row in place while rows around it close.
+    /// Zero for both gives the range back.
+    var lendScrollRange: ((_ above: CGFloat, _ below: CGFloat) -> Void)?
+
+    /// Sizes the document to its rows and lays the rows out now rather than
+    /// on the next pass, for a caller that measures or scrolls right after
+    /// rows open or close.
+    func layoutDocumentNow() {
+        if let layoutHost { layoutHost() } else { layoutSubtreeIfNeeded() }
+    }
 
     var treeStyle: CloudTreeStyle = CloudTreeStyleStore.current
 
@@ -259,7 +272,7 @@ final class CloudTreeNSOutlineView: NSOutlineView {
                 return !controls.isHiddenOrHasHiddenAncestor
             }
             if let actionHost = candidate as? CloudTreePassthroughHostingView,
-               !actionHost.passesThrough {
+               actionHost.acceptsClick(event) {
                 return !actionHost.isHiddenOrHasHiddenAncestor
             }
             view = candidate.superview
@@ -441,12 +454,11 @@ final class CloudTreeNSOutlineView: NSOutlineView {
         onDocumentContentChanged?()
     }
 
-    private func disclosureLeading(atRow row: Int) -> CGFloat {
+    func disclosureLeading(atRow row: Int) -> CGFloat {
         GlobalFontMagnification.scaledSize(
             Self.leadingMargin + CGFloat(max(0, level(forRow: row))) * treeStyle.indentPerLevel
         )
     }
-
     override func frameOfOutlineCell(atRow row: Int) -> NSRect {
         // A machine's tab row opens and closes through its tabs, not a disclosure.
         if let node = item(atRow: row) as? CloudTreeNode, case .machineDetailTabs = node.kind { return .zero }
@@ -483,6 +495,7 @@ final class CloudTreeNSOutlineView: NSOutlineView {
         }
         let trailing = frame.maxX
         frame.origin.x = panelContentLeading(atRow: row)
+            ?? connectingLeading(atRow: row)
             ?? CloudTreeLayoutMetrics().contentLeading(level: level(forRow: row), style: treeStyle)
         frame.size.width = max(0, trailing - frame.minX)
         return frame

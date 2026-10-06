@@ -3157,6 +3157,16 @@ class TerminalController {
         case "agent.resolve_delivery_target": return v2Result(id: id, self.v2AgentResolveDeliveryTarget(params: params))
         case "agent.hibernation.session_end": return v2Result(id: id, self.v2AgentHibernationSessionEnd(params: params))
         #if DEBUG
+        case "debug.cloudtree.rows":
+            // The Cloud sidebar's rows from the same builder the sidebar uses, so
+            // dogfood can assert what is listed (duplicate rows were invisible to
+            // `cloud tree --json`, which reports catalog state, not rows).
+            let rows = CloudTreeNodeBuilder.flattened(SurfaceCatalog.shared.sidebarNodes()).map { node -> [String: Any] in
+                var row: [String: Any] = ["id": node.id, "kind": node.structureTag]
+                if case .display(let resource, _, _) = node.kind { row["resource"] = resource.id.rawValue; row["title"] = resource.title }
+                return row
+            }
+            return v2Ok(id: id, result: ["rows": rows])
         case "debug.cloudtree.spacing":
             // Explicit window presentation needs AppKit; the socket awaits the main-actor lane.
             AppDelegate.shared?.debugWindowsCoordinator.cloudSidebarDebugLabController.show()
@@ -4087,6 +4097,11 @@ class TerminalController {
         if let rejection = error as? SurfaceTransferRejection {
             return rejection.message
         }
+        // Remote tmux requests come through this wrapper too. Their errors are about an ssh
+        // host, and `RemoteTmuxError.message` already flattens and caps any remote text.
+        if let remoteTmuxError = error as? RemoteTmuxError {
+            return remoteTmuxError.message
+        }
         guard case let VMClientError.httpStatus(status, body) = error else {
             guard let vmError = error as? VMClientError else { return fallback }
             let safe = CloudVMActionLauncher.sanitizedCloudVMStartOutput(String(describing: vmError))
@@ -4231,6 +4246,10 @@ class TerminalController {
         controlCommandCoordinator.ensureRef(kind: kind, uuid: uuid)
     }
 
+    func v2ExistingHandleRef(kind: ControlHandleKind, uuid: UUID) -> String? {
+        controlCommandCoordinator.existingRef(kind: kind, uuid: uuid)
+    }
+
     func v2ResolveHandleRef(_ handle: String) -> UUID? {
         controlCommandCoordinator.resolveRef(handle)
     }
@@ -4281,6 +4300,12 @@ class TerminalController {
         // ptrauth). A v2 socket command arriving within ~1s of launch can
         // re-enter this on the main actor mid-restore, so degrade gracefully.
         guard app.didCompleteInitialSessionRestore else { return }
+
+        // #5757: Skip the expensive full-tree scan if topology has not changed.
+        // Commands calling `controlResolveOnMain` or reading surfaces otherwise force
+        // O(windows * tabs * panes) handle sweeps on every RPC hop, freezing the MainActor
+        // during heavy multi-agent activity.
+        guard controlCommandCoordinator.needsHandleTopologyRefresh else { return }
 
         let windows = app.listMainWindowSummaries()
         for item in windows {

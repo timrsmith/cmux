@@ -249,6 +249,9 @@ extension Workspace {
             if refreshPorts { refreshTrackedAgentPorts() }
             AppDelegate.shared?.notificationStore?.clearNotifications(forTabId: id)
         }
+        if let store = AppDelegate.shared?.notificationStore {
+            pruneOrphanedRestoredAgentNotifications(store: store)
+        }
         return didChange
     }
 
@@ -584,6 +587,7 @@ extension Workspace {
         panelTitles.removeValue(forKey: panelId)
         panelCustomTitles.removeValue(forKey: panelId)
         panelCustomTitleSources.removeValue(forKey: panelId)
+        panelAutomationLabels.removeValue(forKey: panelId)
         pinnedPanelIds.remove(panelId)
         pinMutationTokensByPanelId.removeValue(forKey: panelId)
         manualUnreadPanelIds.remove(panelId)

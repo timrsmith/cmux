@@ -93,6 +93,7 @@ final class UnsavedChangesCloseConfirmation {
         store: some CloseTabWarningReading,
         requiresConfirmation: Bool,
         source: CloseTabCloseSource,
+        isAgentSession: Bool = false,
         hasActiveProcess: Bool? = nil
     ) -> CloseWarningKinds {
         if !resolvedPanelIds.isEmpty, panelIds.contains(where: { resolvedPanelIds.contains($0) }) {
@@ -101,8 +102,13 @@ final class UnsavedChangesCloseConfirmation {
         // An active process is never killed silently, whatever the warning
         // settings say (`.safety`). Callers whose `requiresConfirmation` is a
         // policy rather than a process check pass `hasActiveProcess` explicitly.
-        var kinds = store.warningKinds(requiresConfirmation: requiresConfirmation, source: source)
-        if hasActiveProcess ?? requiresConfirmation {
+        // An agent mid-turn gets its own dialog instead, as the store does.
+        var kinds = store.warningKinds(
+            requiresConfirmation: requiresConfirmation,
+            source: source,
+            isAgentSession: isAgentSession
+        )
+        if (hasActiveProcess ?? requiresConfirmation) && !isAgentSession {
             kinds.insert(.safety)
         }
         return kinds
