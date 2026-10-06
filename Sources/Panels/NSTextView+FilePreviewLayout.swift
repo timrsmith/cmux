@@ -9,6 +9,10 @@ extension NSTextView {
         guard let textContainer else { return }
         let changed = textContainer.widthTracksTextView != wrap
         let previousOrigin = scrollView.contentView.bounds.origin
+        // Snapping the frame to the clip width makes AppKit scroll the caret
+        // into view, which parks the viewport on the text container's padded
+        // origin; the viewport is restored after a resize as after a reflow.
+        var resized = false
         scrollView.hasHorizontalScroller = !wrap
         isHorizontallyResizable = !wrap
         if wrap {
@@ -21,6 +25,7 @@ extension NSTextView {
             // out and reflows.
             let visibleWidth = scrollView.contentSize.width
             if visibleWidth > 0 {
+                resized = frame.width != visibleWidth
                 setFrameSize(NSSize(width: visibleWidth, height: frame.height))
                 let containerWidth = max(0, visibleWidth - 2 * textContainerInset.width)
                 if textContainer.size.width != containerWidth {
@@ -34,7 +39,7 @@ extension NSTextView {
                 height: CGFloat.greatestFiniteMagnitude
             )
         }
-        guard changed else { return }
+        guard changed || resized else { return }
         // Reflow the existing storage. Selection, affinity, and undo history
         // remain untouched; constrain only the viewport to the new extent.
         scrollView.layoutSubtreeIfNeeded()
