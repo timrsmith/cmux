@@ -24,8 +24,8 @@ final class FilePreviewQuickLookContainerView: NSView {
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
         if let currentWindow = window, currentWindow !== newWindow {
-            retireLivePreview(reason: "window-transition")
             isLeavingWindow = true
+            retireLivePreview(reason: "window-transition")
         }
         super.viewWillMove(toWindow: newWindow)
     }
@@ -75,11 +75,15 @@ final class FilePreviewQuickLookContainerView: NSView {
             category: "filePreview",
             data: ["reason": reason]
         )
+        // Unreachable before it is closed: removing a first-responder preview
+        // resets the window's first responder, SwiftUI runs a pending update
+        // from that change, and a closed preview must not be handed out to
+        // it. Quick Look aborts on an item set on a closed preview.
+        self.previewView = nil
         previewView.previewItem = nil
         // `shouldCloseWithWindow` transfers closure ownership to this host even
         // when the preview has never entered a window.
         previewView.close()
         previewView.removeFromSuperview()
-        self.previewView = nil
     }
 }

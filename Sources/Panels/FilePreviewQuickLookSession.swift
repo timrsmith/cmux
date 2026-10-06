@@ -70,12 +70,16 @@ final class FilePreviewQuickLookSession {
     }
 
     func close() {
-        for view in liveViews.allObjects {
-            Self.releaseView(view)
-        }
+        // Forgotten before release: releasing a view can re-enter `update`
+        // through the window's first-responder change, and a view on its way
+        // out is no longer one this session updates.
+        let views = liveViews.allObjects
         liveViews.removeAllObjects()
         item = nil
         itemRevision = nil
+        for view in views {
+            Self.releaseView(view)
+        }
     }
 
     private static func makeView() -> NSView {
@@ -99,11 +103,6 @@ final class FilePreviewQuickLookSession {
         drawsBackground: Bool
     ) {
         view.isHidden = !isVisibleInUI
-        // A SwiftUI update that lands while the app quits must not touch the
-        // item: Quick Look aborts on a preview set during teardown.
-        if AppDelegate.shared?.isTerminatingApp == true {
-            return
-        }
         if let container = view as? FilePreviewQuickLookContainerView,
            let previewView = container.livePreviewView() {
             panel.attachPreviewFocus(root: container, primaryResponder: previewView, intent: .quickLook)
