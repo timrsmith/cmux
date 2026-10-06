@@ -114,8 +114,10 @@ ${i}
       padding: 0;
       border: 0;
       border-radius: 4px;
-      background: var(--cmux-diff-accent, light-dark(#0a84ff, #7ab7ff));
-      color: light-dark(#fff, #08233f);
+      /* The file editor's prompt button: the system accent tile with a
+         white bubble, in both appearances. */
+      background: light-dark(#007aff, #0a84ff);
+      color: #fff;
       cursor: pointer;
       transform: scale(0.9);
       transition: transform 80ms ease;
@@ -130,6 +132,12 @@ ${i}
     }
     [data-utility-button]::before {
       content: "";
+      /* Pierre stretches this pseudo-element over the button as a hit
+         area (absolute, inset 0 0 0 -4px); the bubble is a flex child
+         centred in the tile instead. */
+      position: static;
+      inset: auto;
+      flex: none;
       width: 11px;
       height: 11px;
       background: currentColor;

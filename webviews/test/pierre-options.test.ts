@@ -30,6 +30,11 @@ test("the gutter button wears a speech bubble, not Pierre's plus", () => {
   const css = codeViewUnsafeCSS();
   expect(css).toContain("[data-utility-button] [data-icon] {\n      display: none;");
   expect(css).toContain("[data-utility-button]::before");
+  // Pierre positions that pseudo-element absolutely as a hit area; the
+  // bubble must be centred in the tile, in white on the accent.
+  const bubble = css.slice(css.indexOf("[data-utility-button]::before"));
+  expect(bubble.slice(0, bubble.indexOf("}"))).toContain("position: static;");
+  expect(css).toContain("background: light-dark(#007aff, #0a84ff);\n      color: #fff;");
   expect(css).toContain("mask: url(\"data:image/svg+xml;utf8,<svg");
   expect(css).toContain("M20 2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4l4 4 4-4h4a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z");
 });
