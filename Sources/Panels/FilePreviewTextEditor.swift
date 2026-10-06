@@ -561,6 +561,19 @@ final class SavingTextView: NSTextView {
         NSCursor.arrow.set()
     }
 
+    /// As first responder this view receives every mouse-moved event the
+    /// window sends, and NSTextView answers each with the I-beam, even for
+    /// a pointer over the gutter or the header. Only points inside the text
+    /// reach that handling; the rest keep the arrow.
+    override func mouseMoved(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        guard visibleRect.contains(point) else {
+            NSCursor.arrow.set()
+            return
+        }
+        super.mouseMoved(with: event)
+    }
+
     private static let defaultPreviewFontSize: CGFloat = 13
     private static let minimumPreviewFontSize: CGFloat = 8
     private static let maximumPreviewFontSize: CGFloat = 36
