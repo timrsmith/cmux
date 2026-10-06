@@ -240,27 +240,20 @@ struct PanelOwnedNativeViewSessionTests {
         #expect(container.livePreviewView() != nil)
     }
 
-    /// The other quit-time path: the preview is still live when the update
-    /// lands, and Quick Look aborts on an item set during teardown. While the
-    /// app is terminating the session leaves the item alone.
+    /// Closing the session while its preview is the window's first responder
+    /// crashed: retiring the preview closes it, removing it resets the first
+    /// responder, SwiftUI runs a pending update from that change, and the
+    /// container still handed out the closed preview, which Quick Look
+    /// aborts on when the item is set. A retired preview is never reachable,
+    /// and a view the session is releasing is no longer one it updates.
     @Test
-    func quickLookUpdateWhileTerminatingLeavesTheItemAlone() throws {
-        let previousApp = AppDelegate.shared
-        let app = AppDelegate()
-        defer { AppDelegate.shared = previousApp }
-        AppDelegate.shared = app
+    func quickLookCloseHandsOutNoPreviewDuringTheFirstResponderChange() throws {
         let url = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("cmux-quicklook-terminating-\(UUID().uuidString).txt")
-        let laterURL = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("cmux-quicklook-terminating-b-\(UUID().uuidString).txt")
-        defer {
-            try? FileManager.default.removeItem(at: url)
-            try? FileManager.default.removeItem(at: laterURL)
-        }
-        try "first".write(to: url, atomically: true, encoding: .utf8)
-        try "second".write(to: laterURL, atomically: true, encoding: .utf8)
+            .appendingPathComponent("cmux-quicklook-close-responder-\(UUID().uuidString).txt")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try "preview".write(to: url, atomically: true, encoding: .utf8)
         let panel = FilePreviewPanel(workspaceId: UUID(), filePath: url.path)
-        let laterPanel = FilePreviewPanel(workspaceId: UUID(), filePath: laterURL.path)
+        defer { panel.close() }
         let session = FilePreviewQuickLookSession()
         let container = try #require(session.view(
             panel: panel,
@@ -269,21 +262,45 @@ struct PanelOwnedNativeViewSessionTests {
             backgroundColor: .clear,
             drawsBackground: false
         ) as? FilePreviewQuickLookContainerView)
-        defer { session.dismantle(container) }
-        let previewView = try #require(container.livePreviewView())
-        let item = try #require(previewView.previewItem as? FilePreviewQLItem)
-        #expect(item.url == url)
-
-        app.isTerminatingApp = true
-        session.update(
-            container,
-            panel: laterPanel,
-            revision: 2,
-            isVisibleInUI: true,
-            backgroundColor: .clear,
-            drawsBackground: false
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
         )
-        #expect((previewView.previewItem as? FilePreviewQLItem)?.url == url)
+        defer { window.close() }
+        container.frame = window.contentView!.bounds
+        window.contentView?.addSubview(container)
+        let previewView = try #require(container.livePreviewView())
+        #expect(window.makeFirstResponder(previewView))
+        #expect(window.firstResponder === previewView)
+
+        var previewsSeenDuringResponderChange: [QLPreviewView?] = []
+        let observation = window.observe(\.firstResponder, options: [.new]) { _, _ in
+            MainActor.assumeIsolated {
+                previewsSeenDuringResponderChange.append(container.livePreviewView())
+                session.update(
+                    container,
+                    panel: panel,
+                    revision: 2,
+                    isVisibleInUI: true,
+                    backgroundColor: .clear,
+                    drawsBackground: false
+                )
+            }
+        }
+        defer { observation.invalidate() }
+
+        session.close()
+
+        #expect(
+            !previewsSeenDuringResponderChange.isEmpty,
+            "the window must report the responder change the close causes"
+        )
+        #expect(previewsSeenDuringResponderChange.allSatisfy { $0 == nil })
+        #expect(previewView.previewItem == nil)
+        #expect(previewView.superview == nil)
+        #expect(container.livePreviewView() == nil)
     }
 
     @Test
