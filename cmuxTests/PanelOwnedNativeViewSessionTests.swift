@@ -240,6 +240,52 @@ struct PanelOwnedNativeViewSessionTests {
         #expect(container.livePreviewView() != nil)
     }
 
+    /// The other quit-time path: the preview is still live when the update
+    /// lands, and Quick Look aborts on an item set during teardown. While the
+    /// app is terminating the session leaves the item alone.
+    @Test
+    func quickLookUpdateWhileTerminatingLeavesTheItemAlone() throws {
+        let previousApp = AppDelegate.shared
+        let app = AppDelegate()
+        defer { AppDelegate.shared = previousApp }
+        AppDelegate.shared = app
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("cmux-quicklook-terminating-\(UUID().uuidString).txt")
+        let laterURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("cmux-quicklook-terminating-b-\(UUID().uuidString).txt")
+        defer {
+            try? FileManager.default.removeItem(at: url)
+            try? FileManager.default.removeItem(at: laterURL)
+        }
+        try "first".write(to: url, atomically: true, encoding: .utf8)
+        try "second".write(to: laterURL, atomically: true, encoding: .utf8)
+        let panel = FilePreviewPanel(workspaceId: UUID(), filePath: url.path)
+        let laterPanel = FilePreviewPanel(workspaceId: UUID(), filePath: laterURL.path)
+        let session = FilePreviewQuickLookSession()
+        let container = try #require(session.view(
+            panel: panel,
+            revision: 1,
+            isVisibleInUI: true,
+            backgroundColor: .clear,
+            drawsBackground: false
+        ) as? FilePreviewQuickLookContainerView)
+        defer { session.dismantle(container) }
+        let previewView = try #require(container.livePreviewView())
+        let item = try #require(previewView.previewItem as? FilePreviewQLItem)
+        #expect(item.url == url)
+
+        app.isTerminatingApp = true
+        session.update(
+            container,
+            panel: laterPanel,
+            revision: 2,
+            isVisibleInUI: true,
+            backgroundColor: .clear,
+            drawsBackground: false
+        )
+        #expect((previewView.previewItem as? FilePreviewQLItem)?.url == url)
+    }
+
     @Test
     func quickLookUpdateAfterRetainedWindowCloseReusesAppOwnedPreview() throws {
         let firstURL = URL(fileURLWithPath: NSTemporaryDirectory())

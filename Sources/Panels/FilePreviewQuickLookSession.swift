@@ -99,6 +99,11 @@ final class FilePreviewQuickLookSession {
         drawsBackground: Bool
     ) {
         view.isHidden = !isVisibleInUI
+        // A SwiftUI update that lands while the app quits must not touch the
+        // item: Quick Look aborts on a preview set during teardown.
+        if AppDelegate.shared?.isTerminatingApp == true {
+            return
+        }
         if let container = view as? FilePreviewQuickLookContainerView,
            let previewView = container.livePreviewView() {
             panel.attachPreviewFocus(root: container, primaryResponder: previewView, intent: .quickLook)

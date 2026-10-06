@@ -566,8 +566,15 @@ final class SavingTextView: NSTextView {
     /// a pointer over the gutter or the header. Only points inside the text
     /// reach that handling; the rest keep the arrow.
     override func mouseMoved(with event: NSEvent) {
-        let point = convert(event.locationInWindow, from: nil)
-        guard visibleRect.contains(point) else {
+        // The window's own pointer position against this view's frame in
+        // window coordinates: the event's location is not reliable for a
+        // pointer beside the view (the gutter) in this hosted layout.
+        guard let window else { return }
+        // `bounds`, not `visibleRect`: the scroll view's content insets make
+        // the visible rect wider than the view, so it would also cover the
+        // gutter beside it.
+        let visibleFrame = convert(bounds, to: nil)
+        guard visibleFrame.contains(window.mouseLocationOutsideOfEventStream) else {
             NSCursor.arrow.set()
             return
         }
