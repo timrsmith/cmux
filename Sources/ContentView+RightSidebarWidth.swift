@@ -12,7 +12,9 @@ extension ContentView {
         contentMinimumWidth: CGFloat = 0
     ) -> CGFloat {
         let sanitizedCandidate = candidate.isFinite ? candidate : 220
-        let sanitizedAvailableWidth = availableWidth.isFinite && availableWidth > 0 ? availableWidth : 1920
+        // No room left (the other panels fill the window) is an answer, the
+        // floor; only an unmeasured width falls back to a screen-sized cap.
+        let sanitizedAvailableWidth = availableWidth.isFinite ? max(0, availableWidth) : 1920
         let availableWidthCap = max(
             minimumRightSidebarWidth,
             sanitizedAvailableWidth - minimumTerminalWidthWithRightSidebar

@@ -124,7 +124,7 @@ struct TerminalControllerControlResolveTests {
             tabManager: manager,
             sidebarState: SidebarState(),
             sidebarSelectionState: SidebarSelectionState(),
-            fileExplorerState: FileExplorerState()
+            fileExplorerState: FileExplorerState(sidebar: nil)
         )
         window.makeKeyAndOrderFront(nil)
         TerminalController.shared.setActiveTabManager(manager)
