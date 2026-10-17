@@ -1,5 +1,6 @@
 import AppKit
 import CmuxSettings
+import CmuxProductAnalytics
 import SwiftUI
 
 // MARK: - State (visibility toggle)
@@ -94,9 +95,15 @@ final class FileExplorerState: ObservableObject {
     @MainActor lazy var cloudTeamPickerPresentation = CloudTeamPickerPresentation()
 
     /// Active mode for the right sidebar (file tree, search, sessions, or enabled beta modes).
+    /// Explicit sets come from people and their tools (tab bar, palette, CLI);
+    /// restore and preference changes go through `refreshModeAvailability`.
     var mode: RightSidebarMode {
         get { storedMode }
-        set { setMode(newValue) }
+        set {
+            let previous = storedMode
+            setMode(newValue)
+            if isVisible, storedMode != previous { ProductAnalytics.app.featureUsed(storedMode.productFeature) }
+        }
     }
 
     var customSidebarName: String? {
@@ -284,8 +291,11 @@ final class FileExplorerState: ObservableObject {
         setVisible(!isVisible)
     }
 
+    /// The person's show/hide (toggle, shortcut, menu). Narrow-window
+    /// auto-collapse sets `isVisible` directly and is not counted as use.
     func setVisible(_ nextValue: Bool) {
         guard isVisible != nextValue else { return }
+        if nextValue { ProductAnalytics.app.featureUsed(storedMode.productFeature) }
         withoutLayoutAnimations {
             isVisible = nextValue
         }

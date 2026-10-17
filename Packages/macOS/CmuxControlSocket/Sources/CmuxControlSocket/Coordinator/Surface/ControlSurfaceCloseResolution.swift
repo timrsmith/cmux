@@ -32,6 +32,10 @@ public enum ControlSurfaceCloseResolution: Sendable, Equatable {
     /// The surface is an editor with unsaved edits and `force` was not passed;
     /// nothing was closed.
     case unsavedChanges(surfaceID: UUID, refusal: ControlUnsavedChangesRefusal)
+    /// The surface is a browser tab a browser REPL session drives or typed a
+    /// secret into, which other socket clients may not close, move or
+    /// reload (legacy `denied`). Carries the surface id and the message.
+    case denied(UUID, message: String)
     /// The surface was closed. Carries the echoed identity.
     case closed(windowID: UUID?, workspaceID: UUID, surfaceID: UUID)
 }

@@ -101,6 +101,7 @@ struct RightSidebarPanelView: View {
     @State private var modeBarDrag = RightSidebarModeBarDragController()
     @State private var modeBarWidthReport = RightSidebarModeBarWidthReport()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var modeBarSelectionNamespace
     @State private var keyboardShortcutSettingsObserver = KeyboardShortcutSettingsObserver.shared
     private let alwaysShowShortcutHints = ShortcutHintDebugSettings().alwaysShowHints
     private let closeShortcutHintXOffset = ShortcutHintDebugSettings.defaultRightSidebarCloseHintX
@@ -266,7 +267,8 @@ struct RightSidebarPanelView: View {
                                 alwaysShowShortcutHints: alwaysShowShortcutHints,
                                 modifierPressed: modeShortcutHintMonitor.isModifierPressed,
                                 modifierHoldHintsEnabled: showModifierHoldHints
-                            )
+                            ),
+                            selectionNamespace: modeBarSelectionNamespace
                         ) {
                             let mode = item.mode
                             if AppDelegate.shared?.focusRightSidebarInActiveMainWindow(
@@ -297,9 +299,7 @@ struct RightSidebarPanelView: View {
                 if fileExplorerState.mode == .files {
                     FilesPanelHeaderMenu()
                 }
-                if fileExplorerState.mode.canOpenAsPane, fileExplorerState.mode.isAvailable() {
-                    openAsPaneButton(mode: fileExplorerState.mode)
-                }
+                openAsPaneButton(mode: fileExplorerState.mode)
                 closeButton
             }
         }
@@ -342,8 +342,12 @@ struct RightSidebarPanelView: View {
         }
     }
 
+    /// Stays in place in modes that can't open as a pane (Dock, Feed),
+    /// disabled with a tooltip saying why, so the tabs keep the same width
+    /// in every mode and switching doesn't jump their layout.
     private func openAsPaneButton(mode: RightSidebarMode) -> some View {
-        Button {
+        let canOpen = mode.canOpenAsPane && mode.isAvailable()
+        return Button {
             onOpenAsPane(mode)
         } label: {
             HeaderChromeIconStyle.symbol("rectangle.split.2x1")
@@ -353,12 +357,21 @@ struct RightSidebarPanelView: View {
             width: RightSidebarChromeMetrics.headerControlSize,
             height: RightSidebarChromeMetrics.headerControlSize
         )
+        .disabled(!canOpen)
         .reportRightSidebarChromeNamedGeometryForBonsplitUITest(
             keyPrefix: "rightSidebarHeaderOpenAsPane",
             isVisible: true
         )
         .rightSidebarHeaderControlAlignment()
-        .safeHelp(String(localized: "rightSidebar.openAsPane.tooltip", defaultValue: "Open as pane"))
+        // Outside `.disabled` so the tooltip still shows on Dock and Feed.
+        .safeHelp(
+            canOpen
+                ? String(localized: "rightSidebar.openAsPane.tooltip", defaultValue: "Open as pane")
+                : String.localizedStringWithFormat(
+                    String(localized: "rightSidebar.openAsPane.unavailableTooltip", defaultValue: "%@ can’t open as a pane"),
+                    mode.label
+                )
+        )
         .accessibilityLabel(
             String.localizedStringWithFormat(
                 String(localized: "rightSidebar.openAsPane.accessibilityLabel", defaultValue: "Open %@ as Pane"),
@@ -501,7 +514,8 @@ struct RightSidebarPanelView: View {
                     devicesModel: devicesModel,
                     tabManager: tabManager,
                     teamPickerPresentation: fileExplorerState.cloudTeamPickerPresentation,
-                    activationCoordinator: cloudActivationCoordinator
+                    activationCoordinator: cloudActivationCoordinator,
+                    coderouterStore: tabManager.coderouterAccountStore
                 )
             case .changes:
                 changesPanel

@@ -9,6 +9,7 @@ import Quartz
 /// representable teardown, so no closed preview is reused.
 final class FilePreviewQuickLookContainerView: NSView {
     private var previewView: QLPreviewView?
+    private var isRetiring = false
     private var isDismantled = false
     /// Set between the window-transition notice and the move itself. The
     /// preview is retired at the notice; a SwiftUI update that runs during
@@ -22,6 +23,7 @@ final class FilePreviewQuickLookContainerView: NSView {
         FilePreviewQuickLookContainerView(frame: .zero)
     }
 
+    /// Retires the current preview before AppKit propagates a window change to its descendants.
     override func viewWillMove(toWindow newWindow: NSWindow?) {
         if let currentWindow = window, currentWindow !== newWindow {
             isLeavingWindow = true
@@ -36,9 +38,9 @@ final class FilePreviewQuickLookContainerView: NSView {
     }
 
     /// Returns the preview owned by this mounted host, creating it when needed.
-    /// A dismantled representable cannot create or re-adopt a preview, and
-    /// neither can one that is on its way out of a window.
+    /// Returns nil during retirement and after dismantling to prevent reentrant reuse.
     func livePreviewView() -> QLPreviewView? {
+        guard !isRetiring, !isDismantled else { return nil }
         if let previewView {
             return previewView
         }
@@ -50,8 +52,9 @@ final class FilePreviewQuickLookContainerView: NSView {
         previewView.autostarts = true
         previewView.shouldCloseWithWindow = false
         previewView.autoresizingMask = [.width, .height]
-        addSubview(previewView)
         self.previewView = previewView
+        // Register the child before AppKit can synchronously re-enter this host.
+        addSubview(previewView)
         return previewView
     }
 
@@ -68,18 +71,22 @@ final class FilePreviewQuickLookContainerView: NSView {
         removeFromSuperview()
     }
 
+    /// Invalidates the cached preview before closing and detaching it.
+    /// Synchronous AppKit callbacks cannot access or replace it until retirement finishes.
     private func retireLivePreview(reason: String) {
-        guard let previewView else { return }
+        guard !isRetiring, let previewView else { return }
+        isRetiring = true
+        self.previewView = nil
+        defer { isRetiring = false }
+
+        // Invalidate the slot before any AppKit call. `close()` and
+        // `removeFromSuperview()` can synchronously trigger SwiftUI/responder
+        // updates while the old Quick Look view is already deactivated.
         sentryBreadcrumb(
             "quickLook.preview.retire",
             category: "filePreview",
             data: ["reason": reason]
         )
-        // Unreachable before it is closed: removing a first-responder preview
-        // resets the window's first responder, SwiftUI runs a pending update
-        // from that change, and a closed preview must not be handed out to
-        // it. Quick Look aborts on an item set on a closed preview.
-        self.previewView = nil
         previewView.previewItem = nil
         // `shouldCloseWithWindow` transfers closure ownership to this host even
         // when the preview has never entered a window.

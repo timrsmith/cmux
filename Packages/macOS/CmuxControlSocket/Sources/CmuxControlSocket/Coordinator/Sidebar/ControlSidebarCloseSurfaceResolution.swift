@@ -17,4 +17,8 @@ public enum ControlSidebarCloseSurfaceResolution: Sendable, Equatable {
     /// Refused: the surface is an editor with unsaved edits (the legacy command
     /// has no force flag).
     case unsavedChanges(ControlUnsavedChangesRefusal)
+    /// The surface is a browser tab a browser REPL session drives or typed a
+    /// secret into, which other socket clients may not close. Carries the
+    /// message.
+    case denied(String)
 }

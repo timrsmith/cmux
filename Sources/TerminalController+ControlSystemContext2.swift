@@ -90,6 +90,22 @@ extension TerminalController {
         let windowId = v2ResolveWindowId(tabManager: tabManager)
         let focus = v2FocusAllowed(requested: requestedFocus)
 
+        // A browser REPL session's tab is not closed, moved to another
+        // workspace or reloaded by another socket client
+        // (``browserReplTabRefusalMessage(_:)``); bulk closes skip it.
+        switch action {
+        case "move_to_new_workspace", "detach_to_workspace", "detach_to_new_workspace", "reload", "reload_tab":
+            if let message = browserReplTabRefusalMessage(panelId) {
+                return .bridged(.err(
+                    code: "denied",
+                    message: message,
+                    data: .object(["surface_id": .string(panelId.uuidString), "reason": .string("browser_repl_tab")])
+                ))
+            }
+        default:
+            break
+        }
+
         func finish(_ extras: ControlTabActionResolution.Extras) -> ControlTabActionResolution {
             .completed(ControlTabActionResolution.Outcome(
                 workspaceID: workspace.id,
@@ -117,9 +133,11 @@ extension TerminalController {
         /// that would terminate a live process or discard an editor's unsaved
         /// edits is refused whole: automation cannot answer either prompt.
         func closeTabs(_ tabIds: [TabID]) -> ControlTabActionResolution {
+            // A browser REPL's tab is skipped, as the close loop skips it.
             let closingPanelIds = tabIds.compactMap { tabId -> UUID? in
                 guard let panelId = workspace.panelIdFromSurfaceId(tabId),
-                      !workspace.isPanelPinned(panelId) else { return nil }
+                      !workspace.isPanelPinned(panelId),
+                      browserReplTabRefusalMessage(panelId) == nil else { return nil }
                 return panelId
             }
             if !force, let refusal = workspace.unsavedChangesRefusal(forClosingPanels: closingPanelIds) {
@@ -137,6 +155,7 @@ extension TerminalController {
                     skippedPinned += 1
                     continue
                 }
+                if browserReplTabRefusalMessage(panelId) != nil { continue }
                 if workspace.panels.count <= 1 {
                     break
                 }
@@ -208,14 +227,14 @@ extension TerminalController {
             }
 
         case "reload", "reload_tab":
-            guard let browserPanel = workspace.browserPanel(for: panelId) else {
+            guard let browserPanel = workspace.browserPanelForAutomation(panelId) else {
                 return .reloadNotBrowser
             }
-            browserPanel.reload()
+            browserPanel.reload(dialogOwner: .automation)
             return finish(.none)
 
         case "duplicate", "duplicate_tab":
-            guard let browserPanel = workspace.browserPanel(for: panelId) else {
+            guard let browserPanel = workspace.browserPanelForAutomation(panelId) else {
                 return .duplicateNotBrowser
             }
             guard BrowserAvailabilitySettings.isEnabled() else {
@@ -226,7 +245,11 @@ extension TerminalController {
                 ))
             }
 
-            guard let newPanel = workspace.duplicateBrowserToRight(panelId: panelId, focus: focus) else {
+            guard let newPanel = workspace.duplicateBrowserToRight(
+                panelId: panelId,
+                focus: focus,
+                creationPolicy: .automationPreload
+            ) else {
                 return .duplicateFailed
             }
             return finish(.created(newPanel.id))
@@ -243,7 +266,8 @@ extension TerminalController {
                 focus: focus,
                 inheritWorkingDirectoryFallback: true,
                 workingDirectoryFallbackSourcePanelId: panelId,
-                allowTextBoxFocusDefault: false
+                allowTextBoxFocusDefault: false,
+                inheritStartupWork: false
             ) {
             case .created(let newPanel):
                 _ = workspace.reorderSurface(panelId: newPanel.id, toIndex: targetIndex, focus: focus)
